@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
@@ -30,13 +31,13 @@ type RunResult struct {
 func Run(ctx context.Context, loaded *project.LoadedProject, input RunInput) (*RunResult, error) {
 	plan, err := compiler.Compile(loaded)
 	if err != nil {
-		return nil, err
+		return nil, apperror.Wrap(apperror.CodeValidation, err)
 	}
 
 	pythonExe := resolvePython(loaded.Root, loaded.Project.Environment)
 	client, err := pythonworker.Start(ctx, pythonExe, loaded.Root)
 	if err != nil {
-		return nil, err
+		return nil, apperror.Wrap(apperror.CodePythonWorker, err)
 	}
 	defer client.Close()
 
@@ -49,17 +50,17 @@ func Run(ctx context.Context, loaded *project.LoadedProject, input RunInput) (*R
 			component.Parameters = map[string]any{}
 		}
 		if component.Kind != "user_python" {
-			return nil, fmt.Errorf("component %s kind %q is not supported by the MVP runner", component.ID, component.Kind)
+			return nil, apperror.Errorf(apperror.CodeValidation, "component %s kind %q is not supported by the MVP runner", component.ID, component.Kind)
 		}
 		if component.Class == "" {
-			return nil, fmt.Errorf("component %s kind user_python requires class", component.ID)
+			return nil, apperror.Errorf(apperror.CodeValidation, "component %s kind user_python requires class", component.ID)
 		}
 		if err := client.LoadComponent(component.ID, component.Class, loaded.Root); err != nil {
-			return nil, fmt.Errorf("load component %s: %w", component.ID, err)
+			return nil, apperror.Wrap(apperror.CodePythonWorker, fmt.Errorf("load component %s: %w", component.ID, err))
 		}
 		state, err := client.InitializeComponent(component.ID, component.Parameters, input.Context)
 		if err != nil {
-			return nil, fmt.Errorf("initialize component %s: %w", component.ID, err)
+			return nil, apperror.Wrap(apperror.CodePythonWorker, fmt.Errorf("initialize component %s: %w", component.ID, err))
 		}
 		if state == nil {
 			state = map[string]any{}
@@ -82,7 +83,7 @@ func Run(ctx context.Context, loaded *project.LoadedProject, input RunInput) (*R
 			input.Context,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("evaluate component %s: %w", component.ID, err)
+			return nil, apperror.Wrap(apperror.CodePythonWorker, fmt.Errorf("evaluate component %s: %w", component.ID, err))
 		}
 		if outputs == nil {
 			outputs = map[string]any{}
@@ -102,7 +103,7 @@ func Run(ctx context.Context, loaded *project.LoadedProject, input RunInput) (*R
 		componentValues := componentOutputs[output.Component]
 		value, ok := componentValues[output.Node]
 		if !ok {
-			return nil, fmt.Errorf("public output %s could not read %s.%s", output.ID, output.Component, output.Node)
+			return nil, apperror.Errorf(apperror.CodeRuntime, "public output %s could not read %s.%s", output.ID, output.Component, output.Node)
 		}
 		publicOutputs[output.ID] = value
 	}
@@ -120,11 +121,11 @@ func Run(ctx context.Context, loaded *project.LoadedProject, input RunInput) (*R
 func LoadInput(inputPath string) (RunInput, error) {
 	inputBytes, err := os.ReadFile(inputPath)
 	if err != nil {
-		return RunInput{}, err
+		return RunInput{}, apperror.Wrap(apperror.CodeInput, err)
 	}
 	var structured RunInput
 	if err := json.Unmarshal(inputBytes, &structured); err != nil {
-		return RunInput{}, err
+		return RunInput{}, apperror.Wrap(apperror.CodeInput, err)
 	}
 	if structured.Inputs != nil {
 		if structured.Context == nil {
@@ -135,7 +136,7 @@ func LoadInput(inputPath string) (RunInput, error) {
 
 	var plain map[string]any
 	if err := json.Unmarshal(inputBytes, &plain); err != nil {
-		return RunInput{}, err
+		return RunInput{}, apperror.Wrap(apperror.CodeInput, err)
 	}
 	return RunInput{Inputs: plain, Context: map[string]any{}}, nil
 }
@@ -168,7 +169,7 @@ func collectInputs(component model.Component, plan *compiler.Plan, publicInputs 
 			sourceOutputs := componentOutputs[connection.From.Component]
 			value, exists := sourceOutputs[connection.From.Node]
 			if !exists {
-				return nil, fmt.Errorf("connection %s source output is missing: %s.%s", connection.ID, connection.From.Component, connection.From.Node)
+				return nil, apperror.Errorf(apperror.CodeRuntime, "connection %s source output is missing: %s.%s", connection.ID, connection.From.Component, connection.From.Node)
 			}
 			inputs[node.ID] = value
 			continue
@@ -185,7 +186,7 @@ func collectInputs(component model.Component, plan *compiler.Plan, publicInputs 
 				continue
 			}
 			if publicInput.IsRequired() {
-				return nil, fmt.Errorf("missing required public input: %s", publicInput.ID)
+				return nil, apperror.Errorf(apperror.CodeInput, "missing required public input: %s", publicInput.ID)
 			}
 			continue
 		}
@@ -195,7 +196,7 @@ func collectInputs(component model.Component, plan *compiler.Plan, publicInputs 
 			continue
 		}
 		if node.IsRequired() {
-			return nil, fmt.Errorf("component %s missing required input node: %s", component.ID, node.ID)
+			return nil, apperror.Errorf(apperror.CodeValidation, "component %s missing required input node: %s", component.ID, node.ID)
 		}
 	}
 
@@ -205,7 +206,7 @@ func collectInputs(component model.Component, plan *compiler.Plan, publicInputs 
 func validateOutputs(component model.Component, outputs map[string]any) error {
 	for _, node := range component.Nodes.Outputs {
 		if _, ok := outputs[node.ID]; !ok {
-			return fmt.Errorf("component %s did not return declared output node: %s", component.ID, node.ID)
+			return apperror.Errorf(apperror.CodePythonWorker, "component %s did not return declared output node: %s", component.ID, node.ID)
 		}
 	}
 	return nil

@@ -79,6 +79,19 @@ permissions:
 - Package filenames omit the leading `v`.
 - Untagged local packages use `0.1.0-dev-<shortsha>` unless a version is passed explicitly.
 
+## Runtime Exit Codes
+
+The runner uses stable exit code categories for external engines:
+
+```text
+0 = success
+1 = validation error
+2 = runtime error
+3 = input schema/error
+4 = Python worker error
+5 = license/runtime error
+```
+
 ## Release Checklist
 
 - Update `CHANGELOG.md`.

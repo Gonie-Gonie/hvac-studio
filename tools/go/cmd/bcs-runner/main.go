@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
 	runtimecore "github.com/goniegonie/hvac-studio/tools/go/internal/runtime"
@@ -14,8 +15,9 @@ import (
 
 func main() {
 	if err := run(os.Args); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
+		code := apperror.ExitCode(err)
+		fmt.Fprintf(os.Stderr, "error[%s]: %v\n", apperror.CodeName(apperror.Code(code)), err)
+		os.Exit(code)
 	}
 }
 
@@ -38,19 +40,19 @@ func validate(args []string) error {
 	flags := flag.NewFlagSet("validate", flag.ContinueOnError)
 	projectPath := flags.String("project", "", "path to project.bcsproj")
 	if err := flags.Parse(args); err != nil {
-		return err
+		return apperror.Wrap(apperror.CodeValidation, err)
 	}
 	if *projectPath == "" {
-		return fmt.Errorf("--project is required")
+		return apperror.Errorf(apperror.CodeValidation, "--project is required")
 	}
 
 	loaded, err := project.Load(*projectPath)
 	if err != nil {
-		return err
+		return apperror.Wrap(apperror.CodeValidation, err)
 	}
 	plan, err := compiler.Compile(loaded)
 	if err != nil {
-		return err
+		return apperror.Wrap(apperror.CodeValidation, err)
 	}
 	fmt.Printf("validation ok: project=%s entry_system=%s components=%d connections=%d\n",
 		loaded.Project.ProjectName,
@@ -67,15 +69,15 @@ func runProject(args []string) error {
 	inputPath := flags.String("input", "", "path to input JSON")
 	outputPath := flags.String("output", "", "path to output JSON")
 	if err := flags.Parse(args); err != nil {
-		return err
+		return apperror.Wrap(apperror.CodeValidation, err)
 	}
 	if *projectPath == "" {
-		return fmt.Errorf("--project is required")
+		return apperror.Errorf(apperror.CodeValidation, "--project is required")
 	}
 
 	loaded, err := project.Load(*projectPath)
 	if err != nil {
-		return err
+		return apperror.Wrap(apperror.CodeValidation, err)
 	}
 
 	resolvedInput := *inputPath
@@ -83,17 +85,17 @@ func runProject(args []string) error {
 		resolvedInput = loaded.Project.DefaultInput
 	}
 	if resolvedInput == "" {
-		return fmt.Errorf("--input is required when project.default_input is empty")
+		return apperror.Errorf(apperror.CodeInput, "--input is required when project.default_input is empty")
 	}
 
 	input, err := runtimecore.LoadInput(resolveProjectPath(loaded.Root, resolvedInput))
 	if err != nil {
-		return err
+		return apperror.Wrap(apperror.CodeInput, err)
 	}
 
 	result, err := runtimecore.Run(context.Background(), loaded, input)
 	if err != nil {
-		return err
+		return apperror.Wrap(apperror.CodeRuntime, err)
 	}
 
 	resolvedOutput := *outputPath
@@ -103,7 +105,7 @@ func runProject(args []string) error {
 	if resolvedOutput != "" {
 		resolvedOutput = resolveProjectPath(loaded.Root, resolvedOutput)
 	}
-	return runtimecore.WriteResult(resolvedOutput, result)
+	return apperror.Wrap(apperror.CodeRuntime, runtimecore.WriteResult(resolvedOutput, result))
 }
 
 func resolveProjectPath(projectRoot string, path string) string {
@@ -117,5 +119,5 @@ func resolveProjectPath(projectRoot string, path string) string {
 }
 
 func usage() error {
-	return fmt.Errorf("usage: bcs-runner <validate|run> --project project.bcsproj")
+	return apperror.Errorf(apperror.CodeValidation, "usage: bcs-runner <validate|run> --project project.bcsproj")
 }

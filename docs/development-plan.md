@@ -86,7 +86,7 @@ Acceptance criteria:
 - Invalid graph cases have golden validation errors.
 - Algebraic loop detection reports the involved components.
 - Missing public inputs and missing declared outputs fail with actionable messages.
-- CLI errors return documented exit codes.
+- CLI errors return documented exit codes. Started in code with typed runner errors for validation, input, runtime, Python worker, and license/runtime categories.
 
 ## Milestone 2: Component Authoring Model
 
