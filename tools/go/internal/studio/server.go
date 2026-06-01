@@ -61,6 +61,12 @@ type createProjectRequest struct {
 	Template string `json:"template"`
 }
 
+type createComponentRequest struct {
+	ProjectPath string `json:"project_path"`
+	Name        string `json:"name"`
+	Template    string `json:"template"`
+}
+
 type updateParametersRequest struct {
 	ProjectPath string                    `json:"project_path"`
 	Parameters  map[string]map[string]any `json:"parameters"`
@@ -121,6 +127,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("GET /api/projects", s.handleProjects)
 	s.mux.HandleFunc("POST /api/projects", s.handleCreateProject)
 	s.mux.HandleFunc("GET /api/project", s.handleProject)
+	s.mux.HandleFunc("POST /api/project/components", s.handleCreateComponent)
 	s.mux.HandleFunc("POST /api/project/input", s.handleUpdateInput)
 	s.mux.HandleFunc("POST /api/project/parameters", s.handleUpdateParameters)
 	s.mux.HandleFunc("POST /api/validate", s.handleValidate)
@@ -154,6 +161,34 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "project": summary})
+}
+
+func (s *Server) handleCreateComponent(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeCreateComponentRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	component, err := createComponent(loaded, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "component": component, "project": projectDetail(reloaded)})
 }
 
 func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
@@ -528,6 +563,65 @@ func (s *Server) createProject(req createProjectRequest) (ProjectSummary, error)
 	}, nil
 }
 
+func createComponent(loaded *project.LoadedProject, req createComponentRequest) (model.Component, error) {
+	componentName := strings.TrimSpace(req.Name)
+	if componentName == "" {
+		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "component name is required")
+	}
+	template := req.Template
+	if template == "" {
+		template = "scalar"
+	}
+	if template != "scalar" {
+		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "unsupported component template: %s", template)
+	}
+
+	componentID := uniqueComponentID(loaded.Graph, strings.ReplaceAll(slugify(componentName), "-", "_"))
+	if componentID == "" {
+		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "component name must contain letters or numbers")
+	}
+	className := pythonClassName(componentID)
+	required := true
+	component := model.Component{
+		ID:    componentID,
+		Name:  componentName,
+		Kind:  "user_python",
+		Class: "components." + componentID + "." + className,
+		Nodes: model.NodeSet{
+			Inputs: []model.Node{
+				{ID: "value", Name: "Value", Direction: "inlet", Medium: "signal", ValueType: "float", Unit: "", Required: &required},
+			},
+			Outputs: []model.Node{
+				{ID: "result", Name: "Result", Direction: "outlet", Medium: "signal", ValueType: "float", Unit: ""},
+			},
+		},
+		Parameters: map[string]any{"gain": 1.0},
+	}
+
+	componentsRoot := filepath.Join(loaded.Root, "components")
+	if err := os.MkdirAll(componentsRoot, 0o755); err != nil {
+		return model.Component{}, err
+	}
+	initPath := filepath.Join(componentsRoot, "__init__.py")
+	if _, err := os.Stat(initPath); os.IsNotExist(err) {
+		if err := os.WriteFile(initPath, []byte(""), 0o644); err != nil {
+			return model.Component{}, err
+		}
+	}
+	sourcePath := filepath.Join(componentsRoot, componentID+".py")
+	if _, err := os.Stat(sourcePath); err == nil {
+		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "component source already exists: components/%s.py", componentID)
+	}
+	if err := os.WriteFile(sourcePath, []byte(componentSource(className)), 0o644); err != nil {
+		return model.Component{}, err
+	}
+	loaded.Graph.Components = append(loaded.Graph.Components, component)
+	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
+		return model.Component{}, err
+	}
+	return component, nil
+}
+
 func (s *Server) resolveProjectPath(projectPath string) (string, error) {
 	if projectPath == "" {
 		return "", apperror.Errorf(apperror.CodeValidation, "project_path is required")
@@ -574,6 +668,15 @@ func (s *Server) ensureWorkspaceProject(projectRoot string) error {
 func decodeCreateProjectRequest(r *http.Request) (createProjectRequest, error) {
 	defer r.Body.Close()
 	var req createProjectRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeCreateComponentRequest(r *http.Request) (createComponentRequest, error) {
+	defer r.Body.Close()
+	var req createComponentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}
@@ -750,6 +853,64 @@ func slugify(value string) string {
 		}
 	}
 	return strings.Trim(b.String(), "-")
+}
+
+func uniqueComponentID(graph *model.Graph, base string) string {
+	base = strings.Trim(base, "_")
+	if base == "" {
+		return ""
+	}
+	exists := map[string]bool{}
+	for _, component := range graph.Components {
+		exists[component.ID] = true
+	}
+	candidate := base
+	for index := 2; exists[candidate]; index++ {
+		candidate = fmt.Sprintf("%s_%d", base, index)
+	}
+	return candidate
+}
+
+func pythonClassName(componentID string) string {
+	var b strings.Builder
+	capitalizeNext := true
+	for _, r := range componentID {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			if b.Len() == 0 && unicode.IsDigit(r) {
+				b.WriteRune('C')
+			}
+			if capitalizeNext {
+				b.WriteRune(unicode.ToUpper(r))
+				capitalizeNext = false
+			} else {
+				b.WriteRune(r)
+			}
+			continue
+		}
+		capitalizeNext = true
+	}
+	if b.Len() == 0 {
+		return "UserComponent"
+	}
+	b.WriteString("Component")
+	return b.String()
+}
+
+func componentSource(className string) string {
+	return fmt.Sprintf(`class %s:
+    input_nodes = {}
+    output_nodes = {}
+    parameter_schema = {}
+    state_schema = {}
+
+    def initialize(self, params, context):
+        return {}
+
+    def evaluate(self, inputs, state, params, context):
+        value = float(inputs["value"])
+        gain = float(params.get("gain", 1.0))
+        return {"result": value * gain}, state
+`, className)
 }
 
 const scalarComponentSource = `class ScalarComponent:

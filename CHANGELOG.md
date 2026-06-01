@@ -18,3 +18,4 @@
 - Add Studio workspace project creation and saved run records.
 - Add Studio workspace parameter editing backed by `graph.json` and portable smoke coverage for changed run results.
 - Add Studio default input loading/saving so GUI runs can use persisted project input files.
+- Add Studio workspace component creation for scalar Python component templates.

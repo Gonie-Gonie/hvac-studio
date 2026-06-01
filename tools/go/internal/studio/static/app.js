@@ -492,6 +492,30 @@ async function createProject() {
   }
 }
 
+async function createComponent() {
+  if (!isWorkspaceProject()) {
+    log("Only workspace projects can be edited");
+    return;
+  }
+  const name = window.prompt("Component name", "New Scalar Component");
+  if (!name || !name.trim()) return;
+  try {
+    const body = await api("/api/project/components", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath, name: name.trim(), template: "scalar" }),
+    });
+    state.detail = body.project;
+    state.selectedComponentId = body.component.id;
+    renderAll();
+    log(`Component created: ${body.component.id}`);
+  } catch (error) {
+    log(`Create component failed: ${error.message}`);
+    state.latestValidation = { error: error.message };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
 function currentSystem() {
   const detail = state.detail;
   if (!detail) return null;
@@ -612,6 +636,7 @@ function updateCommandState() {
   el("runButton").disabled = !hasProject;
   el("schemaButton").disabled = !hasProject;
   el("saveProjectButton").disabled = !hasProject || !isWorkspaceProject();
+  el("addComponentButton").disabled = !hasProject || !isWorkspaceProject();
 }
 
 function markProjectDirty() {
@@ -637,6 +662,7 @@ function escapeAttr(value) {
 function bindEvents() {
   el("projectSelect").addEventListener("change", (event) => loadProject(event.target.value));
   el("newProjectButton").addEventListener("click", createProject);
+  el("addComponentButton").addEventListener("click", createComponent);
   el("saveProjectButton").addEventListener("click", saveProjectEdits);
   el("validateButton").addEventListener("click", validateProject);
   el("runButton").addEventListener("click", runProject);

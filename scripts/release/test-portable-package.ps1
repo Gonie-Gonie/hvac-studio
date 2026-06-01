@@ -120,6 +120,14 @@ try {
     throw "created project file was not written: $($CreatedProject.project_path)"
   }
 
+  $ComponentBody = @{ project_path = $CreatedProject.project_path; name = 'Portable Extra Component'; template = 'scalar' } | ConvertTo-Json -Depth 4
+  $ComponentResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/components" -Method POST -ContentType 'application/json' -Body $ComponentBody -TimeoutSec 20
+  $CreatedComponent = ($ComponentResponse.Content | ConvertFrom-Json).component
+  $ComponentSourcePath = Join-Path (Split-Path -Parent $CreatedProject.project_path) "components\$($CreatedComponent.id).py"
+  if (-not (Test-Path -LiteralPath $ComponentSourcePath)) {
+    throw "created component source was not written: $ComponentSourcePath"
+  }
+
   $ParameterBody = @{
     project_path = $CreatedProject.project_path
     parameters = @{

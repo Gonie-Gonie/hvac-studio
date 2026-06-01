@@ -87,6 +87,89 @@ func TestCreateProjectEndpointCreatesWorkspaceProject(t *testing.T) {
 	}
 }
 
+func TestCreateComponentEndpointCreatesWorkspaceComponent(t *testing.T) {
+	root := t.TempDir()
+	server, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Component Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"name":         "Second Gain",
+		"template":     "scalar",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	componentResponse := httptest.NewRecorder()
+	componentRequest := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(componentResponse, componentRequest)
+
+	if componentResponse.Code != http.StatusCreated {
+		t.Fatalf("component status = %d body=%s", componentResponse.Code, componentResponse.Body.String())
+	}
+	var componentBody struct {
+		Component model.Component `json:"component"`
+	}
+	if err := json.Unmarshal(componentResponse.Body.Bytes(), &componentBody); err != nil {
+		t.Fatal(err)
+	}
+	if componentBody.Component.ID != "second_gain" {
+		t.Fatalf("component id = %s, want second_gain", componentBody.Component.ID)
+	}
+	if _, err := os.Stat(filepath.Join(root, "projects", "component-project", "components", "second_gain.py")); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, component := range loaded.Graph.Components {
+		if component.ID == "second_gain" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("created component was not written to graph")
+	}
+	for _, componentID := range loaded.Graph.Systems[0].Components {
+		if componentID == "second_gain" {
+			t.Fatal("new component should not be added to the runnable system yet")
+		}
+	}
+}
+
+func TestCreateComponentEndpointRejectsExamples(t *testing.T) {
+	server := newTestServer(t)
+	payload := []byte(`{
+		"project_path": "examples/001_scalar_component/project.bcsproj",
+		"name": "Example Edit"
+	}`)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+}
+
 func TestUpdateParametersEndpointWritesWorkspaceGraph(t *testing.T) {
 	root := t.TempDir()
 	server, err := New(root)
