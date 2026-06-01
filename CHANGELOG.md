@@ -36,3 +36,4 @@
 - Add Studio workspace component node creation with public IO/default input updates.
 - Add project copy support so examples can become editable workspace projects.
 - Add Studio system component removal while preserving component source artifacts.
+- Add scenario batch runs with saved batch records and Studio reopening support.

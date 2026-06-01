@@ -47,6 +47,7 @@ type ProjectDetail struct {
 	DefaultRunInput  *runtimecore.RunInput `json:"default_run_input"`
 	Root             string                `json:"root"`
 	Runs             []RunSummary          `json:"runs"`
+	Batches          []BatchSummary        `json:"batches"`
 	Exports          []ExportSummary       `json:"exports"`
 	Scenarios        []ScenarioSummary     `json:"scenarios"`
 }
@@ -153,6 +154,31 @@ type RunRecord struct {
 	Result       *runtimecore.RunResult `json:"result"`
 }
 
+type BatchSummary struct {
+	ID           string `json:"id"`
+	RelativePath string `json:"relative_path"`
+	CreatedAtUTC string `json:"created_at_utc"`
+	CaseCount    int    `json:"case_count"`
+	OKCount      int    `json:"ok_count"`
+}
+
+type BatchCaseRecord struct {
+	ScenarioID   string                 `json:"scenario_id"`
+	ScenarioName string                 `json:"scenario_name"`
+	OK           bool                   `json:"ok"`
+	Inputs       map[string]any         `json:"inputs"`
+	Context      map[string]any         `json:"context"`
+	Result       *runtimecore.RunResult `json:"result,omitempty"`
+	Error        string                 `json:"error,omitempty"`
+}
+
+type BatchRecord struct {
+	ID           string            `json:"id"`
+	ProjectName  string            `json:"project_name"`
+	CreatedAtUTC string            `json:"created_at_utc"`
+	Cases        []BatchCaseRecord `json:"cases"`
+}
+
 type ScenarioSummary struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
@@ -240,6 +266,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/projects/copy", s.handleCopyProject)
 	s.mux.HandleFunc("GET /api/project", s.handleProject)
 	s.mux.HandleFunc("GET /api/project/run", s.handleRunRecord)
+	s.mux.HandleFunc("GET /api/project/batch", s.handleBatchRecord)
 	s.mux.HandleFunc("GET /api/project/scenario", s.handleScenarioRecord)
 	s.mux.HandleFunc("GET /api/project/source", s.handleSource)
 	s.mux.HandleFunc("POST /api/project/components", s.handleCreateComponent)
@@ -254,6 +281,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/project/scenarios", s.handleCreateScenario)
 	s.mux.HandleFunc("POST /api/validate", s.handleValidate)
 	s.mux.HandleFunc("POST /api/run", s.handleRun)
+	s.mux.HandleFunc("POST /api/batch", s.handleBatch)
 	s.mux.HandleFunc("POST /api/schema", s.handleSchema)
 	s.mux.HandleFunc("POST /api/export", s.handleExport)
 	s.mux.Handle("/", staticHandler)
@@ -317,6 +345,25 @@ func (s *Server) handleRunRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "run_record": record})
+}
+
+func (s *Server) handleBatchRecord(w http.ResponseWriter, r *http.Request) {
+	projectPath, err := s.resolveProjectPath(r.URL.Query().Get("project_path"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := project.Load(projectPath)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	record, err := loadBatchRecord(loaded.Root, r.URL.Query().Get("batch_id"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "batch_record": record})
 }
 
 func (s *Server) handleScenarioRecord(w http.ResponseWriter, r *http.Request) {
@@ -768,6 +815,63 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
+func (s *Server) handleBatch(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	scenarios := loadScenarioSummaries(loaded.Root)
+	if len(scenarios) == 0 {
+		writeError(w, apperror.Errorf(apperror.CodeValidation, "batch requires at least one saved scenario"))
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(len(scenarios))*30*time.Second)
+	defer cancel()
+	cases := make([]BatchCaseRecord, 0, len(scenarios))
+	for index := len(scenarios) - 1; index >= 0; index-- {
+		scenario, err := loadScenarioRecord(loaded.Root, scenarios[index].ID)
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		input := runtimecore.RunInput{Inputs: scenario.Inputs, Context: scenario.Context}
+		if input.Context == nil {
+			input.Context = map[string]any{}
+		}
+		caseRecord := BatchCaseRecord{
+			ScenarioID:   scenario.ID,
+			ScenarioName: scenario.Name,
+			Inputs:       input.Inputs,
+			Context:      input.Context,
+		}
+		result, err := runtimecore.Run(ctx, loaded, input)
+		if err != nil {
+			caseRecord.Error = err.Error()
+		} else {
+			caseRecord.OK = true
+			caseRecord.Result = result
+		}
+		cases = append(cases, caseRecord)
+	}
+	summary, record, err := writeBatchRecord(loaded, cases)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeRuntime, err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "summary": summary, "batch": record})
+}
+
 func (s *Server) handleSchema(w http.ResponseWriter, r *http.Request) {
 	req, err := decodeRequest(r)
 	if err != nil {
@@ -830,6 +934,7 @@ func projectDetail(loaded *project.LoadedProject) ProjectDetail {
 		GraphPath:   loaded.GraphPath,
 		Root:        loaded.Root,
 		Runs:        loadRunSummaries(loaded.Root),
+		Batches:     loadBatchSummaries(loaded.Root),
 		Exports:     loadExportSummaries(loaded.Root),
 		Scenarios:   loadScenarioSummaries(loaded.Root),
 	}
@@ -1909,6 +2014,95 @@ func loadRunRecord(projectRoot string, runID string) (RunRecord, error) {
 		return RunRecord{}, apperror.Wrap(apperror.CodeValidation, err)
 	}
 	return record, nil
+}
+
+func writeBatchRecord(loaded *project.LoadedProject, cases []BatchCaseRecord) (BatchSummary, BatchRecord, error) {
+	now := time.Now().UTC()
+	batchID := "batch-" + now.Format("20060102-150405.000000000")
+	runsRoot := filepath.Join(loaded.Root, "runs")
+	if err := os.MkdirAll(runsRoot, 0o755); err != nil {
+		return BatchSummary{}, BatchRecord{}, err
+	}
+	batchPath := filepath.Join(runsRoot, batchID+".json")
+	record := BatchRecord{
+		ID:           batchID,
+		ProjectName:  loaded.Project.ProjectName,
+		CreatedAtUTC: now.Format(time.RFC3339Nano),
+		Cases:        cases,
+	}
+	if err := writeJSONFile(batchPath, record); err != nil {
+		return BatchSummary{}, BatchRecord{}, err
+	}
+	rel, _ := filepath.Rel(loaded.Root, batchPath)
+	return BatchSummary{
+		ID:           batchID,
+		RelativePath: filepath.ToSlash(rel),
+		CreatedAtUTC: record.CreatedAtUTC,
+		CaseCount:    len(cases),
+		OKCount:      batchOKCount(cases),
+	}, record, nil
+}
+
+func loadBatchSummaries(projectRoot string) []BatchSummary {
+	batchFiles, err := filepath.Glob(filepath.Join(projectRoot, "runs", "batch-*.json"))
+	if err != nil {
+		return []BatchSummary{}
+	}
+	summaries := []BatchSummary{}
+	for _, batchPath := range batchFiles {
+		batchBytes, err := os.ReadFile(batchPath)
+		if err != nil {
+			continue
+		}
+		var record BatchRecord
+		if err := json.Unmarshal(batchBytes, &record); err != nil {
+			continue
+		}
+		rel, _ := filepath.Rel(projectRoot, batchPath)
+		summaries = append(summaries, BatchSummary{
+			ID:           record.ID,
+			RelativePath: filepath.ToSlash(rel),
+			CreatedAtUTC: record.CreatedAtUTC,
+			CaseCount:    len(record.Cases),
+			OKCount:      batchOKCount(record.Cases),
+		})
+	}
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i].CreatedAtUTC > summaries[j].CreatedAtUTC
+	})
+	return summaries
+}
+
+func loadBatchRecord(projectRoot string, batchID string) (BatchRecord, error) {
+	if batchID == "" {
+		return BatchRecord{}, apperror.Errorf(apperror.CodeValidation, "batch_id is required")
+	}
+	if filepath.Base(batchID) != batchID || strings.ContainsAny(batchID, `/\`) {
+		return BatchRecord{}, apperror.Errorf(apperror.CodeValidation, "batch_id must be a batch record id")
+	}
+	batchPath, err := resolveProjectOwnedFile(projectRoot, filepath.Join("runs", batchID+".json"))
+	if err != nil {
+		return BatchRecord{}, err
+	}
+	batchBytes, err := os.ReadFile(batchPath)
+	if err != nil {
+		return BatchRecord{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	var record BatchRecord
+	if err := json.Unmarshal(batchBytes, &record); err != nil {
+		return BatchRecord{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	return record, nil
+}
+
+func batchOKCount(cases []BatchCaseRecord) int {
+	count := 0
+	for _, item := range cases {
+		if item.OK {
+			count++
+		}
+	}
+	return count
 }
 
 func writeScenarioRecord(loaded *project.LoadedProject, req createScenarioRequest) (ScenarioSummary, ScenarioRecord, error) {

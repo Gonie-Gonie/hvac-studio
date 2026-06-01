@@ -1260,6 +1260,94 @@ func TestScenarioEndpointReturnsSavedScenario(t *testing.T) {
 	}
 }
 
+func TestBatchEndpointRunsSavedScenarios(t *testing.T) {
+	root := t.TempDir()
+	server, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Batch Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, scenario := range []struct {
+		name  string
+		value float64
+	}{
+		{name: "Low", value: 2},
+		{name: "High", value: 3},
+	} {
+		payload, err := json.Marshal(map[string]any{
+			"project_path": createBody.Project.ProjectPath,
+			"name":         scenario.name,
+			"inputs":       map[string]any{"value": scenario.value},
+			"context":      map[string]any{"time": 0, "dt": 60},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		response := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPost, "/api/project/scenarios", bytes.NewReader(payload))
+		server.Handler().ServeHTTP(response, request)
+		if response.Code != http.StatusCreated {
+			t.Fatalf("scenario status = %d body=%s", response.Code, response.Body.String())
+		}
+	}
+
+	batchPayload, err := json.Marshal(map[string]any{"project_path": createBody.Project.ProjectPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	batchResponse := httptest.NewRecorder()
+	batchRequest := httptest.NewRequest(http.MethodPost, "/api/batch", bytes.NewReader(batchPayload))
+	server.Handler().ServeHTTP(batchResponse, batchRequest)
+	if batchResponse.Code != http.StatusOK {
+		t.Fatalf("batch status = %d body=%s", batchResponse.Code, batchResponse.Body.String())
+	}
+	var batchBody struct {
+		Summary BatchSummary `json:"summary"`
+		Batch   BatchRecord  `json:"batch"`
+	}
+	if err := json.Unmarshal(batchResponse.Body.Bytes(), &batchBody); err != nil {
+		t.Fatal(err)
+	}
+	if batchBody.Summary.CaseCount != 2 || batchBody.Summary.OKCount != 2 {
+		t.Fatalf("batch counts = %d/%d, want 2/2", batchBody.Summary.OKCount, batchBody.Summary.CaseCount)
+	}
+	if len(batchBody.Batch.Cases) != 2 {
+		t.Fatalf("case count = %d, want 2", len(batchBody.Batch.Cases))
+	}
+	if got := batchBody.Batch.Cases[0].Result.Outputs["result"]; got != 4.0 {
+		t.Fatalf("first output = %v, want 4", got)
+	}
+	if got := batchBody.Batch.Cases[1].Result.Outputs["result"]; got != 6.0 {
+		t.Fatalf("second output = %v, want 6", got)
+	}
+	if _, err := os.Stat(filepath.Join(root, "projects", "batch-project", batchBody.Summary.RelativePath)); err != nil {
+		t.Fatal(err)
+	}
+
+	recordResponse := httptest.NewRecorder()
+	recordRequest := httptest.NewRequest(
+		http.MethodGet,
+		"/api/project/batch?project_path="+url.QueryEscape(createBody.Project.ProjectPath)+"&batch_id="+url.QueryEscape(batchBody.Summary.ID),
+		nil,
+	)
+	server.Handler().ServeHTTP(recordResponse, recordRequest)
+	if recordResponse.Code != http.StatusOK {
+		t.Fatalf("batch record status = %d body=%s", recordResponse.Code, recordResponse.Body.String())
+	}
+}
+
 func TestCreateScenarioEndpointRejectsExamples(t *testing.T) {
 	server := newTestServer(t)
 	payload := []byte(`{
@@ -1269,6 +1357,19 @@ func TestCreateScenarioEndpointRejectsExamples(t *testing.T) {
 	}`)
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/api/project/scenarios", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestBatchEndpointRejectsExamples(t *testing.T) {
+	server := newTestServer(t)
+	payload := []byte(`{"project_path":"examples/001_scalar_component/project.bcsproj"}`)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/batch", bytes.NewReader(payload))
 
 	server.Handler().ServeHTTP(response, request)
 

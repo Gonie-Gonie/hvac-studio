@@ -5,6 +5,7 @@ const state = {
   selectedComponentId: "",
   latestResult: null,
   latestRunRecord: null,
+  latestBatchRecord: null,
   latestExport: null,
   latestSchema: null,
   latestValidation: null,
@@ -61,6 +62,7 @@ async function loadProject(projectPath) {
   state.selectedComponentId = "";
   state.latestResult = null;
   state.latestRunRecord = null;
+  state.latestBatchRecord = null;
   state.latestExport = null;
   state.latestSchema = null;
   state.latestValidation = null;
@@ -108,6 +110,7 @@ function renderProjectTree() {
     ["Datasets", []],
     ["Parameter Sets", [treeStatic("default", "active")]],
     ["Runs", (state.detail.runs || []).map((item) => runTreeItem(item))],
+    ["Batches", (state.detail.batches || []).map((item) => batchTreeItem(item))],
     ["Scenarios", (state.detail.scenarios || []).map((item) => scenarioTreeItem(item))],
     ["Export Profiles", exportTreeItems()],
   ];
@@ -154,6 +157,12 @@ function treeStatic(label, meta) {
 function runTreeItem(run) {
   const row = treeStatic(run.id, run.relative_path);
   row.addEventListener("click", () => loadRunRecord(run.id));
+  return row;
+}
+
+function batchTreeItem(batch) {
+  const row = treeStatic(batch.id, `${batch.ok_count}/${batch.case_count} ok`);
+  row.addEventListener("click", () => loadBatchRecord(batch.id));
   return row;
 }
 
@@ -600,7 +609,7 @@ function renderLogs() {
 }
 
 function renderResults() {
-  const value = state.latestRunRecord || state.latestResult;
+  const value = state.latestBatchRecord || state.latestRunRecord || state.latestResult;
   el("resultsPanel").textContent = value ? JSON.stringify(value, null, 2) : "";
 }
 
@@ -661,6 +670,7 @@ async function runProject() {
     });
     state.latestResult = body.result;
     state.latestRunRecord = null;
+    state.latestBatchRecord = null;
     if (body.run_record) {
       state.detail.runs = [body.run_record, ...(state.detail.runs || [])];
       log(`Run saved: ${body.run_record.relative_path}`);
@@ -677,6 +687,29 @@ async function runProject() {
   renderInspector();
   renderProblems();
   renderResults();
+}
+
+async function runBatch() {
+  if (!(await saveModelEditsBeforeExecution())) return;
+  try {
+    const body = await api("/api/batch", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath }),
+    });
+    state.latestBatchRecord = body.batch;
+    state.latestRunRecord = null;
+    state.latestResult = null;
+    state.detail.batches = [body.summary, ...(state.detail.batches || [])];
+    renderProjectTree();
+    renderResults();
+    setBottomTab("results");
+    log(`Batch saved: ${body.summary.relative_path}`);
+  } catch (error) {
+    log(`Batch failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
 }
 
 async function saveModelEditsBeforeExecution() {
@@ -712,6 +745,7 @@ async function loadRunRecord(runID) {
   try {
     const body = await api(`/api/project/run?project_path=${encodeURIComponent(state.currentProjectPath)}&run_id=${encodeURIComponent(runID)}`);
     state.latestRunRecord = body.run_record;
+    state.latestBatchRecord = null;
     state.latestResult = body.run_record.result;
     renderInspector();
     renderResults();
@@ -720,6 +754,23 @@ async function loadRunRecord(runID) {
   } catch (error) {
     log(`Open run failed: ${error.message}`);
     state.latestValidation = { error: error.message };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
+async function loadBatchRecord(batchID) {
+  try {
+    const body = await api(`/api/project/batch?project_path=${encodeURIComponent(state.currentProjectPath)}&batch_id=${encodeURIComponent(batchID)}`);
+    state.latestBatchRecord = body.batch_record;
+    state.latestRunRecord = null;
+    state.latestResult = null;
+    renderResults();
+    setBottomTab("results");
+    log(`Batch opened: ${batchID}`);
+  } catch (error) {
+    log(`Open batch failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderProblems();
     setBottomTab("problems");
   }
@@ -1235,6 +1286,7 @@ function updateCommandState() {
   el("validateButton").disabled = !hasProject;
   el("runButton").disabled = !hasProject;
   el("scenarioButton").disabled = !hasProject || !isWorkspaceProject();
+  el("batchButton").disabled = !hasProject || !isWorkspaceProject();
   el("schemaButton").disabled = !hasProject;
   el("exportButton").disabled = !hasProject || !isWorkspaceProject();
   el("saveProjectButton").disabled = !hasProject || !isWorkspaceProject();
@@ -1275,6 +1327,7 @@ function bindEvents() {
   el("validateButton").addEventListener("click", validateProject);
   el("runButton").addEventListener("click", runProject);
   el("scenarioButton").addEventListener("click", createScenario);
+  el("batchButton").addEventListener("click", runBatch);
   el("schemaButton").addEventListener("click", exportSchema);
   el("exportButton").addEventListener("click", exportProject);
   el("pythonPanel").addEventListener("input", markProjectDirty);

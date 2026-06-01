@@ -262,6 +262,27 @@ try {
     throw "workspace scenario read mismatch: scalar_bias=$($ScenarioReadJson.scenario.inputs.scalar_bias)"
   }
 
+  $BatchBody = @{
+    project_path = $CreatedProject.project_path
+  } | ConvertTo-Json -Depth 4
+  $BatchResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/batch" -Method POST -ContentType 'application/json' -Body $BatchBody -TimeoutSec 20
+  $BatchJson = $BatchResponse.Content | ConvertFrom-Json
+  if ($BatchJson.summary.case_count -ne 1 -or $BatchJson.summary.ok_count -ne 1) {
+    throw "workspace batch counts mismatch: ok=$($BatchJson.summary.ok_count) cases=$($BatchJson.summary.case_count)"
+  }
+  if ($BatchJson.batch.cases[0].result.outputs.result -ne 21) {
+    throw "workspace batch result mismatch: result=$($BatchJson.batch.cases[0].result.outputs.result)"
+  }
+  $BatchPath = Join-Path (Split-Path -Parent $CreatedProject.project_path) $BatchJson.summary.relative_path
+  if (-not (Test-Path -LiteralPath $BatchPath)) {
+    throw "workspace batch record was not written: $BatchPath"
+  }
+  $BatchReadResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/batch?project_path=$([uri]::EscapeDataString($CreatedProject.project_path))&batch_id=$([uri]::EscapeDataString($BatchJson.summary.id))" -TimeoutSec 20
+  $BatchReadJson = $BatchReadResponse.Content | ConvertFrom-Json
+  if ($BatchReadJson.batch_record.cases[0].result.outputs.result -ne 21) {
+    throw "workspace batch record detail mismatch: result=$($BatchReadJson.batch_record.cases[0].result.outputs.result)"
+  }
+
   $WorkspaceRunBody = @{
     project_path = $CreatedProject.project_path
     save = $true
