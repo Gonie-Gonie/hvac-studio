@@ -412,11 +412,14 @@ function renderParameters() {
   const tbody = el("parameterRows");
   const calibration = el("calibrationRows");
   const optimization = el("optimizationRows");
+  const addForm = el("parameterAddForm");
   tbody.innerHTML = "";
   calibration.innerHTML = "";
   optimization.innerHTML = "";
+  addForm.innerHTML = "";
   const components = state.detail?.graph?.components || [];
   const editable = isWorkspaceProject();
+  renderParameterAddForm(addForm, components, editable);
   let count = 0;
   for (const component of components) {
     for (const [name, value] of Object.entries(component.parameters || {})) {
@@ -431,6 +434,44 @@ function renderParameters() {
     calibration.append(emptyRow(5));
     optimization.append(emptyRow(4));
   }
+}
+
+function renderParameterAddForm(container, components, editable) {
+  if (!editable || !components.length) return;
+  const select = document.createElement("select");
+  select.id = "newParameterComponent";
+  select.setAttribute("aria-label", "Component");
+  for (const component of components) {
+    const option = document.createElement("option");
+    option.value = component.id;
+    option.textContent = component.id;
+    select.append(option);
+  }
+  if (state.selectedComponentId && components.some((component) => component.id === state.selectedComponentId)) {
+    select.value = state.selectedComponentId;
+  }
+
+  const name = document.createElement("input");
+  name.id = "newParameterName";
+  name.placeholder = "name";
+  name.setAttribute("aria-label", "Parameter name");
+
+  const value = document.createElement("input");
+  value.id = "newParameterValue";
+  value.placeholder = "value";
+  value.setAttribute("aria-label", "Parameter value");
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = "Add";
+  button.addEventListener("click", addParameterFromManager);
+
+  for (const input of [name, value]) {
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") addParameterFromManager();
+    });
+  }
+  container.append(select, name, value, button);
 }
 
 function parameterRow(component, name, value, editable) {
@@ -847,6 +888,41 @@ async function createConnectionFromInspector(sourceValue, toComponent, toNode) {
   }
 }
 
+async function addParameterFromManager() {
+  if (!isWorkspaceProject()) return;
+  const componentID = el("newParameterComponent")?.value || "";
+  const name = (el("newParameterName")?.value || "").trim();
+  const value = el("newParameterValue")?.value || "";
+  const component = componentById(componentID);
+  if (!component || !name) {
+    showInlineProblem("Select a component and parameter name");
+    return;
+  }
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+    showInlineProblem("Parameter name must start with a letter or underscore and contain only letters, numbers, and underscores");
+    return;
+  }
+  if (Object.prototype.hasOwnProperty.call(component.parameters || {}, name)) {
+    showInlineProblem(`Parameter already exists: ${componentID}.${name}`);
+    return;
+  }
+  try {
+    const body = await api("/api/project/parameters", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath, parameters: { [componentID]: { [name]: coerceParameter(value) } } }),
+    });
+    state.detail = body.project;
+    state.selectedComponentId = componentID;
+    renderAll();
+    log(`Parameter added: ${componentID}.${name}`);
+  } catch (error) {
+    log(`Add parameter failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
 async function deleteConnectionFromInspector(connectionId) {
   if (!connectionId || !isWorkspaceProject()) return;
   try {
@@ -863,6 +939,13 @@ async function deleteConnectionFromInspector(connectionId) {
     renderProblems();
     setBottomTab("problems");
   }
+}
+
+function showInlineProblem(message) {
+  log(message);
+  state.latestValidation = { error: message, problems: [] };
+  renderProblems();
+  setBottomTab("problems");
 }
 
 function currentSystem() {

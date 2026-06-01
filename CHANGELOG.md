@@ -32,3 +32,4 @@
 - Save workspace parameter/source model edits before Studio run and export actions.
 - Add Studio connection removal with public/default input restoration for workspace systems.
 - Make release package version resolution tolerate untagged development checkouts.
+- Add Parameter Manager controls for creating new workspace component parameters.

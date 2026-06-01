@@ -4,7 +4,9 @@ Parameters are model values used by component logic.
 
 ## Current Studio Behavior
 
-Workspace component parameters can be edited in the Parameter Manager and saved to `graph.json`. Bundled examples are read-only through Studio write APIs.
+Workspace component parameters can be added or edited in the Parameter Manager and saved to `graph.json`. Bundled examples are read-only through Studio write APIs.
+
+Parameter names should be Python-friendly identifiers because component source usually reads them through `params`.
 
 ## Parameter Roles
 
@@ -28,4 +30,3 @@ calibrated_summer_2026
 calibrated_winter_2026
 optimization_result_001
 ```
-

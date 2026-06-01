@@ -396,6 +396,33 @@ h2,
   background: var(--surface-2);
 }
 
+.table-title-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.inline-form {
+  display: grid;
+  grid-template-columns: minmax(110px, 150px) minmax(92px, 120px) minmax(76px, 100px) auto;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.inline-form input,
+.inline-form select {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+}
+
+.inline-form button {
+  height: 28px;
+  padding: 0 10px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -649,6 +676,15 @@ th {
   .system-toolbar,
   .split-workspace.active {
     display: block;
+  }
+
+  .table-title-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .inline-form {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 
   .input-field {

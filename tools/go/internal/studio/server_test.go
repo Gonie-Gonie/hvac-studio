@@ -485,7 +485,7 @@ func TestUpdateParametersEndpointWritesWorkspaceGraph(t *testing.T) {
 	payload, err := json.Marshal(map[string]any{
 		"project_path": createBody.Project.ProjectPath,
 		"parameters": map[string]any{
-			"scalar": map[string]any{"gain": 3.0},
+			"scalar": map[string]any{"gain": 3.0, "offset": 2.0},
 		},
 	})
 	if err != nil {
@@ -505,6 +505,9 @@ func TestUpdateParametersEndpointWritesWorkspaceGraph(t *testing.T) {
 	}
 	if got := loaded.Graph.Components[0].Parameters["gain"]; got != 3.0 {
 		t.Fatalf("gain = %v, want 3", got)
+	}
+	if got := loaded.Graph.Components[0].Parameters["offset"]; got != 2.0 {
+		t.Fatalf("offset = %v, want 2", got)
 	}
 }
 
