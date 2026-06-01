@@ -285,7 +285,7 @@ Debug/inspect outputs:
 
 Acceptance criteria:
 
-- Runner output has enough structured data for the GUI Results and Inspect panels.
+- Runner output has enough structured data for the GUI Results and Inspect panels. Started with `component_inputs`, `component_outputs`, states, context, and execution order in one-case results.
 - Runtime errors preserve component ID, node ID when applicable, and Python traceback/location.
 - Serve mode compiles graph and imports Python components once, then evaluates repeatedly.
 

@@ -22,6 +22,7 @@ type RunInput struct {
 type RunResult struct {
 	OK               bool                      `json:"ok"`
 	Outputs          map[string]any            `json:"outputs"`
+	ComponentInputs  map[string]map[string]any `json:"component_inputs"`
 	ComponentOutputs map[string]map[string]any `json:"component_outputs"`
 	States           map[string]map[string]any `json:"states"`
 	Context          map[string]any            `json:"context"`
@@ -42,6 +43,7 @@ func Run(ctx context.Context, loaded *project.LoadedProject, input RunInput) (*R
 	defer client.Close()
 
 	states := map[string]map[string]any{}
+	componentInputsByID := map[string]map[string]any{}
 	componentOutputs := map[string]map[string]any{}
 
 	for _, componentID := range plan.Order {
@@ -74,6 +76,7 @@ func Run(ctx context.Context, loaded *project.LoadedProject, input RunInput) (*R
 		if err != nil {
 			return nil, err
 		}
+		componentInputsByID[component.ID] = componentInputs
 
 		outputs, nextState, err := client.EvaluateComponent(
 			component.ID,
@@ -111,6 +114,7 @@ func Run(ctx context.Context, loaded *project.LoadedProject, input RunInput) (*R
 	return &RunResult{
 		OK:               true,
 		Outputs:          publicOutputs,
+		ComponentInputs:  componentInputsByID,
 		ComponentOutputs: componentOutputs,
 		States:           states,
 		Context:          input.Context,

@@ -5,6 +5,22 @@
     "chiller_power_kw": 110.0,
     "chw_supply_temp_c": 7.15
   },
+  "component_inputs": {
+    "load_model": {
+      "building_load_kw": 500.0
+    },
+    "controller": {
+      "cooling_load_kw": 550.0,
+      "base_chw_setpoint_c": 7.0
+    },
+    "chiller": {
+      "cooling_load_kw": 550.0,
+      "chw_setpoint_c": 6.95
+    },
+    "aggregator": {
+      "chiller_power_kw": 110.0
+    }
+  },
   "execution_order": [
     "load_model",
     "controller",
@@ -12,4 +28,3 @@
     "aggregator"
   ]
 }
-

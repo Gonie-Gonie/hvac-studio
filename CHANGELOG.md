@@ -11,3 +11,4 @@
 - Add typed runner error categories for documented CLI exit codes.
 - Add CLI validation golden tests for invalid graph diagnostics.
 - Add `bcs-runner schema` for exporting system public input/output interface metadata.
+- Add component input snapshots to run output for future inspector/debug UX.

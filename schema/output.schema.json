@@ -12,6 +12,9 @@
     "outputs": {
       "type": "object"
     },
+    "component_inputs": {
+      "type": "object"
+    },
     "component_outputs": {
       "type": "object"
     },
@@ -23,4 +26,3 @@
     }
   }
 }
-
