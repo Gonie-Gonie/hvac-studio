@@ -67,6 +67,12 @@ type createComponentRequest struct {
 	Template    string `json:"template"`
 }
 
+type includeComponentRequest struct {
+	ProjectPath string `json:"project_path"`
+	SystemID    string `json:"system_id"`
+	ComponentID string `json:"component_id"`
+}
+
 type updateParametersRequest struct {
 	ProjectPath string                    `json:"project_path"`
 	Parameters  map[string]map[string]any `json:"parameters"`
@@ -128,6 +134,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/projects", s.handleCreateProject)
 	s.mux.HandleFunc("GET /api/project", s.handleProject)
 	s.mux.HandleFunc("POST /api/project/components", s.handleCreateComponent)
+	s.mux.HandleFunc("POST /api/project/system/components", s.handleIncludeComponent)
 	s.mux.HandleFunc("POST /api/project/input", s.handleUpdateInput)
 	s.mux.HandleFunc("POST /api/project/parameters", s.handleUpdateParameters)
 	s.mux.HandleFunc("POST /api/validate", s.handleValidate)
@@ -189,6 +196,33 @@ func (s *Server) handleCreateComponent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "component": component, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleIncludeComponent(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeIncludeComponentRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := includeComponentInSystem(loaded, req); err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "project": projectDetail(reloaded)})
 }
 
 func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
@@ -622,6 +656,84 @@ func createComponent(loaded *project.LoadedProject, req createComponentRequest) 
 	return component, nil
 }
 
+func includeComponentInSystem(loaded *project.LoadedProject, req includeComponentRequest) error {
+	componentID := strings.TrimSpace(req.ComponentID)
+	if componentID == "" {
+		return apperror.Errorf(apperror.CodeValidation, "component_id is required")
+	}
+	component, foundComponent := findComponent(loaded.Graph, componentID)
+	if !foundComponent {
+		return apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
+	}
+
+	systemID := req.SystemID
+	if systemID == "" {
+		systemID = loaded.Project.EntrySystem
+	}
+	systemIndex := -1
+	for index := range loaded.Graph.Systems {
+		if loaded.Graph.Systems[index].ID == systemID {
+			systemIndex = index
+			break
+		}
+	}
+	if systemIndex < 0 {
+		return apperror.Errorf(apperror.CodeValidation, "system not found: %s", systemID)
+	}
+
+	system := &loaded.Graph.Systems[systemIndex]
+	if containsString(system.Components, componentID) {
+		return nil
+	}
+
+	inputPath, input, err := loadEditableDefaultInput(loaded)
+	if err != nil {
+		return err
+	}
+	system.Components = append(system.Components, componentID)
+	for _, node := range component.Nodes.Inputs {
+		if hasPublicInputFor(*system, componentID, node.ID) {
+			continue
+		}
+		publicID := uniquePublicNodeID(system.PublicInputs, componentID+"_"+node.ID)
+		system.PublicInputs = append(system.PublicInputs, model.PublicNodeRef{
+			ID:        publicID,
+			Name:      node.Name,
+			Component: componentID,
+			Node:      node.ID,
+			Medium:    node.Medium,
+			ValueType: node.ValueType,
+			Unit:      node.Unit,
+			Required:  node.Required,
+			Default:   node.Default,
+		})
+		if _, exists := input.Inputs[publicID]; !exists {
+			input.Inputs[publicID] = defaultValueForNode(node)
+		}
+	}
+	for _, node := range component.Nodes.Outputs {
+		if hasPublicOutputFor(*system, componentID, node.ID) {
+			continue
+		}
+		publicID := uniquePublicNodeID(system.PublicOutputs, componentID+"_"+node.ID)
+		system.PublicOutputs = append(system.PublicOutputs, model.PublicNodeRef{
+			ID:        publicID,
+			Name:      node.Name,
+			Component: componentID,
+			Node:      node.ID,
+			Medium:    node.Medium,
+			ValueType: node.ValueType,
+			Unit:      node.Unit,
+			Default:   node.Default,
+		})
+	}
+
+	if err := writeJSONFile(inputPath, input); err != nil {
+		return err
+	}
+	return writeJSONFile(loaded.GraphPath, loaded.Graph)
+}
+
 func (s *Server) resolveProjectPath(projectPath string) (string, error) {
 	if projectPath == "" {
 		return "", apperror.Errorf(apperror.CodeValidation, "project_path is required")
@@ -677,6 +789,15 @@ func decodeCreateProjectRequest(r *http.Request) (createProjectRequest, error) {
 func decodeCreateComponentRequest(r *http.Request) (createComponentRequest, error) {
 	defer r.Body.Close()
 	var req createComponentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeIncludeComponentRequest(r *http.Request) (includeComponentRequest, error) {
+	defer r.Body.Close()
+	var req includeComponentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}
@@ -767,6 +888,24 @@ func resolveProjectOwnedFile(projectRoot string, path string) (string, error) {
 		return "", apperror.Errorf(apperror.CodeValidation, "project file path must stay inside project root: %s", path)
 	}
 	return absPath, nil
+}
+
+func loadEditableDefaultInput(loaded *project.LoadedProject) (string, runtimecore.RunInput, error) {
+	inputPath, err := resolveProjectOwnedFile(loaded.Root, loaded.Project.DefaultInput)
+	if err != nil {
+		return "", runtimecore.RunInput{}, err
+	}
+	input, err := runtimecore.LoadInput(inputPath)
+	if err != nil {
+		return "", runtimecore.RunInput{}, err
+	}
+	if input.Inputs == nil {
+		input.Inputs = map[string]any{}
+	}
+	if input.Context == nil {
+		input.Context = map[string]any{}
+	}
+	return inputPath, input, nil
 }
 
 func writeRunRecord(loaded *project.LoadedProject, input runtimecore.RunInput, result *runtimecore.RunResult) (RunSummary, error) {
@@ -869,6 +1008,70 @@ func uniqueComponentID(graph *model.Graph, base string) string {
 		candidate = fmt.Sprintf("%s_%d", base, index)
 	}
 	return candidate
+}
+
+func findComponent(graph *model.Graph, componentID string) (model.Component, bool) {
+	for _, component := range graph.Components {
+		if component.ID == componentID {
+			return component, true
+		}
+	}
+	return model.Component{}, false
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func hasPublicInputFor(system model.System, componentID string, nodeID string) bool {
+	for _, input := range system.PublicInputs {
+		if input.Component == componentID && input.Node == nodeID {
+			return true
+		}
+	}
+	return false
+}
+
+func hasPublicOutputFor(system model.System, componentID string, nodeID string) bool {
+	for _, output := range system.PublicOutputs {
+		if output.Component == componentID && output.Node == nodeID {
+			return true
+		}
+	}
+	return false
+}
+
+func uniquePublicNodeID(refs []model.PublicNodeRef, base string) string {
+	exists := map[string]bool{}
+	for _, ref := range refs {
+		exists[ref.ID] = true
+	}
+	candidate := base
+	for index := 2; exists[candidate]; index++ {
+		candidate = fmt.Sprintf("%s_%d", base, index)
+	}
+	return candidate
+}
+
+func defaultValueForNode(node model.Node) any {
+	if node.Default != nil {
+		return node.Default
+	}
+	switch node.ValueType {
+	case "int", "integer":
+		return 0
+	case "bool", "boolean":
+		return false
+	case "string":
+		return ""
+	default:
+		return 0.0
+	}
 }
 
 func pythonClassName(componentID string) string {

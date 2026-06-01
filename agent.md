@@ -63,6 +63,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - GUI edits should persist to source-of-truth artifacts immediately and explicitly. Current write scope starts with workspace-only component parameters saved to `graph.json`; bundled examples remain read-only through the Studio API.
 - Studio run input fields should come from the project's `default_input` file when available, not from hardcoded sample values. Saving run inputs writes back to that source artifact for workspace projects.
 - Newly created components should first be persisted as source artifacts (`graph.json` plus `components/<id>.py`) without silently changing system execution. System membership, connections, and public IO should be explicit authoring actions.
+- When a component is explicitly added to a system, the Studio should keep the runnable path intact by creating public IO mappings and extending `default_input` for new required public inputs.
 
 ## Monitoring Checklist
 

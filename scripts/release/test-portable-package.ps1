@@ -127,6 +127,13 @@ try {
   if (-not (Test-Path -LiteralPath $ComponentSourcePath)) {
     throw "created component source was not written: $ComponentSourcePath"
   }
+  $IncludeBody = @{ project_path = $CreatedProject.project_path; component_id = $CreatedComponent.id } | ConvertTo-Json -Depth 4
+  $IncludeResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/system/components" -Method POST -ContentType 'application/json' -Body $IncludeBody -TimeoutSec 20
+  $IncludeJson = $IncludeResponse.Content | ConvertFrom-Json
+  $ExtraInputId = "$($CreatedComponent.id)_value"
+  if (-not ($IncludeJson.project.graph.systems[0].public_inputs | Where-Object { $_.id -eq $ExtraInputId })) {
+    throw "included component public input was not created: $ExtraInputId"
+  }
 
   $ParameterBody = @{
     project_path = $CreatedProject.project_path
@@ -142,11 +149,11 @@ try {
     throw "workspace parameter update mismatch: gain=$($ParameterJson.project.graph.components[0].parameters.gain)"
   }
 
+  $InputValues = @{ value = 5 }
+  $InputValues[$ExtraInputId] = 2
   $InputBody = @{
     project_path = $CreatedProject.project_path
-    inputs = @{
-      value = 5
-    }
+    inputs = $InputValues
     context = @{
       time = 0
       dt = 60
@@ -166,6 +173,11 @@ try {
   $WorkspaceRunJson = $WorkspaceRunResponse.Content | ConvertFrom-Json
   if ($WorkspaceRunJson.result.outputs.result -ne 15) {
     throw "workspace run result mismatch: result=$($WorkspaceRunJson.result.outputs.result)"
+  }
+  $ExtraOutputId = "$($CreatedComponent.id)_result"
+  $ExtraOutput = $WorkspaceRunJson.result.outputs.PSObject.Properties[$ExtraOutputId].Value
+  if ($ExtraOutput -ne 2) {
+    throw "workspace included component result mismatch: $ExtraOutputId=$ExtraOutput"
   }
   $RunRecordPath = Join-Path (Split-Path -Parent $CreatedProject.project_path) $WorkspaceRunJson.run_record.relative_path
   if (-not (Test-Path -LiteralPath $RunRecordPath)) {

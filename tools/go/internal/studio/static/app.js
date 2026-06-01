@@ -124,6 +124,7 @@ function treeItem(id, label, meta) {
       renderCanvas();
       renderInspector();
       renderProjectTree();
+      updateCommandState();
     }
   });
   return row;
@@ -192,6 +193,7 @@ function renderCanvas() {
       renderCanvas();
       renderInspector();
       renderProjectTree();
+      updateCommandState();
     });
     canvas.append(node);
   });
@@ -516,6 +518,25 @@ async function createComponent() {
   }
 }
 
+async function includeSelectedComponent() {
+  const component = componentById(state.selectedComponentId);
+  if (!component || !isWorkspaceProject()) return;
+  try {
+    const body = await api("/api/project/system/components", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath, component_id: component.id }),
+    });
+    state.detail = body.project;
+    renderAll();
+    log(`Component added to system: ${component.id}`);
+  } catch (error) {
+    log(`Add to system failed: ${error.message}`);
+    state.latestValidation = { error: error.message };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
 function currentSystem() {
   const detail = state.detail;
   if (!detail) return null;
@@ -532,6 +553,11 @@ function isWorkspaceProject() {
 
 function componentById(id) {
   return (state.detail?.graph?.components || []).find((component) => component.id === id);
+}
+
+function selectedComponentInSystem() {
+  const system = currentSystem();
+  return Boolean(system && state.selectedComponentId && system.components.includes(state.selectedComponentId));
 }
 
 function sampleValueFor(id) {
@@ -637,6 +663,7 @@ function updateCommandState() {
   el("schemaButton").disabled = !hasProject;
   el("saveProjectButton").disabled = !hasProject || !isWorkspaceProject();
   el("addComponentButton").disabled = !hasProject || !isWorkspaceProject();
+  el("includeComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || selectedComponentInSystem();
 }
 
 function markProjectDirty() {
@@ -663,6 +690,7 @@ function bindEvents() {
   el("projectSelect").addEventListener("change", (event) => loadProject(event.target.value));
   el("newProjectButton").addEventListener("click", createProject);
   el("addComponentButton").addEventListener("click", createComponent);
+  el("includeComponentButton").addEventListener("click", includeSelectedComponent);
   el("saveProjectButton").addEventListener("click", saveProjectEdits);
   el("validateButton").addEventListener("click", validateProject);
   el("runButton").addEventListener("click", runProject);

@@ -170,6 +170,106 @@ func TestCreateComponentEndpointRejectsExamples(t *testing.T) {
 	}
 }
 
+func TestIncludeComponentEndpointAddsPublicIOAndDefaultInput(t *testing.T) {
+	root := t.TempDir()
+	server, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"System Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+	componentPayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"name":         "Second Gain",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	componentResponse := httptest.NewRecorder()
+	componentRequest := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(componentPayload))
+	server.Handler().ServeHTTP(componentResponse, componentRequest)
+	if componentResponse.Code != http.StatusCreated {
+		t.Fatalf("component status = %d body=%s", componentResponse.Code, componentResponse.Body.String())
+	}
+
+	includePayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "second_gain",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	includeResponse := httptest.NewRecorder()
+	includeRequest := httptest.NewRequest(http.MethodPost, "/api/project/system/components", bytes.NewReader(includePayload))
+	server.Handler().ServeHTTP(includeResponse, includeRequest)
+	if includeResponse.Code != http.StatusOK {
+		t.Fatalf("include status = %d body=%s", includeResponse.Code, includeResponse.Body.String())
+	}
+
+	loaded, err := project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsString(loaded.Graph.Systems[0].Components, "second_gain") {
+		t.Fatal("component was not added to the entry system")
+	}
+	input, err := runtimecore.LoadInput(filepath.Join(loaded.Root, loaded.Project.DefaultInput))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := input.Inputs["second_gain_value"]; !exists {
+		t.Fatal("default input was not extended with second_gain_value")
+	}
+
+	runPayload, err := json.Marshal(map[string]any{"project_path": createBody.Project.ProjectPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runResponse := httptest.NewRecorder()
+	runRequest := httptest.NewRequest(http.MethodPost, "/api/run", bytes.NewReader(runPayload))
+	server.Handler().ServeHTTP(runResponse, runRequest)
+	if runResponse.Code != http.StatusOK {
+		t.Fatalf("run status = %d body=%s", runResponse.Code, runResponse.Body.String())
+	}
+	var runBody struct {
+		Result struct {
+			Outputs map[string]float64 `json:"outputs"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(runResponse.Body.Bytes(), &runBody); err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := runBody.Result.Outputs["second_gain_result"]; !exists {
+		t.Fatal("run output did not include second_gain_result")
+	}
+}
+
+func TestIncludeComponentEndpointRejectsExamples(t *testing.T) {
+	server := newTestServer(t)
+	payload := []byte(`{
+		"project_path": "examples/001_scalar_component/project.bcsproj",
+		"component_id": "scalar"
+	}`)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/system/components", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+}
+
 func TestUpdateParametersEndpointWritesWorkspaceGraph(t *testing.T) {
 	root := t.TempDir()
 	server, err := New(root)
