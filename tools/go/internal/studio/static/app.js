@@ -26,7 +26,9 @@ async function api(path, options = {}) {
   });
   const body = await response.json();
   if (!response.ok || body.ok === false) {
-    throw new Error(body.message || `Request failed: ${path}`);
+    const error = new Error(body.message || `Request failed: ${path}`);
+    error.body = body;
+    throw error;
   }
   return body;
 }
@@ -365,17 +367,26 @@ function emptyRow(cols) {
 function renderProblems() {
   const panel = el("problemsPanel");
   panel.innerHTML = "";
-  if (state.latestValidation?.error) {
-    panel.append(problemRow("error", state.latestValidation.error));
+  const problems = state.latestValidation?.problems || [];
+  if (problems.length) {
+    for (const problem of problems) panel.append(problemRow(problem));
     return;
   }
-  panel.append(problemRow("ok", "No problems"));
+  if (state.latestValidation?.error) {
+    panel.append(problemRow({ severity: "error", message: state.latestValidation.error }));
+    return;
+  }
+  panel.append(problemRow({ severity: "ok", message: "No problems" }));
 }
 
-function problemRow(kind, message) {
+function problemRow(problem) {
   const row = document.createElement("div");
   row.className = "problem-row";
-  row.innerHTML = `<span class="status-dot ${kind === "error" ? "error" : ""}"></span><span>${escapeHTML(message)}</span>`;
+  row.innerHTML = `<span class="status-dot ${problem.severity === "error" ? "error" : ""}"></span><span>${escapeHTML(problem.message)}</span>`;
+  if (problem.component_id) {
+    row.classList.add("linked");
+    row.addEventListener("click", () => selectComponent(problem.component_id));
+  }
   return row;
 }
 
@@ -417,7 +428,7 @@ async function validateProject() {
     state.latestValidation = body.validation;
     log("Validation ok");
   } catch (error) {
-    state.latestValidation = { error: error.message };
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     log(`Validation failed: ${error.message}`);
   }
   renderProblems();
@@ -443,7 +454,7 @@ async function runProject() {
     setBottomTab("results");
   } catch (error) {
     log(`Run failed: ${error.message}`);
-    state.latestValidation = { error: error.message };
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     setBottomTab("problems");
   }
   renderInspector();
@@ -613,6 +624,15 @@ function isWorkspaceProject() {
 
 function componentById(id) {
   return (state.detail?.graph?.components || []).find((component) => component.id === id);
+}
+
+function selectComponent(id) {
+  if (!componentById(id)) return;
+  state.selectedComponentId = id;
+  renderCanvas();
+  renderInspector();
+  renderProjectTree();
+  updateCommandState();
 }
 
 function selectedComponentInSystem() {

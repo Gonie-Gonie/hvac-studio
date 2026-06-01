@@ -531,6 +531,14 @@ th {
   padding: 6px 0;
 }
 
+.problem-row.linked {
+  cursor: pointer;
+}
+
+.problem-row.linked:hover {
+  color: var(--accent);
+}
+
 .status-dot {
   width: 8px;
   height: 8px;

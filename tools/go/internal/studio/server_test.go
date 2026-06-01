@@ -454,6 +454,55 @@ func TestRunEndpointRunsFeedForwardExample(t *testing.T) {
 	}
 }
 
+func TestValidateEndpointReturnsLinkedProblem(t *testing.T) {
+	root := t.TempDir()
+	server, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Invalid Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded.Graph.Systems[0].PublicInputs[0].Node = "missing"
+	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{"project_path": createBody.Project.ProjectPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/validate", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body apiError
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Problems) != 1 {
+		t.Fatalf("problem count = %d", len(body.Problems))
+	}
+	if body.Problems[0].ComponentID != "scalar" {
+		t.Fatalf("component id = %s, want scalar", body.Problems[0].ComponentID)
+	}
+}
+
 func TestRunRecordEndpointReturnsSavedRecord(t *testing.T) {
 	root := t.TempDir()
 	server, err := New(root)

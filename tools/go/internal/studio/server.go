@@ -127,11 +127,19 @@ type ExportManifest struct {
 	ExecutionOrder []string              `json:"execution_order"`
 }
 
+type Problem struct {
+	Severity    string `json:"severity"`
+	Message     string `json:"message"`
+	ComponentID string `json:"component_id,omitempty"`
+	NodeID      string `json:"node_id,omitempty"`
+}
+
 type apiError struct {
-	OK      bool   `json:"ok"`
-	Code    int    `json:"code"`
-	Kind    string `json:"kind"`
-	Message string `json:"message"`
+	OK       bool      `json:"ok"`
+	Code     int       `json:"code"`
+	Kind     string    `json:"kind"`
+	Message  string    `json:"message"`
+	Problems []Problem `json:"problems,omitempty"`
 }
 
 func New(repoRoot string) (*Server, error) {
@@ -405,7 +413,7 @@ func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
 	}
 	plan, err := compiler.Compile(loaded)
 	if err != nil {
-		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		writeErrorWithProblems(w, apperror.Wrap(apperror.CodeValidation, err), inferProblems(loaded.Graph, err))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -919,6 +927,10 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 }
 
 func writeError(w http.ResponseWriter, err error) {
+	writeErrorWithProblems(w, err, nil)
+}
+
+func writeErrorWithProblems(w http.ResponseWriter, err error, problems []Problem) {
 	code := apperror.ErrorCode(err)
 	status := http.StatusInternalServerError
 	switch code {
@@ -934,11 +946,38 @@ func writeError(w http.ResponseWriter, err error) {
 		err = appErr.Unwrap()
 	}
 	writeJSON(w, status, apiError{
-		OK:      false,
-		Code:    int(code),
-		Kind:    apperror.CodeName(code),
-		Message: fmt.Sprint(err),
+		OK:       false,
+		Code:     int(code),
+		Kind:     apperror.CodeName(code),
+		Message:  fmt.Sprint(err),
+		Problems: problems,
 	})
+}
+
+func inferProblems(graph *model.Graph, err error) []Problem {
+	message := fmt.Sprint(err)
+	problem := Problem{Severity: "error", Message: message}
+	for _, component := range graph.Components {
+		if strings.Contains(message, component.ID) {
+			problem.ComponentID = component.ID
+			for _, node := range component.Nodes.Inputs {
+				if strings.Contains(message, component.ID+"."+node.ID) || strings.Contains(message, " "+node.ID) {
+					problem.NodeID = node.ID
+					break
+				}
+			}
+			if problem.NodeID == "" {
+				for _, node := range component.Nodes.Outputs {
+					if strings.Contains(message, component.ID+"."+node.ID) || strings.Contains(message, " "+node.ID) {
+						problem.NodeID = node.ID
+						break
+					}
+				}
+			}
+			break
+		}
+	}
+	return []Problem{problem}
 }
 
 func resolveProjectFile(projectRoot string, path string) string {
