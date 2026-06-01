@@ -39,6 +39,7 @@ Update that file deliberately when the project decides to move toolchains.
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-fast.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\run-runner.ps1 validate --project .\examples\001_scalar_component\project.bcsproj
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\run-studio.ps1
 ```
 
 ## Notes

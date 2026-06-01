@@ -36,6 +36,7 @@ New Project
 3. Preserve user freedom in component logic, node count/meaning, parameters, system composition, and runtime mode.
 4. Make every milestone testable by CLI/golden examples before attaching GUI.
 5. Commit and push after each coherent test-green unit.
+6. Build the Studio as a complete workspace shell first, then progressively connect panel behavior.
 
 ## Milestone 0: Repository And Release Foundation
 
@@ -171,6 +172,8 @@ Acceptance criteria:
 
 ## Milestone 4: Project Explorer And GUI Shell
 
+Status: started with the Go-hosted Studio web workspace in `tools/go/cmd/studio`.
+
 Goal: create the first GUI surface without redefining runtime semantics.
 
 Primary layout:
@@ -211,8 +214,9 @@ Project types:
 
 Acceptance criteria:
 
-- GUI can open the scalar example and display systems/components/nodes.
-- Validate and Run buttons call `bcs-runner`, not a separate engine.
+- GUI can open scalar and feed-forward examples and display systems/components/nodes. Started.
+- Validate, Run, and Schema buttons use the same runtime/compiler path as the CLI runner. Started.
+- Problems, results, schema, logs, inspector, parameter, dataset, validation, calibration, optimization, and export workspaces are visible from the first shell. Started.
 - Problems panel links validation messages to graph or source locations where possible.
 
 ## Milestone 5: Component-Aware Python Editor

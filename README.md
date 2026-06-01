@@ -6,20 +6,21 @@ The product goal is to let researchers define equipment, controls, surrogate mod
 
 ## Current Focus
 
-The first stable slice is the runtime core:
+The first stable slice is the runtime core plus a real Studio workspace shell:
 
 - `project.bcsproj` and `graph.json` as source-of-truth files.
 - User-defined Python components with `initialize(params, context)` and `evaluate(inputs, state, params, context)`.
 - A persistent Python worker using JSONL over stdio.
 - A Go `bcs-runner` CLI with `validate` and `run`.
 - Golden examples that behave as regression assets.
+- A Go-hosted Studio web UI that opens examples, renders the system canvas, inspects components, validates, runs, and exports public schema.
 
-GUI, optimization SDK, export packaging, and solver boundaries are planned on top of this runner.
+The Studio UI is intentionally built as the full product workspace first. Individual panels can be wired up gradually without changing the source-of-truth files or inventing a separate simulation engine.
 
 ## Repository Map
 
 ```text
-app/studio/          Later Wails/React Studio GUI
+app/studio/          Studio GUI direction and future installed app notes
 tools/go/            Go runner, compiler, scheduler, runtime packages
 python/bcs_worker/   Python component evaluator process
 python/bcs_sdk/      Python wrapper around the runner
@@ -60,6 +61,18 @@ Run validation golden cases:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-validation.ps1
+```
+
+Launch the Studio workspace:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\run-studio.ps1
+```
+
+Then open:
+
+```text
+http://127.0.0.1:5174
 ```
 
 If PowerShell script execution is disabled on your machine, run:

@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HVAC Studio</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="top-bar">
+        <div class="brand">
+          <div class="brand-mark">HS</div>
+          <div>
+            <div class="brand-title">HVAC Studio</div>
+            <div class="brand-subtitle" id="runtimeStatus">Runtime ready</div>
+          </div>
+        </div>
+        <div class="project-switcher">
+          <label for="projectSelect">Project</label>
+          <select id="projectSelect"></select>
+        </div>
+        <nav class="command-bar" aria-label="Project commands">
+          <button id="validateButton" type="button">Validate</button>
+          <button id="runButton" type="button">Run</button>
+          <button id="schemaButton" type="button">Schema</button>
+          <button id="batchButton" type="button" disabled>Batch</button>
+          <button id="serveButton" type="button" disabled>Serve</button>
+          <button id="exportButton" type="button" disabled>Export</button>
+        </nav>
+      </header>
+
+      <div class="workspace">
+        <aside class="left-sidebar">
+          <section class="panel project-panel">
+            <div class="panel-header">
+              <h2>Project</h2>
+            </div>
+            <div id="projectTree" class="project-tree"></div>
+          </section>
+        </aside>
+
+        <main class="main-stage">
+          <section class="mode-strip" aria-label="Workspace modes">
+            <button class="mode-button active" data-mode="canvas" type="button">System</button>
+            <button class="mode-button" data-mode="parameters" type="button">Parameters</button>
+            <button class="mode-button" data-mode="datasets" type="button">Datasets</button>
+            <button class="mode-button" data-mode="validation" type="button">Validation</button>
+            <button class="mode-button" data-mode="calibration" type="button">Calibration</button>
+            <button class="mode-button" data-mode="optimization" type="button">Optimization</button>
+            <button class="mode-button" data-mode="export" type="button">Export</button>
+          </section>
+
+          <section id="canvasView" class="view active">
+            <div class="system-toolbar">
+              <div>
+                <h1 id="systemTitle">System</h1>
+                <div id="systemSubtitle" class="muted-line"></div>
+              </div>
+              <div class="run-inputs" id="runInputs"></div>
+            </div>
+            <div class="canvas-wrap">
+              <svg id="connectionLayer" class="connection-layer" aria-hidden="true"></svg>
+              <div id="systemCanvas" class="system-canvas"></div>
+            </div>
+          </section>
+
+          <section id="parametersView" class="view">
+            <div class="table-shell">
+              <div class="table-title">Parameter Manager</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Scope</th>
+                    <th>Unit</th>
+                    <th>Value</th>
+                    <th>Role</th>
+                  </tr>
+                </thead>
+                <tbody id="parameterRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section id="datasetsView" class="view split-workspace">
+            <div class="table-shell">
+              <div class="table-title">Datasets</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Rows</th>
+                    <th>Mapped Inputs</th>
+                    <th>Mapped Outputs</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td colspan="4" class="empty-cell">No datasets</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="table-shell">
+              <div class="table-title">Column Mapping</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Dataset Column</th>
+                    <th>System Public Node</th>
+                    <th>Role</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td colspan="3" class="empty-cell">No mappings</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section id="validationView" class="view split-workspace">
+            <div class="table-shell">
+              <div class="table-title">Validation Metrics</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Output</th>
+                    <th>RMSE</th>
+                    <th>MAE</th>
+                    <th>MBE</th>
+                    <th>CVRMSE</th>
+                    <th>R2</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td colspan="6" class="empty-cell">No validation run</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="plot-placeholder"></div>
+          </section>
+
+          <section id="calibrationView" class="view split-workspace">
+            <div class="table-shell">
+              <div class="table-title">Calibration Parameters</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Parameter</th>
+                    <th>Current</th>
+                    <th>Lower</th>
+                    <th>Upper</th>
+                    <th>Selected</th>
+                  </tr>
+                </thead>
+                <tbody id="calibrationRows"></tbody>
+              </table>
+            </div>
+            <div class="table-shell">
+              <div class="table-title">Calibration Results</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Metric</th>
+                    <th>Initial</th>
+                    <th>Final</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td colspan="3" class="empty-cell">No calibration result</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section id="optimizationView" class="view split-workspace">
+            <div class="table-shell">
+              <div class="table-title">Decision Variables</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Scope</th>
+                    <th>Lower</th>
+                    <th>Upper</th>
+                  </tr>
+                </thead>
+                <tbody id="optimizationRows"></tbody>
+              </table>
+            </div>
+            <div class="table-shell">
+              <div class="table-title">Objective And Constraints</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Expression</th>
+                    <th>Target</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>Objective</td><td>total_power</td><td>minimize</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section id="exportView" class="view split-workspace">
+            <div class="table-shell">
+              <div class="table-title">Export Profiles</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Profile</th>
+                    <th>Runtime</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>Research Project</td><td>project environment</td><td>available</td></tr>
+                  <tr><td>Runtime Package</td><td>windows-amd64</td><td>available</td></tr>
+                  <tr><td>Frozen Model</td><td>embedded runtime</td><td>pending</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <pre id="exportManifest" class="code-pane"></pre>
+          </section>
+        </main>
+
+        <aside class="right-sidebar">
+          <section class="panel inspector-panel">
+            <div class="panel-header">
+              <h2>Inspector</h2>
+            </div>
+            <div id="inspector" class="inspector"></div>
+          </section>
+        </aside>
+      </div>
+
+      <footer class="bottom-panel">
+        <div class="bottom-tabs" role="tablist">
+          <button class="bottom-tab active" data-bottom="problems" type="button">Problems</button>
+          <button class="bottom-tab" data-bottom="logs" type="button">Logs</button>
+          <button class="bottom-tab" data-bottom="results" type="button">Results</button>
+          <button class="bottom-tab" data-bottom="schema" type="button">Schema</button>
+          <button class="bottom-tab" data-bottom="python" type="button">Python</button>
+        </div>
+        <div id="problemsPanel" class="bottom-view active"></div>
+        <div id="logsPanel" class="bottom-view"></div>
+        <pre id="resultsPanel" class="bottom-view code-pane"></pre>
+        <pre id="schemaPanel" class="bottom-view code-pane"></pre>
+        <pre id="pythonPanel" class="bottom-view code-pane"></pre>
+      </footer>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
+

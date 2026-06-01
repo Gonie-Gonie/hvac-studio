@@ -54,6 +54,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - The UX development plan is tracked in `docs/development-plan.md`. It folds in the Component-Node-System UX flow: project creation, component/node/parameter/state authoring, protected Python function-body editing, system canvas, validation, run/debug, datasets, validation, calibration, optimization, SDK, and runtime-only delivery.
 - GUI component editing should eventually show a generated scaffold but persist contract metadata separately from user-editable function bodies, e.g. `component.json`, `user_init.py`, `user_step.py`, and helpers.
 - Dataset, parameter set, scenario, run record, validation, calibration, and optimization artifacts must become source-of-truth project objects rather than transient GUI state.
+- Studio GUI work should start from the full product workspace shape, then connect behavior incrementally. Avoid ambiguous tiny demo screens that obscure the intended workflow.
 
 ## Monitoring Checklist
 
@@ -67,3 +68,4 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - After a coherent unit is tested, did we commit and push before starting the next unit?
 - Does every release package get smoke-tested after expansion, not just built?
 - Are UX features being staged so runtime support and golden examples exist before GUI polish?
+- Does the GUI shell preserve the complete Studio workflow even while individual features are still being connected?
