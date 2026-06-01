@@ -218,7 +218,7 @@ func validateOutputs(component model.Component, outputs map[string]any) error {
 
 func resolvePython(projectRoot string, env model.EnvironmentConfig) string {
 	if env.Python == "" {
-		return "python"
+		env.Python = "python"
 	}
 	if filepath.IsAbs(env.Python) {
 		return env.Python
@@ -227,5 +227,42 @@ func resolvePython(projectRoot string, env model.EnvironmentConfig) string {
 	if _, err := os.Stat(projectPython); err == nil {
 		return projectPython
 	}
+	if isDefaultPythonName(env.Python) {
+		if packagedPython := findPackagedPython(projectRoot); packagedPython != "" {
+			return packagedPython
+		}
+	}
 	return env.Python
+}
+
+func isDefaultPythonName(path string) bool {
+	name := filepath.Base(path)
+	return name == "python" || name == "python.exe" || name == "python3" || name == "python3.exe"
+}
+
+func findPackagedPython(start string) string {
+	if start == "" {
+		return ""
+	}
+	absStart, err := filepath.Abs(start)
+	if err != nil {
+		return ""
+	}
+	for {
+		candidates := []string{
+			filepath.Join(absStart, "runtime", "python", "python.exe"),
+			filepath.Join(absStart, "runtime", "python", "python"),
+			filepath.Join(absStart, "runtime", "python", "bin", "python"),
+		}
+		for _, candidate := range candidates {
+			if _, err := os.Stat(candidate); err == nil {
+				return candidate
+			}
+		}
+		parent := filepath.Dir(absStart)
+		if parent == absStart {
+			return ""
+		}
+		absStart = parent
+	}
 }

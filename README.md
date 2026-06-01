@@ -97,6 +97,8 @@ Build and smoke-test the portable Studio release package:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-portable-package.ps1 -Version 0.1.0-dev
 ```
 
+The portable package includes `studio.exe`, `bcs-runner.exe`, `bcs-env.exe`, examples, and a bundled `runtime/python` for the included example runs.
+
 Build and smoke-test the runtime-only release package:
 
 ```powershell

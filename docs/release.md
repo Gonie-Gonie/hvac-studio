@@ -36,18 +36,21 @@ hvac-studio-<version>-windows-amd64-portable/
     bcs_worker/
     bcs_sdk/
   runtime/
+    python/
   schema/
   examples/
   templates/
   docs/
   Start-Studio.ps1
+  Start-Studio.cmd
+  Run-Smoke-Example.ps1
   PACKAGE_README.md
   release-manifest.json
 ```
 
 The runtime-only package is for delivery/external-engine integration and does not include the Studio GUI.
 
-Both MVP packages still require Python 3.11+ on `PATH`. A later release must vendor `runtime/python` before claiming no external Python requirement.
+Both MVP packages include a bundled Python runtime under `runtime/python`, copied from the repo-local setup toolchain. Included examples run without system Python on `PATH`. Project-specific third-party package locking and dependency freezing are still later milestones.
 
 ## Local Release Test
 
@@ -60,9 +63,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-porta
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-runtime-package.ps1 -Version 0.1.0-dev
 ```
 
-The portable package smoke test expands the zip, verifies `studio.exe`, `bcs-runner.exe`, and `bcs-env.exe`, runs the feed-forward example through the CLI, starts Studio locally, calls `/api/projects`, and runs `/api/run`.
+The portable package smoke test expands the zip, verifies `studio.exe`, `bcs-runner.exe`, `bcs-env.exe`, and `runtime/python/python.exe`, constrains `PATH` so system Python is not used, runs the feed-forward example through the CLI, starts Studio locally, calls `/api/projects`, and runs `/api/run`. The included `Start-Studio.ps1` waits for the local server before opening the browser.
 
-The runtime package smoke test expands the zip and verifies each runnable example against `expected/output.json`.
+The runtime package smoke test expands the zip, constrains `PATH`, and verifies each runnable example against `expected/output.json`.
 
 ## Installer Scope
 
@@ -132,6 +135,7 @@ v0.1
 - studio.exe
 - bcs-runner.exe
 - bcs-env.exe
+- bundled Python runtime
 - MVP Python worker/source package
 - simple example project
 

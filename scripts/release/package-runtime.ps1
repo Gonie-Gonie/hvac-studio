@@ -7,48 +7,13 @@ $ErrorActionPreference = 'Stop'
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 . (Join-Path $RepoRoot 'scripts\dev\env.ps1')
-
-function Copy-Tree {
-  param(
-    [Parameter(Mandatory = $true)][string]$Source,
-    [Parameter(Mandatory = $true)][string]$Destination
-  )
-
-  if (-not (Test-Path -LiteralPath $Source)) {
-    throw "source path does not exist: $Source"
-  }
-  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Destination) | Out-Null
-  Copy-Item -LiteralPath $Source -Destination $Destination -Recurse -Force
-}
-
-function Resolve-Version {
-  if ($Version) {
-    return $Version
-  }
-
-  $Git = Get-Command git -ErrorAction SilentlyContinue
-  if ($null -eq $Git) {
-    return '0.1.0-dev'
-  }
-
-  $ExactTag = (& git describe --tags --exact-match 2>$null)
-  if ($LASTEXITCODE -eq 0 -and $ExactTag) {
-    return $ExactTag.TrimStart('v')
-  }
-
-  $ShortSha = (& git rev-parse --short HEAD 2>$null)
-  if ($LASTEXITCODE -eq 0 -and $ShortSha) {
-    return "0.1.0-dev-$ShortSha"
-  }
-
-  return '0.1.0-dev'
-}
+. (Join-Path $RepoRoot 'scripts\release\package-common.ps1')
 
 if (-not $SkipBuild) {
   & (Join-Path $RepoRoot 'scripts\release\build-runner.ps1')
 }
 
-$ResolvedVersion = Resolve-Version
+$ResolvedVersion = Resolve-Version -Version $Version
 $RuntimeId = 'windows-amd64'
 $PackageName = "hvac-studio-runtime-$ResolvedVersion-$RuntimeId"
 $DistRoot = Join-Path $RepoRoot 'dist'
@@ -64,6 +29,7 @@ Copy-Tree -Source (Join-Path $RepoRoot 'python\bcs_worker') -Destination (Join-P
 Copy-Tree -Source (Join-Path $RepoRoot 'python\bcs_sdk') -Destination (Join-Path $StageRoot 'python\bcs_sdk')
 Copy-Tree -Source (Join-Path $RepoRoot 'schema') -Destination (Join-Path $StageRoot 'schema')
 Copy-Tree -Source (Join-Path $RepoRoot 'runtime') -Destination (Join-Path $StageRoot 'runtime')
+Copy-PackagedPythonRuntime -RepoRoot $RepoRoot -Destination (Join-Path $StageRoot 'runtime\python')
 Copy-Tree -Source (Join-Path $RepoRoot 'docs') -Destination (Join-Path $StageRoot 'docs')
 Copy-Tree -Source (Join-Path $RepoRoot 'examples') -Destination (Join-Path $StageRoot 'examples')
 Copy-Tree -Source (Join-Path $RepoRoot 'README.md') -Destination (Join-Path $StageRoot 'README.md')
@@ -84,13 +50,14 @@ $ReleaseManifest = [ordered]@{
   runtime_id = $RuntimeId
   commit = $Commit
   built_at_utc = (Get-Date).ToUniversalTime().ToString('o')
+  includes_embedded_python = $true
   entrypoints = [ordered]@{
     runner = 'bin/bcs-runner.exe'
     example_project = 'examples/001_scalar_component/project.bcsproj'
   }
   notes = @(
-    'MVP runtime package: runner executable plus Python worker/source files.',
-    'Requires Python 3.11+ on PATH until embedded runtime/python packaging is added.'
+    'MVP runtime package: runner executable, bundled Python runtime, and Python worker/source files.',
+    'Project-specific third-party Python package locking is still a later milestone.'
   )
 }
 
@@ -109,9 +76,10 @@ Run the included smoke example:
 .\bin\bcs-runner.exe run --project .\examples\001_scalar_component\project.bcsproj --input .\examples\001_scalar_component\inputs\case01.json --output .\outputs\001_scalar_component.json
 ```
 
-This MVP package includes the runner executable and Python worker source. It still requires Python 3.11+ on PATH. A future runtime-only package will vendor `runtime/python`.
+This MVP package includes the runner executable, bundled Python runtime, and Python worker source. Project-specific third-party Python package locking is still a later milestone.
 "@ | Set-Content -LiteralPath (Join-Path $StageRoot 'PACKAGE_README.md') -Encoding UTF8
 
+Remove-PythonCaches -Root $StageRoot
 Compress-Archive -LiteralPath $StageRoot -DestinationPath $ZipPath -Force
 
 Write-Host "runtime package: $ZipPath"

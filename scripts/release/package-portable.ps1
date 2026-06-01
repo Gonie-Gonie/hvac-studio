@@ -7,44 +7,9 @@ $ErrorActionPreference = 'Stop'
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 . (Join-Path $RepoRoot 'scripts\dev\env.ps1')
+. (Join-Path $RepoRoot 'scripts\release\package-common.ps1')
 
-function Copy-Tree {
-  param(
-    [Parameter(Mandatory = $true)][string]$Source,
-    [Parameter(Mandatory = $true)][string]$Destination
-  )
-
-  if (-not (Test-Path -LiteralPath $Source)) {
-    throw "source path does not exist: $Source"
-  }
-  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Destination) | Out-Null
-  Copy-Item -LiteralPath $Source -Destination $Destination -Recurse -Force
-}
-
-function Resolve-Version {
-  if ($Version) {
-    return $Version
-  }
-
-  $Git = Get-Command git -ErrorAction SilentlyContinue
-  if ($null -eq $Git) {
-    return '0.1.0-dev'
-  }
-
-  $ExactTag = (& git describe --tags --exact-match 2>$null)
-  if ($LASTEXITCODE -eq 0 -and $ExactTag) {
-    return $ExactTag.TrimStart('v')
-  }
-
-  $ShortSha = (& git rev-parse --short HEAD 2>$null)
-  if ($LASTEXITCODE -eq 0 -and $ShortSha) {
-    return "0.1.0-dev-$ShortSha"
-  }
-
-  return '0.1.0-dev'
-}
-
-$ResolvedVersion = Resolve-Version
+$ResolvedVersion = Resolve-Version -Version $Version
 $RuntimeId = 'windows-amd64'
 $PackageName = "hvac-studio-$ResolvedVersion-$RuntimeId-portable"
 $DistRoot = Join-Path $RepoRoot 'dist'
@@ -69,6 +34,7 @@ Copy-Tree -Source (Join-Path $RepoRoot 'python\bcs_worker') -Destination (Join-P
 Copy-Tree -Source (Join-Path $RepoRoot 'python\bcs_sdk') -Destination (Join-Path $StageRoot 'python\bcs_sdk')
 Copy-Tree -Source (Join-Path $RepoRoot 'schema') -Destination (Join-Path $StageRoot 'schema')
 Copy-Tree -Source (Join-Path $RepoRoot 'runtime') -Destination (Join-Path $StageRoot 'runtime')
+Copy-PackagedPythonRuntime -RepoRoot $RepoRoot -Destination (Join-Path $StageRoot 'runtime\python')
 Copy-Tree -Source (Join-Path $RepoRoot 'docs') -Destination (Join-Path $StageRoot 'docs')
 Copy-Tree -Source (Join-Path $RepoRoot 'examples') -Destination (Join-Path $StageRoot 'examples')
 Copy-Tree -Source (Join-Path $RepoRoot 'README.md') -Destination (Join-Path $StageRoot 'README.md')
@@ -82,9 +48,93 @@ Component and system templates will be added as the authoring model stabilizes.
 "@ | Set-Content -LiteralPath (Join-Path $StageRoot 'templates\README.md') -Encoding UTF8
 
 @"
+param(
+  [string]`$Addr = '127.0.0.1:5174',
+  [switch]`$NoBrowser
+)
+
+`$ErrorActionPreference = 'Stop'
 `$Root = Split-Path -Parent `$MyInvocation.MyCommand.Path
-& (Join-Path `$Root 'bin\studio.exe') --repo `$Root
+`$PythonRoot = Join-Path `$Root 'runtime\python'
+`$env:PATH = (@(`$PythonRoot, (Join-Path `$Root 'bin'), `$env:PATH) | Where-Object { `$_ }) -join [IO.Path]::PathSeparator
+`$env:PYTHONPATH = (@(
+  (Join-Path `$Root 'python\bcs_worker'),
+  (Join-Path `$Root 'python\bcs_sdk'),
+  `$env:PYTHONPATH
+) | Where-Object { `$_ }) -join [IO.Path]::PathSeparator
+
+`$Studio = Join-Path `$Root 'bin\studio.exe'
+`$Url = "http://`$Addr"
+`$LogRoot = Join-Path `$Root 'logs'
+New-Item -ItemType Directory -Force -Path `$LogRoot | Out-Null
+`$OutLog = Join-Path `$LogRoot 'studio.out.log'
+`$ErrLog = Join-Path `$LogRoot 'studio.err.log'
+
+Write-Host "Starting HVAC Studio at `$Url"
+`$StudioProcess = Start-Process -FilePath `$Studio -WindowStyle Hidden -PassThru -RedirectStandardOutput `$OutLog -RedirectStandardError `$ErrLog -ArgumentList @(
+  '--repo',
+  `$Root,
+  '--addr',
+  `$Addr
+)
+
+`$Ready = `$false
+for (`$Index = 0; `$Index -lt 40; `$Index++) {
+  try {
+    `$Response = Invoke-WebRequest -UseBasicParsing -Uri "`$Url/api/projects" -TimeoutSec 2
+    if (`$Response.StatusCode -eq 200) {
+      `$Ready = `$true
+      break
+    }
+  } catch {
+    Start-Sleep -Milliseconds 500
+  }
+}
+
+if (-not `$Ready) {
+  Write-Host "Studio failed to start. stdout: `$OutLog stderr: `$ErrLog"
+  if (Test-Path -LiteralPath `$ErrLog) {
+    Get-Content -LiteralPath `$ErrLog -Tail 40
+  }
+  throw "Studio did not respond at `$Url"
+}
+
+if (-not `$NoBrowser) {
+  Start-Process `$Url
+}
+
+Write-Host "HVAC Studio is running. Close this window or press Ctrl+C to stop it."
+try {
+  Wait-Process -Id `$StudioProcess.Id
+} finally {
+  if (`$null -ne `$StudioProcess -and -not `$StudioProcess.HasExited) {
+    Stop-Process -Id `$StudioProcess.Id -Force -ErrorAction SilentlyContinue
+  }
+}
 "@ | Set-Content -LiteralPath (Join-Path $StageRoot 'Start-Studio.ps1') -Encoding UTF8
+
+@"
+@echo off
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0Start-Studio.ps1" %*
+"@ | Set-Content -LiteralPath (Join-Path $StageRoot 'Start-Studio.cmd') -Encoding ASCII
+
+@"
+`$ErrorActionPreference = 'Stop'
+`$Root = Split-Path -Parent `$MyInvocation.MyCommand.Path
+`$PythonRoot = Join-Path `$Root 'runtime\python'
+`$env:PATH = (@(`$PythonRoot, (Join-Path `$Root 'bin'), `$env:PATH) | Where-Object { `$_ }) -join [IO.Path]::PathSeparator
+
+`$Project = Join-Path `$Root 'examples\003_feedforward_system\project.bcsproj'
+`$Input = Join-Path `$Root 'examples\003_feedforward_system\inputs\case01.json'
+`$Output = Join-Path `$Root 'outputs\003_feedforward_system.json'
+
+New-Item -ItemType Directory -Force -Path (Split-Path -Parent `$Output) | Out-Null
+& (Join-Path `$Root 'bin\bcs-runner.exe') validate --project `$Project
+if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE }
+& (Join-Path `$Root 'bin\bcs-runner.exe') run --project `$Project --input `$Input --output `$Output
+if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE }
+Write-Host "Example result written to `$Output"
+"@ | Set-Content -LiteralPath (Join-Path $StageRoot 'Run-Smoke-Example.ps1') -Encoding UTF8
 
 $Commit = ''
 $GitCommand = Get-Command git -ErrorAction SilentlyContinue
@@ -109,12 +159,15 @@ $ReleaseManifest = [ordered]@{
     runner = 'bin/bcs-runner.exe'
     env = 'bin/bcs-env.exe'
     start_script = 'Start-Studio.ps1'
+    start_cmd = 'Start-Studio.cmd'
+    smoke_example = 'Run-Smoke-Example.ps1'
   }
-  includes_embedded_python = $false
+  includes_embedded_python = $true
   notes = @(
     'Windows-first portable Studio package.',
     'Engine and project format are OS-independent; macOS packaging is a future experimental target.',
-    'MVP package still requires Python 3.11+ on PATH until runtime/python is vendored.'
+    'Includes a bundled Python runtime for included examples.',
+    'Project-specific third-party Python package locking is still a later milestone.'
   )
 }
 
@@ -132,6 +185,8 @@ Launch Studio:
 .\Start-Studio.ps1
 ```
 
+The launch script starts the local Studio server, waits until it is ready, and opens the browser.
+
 Run the CLI smoke example:
 
 ```powershell
@@ -139,9 +194,10 @@ Run the CLI smoke example:
 .\bin\bcs-runner.exe run --project .\examples\001_scalar_component\project.bcsproj --input .\examples\001_scalar_component\inputs\case01.json --output .\outputs\001_scalar_component.json
 ```
 
-This MVP portable package is Windows-first and still requires Python 3.11+ on PATH. A future package will vendor `runtime/python`.
+This MVP portable package is Windows-first and includes a bundled Python runtime for included examples. Project-specific third-party Python package locking is still a later milestone.
 "@ | Set-Content -LiteralPath (Join-Path $StageRoot 'PACKAGE_README.md') -Encoding UTF8
 
+Remove-PythonCaches -Root $StageRoot
 Compress-Archive -LiteralPath $StageRoot -DestinationPath $ZipPath -Force
 
 Write-Host "portable package: $ZipPath"

@@ -8,6 +8,7 @@ $ErrorActionPreference = 'Stop'
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 . (Join-Path $RepoRoot 'scripts\dev\env.ps1')
 . (Join-Path $RepoRoot 'scripts\dev\json-assert.ps1')
+. (Join-Path $RepoRoot 'scripts\release\package-common.ps1')
 
 if (-not $PackagePath) {
   $PackageOutput = & (Join-Path $RepoRoot 'scripts\release\package-portable.ps1') -Version $Version
@@ -28,11 +29,11 @@ function Get-FreePort {
   }
 }
 
-$TestRoot = Join-Path ([IO.Path]::GetTempPath()) ('hvac-studio-portable-test-' + [Guid]::NewGuid().ToString('N'))
-New-Item -ItemType Directory -Force -Path $TestRoot | Out-Null
+$TestRoot = New-PackageTestRoot -Prefix 'hvac-portable-test'
 
 $StudioProcess = $null
 $ErrLog = ''
+$OriginalPath = $env:PATH
 
 try {
   Expand-Archive -LiteralPath $PackagePath -DestinationPath $TestRoot -Force
@@ -44,17 +45,21 @@ try {
   $Studio = Join-Path $PackageDir.FullName 'bin\studio.exe'
   $Runner = Join-Path $PackageDir.FullName 'bin\bcs-runner.exe'
   $EnvTool = Join-Path $PackageDir.FullName 'bin\bcs-env.exe'
-  foreach ($RequiredPath in @($Studio, $Runner, $EnvTool)) {
+  $PackagedPython = Join-Path $PackageDir.FullName 'runtime\python\python.exe'
+  foreach ($RequiredPath in @($Studio, $Runner, $EnvTool, $PackagedPython)) {
     if (-not (Test-Path -LiteralPath $RequiredPath)) {
       throw "portable package is missing $RequiredPath"
     }
   }
+
+  $env:PATH = Get-MinimalPackagePath -PackageRoot $PackageDir.FullName
 
   $Project = Join-Path $PackageDir.FullName 'examples\003_feedforward_system\project.bcsproj'
   $Input = Join-Path $PackageDir.FullName 'examples\003_feedforward_system\inputs\case01.json'
   $Expected = Join-Path $PackageDir.FullName 'examples\003_feedforward_system\expected\output.json'
   $Output = Join-Path $PackageDir.FullName 'outputs\003_feedforward_system.json'
 
+  Invoke-Checked $PackagedPython @('--version')
   Invoke-Checked $EnvTool @()
   Invoke-Checked $Runner @('validate', '--project', $Project)
   Invoke-Checked $Runner @('run', '--project', $Project, '--input', $Input, '--output', $Output)
@@ -119,5 +124,6 @@ try {
       Write-Host $ErrText
     }
   }
+  $env:PATH = $OriginalPath
   Remove-Item -LiteralPath $TestRoot -Recurse -Force -ErrorAction SilentlyContinue
 }

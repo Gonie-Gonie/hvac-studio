@@ -50,7 +50,8 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Fresh clones should be bootstrappable into a repo-local development environment. `scripts/dev/setup.ps1` installs Go, uv, uv-managed Python, and `.venv` inside the clone so normal development does not depend on user-profile toolchains.
 - Dev/test/build scripts should load `scripts/dev/env.ps1` and prefer `.repo_tools` / `.venv` before falling back to system tools.
 - Work should be committed and pushed at sensible milestones, especially after a test pass. Treat "test green -> commit -> push" as an operating rule unless the user says to hold changes locally.
-- The first releasable artifact is a Windows runtime MVP zip: runner executable, Python worker/source packages, schemas, docs, runtime manifest, and the scalar golden example. It does not yet vendor embedded Python.
+- The Windows portable and runtime MVP zips should include `runtime/python` copied from repo-local setup. Included examples must run without system Python on `PATH`.
+- Project-specific third-party package locking/freezing remains a later environment-management milestone.
 - The first user-facing app release should be a Windows 10/11 x64 portable Studio zip. Installer packaging comes after portable behavior is reproducible.
 - macOS is a future experimental release target after MVP. Keep engine, project files, graph schema, and component schema OS-independent, but do not let macOS packaging slow the Windows MVP.
 - OS-specific path, process, runtime, executable naming, installer, signing, and packaging logic should be isolated behind platform/release boundaries.
@@ -70,6 +71,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Are setup scripts keeping tool caches inside the repo-local ignored directories rather than leaking assumptions into the user's global environment?
 - After a coherent unit is tested, did we commit and push before starting the next unit?
 - Does every release package get smoke-tested after expansion, not just built?
+- Do release smoke tests constrain `PATH` so they prove bundled Python is being used?
 - Are Windows portable, runtime-only, and future installer packages clearly separated?
 - Are we accidentally hardcoding Windows-specific behavior into engine/compiler/runtime packages instead of release/platform code?
 - Are UX features being staged so runtime support and golden examples exist before GUI polish?

@@ -52,12 +52,13 @@ Already present:
 - First scalar example.
 - Minimal Windows runtime release package.
 - Go-hosted Studio shell and Windows portable package script.
+- Bundled Python runtime copied into Windows portable and runtime-only packages.
 
 Near-term additions:
 
 - Add CI workflow for non-release test runs.
 - Add release package smoke test to CI.
-- Add embedded `runtime/python` packaging for Windows.
+- Add project-specific Python package lock/freeze support on top of bundled `runtime/python`.
 - Add explicit platform abstraction for path, process, runtime, and executable naming boundaries.
 
 Acceptance criteria:
@@ -517,7 +518,7 @@ hvac-studio-<version>-windows-amd64-portable/
 Acceptance criteria:
 
 - Portable package launches Studio and opens included examples.
-- CLI runner validates and runs included examples.
+- CLI runner validates and runs included examples using bundled `runtime/python`.
 - Package smoke test exercises Studio API and runner CLI after zip expansion.
 - Installer work does not start until portable zip behavior is reproducible.
 - macOS packaging remains a deliberate post-MVP release target, not an implicit promise.

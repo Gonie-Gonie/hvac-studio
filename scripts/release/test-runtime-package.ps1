@@ -8,6 +8,7 @@ $ErrorActionPreference = 'Stop'
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 . (Join-Path $RepoRoot 'scripts\dev\env.ps1')
 . (Join-Path $RepoRoot 'scripts\dev\json-assert.ps1')
+. (Join-Path $RepoRoot 'scripts\release\package-common.ps1')
 
 if (-not $PackagePath) {
   $PackageOutput = & (Join-Path $RepoRoot 'scripts\release\package-runtime.ps1') -Version $Version
@@ -18,8 +19,8 @@ if (-not (Test-Path -LiteralPath $PackagePath)) {
   throw "package does not exist: $PackagePath"
 }
 
-$TestRoot = Join-Path ([IO.Path]::GetTempPath()) ('hvac-studio-release-test-' + [Guid]::NewGuid().ToString('N'))
-New-Item -ItemType Directory -Force -Path $TestRoot | Out-Null
+$TestRoot = New-PackageTestRoot -Prefix 'hvac-runtime-test'
+$OriginalPath = $env:PATH
 
 try {
   Expand-Archive -LiteralPath $PackagePath -DestinationPath $TestRoot -Force
@@ -29,6 +30,13 @@ try {
   }
 
   $Runner = Join-Path $PackageDir.FullName 'bin\bcs-runner.exe'
+  $PackagedPython = Join-Path $PackageDir.FullName 'runtime\python\python.exe'
+  if (-not (Test-Path -LiteralPath $PackagedPython)) {
+    throw "runtime package is missing $PackagedPython"
+  }
+  $env:PATH = Get-MinimalPackagePath -PackageRoot $PackageDir.FullName
+  Invoke-Checked $PackagedPython @('--version')
+
   $Projects = Get-ChildItem -LiteralPath (Join-Path $PackageDir.FullName 'examples') -Recurse -Filter 'project.bcsproj' |
     Sort-Object FullName
   if ($Projects.Count -eq 0) {
@@ -59,5 +67,6 @@ try {
 
   Write-Host "runtime package smoke test ok: $PackagePath examples=$($Projects.Count)"
 } finally {
+  $env:PATH = $OriginalPath
   Remove-Item -LiteralPath $TestRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
