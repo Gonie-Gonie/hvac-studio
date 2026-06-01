@@ -11,6 +11,8 @@ const state = {
   latestValidation: null,
   activeRunInput: null,
   sourceByComponent: {},
+  sourceDraftByComponent: {},
+  sourceCheckByComponent: {},
   loadingSource: {},
   logs: [],
 };
@@ -68,6 +70,8 @@ async function loadProject(projectPath) {
   state.latestValidation = null;
   state.activeRunInput = null;
   state.sourceByComponent = {};
+  state.sourceDraftByComponent = {};
+  state.sourceCheckByComponent = {};
   state.loadingSource = {};
   el("saveProjectButton").classList.remove("dirty");
 
@@ -671,7 +675,8 @@ function renderProblems() {
 function problemRow(problem) {
   const row = document.createElement("div");
   row.className = "problem-row";
-  row.innerHTML = `<span class="status-dot ${problem.severity === "error" ? "error" : ""}"></span><span>${escapeHTML(problem.message)}</span>`;
+  const location = problem.line ? `:${problem.line}${problem.column ? `:${problem.column}` : ""}` : "";
+  row.innerHTML = `<span class="status-dot ${problem.severity === "error" ? "error" : ""}"></span><span>${escapeHTML(problem.message)}${escapeHTML(location)}</span>`;
   if (problem.component_id) {
     row.classList.add("linked");
     row.addEventListener("click", () => selectComponent(problem.component_id));
@@ -694,18 +699,148 @@ function renderSchema() {
 
 function renderPythonPanel() {
   const component = componentById(state.selectedComponentId);
-  const panel = el("pythonPanel");
-  panel.value = "";
-  panel.readOnly = true;
-  if (!component) return;
+  renderSourceComponentSelect(component?.id || "");
+  renderSourceContract(component);
+  setSourceEditors("", true);
+  updateSourceChrome(component, null, "");
+  if (!component) {
+    updateLineNumbers("");
+    return;
+  }
   const source = state.sourceByComponent[component.id];
   if (!source) {
-    panel.value = "";
+    updateSourceChrome(component, null, "");
+    updateLineNumbers("");
     loadComponentSource(component.id);
     return;
   }
-  panel.value = source.content;
-  panel.readOnly = source.read_only || !isWorkspaceProject();
+  const draft = sourceDraft(component.id);
+  setSourceEditors(draft, source.read_only || !isWorkspaceProject());
+  updateSourceChrome(component, source, draft);
+  updateLineNumbers(draft);
+  renderSourceCheck(component.id);
+}
+
+function sourceEditors() {
+  return [el("sourceEditor"), el("pythonPanel")].filter(Boolean);
+}
+
+function sourceDraft(componentID) {
+  const source = state.sourceByComponent[componentID];
+  if (!source) return "";
+  return Object.prototype.hasOwnProperty.call(state.sourceDraftByComponent, componentID)
+    ? state.sourceDraftByComponent[componentID]
+    : source.content;
+}
+
+function setSourceEditors(value, readOnly) {
+  for (const editor of sourceEditors()) {
+    if (document.activeElement !== editor || editor.value !== value) {
+      editor.value = value;
+    }
+    editor.readOnly = readOnly;
+  }
+}
+
+function renderSourceComponentSelect(selectedID) {
+  const select = el("sourceComponentSelect");
+  if (!select) return;
+  const components = state.detail?.graph?.components || [];
+  select.innerHTML = "";
+  for (const component of components) {
+    const option = document.createElement("option");
+    option.value = component.id;
+    option.textContent = component.id;
+    select.append(option);
+  }
+  select.disabled = !components.length;
+  if (selectedID) select.value = selectedID;
+}
+
+function updateSourceChrome(component, source, draft) {
+  const path = el("sourcePath");
+  const status = el("sourceStatus");
+  const editable = Boolean(component && source && !source.read_only && isWorkspaceProject());
+  const dirty = Boolean(component && source && draft !== source.content);
+  if (path) path.textContent = source?.relative_path || component?.class || "";
+  if (status) {
+    status.className = "source-status";
+    if (!component) {
+      status.textContent = "";
+    } else if (!source) {
+      status.textContent = "loading";
+    } else if (source.read_only || !isWorkspaceProject()) {
+      status.textContent = "read only";
+    } else if (dirty) {
+      status.textContent = "modified";
+    } else {
+      status.textContent = "saved";
+      status.classList.add("ok");
+    }
+  }
+  for (const id of ["saveSourceButton", "revertSourceButton", "checkSourceButton", "insertSnippetButton", "sourceSnippetSelect"]) {
+    const control = el(id);
+    if (control) control.disabled = !component || !source || (id !== "checkSourceButton" && !editable);
+  }
+}
+
+function renderSourceContract(component) {
+  const container = el("sourceContract");
+  if (!container) return;
+  container.innerHTML = "";
+  if (!component) return;
+  container.append(contractBlock("Component", [
+    [component.id, component.class || ""],
+    [component.kind || "", component.name || ""],
+  ]));
+  container.append(contractBlock("Inputs", (component.nodes.inputs || []).map((node) => [node.id, nodeTypeLabel(node)])));
+  container.append(contractBlock("Outputs", (component.nodes.outputs || []).map((node) => [node.id, nodeTypeLabel(node)])));
+  container.append(contractBlock("Parameters", Object.entries(component.parameters || {}).map(([name, value]) => [name, parameterInputValue(value)])));
+}
+
+function contractBlock(title, rows) {
+  const block = document.createElement("div");
+  block.className = "contract-block";
+  block.innerHTML = `<div class="contract-title">${escapeHTML(title)}</div>`;
+  if (!rows.length) {
+    const empty = document.createElement("div");
+    empty.className = "contract-row";
+    empty.innerHTML = `<span>empty</span><span class="contract-meta"></span>`;
+    block.append(empty);
+    return block;
+  }
+  for (const [name, meta] of rows) {
+    const rowEl = document.createElement("div");
+    rowEl.className = "contract-row";
+    rowEl.innerHTML = `<span>${escapeHTML(name)}</span><span class="contract-meta">${escapeHTML(meta)}</span>`;
+    block.append(rowEl);
+  }
+  return block;
+}
+
+function nodeTypeLabel(node) {
+  return `${node.value_type || ""} ${node.unit || ""}`.trim() || node.medium || "";
+}
+
+function renderSourceCheck(componentID) {
+  const status = el("sourceStatus");
+  const check = state.sourceCheckByComponent[componentID];
+  if (!status || !check) return;
+  status.className = "source-status";
+  if (check.ok) {
+    status.textContent = "checked";
+    status.classList.add("ok");
+  } else {
+    status.textContent = "issues";
+    status.classList.add("error");
+  }
+}
+
+function updateLineNumbers(value) {
+  const gutter = el("sourceLineNumbers");
+  if (!gutter) return;
+  const lines = Math.max(1, (value.match(/\n/g) || []).length + 1);
+  gutter.textContent = Array.from({ length: lines }, (_, index) => String(index + 1)).join("\n");
 }
 
 function renderExportManifest() {
@@ -790,7 +925,7 @@ async function runBatch() {
 async function saveModelEditsBeforeExecution() {
   if (!isWorkspaceProject()) return true;
   const parameters = collectParameterUpdates();
-  const sourceUpdate = currentSourceUpdate();
+  const sourceUpdates = collectSourceUpdates();
   try {
     if (Object.keys(parameters).length) {
       const body = await api("/api/project/parameters", {
@@ -799,12 +934,13 @@ async function saveModelEditsBeforeExecution() {
       });
       state.detail = body.project;
     }
-    if (sourceUpdate) {
+    for (const sourceUpdate of sourceUpdates) {
       const sourceBody = await api("/api/project/source", {
         method: "POST",
         body: JSON.stringify({ project_path: state.currentProjectPath, component_id: sourceUpdate.component_id, content: sourceUpdate.content }),
       });
       state.sourceByComponent[sourceUpdate.component_id] = sourceBody.source;
+      state.sourceDraftByComponent[sourceUpdate.component_id] = sourceBody.source.content;
     }
     return true;
   } catch (error) {
@@ -871,6 +1007,9 @@ async function loadComponentSource(componentID) {
   try {
     const body = await api(`/api/project/source?project_path=${encodeURIComponent(state.currentProjectPath)}&component_id=${encodeURIComponent(componentID)}`);
     state.sourceByComponent[componentID] = body.source;
+    if (!Object.prototype.hasOwnProperty.call(state.sourceDraftByComponent, componentID)) {
+      state.sourceDraftByComponent[componentID] = body.source.content;
+    }
     if (state.selectedComponentId === componentID) {
       renderPythonPanel();
     }
@@ -878,6 +1017,92 @@ async function loadComponentSource(componentID) {
     log(`Source load failed: ${error.message}`);
   } finally {
     state.loadingSource[componentID] = false;
+  }
+}
+
+async function saveCurrentSource() {
+  const component = componentById(state.selectedComponentId);
+  const source = component ? state.sourceByComponent[component.id] : null;
+  if (!component || !source || source.read_only || !isWorkspaceProject()) return;
+  const content = sourceDraft(component.id);
+  try {
+    const body = await api("/api/project/source", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath, component_id: component.id, content }),
+    });
+    state.sourceByComponent[component.id] = body.source;
+    state.sourceDraftByComponent[component.id] = body.source.content;
+    renderPythonPanel();
+    log(`Source saved: ${component.id}`);
+  } catch (error) {
+    log(`Source save failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
+async function checkCurrentSource() {
+  const component = componentById(state.selectedComponentId);
+  const source = component ? state.sourceByComponent[component.id] : null;
+  if (!component || !source) return;
+  try {
+    const body = await api("/api/project/source/check", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath, component_id: component.id, content: sourceDraft(component.id) }),
+    });
+    state.sourceCheckByComponent[component.id] = body.check;
+    state.latestValidation = { problems: body.check.problems || [] };
+    renderSourceCheck(component.id);
+    renderProblems();
+    if (!body.check.ok) setBottomTab("problems");
+    log(`Source checked: ${component.id}`);
+  } catch (error) {
+    log(`Source check failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
+function revertCurrentSource() {
+  const component = componentById(state.selectedComponentId);
+  const source = component ? state.sourceByComponent[component.id] : null;
+  if (!component || !source || source.read_only || !isWorkspaceProject()) return;
+  state.sourceDraftByComponent[component.id] = source.content;
+  renderPythonPanel();
+  log(`Source reverted: ${component.id}`);
+}
+
+function insertSourceSnippet() {
+  const component = componentById(state.selectedComponentId);
+  const source = component ? state.sourceByComponent[component.id] : null;
+  const editor = el("sourceEditor") || el("pythonPanel");
+  if (!component || !source || source.read_only || !isWorkspaceProject() || !editor || editor.readOnly) return;
+  const snippet = sourceSnippet(el("sourceSnippetSelect")?.value || "evaluate", component);
+  const start = editor.selectionStart ?? editor.value.length;
+  const end = editor.selectionEnd ?? editor.value.length;
+  editor.value = `${editor.value.slice(0, start)}${snippet}${editor.value.slice(end)}`;
+  editor.selectionStart = editor.selectionEnd = start + snippet.length;
+  updateSourceDraftFromEditor(editor);
+  editor.focus();
+}
+
+function sourceSnippet(kind, component) {
+  const firstInput = (component.nodes.inputs || [])[0]?.id || "value";
+  const firstOutput = (component.nodes.outputs || [])[0]?.id || "result";
+  const firstParam = Object.keys(component.parameters || {})[0] || "gain";
+  switch (kind) {
+    case "initialize":
+      return `\n    def initialize(self, params, context):\n        return {}\n`;
+    case "output":
+      return `"${firstOutput}": value`;
+    case "input":
+      return `inputs.get("${firstInput}", 0.0)`;
+    case "parameter":
+      return `params.get("${firstParam}", 1.0)`;
+    default:
+      return `\n    def evaluate(self, inputs, state, params, context):\n        value = float(inputs.get("${firstInput}", 0.0))\n        return {"${firstOutput}": value}, state\n`;
   }
 }
 
@@ -889,7 +1114,7 @@ async function saveProjectEdits() {
   const parameters = collectParameterUpdates();
   const inputs = collectRunInputs();
   const context = currentRunContext();
-  const sourceUpdate = currentSourceUpdate();
+  const sourceUpdates = collectSourceUpdates();
   try {
     let body = await api("/api/project/input", {
       method: "POST",
@@ -901,12 +1126,13 @@ async function saveProjectEdits() {
         body: JSON.stringify({ project_path: state.currentProjectPath, parameters }),
       });
     }
-    if (sourceUpdate) {
+    for (const sourceUpdate of sourceUpdates) {
       const sourceBody = await api("/api/project/source", {
         method: "POST",
         body: JSON.stringify({ project_path: state.currentProjectPath, component_id: sourceUpdate.component_id, content: sourceUpdate.content }),
       });
       state.sourceByComponent[sourceUpdate.component_id] = sourceBody.source;
+      state.sourceDraftByComponent[sourceUpdate.component_id] = sourceBody.source.content;
     }
     state.detail = body.project;
     el("saveProjectButton").classList.remove("dirty");
@@ -1137,6 +1363,8 @@ async function deleteSelectedComponent() {
       body: JSON.stringify({ project_path: state.currentProjectPath, component_id: component.id }),
     });
     delete state.sourceByComponent[component.id];
+    delete state.sourceDraftByComponent[component.id];
+    delete state.sourceCheckByComponent[component.id];
     state.detail = body.project;
     state.selectedComponentId = null;
     renderAll();
@@ -1397,9 +1625,21 @@ function currentSourceUpdate() {
   const component = componentById(state.selectedComponentId);
   if (!component || !isWorkspaceProject()) return null;
   const source = state.sourceByComponent[component.id];
-  const panel = el("pythonPanel");
-  if (!source || source.read_only || panel.readOnly || panel.value === source.content) return null;
-  return { component_id: component.id, content: panel.value };
+  const draft = sourceDraft(component.id);
+  if (!source || source.read_only || draft === source.content) return null;
+  return { component_id: component.id, content: draft };
+}
+
+function collectSourceUpdates() {
+  if (!isWorkspaceProject()) return [];
+  const updates = [];
+  for (const [componentID, source] of Object.entries(state.sourceByComponent)) {
+    const draft = sourceDraft(componentID);
+    if (!source.read_only && draft !== source.content) {
+      updates.push({ component_id: componentID, content: draft });
+    }
+  }
+  return updates;
 }
 
 function collectParameterUpdates() {
@@ -1501,6 +1741,47 @@ function markProjectDirty() {
   }
 }
 
+function updateSourceDraftFromEditor(editor) {
+  const component = componentById(state.selectedComponentId);
+  if (!component) return;
+  state.sourceDraftByComponent[component.id] = editor.value;
+  delete state.sourceCheckByComponent[component.id];
+  for (const other of sourceEditors()) {
+    if (other !== editor && document.activeElement !== other) {
+      other.value = editor.value;
+    }
+  }
+  updateLineNumbers(editor.value);
+  updateSourceChrome(component, state.sourceByComponent[component.id], editor.value);
+  markProjectDirty();
+}
+
+function handleSourceEditorInput(event) {
+  updateSourceDraftFromEditor(event.target);
+}
+
+function handleSourceEditorKeydown(event) {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+    event.preventDefault();
+    saveCurrentSource();
+    return;
+  }
+  if (event.key === "Tab") {
+    event.preventDefault();
+    const editor = event.target;
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    editor.value = `${editor.value.slice(0, start)}    ${editor.value.slice(end)}`;
+    editor.selectionStart = editor.selectionEnd = start + 4;
+    updateSourceDraftFromEditor(editor);
+  }
+}
+
+function syncSourceGutterScroll(event) {
+  const gutter = el("sourceLineNumbers");
+  if (gutter) gutter.scrollTop = event.target.scrollTop;
+}
+
 function escapeHTML(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -1530,7 +1811,16 @@ function bindEvents() {
   el("batchButton").addEventListener("click", runBatch);
   el("schemaButton").addEventListener("click", exportSchema);
   el("exportButton").addEventListener("click", exportProject);
-  el("pythonPanel").addEventListener("input", markProjectDirty);
+  el("sourceComponentSelect").addEventListener("change", (event) => selectComponent(event.target.value));
+  el("saveSourceButton").addEventListener("click", saveCurrentSource);
+  el("checkSourceButton").addEventListener("click", checkCurrentSource);
+  el("revertSourceButton").addEventListener("click", revertCurrentSource);
+  el("insertSnippetButton").addEventListener("click", insertSourceSnippet);
+  for (const editor of sourceEditors()) {
+    editor.addEventListener("input", handleSourceEditorInput);
+    editor.addEventListener("keydown", handleSourceEditorKeydown);
+  }
+  el("sourceEditor").addEventListener("scroll", syncSourceGutterScroll);
   document.querySelectorAll(".mode-button").forEach((button) => {
     button.addEventListener("click", () => setMode(button.dataset.mode));
   });

@@ -48,6 +48,7 @@
         <main class="main-stage">
           <section class="mode-strip" aria-label="Workspace modes">
             <button class="mode-button active" data-mode="canvas" type="button">System</button>
+            <button class="mode-button" data-mode="code" type="button">Code</button>
             <button class="mode-button" data-mode="parameters" type="button">Parameters</button>
             <button class="mode-button" data-mode="datasets" type="button">Datasets</button>
             <button class="mode-button" data-mode="validation" type="button">Validation</button>
@@ -68,6 +69,32 @@
               <svg id="connectionLayer" class="connection-layer" aria-hidden="true"></svg>
               <div id="systemCanvas" class="system-canvas"></div>
             </div>
+          </section>
+
+          <section id="codeView" class="view code-workspace">
+            <div class="source-shell">
+              <div class="source-toolbar">
+                <select id="sourceComponentSelect" aria-label="Component"></select>
+                <span id="sourcePath" class="source-path"></span>
+                <span id="sourceStatus" class="source-status"></span>
+                <select id="sourceSnippetSelect" aria-label="Snippet">
+                  <option value="evaluate">evaluate</option>
+                  <option value="initialize">initialize</option>
+                  <option value="output">output</option>
+                  <option value="input">input</option>
+                  <option value="parameter">parameter</option>
+                </select>
+                <button id="insertSnippetButton" type="button">Insert</button>
+                <button id="checkSourceButton" type="button">Check</button>
+                <button id="revertSourceButton" type="button">Revert</button>
+                <button id="saveSourceButton" type="button">Save</button>
+              </div>
+              <div class="source-editor-shell">
+                <pre id="sourceLineNumbers" class="source-line-numbers" aria-hidden="true"></pre>
+                <textarea id="sourceEditor" class="source-main-editor" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+              </div>
+            </div>
+            <aside id="sourceContract" class="source-contract"></aside>
           </section>
 
           <section id="parametersView" class="view">

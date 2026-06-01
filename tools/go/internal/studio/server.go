@@ -1,6 +1,7 @@
 package studio
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"encoding/json"
@@ -9,7 +10,9 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -143,6 +146,12 @@ type sourceRequest struct {
 	Content     string `json:"content"`
 }
 
+type sourceCheckRequest struct {
+	ProjectPath string `json:"project_path"`
+	ComponentID string `json:"component_id"`
+	Content     string `json:"content"`
+}
+
 type createScenarioRequest struct {
 	ProjectPath string         `json:"project_path"`
 	Name        string         `json:"name"`
@@ -252,11 +261,22 @@ type SourceDetail struct {
 	ReadOnly     bool   `json:"read_only"`
 }
 
+type SourceCheck struct {
+	OK            bool      `json:"ok"`
+	ComponentID   string    `json:"component_id"`
+	RelativePath  string    `json:"relative_path"`
+	ExpectedClass string    `json:"expected_class"`
+	LineCount     int       `json:"line_count"`
+	Problems      []Problem `json:"problems"`
+}
+
 type Problem struct {
 	Severity    string `json:"severity"`
 	Message     string `json:"message"`
 	ComponentID string `json:"component_id,omitempty"`
 	NodeID      string `json:"node_id,omitempty"`
+	Line        int    `json:"line,omitempty"`
+	Column      int    `json:"column,omitempty"`
 }
 
 type apiError struct {
@@ -298,6 +318,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("GET /api/project/batch", s.handleBatchRecord)
 	s.mux.HandleFunc("GET /api/project/scenario", s.handleScenarioRecord)
 	s.mux.HandleFunc("GET /api/project/source", s.handleSource)
+	s.mux.HandleFunc("POST /api/project/source/check", s.handleCheckSource)
 	s.mux.HandleFunc("POST /api/project/components", s.handleCreateComponent)
 	s.mux.HandleFunc("POST /api/project/components/duplicate", s.handleDuplicateComponent)
 	s.mux.HandleFunc("POST /api/project/components/update", s.handleUpdateComponent)
@@ -436,6 +457,25 @@ func (s *Server) handleSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "source": source})
+}
+
+func (s *Server) handleCheckSource(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeSourceCheckRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	check, err := checkComponentSource(r.Context(), loaded, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "check": check})
 }
 
 func (s *Server) handleCreateComponent(w http.ResponseWriter, r *http.Request) {
@@ -2090,6 +2130,45 @@ func loadComponentSource(loaded *project.LoadedProject, componentID string, read
 	}, nil
 }
 
+func checkComponentSource(ctx context.Context, loaded *project.LoadedProject, req sourceCheckRequest) (SourceCheck, error) {
+	componentID := strings.TrimSpace(req.ComponentID)
+	component, found := findComponent(loaded.Graph, componentID)
+	if !found {
+		return SourceCheck{}, apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
+	}
+	sourcePath, err := componentSourcePath(loaded, componentID)
+	if err != nil {
+		return SourceCheck{}, err
+	}
+	rel, _ := filepath.Rel(loaded.Root, sourcePath)
+	expectedClass := classNameFromPath(component.Class)
+	check := SourceCheck{
+		OK:            true,
+		ComponentID:   componentID,
+		RelativePath:  filepath.ToSlash(rel),
+		ExpectedClass: expectedClass,
+		LineCount:     countLines(req.Content),
+		Problems:      []Problem{},
+	}
+	if strings.TrimSpace(req.Content) == "" {
+		check.Problems = append(check.Problems, Problem{Severity: "error", Message: "source is empty", ComponentID: componentID})
+	}
+	if expectedClass == "" {
+		check.Problems = append(check.Problems, Problem{Severity: "error", Message: "component class path is invalid", ComponentID: componentID})
+	} else if line := findPythonClassLine(req.Content, expectedClass); line == 0 {
+		check.Problems = append(check.Problems, Problem{Severity: "error", Message: fmt.Sprintf("expected class is missing: %s", expectedClass), ComponentID: componentID})
+	}
+	if line := findPythonMethodLine(req.Content, "evaluate"); line == 0 {
+		check.Problems = append(check.Problems, Problem{Severity: "error", Message: "evaluate method is missing", ComponentID: componentID})
+	}
+	if !strings.Contains(req.Content, "return") {
+		check.Problems = append(check.Problems, Problem{Severity: "warning", Message: "source has no return statement", ComponentID: componentID})
+	}
+	check.Problems = append(check.Problems, pythonSyntaxProblems(ctx, loaded, componentID, filepath.ToSlash(rel), req.Content)...)
+	check.OK = !hasErrorProblems(check.Problems)
+	return check, nil
+}
+
 func componentSourcePath(loaded *project.LoadedProject, componentID string) (string, error) {
 	component, found := findComponent(loaded.Graph, componentID)
 	if !found {
@@ -2101,6 +2180,132 @@ func componentSourcePath(loaded *project.LoadedProject, componentID string) (str
 	}
 	modulePath := filepath.Join(parts[:len(parts)-1]...) + ".py"
 	return resolveProjectOwnedFile(loaded.Root, modulePath)
+}
+
+func classNameFromPath(classPath string) string {
+	classPath = strings.TrimSpace(classPath)
+	if classPath == "" {
+		return ""
+	}
+	parts := strings.Split(classPath, ".")
+	return strings.TrimSpace(parts[len(parts)-1])
+}
+
+func countLines(content string) int {
+	if content == "" {
+		return 0
+	}
+	return strings.Count(content, "\n") + 1
+}
+
+func findPythonClassLine(content string, className string) int {
+	pattern := regexp.MustCompile(`(?m)^class\s+` + regexp.QuoteMeta(className) + `\b`)
+	return regexpLine(content, pattern.FindStringIndex(content))
+}
+
+func findPythonMethodLine(content string, methodName string) int {
+	pattern := regexp.MustCompile(`(?m)^\s+def\s+` + regexp.QuoteMeta(methodName) + `\s*\(`)
+	return regexpLine(content, pattern.FindStringIndex(content))
+}
+
+func regexpLine(content string, match []int) int {
+	if len(match) != 2 {
+		return 0
+	}
+	return strings.Count(content[:match[0]], "\n") + 1
+}
+
+func pythonSyntaxProblems(ctx context.Context, loaded *project.LoadedProject, componentID string, relativePath string, content string) []Problem {
+	pythonExe := resolveStudioPython(loaded.Root, loaded.Project.Environment)
+	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(checkCtx, pythonExe, "-c", "import sys\ncompile(sys.stdin.read(), sys.argv[1], 'exec')", relativePath)
+	cmd.Dir = loaded.Root
+	cmd.Stdin = strings.NewReader(content)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if checkCtx.Err() != nil {
+			return []Problem{{Severity: "warning", Message: "python syntax check timed out", ComponentID: componentID}}
+		}
+		stderrText := strings.TrimSpace(stderr.String())
+		if stderrText == "" {
+			return []Problem{{Severity: "warning", Message: "python syntax check unavailable: " + err.Error(), ComponentID: componentID}}
+		}
+		return []Problem{syntaxProblemFromStderr(componentID, stderrText)}
+	}
+	return []Problem{}
+}
+
+func syntaxProblemFromStderr(componentID string, stderrText string) Problem {
+	line := 0
+	linePattern := regexp.MustCompile(`(?m)File ".*", line ([0-9]+)`)
+	if match := linePattern.FindStringSubmatch(stderrText); len(match) == 2 {
+		fmt.Sscanf(match[1], "%d", &line)
+	}
+	lines := strings.Split(stderrText, "\n")
+	message := strings.TrimSpace(lines[len(lines)-1])
+	if message == "" {
+		message = "python syntax error"
+	}
+	return Problem{Severity: "error", Message: message, ComponentID: componentID, Line: line}
+}
+
+func resolveStudioPython(projectRoot string, env model.EnvironmentConfig) string {
+	if env.Python == "" {
+		env.Python = "python"
+	}
+	if filepath.IsAbs(env.Python) {
+		return env.Python
+	}
+	projectPython := filepath.Join(projectRoot, env.Python)
+	if _, err := os.Stat(projectPython); err == nil {
+		return projectPython
+	}
+	if isDefaultPythonName(env.Python) {
+		if packagedPython := findPackagedPython(projectRoot); packagedPython != "" {
+			return packagedPython
+		}
+	}
+	return env.Python
+}
+
+func isDefaultPythonName(path string) bool {
+	name := strings.ToLower(filepath.Base(path))
+	return name == "python" || name == "python.exe" || name == "python3" || name == "python3.exe"
+}
+
+func findPackagedPython(start string) string {
+	absStart, err := filepath.Abs(start)
+	if err != nil {
+		return ""
+	}
+	for {
+		candidates := []string{
+			filepath.Join(absStart, "runtime", "python", "python.exe"),
+			filepath.Join(absStart, "runtime", "python", "python"),
+			filepath.Join(absStart, "runtime", "python", "bin", "python"),
+		}
+		for _, candidate := range candidates {
+			if _, err := os.Stat(candidate); err == nil {
+				return candidate
+			}
+		}
+		parent := filepath.Dir(absStart)
+		if parent == absStart {
+			return ""
+		}
+		absStart = parent
+	}
+}
+
+func hasErrorProblems(problems []Problem) bool {
+	for _, problem := range problems {
+		if problem.Severity == "error" {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) resolveProjectPath(projectPath string) (string, error) {
@@ -2257,6 +2462,15 @@ func decodeExportRequest(r *http.Request) (exportRequest, error) {
 func decodeSourceRequest(r *http.Request) (sourceRequest, error) {
 	defer r.Body.Close()
 	var req sourceRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeSourceCheckRequest(r *http.Request) (sourceCheckRequest, error) {
+	defer r.Body.Close()
+	var req sourceCheckRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}

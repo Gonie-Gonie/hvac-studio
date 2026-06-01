@@ -182,6 +182,16 @@ try {
   if ($SourceUpdateJson.source.content -notmatch 'portable source edit smoke') {
     throw "workspace source update did not round-trip"
   }
+  $SourceCheckBody = @{
+    project_path = $CreatedProject.project_path
+    component_id = 'scalar'
+    content = $SourceUpdateJson.source.content
+  } | ConvertTo-Json -Depth 4
+  $SourceCheckResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/source/check" -Method POST -ContentType 'application/json' -Body $SourceCheckBody -TimeoutSec 20
+  $SourceCheckJson = $SourceCheckResponse.Content | ConvertFrom-Json
+  if (-not $SourceCheckJson.check.ok) {
+    throw "workspace source check failed: $($SourceCheckJson.check.problems | ConvertTo-Json -Compress)"
+  }
 
   $DuplicateBody = @{
     project_path = $CreatedProject.project_path

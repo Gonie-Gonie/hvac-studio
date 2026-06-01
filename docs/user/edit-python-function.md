@@ -4,7 +4,11 @@ Python source is where users define component calculation logic.
 
 ## Current Studio Behavior
 
-Studio can load component source into the Python panel. Workspace project source can be saved. Bundled examples are read-only through Studio write APIs.
+Studio has a dedicated Code workspace for direct component Python source editing. It shows the selected component's source file, graph contract, nodes, and parameters together. Workspace project source can be checked, saved, reverted, and edited with snippets. Bundled examples are read-only through Studio write APIs.
+
+Before run, batch, and export actions, Studio flushes dirty workspace source drafts to the project source files. The source file remains the source of truth; the editor is only an authoring surface.
+
+The source checker validates the expected Python class name, the presence of `evaluate`, basic return-shape hints, and Python syntax when a Python runtime is available.
 
 ## Component Class Shape
 
@@ -49,4 +53,3 @@ gain = params["gain"]
 ```python
 return {"result": value * gain}, state
 ```
-
