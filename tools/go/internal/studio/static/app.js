@@ -36,7 +36,7 @@ async function api(path, options = {}) {
   return body;
 }
 
-async function loadProjects() {
+async function loadProjects(preferredProjectPath = "") {
   const body = await api("/api/projects");
   state.projects = body.projects || [];
   const select = el("projectSelect");
@@ -48,7 +48,8 @@ async function loadProjects() {
     select.append(option);
   }
   const feedForward = state.projects.find((p) => p.name === "003_feedforward_system");
-  const first = state.projects.find((p) => p.source === "workspace") || feedForward || state.projects[0];
+  const preferred = state.projects.find((p) => p.project_path === preferredProjectPath);
+  const first = preferred || state.projects.find((p) => p.source === "workspace") || feedForward || state.projects[0];
   if (first) {
     select.value = first.project_path;
     await loadProject(first.project_path);
@@ -860,13 +861,33 @@ async function createProject() {
       method: "POST",
       body: JSON.stringify({ name: name.trim(), template: "scalar" }),
     });
-    await loadProjects();
-    el("projectSelect").value = body.project.project_path;
-    await loadProject(body.project.project_path);
+    await loadProjects(body.project.project_path);
     log(`Created ${body.project.relative_path}`);
   } catch (error) {
     log(`Create project failed: ${error.message}`);
     state.latestValidation = { error: error.message };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
+async function copyProject() {
+  const project = currentProject();
+  if (!project) return;
+  const sourceName = state.detail?.project?.project_name || project.name || "Project";
+  const defaultName = `${sourceName} Copy`;
+  const name = window.prompt("Copy project as", defaultName);
+  if (!name || !name.trim()) return;
+  try {
+    const body = await api("/api/projects/copy", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath, name: name.trim() }),
+    });
+    await loadProjects(body.project.project_path);
+    log(`Copied project: ${body.project.relative_path}`);
+  } catch (error) {
+    log(`Copy project failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderProblems();
     setBottomTab("problems");
   }
@@ -1197,6 +1218,7 @@ function updateCommandState() {
   el("schemaButton").disabled = !hasProject;
   el("exportButton").disabled = !hasProject || !isWorkspaceProject();
   el("saveProjectButton").disabled = !hasProject || !isWorkspaceProject();
+  el("copyProjectButton").disabled = !hasProject;
   el("addComponentButton").disabled = !hasProject || !isWorkspaceProject();
   el("includeComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || selectedComponentInSystem();
 }
@@ -1224,6 +1246,7 @@ function escapeAttr(value) {
 function bindEvents() {
   el("projectSelect").addEventListener("change", (event) => loadProject(event.target.value));
   el("newProjectButton").addEventListener("click", createProject);
+  el("copyProjectButton").addEventListener("click", copyProject);
   el("addComponentButton").addEventListener("click", createComponent);
   el("includeComponentButton").addEventListener("click", includeSelectedComponent);
   el("saveProjectButton").addEventListener("click", saveProjectEdits);

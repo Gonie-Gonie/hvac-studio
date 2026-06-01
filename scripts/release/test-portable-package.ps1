@@ -113,6 +113,21 @@ try {
     throw "Studio API smoke result mismatch: total_power_kw=$($RunJson.result.outputs.total_power_kw)"
   }
 
+  $CopyBody = @{ project_path = $Project; name = 'Editable Feedforward Copy' } | ConvertTo-Json -Depth 4
+  $CopyResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/projects/copy" -Method POST -ContentType 'application/json' -Body $CopyBody -TimeoutSec 20
+  $CopiedProject = ($CopyResponse.Content | ConvertFrom-Json).project
+  if ($CopiedProject.source -ne 'workspace') {
+    throw "copied project should be a workspace project: source=$($CopiedProject.source)"
+  }
+  if (-not (Test-Path -LiteralPath $CopiedProject.project_path)) {
+    throw "copied project file was not written: $($CopiedProject.project_path)"
+  }
+  $CopiedSourceResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/source?project_path=$([uri]::EscapeDataString($CopiedProject.project_path))&component_id=load_model" -TimeoutSec 20
+  $CopiedSourceJson = $CopiedSourceResponse.Content | ConvertFrom-Json
+  if ($CopiedSourceJson.source.read_only) {
+    throw "copied example source should be editable"
+  }
+
   $CreateBody = @{ name = 'Portable Smoke Project'; template = 'scalar' } | ConvertTo-Json -Depth 4
   $CreateResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/projects" -Method POST -ContentType 'application/json' -Body $CreateBody -TimeoutSec 20
   $CreatedProject = ($CreateResponse.Content | ConvertFrom-Json).project

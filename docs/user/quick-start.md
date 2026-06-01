@@ -42,3 +42,4 @@ Open the Results panel. For workspace projects, runs are saved as `runs/run-*.js
 
 Use New to create a workspace project under `projects/`. Workspace projects can be edited; bundled examples are read-only through Studio write APIs.
 
+Use Copy to turn an example or existing project into an editable workspace project under `projects/`.

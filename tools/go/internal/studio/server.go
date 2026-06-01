@@ -63,6 +63,11 @@ type createProjectRequest struct {
 	Template string `json:"template"`
 }
 
+type copyProjectRequest struct {
+	ProjectPath string `json:"project_path"`
+	Name        string `json:"name"`
+}
+
 type createComponentRequest struct {
 	ProjectPath string `json:"project_path"`
 	Name        string `json:"name"`
@@ -232,6 +237,7 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("GET /api/projects", s.handleProjects)
 	s.mux.HandleFunc("POST /api/projects", s.handleCreateProject)
+	s.mux.HandleFunc("POST /api/projects/copy", s.handleCopyProject)
 	s.mux.HandleFunc("GET /api/project", s.handleProject)
 	s.mux.HandleFunc("GET /api/project/run", s.handleRunRecord)
 	s.mux.HandleFunc("GET /api/project/scenario", s.handleScenarioRecord)
@@ -272,6 +278,20 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	summary, err := s.createProject(req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "project": summary})
+}
+
+func (s *Server) handleCopyProject(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeCopyProjectRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	summary, err := s.copyProject(req)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -927,6 +947,59 @@ func (s *Server) createProject(req createProjectRequest) (ProjectSummary, error)
 	}, nil
 }
 
+func (s *Server) copyProject(req copyProjectRequest) (ProjectSummary, error) {
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		return ProjectSummary{}, err
+	}
+	projectName := strings.TrimSpace(req.Name)
+	if projectName == "" {
+		projectName = loaded.Project.ProjectName + " Copy"
+	}
+	slugBase := slugify(projectName)
+	if slugBase == "" {
+		return ProjectSummary{}, apperror.Errorf(apperror.CodeValidation, "project name must contain letters or numbers")
+	}
+
+	workspaceRoot := filepath.Join(s.repoRoot, "projects")
+	if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
+		return ProjectSummary{}, err
+	}
+	slug := slugBase
+	targetName := projectName
+	targetRoot := filepath.Join(workspaceRoot, slug)
+	for index := 2; ; index++ {
+		if _, err := os.Stat(targetRoot); os.IsNotExist(err) {
+			break
+		} else if err != nil {
+			return ProjectSummary{}, err
+		}
+		slug = fmt.Sprintf("%s-%d", slugBase, index)
+		targetName = fmt.Sprintf("%s %d", projectName, index)
+		targetRoot = filepath.Join(workspaceRoot, slug)
+	}
+
+	if err := copyProjectTree(loaded.Root, targetRoot); err != nil {
+		return ProjectSummary{}, err
+	}
+	projectPath := filepath.Join(targetRoot, "project.bcsproj")
+	copied, err := project.Load(projectPath)
+	if err != nil {
+		return ProjectSummary{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	copied.Project.ProjectName = targetName
+	if err := writeJSONFile(projectPath, copied.Project); err != nil {
+		return ProjectSummary{}, err
+	}
+	rel, _ := filepath.Rel(s.repoRoot, projectPath)
+	return ProjectSummary{
+		Name:         targetName,
+		ProjectPath:  projectPath,
+		RelativePath: filepath.ToSlash(rel),
+		Source:       "workspace",
+	}, nil
+}
+
 func createComponent(loaded *project.LoadedProject, req createComponentRequest) (model.Component, error) {
 	componentName := strings.TrimSpace(req.Name)
 	if componentName == "" {
@@ -1413,6 +1486,15 @@ func decodeCreateProjectRequest(r *http.Request) (createProjectRequest, error) {
 	return req, nil
 }
 
+func decodeCopyProjectRequest(r *http.Request) (copyProjectRequest, error) {
+	defer r.Body.Close()
+	var req copyProjectRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
 func decodeCreateComponentRequest(r *http.Request) (createComponentRequest, error) {
 	defer r.Body.Close()
 	var req createComponentRequest
@@ -1881,6 +1963,54 @@ func writeJSONFile(path string, value any) error {
 		return err
 	}
 	return os.WriteFile(path, append(output, '\n'), 0o644)
+}
+
+func copyProjectTree(sourceRoot string, targetRoot string) error {
+	sourceRoot, err := filepath.Abs(sourceRoot)
+	if err != nil {
+		return err
+	}
+	targetRoot, err = filepath.Abs(targetRoot)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(targetRoot); err == nil {
+		return apperror.Errorf(apperror.CodeValidation, "target project already exists: %s", targetRoot)
+	}
+	return filepath.WalkDir(sourceRoot, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(sourceRoot, path)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return nil
+		}
+		if entry.IsDir() && entry.Name() == "__pycache__" {
+			return filepath.SkipDir
+		}
+		if !entry.IsDir() && (strings.HasSuffix(entry.Name(), ".pyc") || strings.HasSuffix(entry.Name(), ".pyo")) {
+			return nil
+		}
+		targetPath := filepath.Join(targetRoot, rel)
+		if entry.IsDir() {
+			return os.MkdirAll(targetPath, 0o755)
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		bytes, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(targetPath, bytes, info.Mode().Perm())
+	})
 }
 
 func slugify(value string) string {

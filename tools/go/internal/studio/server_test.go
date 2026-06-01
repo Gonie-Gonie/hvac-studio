@@ -89,6 +89,78 @@ func TestCreateProjectEndpointCreatesWorkspaceProject(t *testing.T) {
 	}
 }
 
+func TestCopyProjectEndpointCreatesEditableWorkspaceCopy(t *testing.T) {
+	root := t.TempDir()
+	server, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Seed Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	copyPayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"name":         "Copied Project",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	copyResponse := httptest.NewRecorder()
+	copyRequest := httptest.NewRequest(http.MethodPost, "/api/projects/copy", bytes.NewReader(copyPayload))
+	server.Handler().ServeHTTP(copyResponse, copyRequest)
+	if copyResponse.Code != http.StatusCreated {
+		t.Fatalf("copy status = %d body=%s", copyResponse.Code, copyResponse.Body.String())
+	}
+	var copyBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(copyResponse.Body.Bytes(), &copyBody); err != nil {
+		t.Fatal(err)
+	}
+	if copyBody.Project.Source != "workspace" {
+		t.Fatalf("source = %s", copyBody.Project.Source)
+	}
+	if copyBody.Project.Name != "Copied Project" {
+		t.Fatalf("name = %s", copyBody.Project.Name)
+	}
+	if _, err := os.Stat(filepath.Join(root, "projects", "copied-project", "components", "scalar.py")); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := project.Load(copyBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Project.ProjectName != "Copied Project" {
+		t.Fatalf("project_name = %s", loaded.Project.ProjectName)
+	}
+
+	updatePayload, err := json.Marshal(map[string]any{
+		"project_path": copyBody.Project.ProjectPath,
+		"parameters": map[string]any{
+			"scalar": map[string]any{"gain": 5.0},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updateResponse := httptest.NewRecorder()
+	updateRequest := httptest.NewRequest(http.MethodPost, "/api/project/parameters", bytes.NewReader(updatePayload))
+	server.Handler().ServeHTTP(updateResponse, updateRequest)
+	if updateResponse.Code != http.StatusOK {
+		t.Fatalf("update copied project status = %d body=%s", updateResponse.Code, updateResponse.Body.String())
+	}
+}
+
 func TestCreateComponentEndpointCreatesWorkspaceComponent(t *testing.T) {
 	root := t.TempDir()
 	server, err := New(root)
