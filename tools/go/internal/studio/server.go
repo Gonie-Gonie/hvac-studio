@@ -75,6 +75,19 @@ type includeComponentRequest struct {
 	ComponentID string `json:"component_id"`
 }
 
+type createNodeRequest struct {
+	ProjectPath string `json:"project_path"`
+	ComponentID string `json:"component_id"`
+	Direction   string `json:"direction"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Medium      string `json:"medium"`
+	ValueType   string `json:"value_type"`
+	Unit        string `json:"unit"`
+	Required    *bool  `json:"required"`
+	Default     any    `json:"default"`
+}
+
 type createConnectionRequest struct {
 	ProjectPath   string `json:"project_path"`
 	SystemID      string `json:"system_id"`
@@ -225,6 +238,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("GET /api/project/source", s.handleSource)
 	s.mux.HandleFunc("POST /api/project/components", s.handleCreateComponent)
 	s.mux.HandleFunc("POST /api/project/system/components", s.handleIncludeComponent)
+	s.mux.HandleFunc("POST /api/project/nodes", s.handleCreateNode)
 	s.mux.HandleFunc("POST /api/project/connections", s.handleCreateConnection)
 	s.mux.HandleFunc("POST /api/project/connections/delete", s.handleDeleteConnection)
 	s.mux.HandleFunc("POST /api/project/input", s.handleUpdateInput)
@@ -375,6 +389,34 @@ func (s *Server) handleIncludeComponent(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeCreateNodeRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	node, err := createNode(loaded, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "node": node, "project": projectDetail(reloaded)})
 }
 
 func (s *Server) handleCreateConnection(w http.ResponseWriter, r *http.Request) {
@@ -1022,6 +1064,128 @@ func includeComponentInSystem(loaded *project.LoadedProject, req includeComponen
 	return writeJSONFile(loaded.GraphPath, loaded.Graph)
 }
 
+func createNode(loaded *project.LoadedProject, req createNodeRequest) (model.Node, error) {
+	componentID := strings.TrimSpace(req.ComponentID)
+	if componentID == "" {
+		return model.Node{}, apperror.Errorf(apperror.CodeValidation, "component_id is required")
+	}
+	nodeID := strings.TrimSpace(req.ID)
+	if !isIdentifierLike(nodeID) {
+		return model.Node{}, apperror.Errorf(apperror.CodeValidation, "node id must start with a letter or underscore and contain only letters, numbers, and underscores")
+	}
+	direction := strings.ToLower(strings.TrimSpace(req.Direction))
+	isInput := false
+	nodeDirection := ""
+	switch direction {
+	case "input", "in", "inlet":
+		isInput = true
+		nodeDirection = "inlet"
+	case "output", "out", "outlet":
+		nodeDirection = "outlet"
+	default:
+		return model.Node{}, apperror.Errorf(apperror.CodeValidation, "node direction must be input or output")
+	}
+
+	componentIndex := -1
+	for index := range loaded.Graph.Components {
+		if loaded.Graph.Components[index].ID == componentID {
+			componentIndex = index
+			break
+		}
+	}
+	if componentIndex < 0 {
+		return model.Node{}, apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
+	}
+	component := &loaded.Graph.Components[componentIndex]
+	if componentHasNode(*component, nodeID) {
+		return model.Node{}, apperror.Errorf(apperror.CodeValidation, "component already has node: %s.%s", componentID, nodeID)
+	}
+
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		name = nodeID
+	}
+	medium := strings.TrimSpace(req.Medium)
+	if medium == "" {
+		medium = "signal"
+	}
+	valueType := strings.TrimSpace(req.ValueType)
+	if valueType == "" {
+		valueType = "float"
+	}
+	node := model.Node{
+		ID:        nodeID,
+		Name:      name,
+		Direction: nodeDirection,
+		Medium:    medium,
+		ValueType: valueType,
+		Unit:      strings.TrimSpace(req.Unit),
+		Required:  req.Required,
+		Default:   req.Default,
+	}
+	if isInput {
+		component.Nodes.Inputs = append(component.Nodes.Inputs, node)
+	} else {
+		component.Nodes.Outputs = append(component.Nodes.Outputs, node)
+	}
+
+	inputPath, input, err := loadEditableDefaultInput(loaded)
+	if err != nil {
+		return model.Node{}, err
+	}
+	for index := range loaded.Graph.Systems {
+		system := &loaded.Graph.Systems[index]
+		if !containsString(system.Components, componentID) {
+			continue
+		}
+		if isInput {
+			if hasPublicInputFor(*system, componentID, nodeID) {
+				continue
+			}
+			publicID := uniquePublicNodeID(system.PublicInputs, componentID+"_"+nodeID)
+			system.PublicInputs = append(system.PublicInputs, model.PublicNodeRef{
+				ID:        publicID,
+				Name:      node.Name,
+				Component: componentID,
+				Node:      node.ID,
+				Medium:    node.Medium,
+				ValueType: node.ValueType,
+				Unit:      node.Unit,
+				Required:  node.Required,
+				Default:   node.Default,
+			})
+			if _, exists := input.Inputs[publicID]; !exists {
+				input.Inputs[publicID] = defaultValueForNode(node)
+			}
+			continue
+		}
+		if hasPublicOutputFor(*system, componentID, nodeID) {
+			continue
+		}
+		publicID := uniquePublicNodeID(system.PublicOutputs, componentID+"_"+nodeID)
+		system.PublicOutputs = append(system.PublicOutputs, model.PublicNodeRef{
+			ID:        publicID,
+			Name:      node.Name,
+			Component: componentID,
+			Node:      node.ID,
+			Medium:    node.Medium,
+			ValueType: node.ValueType,
+			Unit:      node.Unit,
+			Default:   node.Default,
+		})
+	}
+	if _, err := compiler.Compile(loaded); err != nil {
+		return model.Node{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if err := writeJSONFile(inputPath, input); err != nil {
+		return model.Node{}, err
+	}
+	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
+		return model.Node{}, err
+	}
+	return node, nil
+}
+
 func createConnection(loaded *project.LoadedProject, req createConnectionRequest) (model.Connection, error) {
 	systemID := req.SystemID
 	if systemID == "" {
@@ -1261,6 +1425,15 @@ func decodeCreateComponentRequest(r *http.Request) (createComponentRequest, erro
 func decodeIncludeComponentRequest(r *http.Request) (includeComponentRequest, error) {
 	defer r.Body.Close()
 	var req includeComponentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeCreateNodeRequest(r *http.Request) (createNodeRequest, error) {
+	defer r.Body.Close()
+	var req createNodeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}
@@ -1775,6 +1948,38 @@ func findInputNode(component model.Component, nodeID string) (model.Node, bool) 
 		}
 	}
 	return model.Node{}, false
+}
+
+func componentHasNode(component model.Component, nodeID string) bool {
+	for _, node := range component.Nodes.Inputs {
+		if node.ID == nodeID {
+			return true
+		}
+	}
+	for _, node := range component.Nodes.Outputs {
+		if node.ID == nodeID {
+			return true
+		}
+	}
+	return false
+}
+
+func isIdentifierLike(value string) bool {
+	if value == "" {
+		return false
+	}
+	for index, r := range value {
+		if index == 0 {
+			if r != '_' && !unicode.IsLetter(r) {
+				return false
+			}
+			continue
+		}
+		if r != '_' && !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+			return false
+		}
+	}
+	return true
 }
 
 func containsString(values []string, target string) bool {

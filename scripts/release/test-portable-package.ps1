@@ -120,12 +120,29 @@ try {
     throw "created project file was not written: $($CreatedProject.project_path)"
   }
 
+  $NodeBody = @{
+    project_path = $CreatedProject.project_path
+    component_id = 'scalar'
+    direction = 'input'
+    id = 'bias'
+    value_type = 'float'
+    default = 4
+  } | ConvertTo-Json -Depth 4
+  $NodeResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/nodes" -Method POST -ContentType 'application/json' -Body $NodeBody -TimeoutSec 20
+  $NodeJson = $NodeResponse.Content | ConvertFrom-Json
+  if (-not ($NodeJson.project.graph.systems[0].public_inputs | Where-Object { $_.id -eq 'scalar_bias' })) {
+    throw "created input node was not exposed as public input"
+  }
+  if ($NodeJson.project.default_run_input.inputs.scalar_bias -ne 4) {
+    throw "created input node default mismatch: scalar_bias=$($NodeJson.project.default_run_input.inputs.scalar_bias)"
+  }
+
   $SourceResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/source?project_path=$([uri]::EscapeDataString($CreatedProject.project_path))&component_id=scalar" -TimeoutSec 20
   $SourceJson = $SourceResponse.Content | ConvertFrom-Json
   if ($SourceJson.source.read_only) {
     throw "workspace component source should be editable"
   }
-  $EditedSource = $SourceJson.source.content -replace 'return \{"result": value \* gain\}, state', "offset = float(params.get(`"offset`", 0.0))`n        return {`"result`": value * gain + offset}, state"
+  $EditedSource = $SourceJson.source.content -replace 'return \{"result": value \* gain\}, state', "bias = float(inputs.get(`"bias`", 0.0))`n        offset = float(params.get(`"offset`", 0.0))`n        return {`"result`": value * gain + offset + bias}, state"
   if ($EditedSource -eq $SourceJson.source.content) {
     throw "workspace source edit pattern was not found"
   }
@@ -188,7 +205,7 @@ try {
     throw "workspace parameter add mismatch: offset=$($ParameterJson.project.graph.components[0].parameters.offset)"
   }
 
-  $InputValues = @{ value = 5 }
+  $InputValues = @{ value = 5; scalar_bias = 4 }
   $InputBody = @{
     project_path = $CreatedProject.project_path
     inputs = $InputValues
@@ -201,6 +218,9 @@ try {
   $InputJson = $InputResponse.Content | ConvertFrom-Json
   if ($InputJson.project.default_run_input.inputs.value -ne 5) {
     throw "workspace input update mismatch: value=$($InputJson.project.default_run_input.inputs.value)"
+  }
+  if ($InputJson.project.default_run_input.inputs.scalar_bias -ne 4) {
+    throw "workspace input update mismatch: scalar_bias=$($InputJson.project.default_run_input.inputs.scalar_bias)"
   }
 
   $ScenarioBody = @{
@@ -223,6 +243,9 @@ try {
   if ($ScenarioReadJson.scenario.inputs.value -ne 5) {
     throw "workspace scenario read mismatch: value=$($ScenarioReadJson.scenario.inputs.value)"
   }
+  if ($ScenarioReadJson.scenario.inputs.scalar_bias -ne 4) {
+    throw "workspace scenario read mismatch: scalar_bias=$($ScenarioReadJson.scenario.inputs.scalar_bias)"
+  }
 
   $WorkspaceRunBody = @{
     project_path = $CreatedProject.project_path
@@ -230,12 +253,12 @@ try {
   } | ConvertTo-Json -Depth 8
   $WorkspaceRunResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/run" -Method POST -ContentType 'application/json' -Body $WorkspaceRunBody -TimeoutSec 20
   $WorkspaceRunJson = $WorkspaceRunResponse.Content | ConvertFrom-Json
-  if ($WorkspaceRunJson.result.outputs.result -ne 17) {
+  if ($WorkspaceRunJson.result.outputs.result -ne 21) {
     throw "workspace run result mismatch: result=$($WorkspaceRunJson.result.outputs.result)"
   }
   $ExtraOutputId = "$($CreatedComponent.id)_result"
   $ExtraOutput = $WorkspaceRunJson.result.outputs.PSObject.Properties[$ExtraOutputId].Value
-  if ($ExtraOutput -ne 17) {
+  if ($ExtraOutput -ne 21) {
     throw "workspace included component result mismatch: $ExtraOutputId=$ExtraOutput"
   }
   $RunRecordPath = Join-Path (Split-Path -Parent $CreatedProject.project_path) $WorkspaceRunJson.run_record.relative_path
@@ -244,7 +267,7 @@ try {
   }
   $RunRecordResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/run?project_path=$([uri]::EscapeDataString($CreatedProject.project_path))&run_id=$([uri]::EscapeDataString($WorkspaceRunJson.run_record.id))" -TimeoutSec 20
   $RunRecordJson = $RunRecordResponse.Content | ConvertFrom-Json
-  if ($RunRecordJson.run_record.result.outputs.result -ne 17) {
+  if ($RunRecordJson.run_record.result.outputs.result -ne 21) {
     throw "workspace run record detail mismatch: result=$($RunRecordJson.run_record.result.outputs.result)"
   }
 

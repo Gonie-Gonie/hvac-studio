@@ -595,6 +595,7 @@ th {
   padding: 10px;
 }
 
+.connection-form input,
 .connection-form select,
 .connection-form button {
   width: 100%;

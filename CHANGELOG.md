@@ -33,3 +33,4 @@
 - Add Studio connection removal with public/default input restoration for workspace systems.
 - Make release package version resolution tolerate untagged development checkouts.
 - Add Parameter Manager controls for creating new workspace component parameters.
+- Add Studio workspace component node creation with public IO/default input updates.

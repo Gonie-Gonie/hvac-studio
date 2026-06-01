@@ -280,6 +280,7 @@ function renderInspector() {
   ]));
   container.append(inspectorBlock("Inputs", component.nodes.inputs.map((n) => [n.id, `${n.medium || ""} ${n.value_type || ""} ${n.unit || ""}`.trim()])));
   container.append(inspectorBlock("Outputs", component.nodes.outputs.map((n) => [n.id, `${n.medium || ""} ${n.value_type || ""} ${n.unit || ""}`.trim()])));
+  if (isWorkspaceProject()) container.append(nodeEditor(component));
   container.append(inspectorBlock("Parameters", Object.entries(component.parameters || {}).map(([k, v]) => [k, String(v)])));
   container.append(connectionEditor(component));
   const latestInputs = state.latestResult?.component_inputs?.[component.id];
@@ -309,6 +310,57 @@ function inspectorBlock(title, rows) {
     row.innerHTML = `<span class="kv-key">${escapeHTML(key)}</span><span>${escapeHTML(value)}</span>`;
     block.append(row);
   }
+  return block;
+}
+
+function nodeEditor(component) {
+  const block = document.createElement("div");
+  block.className = "inspector-block";
+  block.innerHTML = `<div class="inspector-title">Node</div>`;
+
+  const form = document.createElement("div");
+  form.className = "connection-form node-form";
+
+  const direction = document.createElement("select");
+  direction.id = "newNodeDirection";
+  for (const [value, label] of [["input", "Input"], ["output", "Output"]]) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    direction.append(option);
+  }
+
+  const nodeID = document.createElement("input");
+  nodeID.id = "newNodeId";
+  nodeID.placeholder = "id";
+  nodeID.setAttribute("aria-label", "Node id");
+
+  const valueType = document.createElement("select");
+  valueType.id = "newNodeValueType";
+  for (const type of ["float", "int", "bool", "string"]) {
+    const option = document.createElement("option");
+    option.value = type;
+    option.textContent = type;
+    valueType.append(option);
+  }
+
+  const defaultValue = document.createElement("input");
+  defaultValue.id = "newNodeDefault";
+  defaultValue.placeholder = "default";
+  defaultValue.setAttribute("aria-label", "Default value");
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = "Add Node";
+  button.addEventListener("click", () => addNodeFromInspector(component.id));
+
+  for (const input of [nodeID, defaultValue]) {
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") addNodeFromInspector(component.id);
+    });
+  }
+  form.append(direction, nodeID, valueType, defaultValue, button);
+  block.append(form);
   return block;
 }
 
@@ -882,6 +934,57 @@ async function createConnectionFromInspector(sourceValue, toComponent, toNode) {
     log(`Connected ${fromComponent}.${fromNode} -> ${toComponent}.${toNode}`);
   } catch (error) {
     log(`Connection failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
+async function addNodeFromInspector(componentID) {
+  if (!componentID || !isWorkspaceProject()) return;
+  const component = componentById(componentID);
+  const direction = el("newNodeDirection")?.value || "input";
+  const nodeID = (el("newNodeId")?.value || "").trim();
+  const valueType = el("newNodeValueType")?.value || "float";
+  const rawDefault = el("newNodeDefault")?.value || "";
+  if (!component || !nodeID) {
+    showInlineProblem("Select a component and node id");
+    return;
+  }
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(nodeID)) {
+    showInlineProblem("Node id must start with a letter or underscore and contain only letters, numbers, and underscores");
+    return;
+  }
+  const existingNodes = [...(component.nodes.inputs || []), ...(component.nodes.outputs || [])];
+  if (existingNodes.some((node) => node.id === nodeID)) {
+    showInlineProblem(`Node already exists: ${componentID}.${nodeID}`);
+    return;
+  }
+
+  const payload = {
+    project_path: state.currentProjectPath,
+    component_id: componentID,
+    direction,
+    id: nodeID,
+    name: nodeID,
+    medium: "signal",
+    value_type: valueType,
+  };
+  if (direction === "input" && rawDefault.trim() !== "") {
+    payload.default = coerceParameter(rawDefault);
+  }
+
+  try {
+    const body = await api("/api/project/nodes", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    state.detail = body.project;
+    state.selectedComponentId = componentID;
+    renderAll();
+    log(`Node added: ${componentID}.${nodeID}`);
+  } catch (error) {
+    log(`Add node failed: ${error.message}`);
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderProblems();
     setBottomTab("problems");

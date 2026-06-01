@@ -172,6 +172,118 @@ func TestCreateComponentEndpointRejectsExamples(t *testing.T) {
 	}
 }
 
+func TestCreateNodeEndpointAddsPublicIOAndDefaultInput(t *testing.T) {
+	root := t.TempDir()
+	server, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Node Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	inputPayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "scalar",
+		"direction":    "input",
+		"id":           "bias",
+		"value_type":   "float",
+		"default":      4.0,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inputResponse := httptest.NewRecorder()
+	inputRequest := httptest.NewRequest(http.MethodPost, "/api/project/nodes", bytes.NewReader(inputPayload))
+	server.Handler().ServeHTTP(inputResponse, inputRequest)
+	if inputResponse.Code != http.StatusCreated {
+		t.Fatalf("input node status = %d body=%s", inputResponse.Code, inputResponse.Body.String())
+	}
+
+	outputPayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "scalar",
+		"direction":    "output",
+		"id":           "adjusted",
+		"value_type":   "float",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	outputResponse := httptest.NewRecorder()
+	outputRequest := httptest.NewRequest(http.MethodPost, "/api/project/nodes", bytes.NewReader(outputPayload))
+	server.Handler().ServeHTTP(outputResponse, outputRequest)
+	if outputResponse.Code != http.StatusCreated {
+		t.Fatalf("output node status = %d body=%s", outputResponse.Code, outputResponse.Body.String())
+	}
+
+	loaded, err := project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	component := loaded.Graph.Components[0]
+	if !componentHasNode(component, "bias") {
+		t.Fatal("input node was not written to graph")
+	}
+	if !componentHasNode(component, "adjusted") {
+		t.Fatal("output node was not written to graph")
+	}
+	foundPublicInput := false
+	for _, input := range loaded.Graph.Systems[0].PublicInputs {
+		if input.ID == "scalar_bias" {
+			foundPublicInput = true
+			break
+		}
+	}
+	if !foundPublicInput {
+		t.Fatal("input node was not exposed as public input")
+	}
+	foundPublicOutput := false
+	for _, output := range loaded.Graph.Systems[0].PublicOutputs {
+		if output.ID == "scalar_adjusted" {
+			foundPublicOutput = true
+			break
+		}
+	}
+	if !foundPublicOutput {
+		t.Fatal("output node was not exposed as public output")
+	}
+	input, err := runtimecore.LoadInput(filepath.Join(loaded.Root, loaded.Project.DefaultInput))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := input.Inputs["scalar_bias"]; got != 4.0 {
+		t.Fatalf("scalar_bias default = %v, want 4", got)
+	}
+}
+
+func TestCreateNodeEndpointRejectsExamples(t *testing.T) {
+	server := newTestServer(t)
+	payload := []byte(`{
+		"project_path": "examples/001_scalar_component/project.bcsproj",
+		"component_id": "scalar",
+		"direction": "input",
+		"id": "bias"
+	}`)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/nodes", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+}
+
 func TestIncludeComponentEndpointAddsPublicIOAndDefaultInput(t *testing.T) {
 	root := t.TempDir()
 	server, err := New(root)
