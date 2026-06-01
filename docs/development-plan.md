@@ -225,6 +225,7 @@ Acceptance criteria:
 - GUI can add a workspace Python component template to `graph.json` and `components/` without changing the runnable system yet. Started.
 - GUI can explicitly add a workspace component to the entry system with generated public IO and default input values. Started.
 - GUI can load and save a workspace project's `default_input` run values. Started.
+- GUI can save current run inputs as workspace `scenarios/*.json` artifacts. Started.
 - Runs from workspace projects are saved as `runs/run-*.json` records. Started.
 - Saved run records can be reopened from the Project tree and shown in Results. Started.
 - Parameter Manager can edit workspace component parameters and persist them to `graph.json`. Started.

@@ -24,3 +24,4 @@
 - Add Studio runtime export manifest generation under workspace `exports/`.
 - Add validation problem metadata and clickable component-linked Problems rows in Studio.
 - Add Studio component Python source loading and workspace source saving.
+- Add Studio scenario artifact creation from current run inputs.

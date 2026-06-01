@@ -105,7 +105,7 @@ function renderProjectTree() {
     ["Datasets", []],
     ["Parameter Sets", [treeStatic("default", "active")]],
     ["Runs", (state.detail.runs || []).map((item) => runTreeItem(item))],
-    ["Scenarios", []],
+    ["Scenarios", (state.detail.scenarios || []).map((item) => treeStatic(item.name || item.id, item.relative_path))],
     ["Export Profiles", exportTreeItems()],
   ];
   for (const [title, items] of sections) {
@@ -586,6 +586,29 @@ async function exportProject() {
   }
 }
 
+async function createScenario() {
+  if (!isWorkspaceProject()) {
+    log("Only workspace projects can be edited");
+    return;
+  }
+  const name = window.prompt("Scenario name", "Current Inputs");
+  if (!name || !name.trim()) return;
+  try {
+    const body = await api("/api/project/scenarios", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath, name: name.trim(), inputs: collectRunInputs(), context: currentRunContext() }),
+    });
+    state.detail.scenarios = [body.summary, ...(state.detail.scenarios || [])];
+    renderProjectTree();
+    log(`Scenario saved: ${body.summary.relative_path}`);
+  } catch (error) {
+    log(`Scenario failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
 async function createProject() {
   const name = window.prompt("Project name", "New Python Component Project");
   if (!name || !name.trim()) return;
@@ -791,6 +814,7 @@ function updateCommandState() {
   const hasProject = Boolean(state.detail);
   el("validateButton").disabled = !hasProject;
   el("runButton").disabled = !hasProject;
+  el("scenarioButton").disabled = !hasProject || !isWorkspaceProject();
   el("schemaButton").disabled = !hasProject;
   el("exportButton").disabled = !hasProject || !isWorkspaceProject();
   el("saveProjectButton").disabled = !hasProject || !isWorkspaceProject();
@@ -826,6 +850,7 @@ function bindEvents() {
   el("saveProjectButton").addEventListener("click", saveProjectEdits);
   el("validateButton").addEventListener("click", validateProject);
   el("runButton").addEventListener("click", runProject);
+  el("scenarioButton").addEventListener("click", createScenario);
   el("schemaButton").addEventListener("click", exportSchema);
   el("exportButton").addEventListener("click", exportProject);
   el("pythonPanel").addEventListener("input", markProjectDirty);

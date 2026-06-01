@@ -48,6 +48,7 @@ type ProjectDetail struct {
 	Root             string                `json:"root"`
 	Runs             []RunSummary          `json:"runs"`
 	Exports          []ExportSummary       `json:"exports"`
+	Scenarios        []ScenarioSummary     `json:"scenarios"`
 }
 
 type apiRequest struct {
@@ -85,6 +86,13 @@ type sourceRequest struct {
 	Content     string `json:"content"`
 }
 
+type createScenarioRequest struct {
+	ProjectPath string         `json:"project_path"`
+	Name        string         `json:"name"`
+	Inputs      map[string]any `json:"inputs"`
+	Context     map[string]any `json:"context"`
+}
+
 type updateParametersRequest struct {
 	ProjectPath string                    `json:"project_path"`
 	Parameters  map[string]map[string]any `json:"parameters"`
@@ -110,6 +118,22 @@ type RunRecord struct {
 	Inputs       map[string]any         `json:"inputs"`
 	Context      map[string]any         `json:"context"`
 	Result       *runtimecore.RunResult `json:"result"`
+}
+
+type ScenarioSummary struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	RelativePath string `json:"relative_path"`
+	CreatedAtUTC string `json:"created_at_utc"`
+}
+
+type ScenarioRecord struct {
+	ID           string         `json:"id"`
+	Name         string         `json:"name"`
+	ProjectName  string         `json:"project_name"`
+	CreatedAtUTC string         `json:"created_at_utc"`
+	Inputs       map[string]any `json:"inputs"`
+	Context      map[string]any `json:"context"`
 }
 
 type ExportSummary struct {
@@ -188,6 +212,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/project/input", s.handleUpdateInput)
 	s.mux.HandleFunc("POST /api/project/parameters", s.handleUpdateParameters)
 	s.mux.HandleFunc("POST /api/project/source", s.handleUpdateSource)
+	s.mux.HandleFunc("POST /api/project/scenarios", s.handleCreateScenario)
 	s.mux.HandleFunc("POST /api/validate", s.handleValidate)
 	s.mux.HandleFunc("POST /api/run", s.handleRun)
 	s.mux.HandleFunc("POST /api/schema", s.handleSchema)
@@ -466,6 +491,29 @@ func (s *Server) handleUpdateSource(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "source": source})
 }
 
+func (s *Server) handleCreateScenario(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeCreateScenarioRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	summary, record, err := writeScenarioRecord(loaded, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "summary": summary, "scenario": record})
+}
+
 func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
 	req, err := decodeRequest(r)
 	if err != nil {
@@ -600,6 +648,7 @@ func projectDetail(loaded *project.LoadedProject) ProjectDetail {
 		Root:        loaded.Root,
 		Runs:        loadRunSummaries(loaded.Root),
 		Exports:     loadExportSummaries(loaded.Root),
+		Scenarios:   loadScenarioSummaries(loaded.Root),
 	}
 	if inputPath, err := resolveProjectOwnedFile(loaded.Root, loaded.Project.DefaultInput); err == nil {
 		detail.DefaultInputPath = inputPath
@@ -999,6 +1048,15 @@ func decodeSourceRequest(r *http.Request) (sourceRequest, error) {
 	return req, nil
 }
 
+func decodeCreateScenarioRequest(r *http.Request) (createScenarioRequest, error) {
+	defer r.Body.Close()
+	var req createScenarioRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
 func decodeUpdateParametersRequest(r *http.Request) (updateParametersRequest, error) {
 	defer r.Body.Close()
 	var req updateParametersRequest
@@ -1215,6 +1273,81 @@ func loadRunRecord(projectRoot string, runID string) (RunRecord, error) {
 		return RunRecord{}, apperror.Wrap(apperror.CodeValidation, err)
 	}
 	return record, nil
+}
+
+func writeScenarioRecord(loaded *project.LoadedProject, req createScenarioRequest) (ScenarioSummary, ScenarioRecord, error) {
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		return ScenarioSummary{}, ScenarioRecord{}, apperror.Errorf(apperror.CodeValidation, "scenario name is required")
+	}
+	scenarioID := slugify(name)
+	if scenarioID == "" {
+		return ScenarioSummary{}, ScenarioRecord{}, apperror.Errorf(apperror.CodeValidation, "scenario name must contain letters or numbers")
+	}
+	if req.Inputs == nil {
+		return ScenarioSummary{}, ScenarioRecord{}, apperror.Errorf(apperror.CodeValidation, "scenario inputs are required")
+	}
+	context := req.Context
+	if context == nil {
+		context = map[string]any{}
+	}
+	now := time.Now().UTC()
+	scenariosRoot := filepath.Join(loaded.Root, "scenarios")
+	if err := os.MkdirAll(scenariosRoot, 0o755); err != nil {
+		return ScenarioSummary{}, ScenarioRecord{}, err
+	}
+	scenarioPath := filepath.Join(scenariosRoot, scenarioID+".json")
+	if _, err := os.Stat(scenarioPath); err == nil {
+		scenarioID = scenarioID + "-" + now.Format("20060102-150405")
+		scenarioPath = filepath.Join(scenariosRoot, scenarioID+".json")
+	}
+	record := ScenarioRecord{
+		ID:           scenarioID,
+		Name:         name,
+		ProjectName:  loaded.Project.ProjectName,
+		CreatedAtUTC: now.Format(time.RFC3339Nano),
+		Inputs:       req.Inputs,
+		Context:      context,
+	}
+	if err := writeJSONFile(scenarioPath, record); err != nil {
+		return ScenarioSummary{}, ScenarioRecord{}, err
+	}
+	rel, _ := filepath.Rel(loaded.Root, scenarioPath)
+	return ScenarioSummary{
+		ID:           record.ID,
+		Name:         record.Name,
+		RelativePath: filepath.ToSlash(rel),
+		CreatedAtUTC: record.CreatedAtUTC,
+	}, record, nil
+}
+
+func loadScenarioSummaries(projectRoot string) []ScenarioSummary {
+	scenarioFiles, err := filepath.Glob(filepath.Join(projectRoot, "scenarios", "*.json"))
+	if err != nil {
+		return []ScenarioSummary{}
+	}
+	summaries := []ScenarioSummary{}
+	for _, scenarioPath := range scenarioFiles {
+		scenarioBytes, err := os.ReadFile(scenarioPath)
+		if err != nil {
+			continue
+		}
+		var record ScenarioRecord
+		if err := json.Unmarshal(scenarioBytes, &record); err != nil {
+			continue
+		}
+		rel, _ := filepath.Rel(projectRoot, scenarioPath)
+		summaries = append(summaries, ScenarioSummary{
+			ID:           record.ID,
+			Name:         record.Name,
+			RelativePath: filepath.ToSlash(rel),
+			CreatedAtUTC: record.CreatedAtUTC,
+		})
+	}
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i].CreatedAtUTC > summaries[j].CreatedAtUTC
+	})
+	return summaries
 }
 
 func writeExportManifest(loaded *project.LoadedProject, profile string) (ExportSummary, ExportManifest, error) {

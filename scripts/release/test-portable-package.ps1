@@ -181,6 +181,22 @@ try {
     throw "workspace input update mismatch: value=$($InputJson.project.default_run_input.inputs.value)"
   }
 
+  $ScenarioBody = @{
+    project_path = $CreatedProject.project_path
+    name = 'Portable Scenario'
+    inputs = $InputValues
+    context = @{
+      time = 0
+      dt = 60
+    }
+  } | ConvertTo-Json -Depth 8
+  $ScenarioResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/scenarios" -Method POST -ContentType 'application/json' -Body $ScenarioBody -TimeoutSec 20
+  $ScenarioJson = $ScenarioResponse.Content | ConvertFrom-Json
+  $ScenarioPath = Join-Path (Split-Path -Parent $CreatedProject.project_path) $ScenarioJson.summary.relative_path
+  if (-not (Test-Path -LiteralPath $ScenarioPath)) {
+    throw "workspace scenario was not written: $ScenarioPath"
+  }
+
   $WorkspaceRunBody = @{
     project_path = $CreatedProject.project_path
     save = $true
