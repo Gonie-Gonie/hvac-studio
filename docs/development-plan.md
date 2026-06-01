@@ -226,6 +226,7 @@ Acceptance criteria:
 - GUI can explicitly add a workspace component to the entry system with generated public IO and default input values. Started.
 - GUI can load and save a workspace project's `default_input` run values. Started.
 - Runs from workspace projects are saved as `runs/run-*.json` records. Started.
+- Saved run records can be reopened from the Project tree and shown in Results. Started.
 - Parameter Manager can edit workspace component parameters and persist them to `graph.json`. Started.
 - Problems, results, schema, logs, inspector, parameter, dataset, validation, calibration, optimization, and export workspaces are visible from the first shell. Started.
 - Problems panel links validation messages to graph or source locations where possible.

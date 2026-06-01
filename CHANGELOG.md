@@ -20,3 +20,4 @@
 - Add Studio default input loading/saving so GUI runs can use persisted project input files.
 - Add Studio workspace component creation for scalar Python component templates.
 - Add explicit Studio system inclusion for workspace components with generated public IO and default inputs.
+- Add Studio run record detail loading from saved `runs/run-*.json` artifacts.

@@ -4,6 +4,7 @@ const state = {
   detail: null,
   selectedComponentId: "",
   latestResult: null,
+  latestRunRecord: null,
   latestSchema: null,
   latestValidation: null,
   logs: [],
@@ -52,6 +53,7 @@ async function loadProject(projectPath) {
   state.currentProjectPath = projectPath;
   state.selectedComponentId = "";
   state.latestResult = null;
+  state.latestRunRecord = null;
   state.latestSchema = null;
   state.latestValidation = null;
   el("saveProjectButton").classList.remove("dirty");
@@ -94,7 +96,7 @@ function renderProjectTree() {
     ["Python Source", graph.components.map((item) => treeItem(item.id, item.class || "", "class"))],
     ["Datasets", []],
     ["Parameter Sets", [treeStatic("default", "active")]],
-    ["Runs", (state.detail.runs || []).map((item) => treeStatic(item.id, item.relative_path))],
+    ["Runs", (state.detail.runs || []).map((item) => runTreeItem(item))],
     ["Scenarios", []],
     ["Export Profiles", [treeStatic("research_project", "profile"), treeStatic("runtime_package", "profile")]],
   ];
@@ -134,6 +136,12 @@ function treeStatic(label, meta) {
   const row = document.createElement("div");
   row.className = "tree-item";
   row.innerHTML = `<span>${escapeHTML(label)}</span><span class="tree-meta">${escapeHTML(meta)}</span>`;
+  return row;
+}
+
+function runTreeItem(run) {
+  const row = treeStatic(run.id, run.relative_path);
+  row.addEventListener("click", () => loadRunRecord(run.id));
   return row;
 }
 
@@ -366,7 +374,8 @@ function renderLogs() {
 }
 
 function renderResults() {
-  el("resultsPanel").textContent = state.latestResult ? JSON.stringify(state.latestResult, null, 2) : "";
+  const value = state.latestRunRecord || state.latestResult;
+  el("resultsPanel").textContent = value ? JSON.stringify(value, null, 2) : "";
 }
 
 function renderSchema() {
@@ -410,6 +419,7 @@ async function runProject() {
       body: JSON.stringify({ project_path: state.currentProjectPath, inputs, context: currentRunContext(), save }),
     });
     state.latestResult = body.result;
+    state.latestRunRecord = null;
     if (body.run_record) {
       state.detail.runs = [body.run_record, ...(state.detail.runs || [])];
       log(`Run saved: ${body.run_record.relative_path}`);
@@ -426,6 +436,23 @@ async function runProject() {
   renderInspector();
   renderProblems();
   renderResults();
+}
+
+async function loadRunRecord(runID) {
+  try {
+    const body = await api(`/api/project/run?project_path=${encodeURIComponent(state.currentProjectPath)}&run_id=${encodeURIComponent(runID)}`);
+    state.latestRunRecord = body.run_record;
+    state.latestResult = body.run_record.result;
+    renderInspector();
+    renderResults();
+    setBottomTab("results");
+    log(`Run opened: ${runID}`);
+  } catch (error) {
+    log(`Open run failed: ${error.message}`);
+    state.latestValidation = { error: error.message };
+    renderProblems();
+    setBottomTab("problems");
+  }
 }
 
 async function saveProjectEdits() {

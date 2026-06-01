@@ -183,6 +183,11 @@ try {
   if (-not (Test-Path -LiteralPath $RunRecordPath)) {
     throw "workspace run record was not written: $RunRecordPath"
   }
+  $RunRecordResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/run?project_path=$([uri]::EscapeDataString($CreatedProject.project_path))&run_id=$([uri]::EscapeDataString($WorkspaceRunJson.run_record.id))" -TimeoutSec 20
+  $RunRecordJson = $RunRecordResponse.Content | ConvertFrom-Json
+  if ($RunRecordJson.run_record.result.outputs.result -ne 15) {
+    throw "workspace run record detail mismatch: result=$($RunRecordJson.run_record.result.outputs.result)"
+  }
 
   Write-Host "portable package smoke test ok: $PackagePath"
 } finally {

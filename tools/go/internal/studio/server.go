@@ -133,6 +133,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("GET /api/projects", s.handleProjects)
 	s.mux.HandleFunc("POST /api/projects", s.handleCreateProject)
 	s.mux.HandleFunc("GET /api/project", s.handleProject)
+	s.mux.HandleFunc("GET /api/project/run", s.handleRunRecord)
 	s.mux.HandleFunc("POST /api/project/components", s.handleCreateComponent)
 	s.mux.HandleFunc("POST /api/project/system/components", s.handleIncludeComponent)
 	s.mux.HandleFunc("POST /api/project/input", s.handleUpdateInput)
@@ -168,6 +169,25 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "project": summary})
+}
+
+func (s *Server) handleRunRecord(w http.ResponseWriter, r *http.Request) {
+	projectPath, err := s.resolveProjectPath(r.URL.Query().Get("project_path"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := project.Load(projectPath)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	record, err := loadRunRecord(loaded.Root, r.URL.Query().Get("run_id"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "run_record": record})
 }
 
 func (s *Server) handleCreateComponent(w http.ResponseWriter, r *http.Request) {
@@ -967,6 +987,28 @@ func loadRunSummaries(projectRoot string) []RunSummary {
 		return summaries[i].CreatedAtUTC > summaries[j].CreatedAtUTC
 	})
 	return summaries
+}
+
+func loadRunRecord(projectRoot string, runID string) (RunRecord, error) {
+	if runID == "" {
+		return RunRecord{}, apperror.Errorf(apperror.CodeValidation, "run_id is required")
+	}
+	if filepath.Base(runID) != runID || strings.ContainsAny(runID, `/\`) {
+		return RunRecord{}, apperror.Errorf(apperror.CodeValidation, "run_id must be a run record id")
+	}
+	runPath, err := resolveProjectOwnedFile(projectRoot, filepath.Join("runs", runID+".json"))
+	if err != nil {
+		return RunRecord{}, err
+	}
+	runBytes, err := os.ReadFile(runPath)
+	if err != nil {
+		return RunRecord{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	var record RunRecord
+	if err := json.Unmarshal(runBytes, &record); err != nil {
+		return RunRecord{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	return record, nil
 }
 
 func writeJSONFile(path string, value any) error {
