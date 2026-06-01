@@ -75,6 +75,12 @@ type createComponentRequest struct {
 	Template    string `json:"template"`
 }
 
+type duplicateComponentRequest struct {
+	ProjectPath       string `json:"project_path"`
+	SourceComponentID string `json:"source_component_id"`
+	Name              string `json:"name"`
+}
+
 type updateComponentRequest struct {
 	ProjectPath string `json:"project_path"`
 	ComponentID string `json:"component_id"`
@@ -293,6 +299,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("GET /api/project/scenario", s.handleScenarioRecord)
 	s.mux.HandleFunc("GET /api/project/source", s.handleSource)
 	s.mux.HandleFunc("POST /api/project/components", s.handleCreateComponent)
+	s.mux.HandleFunc("POST /api/project/components/duplicate", s.handleDuplicateComponent)
 	s.mux.HandleFunc("POST /api/project/components/update", s.handleUpdateComponent)
 	s.mux.HandleFunc("POST /api/project/components/delete", s.handleDeleteComponent)
 	s.mux.HandleFunc("POST /api/project/system/components", s.handleIncludeComponent)
@@ -447,6 +454,34 @@ func (s *Server) handleCreateComponent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	component, err := createComponent(loaded, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "component": component, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleDuplicateComponent(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeDuplicateComponentRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	component, err := duplicateComponent(loaded, req)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -1329,6 +1364,68 @@ func createComponent(loaded *project.LoadedProject, req createComponentRequest) 
 	return component, nil
 }
 
+func duplicateComponent(loaded *project.LoadedProject, req duplicateComponentRequest) (model.Component, error) {
+	sourceID := strings.TrimSpace(req.SourceComponentID)
+	if sourceID == "" {
+		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "source_component_id is required")
+	}
+	source, found := findComponent(loaded.Graph, sourceID)
+	if !found {
+		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "component not found: %s", sourceID)
+	}
+	componentName := strings.TrimSpace(req.Name)
+	if componentName == "" {
+		componentName = strings.TrimSpace(source.Name) + " Copy"
+	}
+	if strings.TrimSpace(componentName) == "" {
+		componentName = sourceID + " Copy"
+	}
+
+	sourcePath, err := componentSourcePath(loaded, sourceID)
+	if err != nil {
+		return model.Component{}, err
+	}
+	sourceBytes, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return model.Component{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+
+	componentID := uniqueComponentID(loaded.Graph, strings.ReplaceAll(slugify(componentName), "-", "_"))
+	classParts := strings.Split(source.Class, ".")
+	if len(classParts) < 1 || classParts[len(classParts)-1] == "" {
+		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "component %s class is invalid: %s", sourceID, source.Class)
+	}
+	className := classParts[len(classParts)-1]
+	component := source
+	component.ID = componentID
+	component.Name = componentName
+	component.Class = "components." + componentID + "." + className
+	component.Nodes.Inputs = append([]model.Node(nil), source.Nodes.Inputs...)
+	component.Nodes.Outputs = append([]model.Node(nil), source.Nodes.Outputs...)
+	component.Parameters = map[string]any{}
+	for name, value := range source.Parameters {
+		component.Parameters[name] = value
+	}
+
+	sourceRoot := filepath.Join(loaded.Root, "components")
+	if err := os.MkdirAll(sourceRoot, 0o755); err != nil {
+		return model.Component{}, err
+	}
+	targetPath := filepath.Join(sourceRoot, componentID+".py")
+	if _, err := os.Stat(targetPath); err == nil {
+		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "component source already exists: components/%s.py", componentID)
+	}
+	if err := os.WriteFile(targetPath, sourceBytes, 0o644); err != nil {
+		return model.Component{}, err
+	}
+	loaded.Graph.Components = append(loaded.Graph.Components, component)
+	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
+		_ = os.Remove(targetPath)
+		return model.Component{}, err
+	}
+	return component, nil
+}
+
 func updateComponent(loaded *project.LoadedProject, req updateComponentRequest) (model.Component, error) {
 	componentID := strings.TrimSpace(req.ComponentID)
 	if componentID == "" {
@@ -2070,6 +2167,15 @@ func decodeCopyProjectRequest(r *http.Request) (copyProjectRequest, error) {
 func decodeCreateComponentRequest(r *http.Request) (createComponentRequest, error) {
 	defer r.Body.Close()
 	var req createComponentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeDuplicateComponentRequest(r *http.Request) (duplicateComponentRequest, error) {
+	defer r.Body.Close()
+	var req duplicateComponentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}

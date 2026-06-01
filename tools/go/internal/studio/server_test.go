@@ -228,6 +228,70 @@ func TestCreateComponentEndpointCreatesWorkspaceComponent(t *testing.T) {
 	}
 }
 
+func TestDuplicateComponentEndpointCopiesGraphAndSource(t *testing.T) {
+	root := t.TempDir()
+	server, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Duplicate Component Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path":        createBody.Project.ProjectPath,
+		"source_component_id": "scalar",
+		"name":                "Scalar Copy",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/components/duplicate", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("duplicate status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Component model.Component `json:"component"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Component.ID != "scalar_copy" {
+		t.Fatalf("component id = %s, want scalar_copy", body.Component.ID)
+	}
+	if body.Component.Class != "components.scalar_copy.ScalarComponent" {
+		t.Fatalf("component class = %s", body.Component.Class)
+	}
+	if got := body.Component.Parameters["gain"]; got != 2.0 {
+		t.Fatalf("copied gain = %v, want 2", got)
+	}
+	sourcePath := filepath.Join(root, "projects", "duplicate-component-project", "components", "scalar_copy.py")
+	if _, err := os.Stat(sourcePath); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found := findComponent(loaded.Graph, "scalar_copy"); !found {
+		t.Fatal("duplicated component was not written to graph")
+	}
+	if containsString(loaded.Graph.Systems[0].Components, "scalar_copy") {
+		t.Fatal("duplicated component should not be added to the runnable system yet")
+	}
+}
+
 func TestUpdateComponentEndpointRenamesWorkspaceComponent(t *testing.T) {
 	root := t.TempDir()
 	server, err := New(root)
@@ -279,6 +343,23 @@ func TestCreateComponentEndpointRejectsExamples(t *testing.T) {
 	}`)
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestDuplicateComponentEndpointRejectsExamples(t *testing.T) {
+	server := newTestServer(t)
+	payload := []byte(`{
+		"project_path": "examples/001_scalar_component/project.bcsproj",
+		"source_component_id": "scalar",
+		"name": "Example Copy"
+	}`)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/components/duplicate", bytes.NewReader(payload))
 
 	server.Handler().ServeHTTP(response, request)
 

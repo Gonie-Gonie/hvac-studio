@@ -183,6 +183,24 @@ try {
     throw "workspace source update did not round-trip"
   }
 
+  $DuplicateBody = @{
+    project_path = $CreatedProject.project_path
+    source_component_id = 'scalar'
+    name = 'Portable Scalar Duplicate'
+  } | ConvertTo-Json -Depth 4
+  $DuplicateResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/components/duplicate" -Method POST -ContentType 'application/json' -Body $DuplicateBody -TimeoutSec 20
+  $DuplicateJson = $DuplicateResponse.Content | ConvertFrom-Json
+  if ($DuplicateJson.component.id -ne 'portable_scalar_duplicate') {
+    throw "duplicated component id mismatch: $($DuplicateJson.component.id)"
+  }
+  $DuplicateSourcePath = Join-Path (Split-Path -Parent $CreatedProject.project_path) "components\$($DuplicateJson.component.id).py"
+  if (-not (Test-Path -LiteralPath $DuplicateSourcePath)) {
+    throw "duplicated component source was not written: $DuplicateSourcePath"
+  }
+  if ($DuplicateJson.project.graph.systems[0].components | Where-Object { $_ -eq $DuplicateJson.component.id }) {
+    throw "duplicated component should not be added to the entry system"
+  }
+
   $ComponentBody = @{ project_path = $CreatedProject.project_path; name = 'Portable Extra Component'; template = 'scalar' } | ConvertTo-Json -Depth 4
   $ComponentResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/components" -Method POST -ContentType 'application/json' -Body $ComponentBody -TimeoutSec 20
   $CreatedComponent = ($ComponentResponse.Content | ConvertFrom-Json).component

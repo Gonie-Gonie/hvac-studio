@@ -373,11 +373,15 @@ function componentEditor(component) {
   button.type = "button";
   button.textContent = "Rename";
   button.addEventListener("click", () => updateComponentFromInspector(component.id));
+  const duplicateButton = document.createElement("button");
+  duplicateButton.type = "button";
+  duplicateButton.textContent = "Duplicate";
+  duplicateButton.addEventListener("click", () => duplicateComponentFromInspector(component.id));
   name.addEventListener("keydown", (event) => {
     if (event.key === "Enter") updateComponentFromInspector(component.id);
   });
 
-  form.append(name, button);
+  form.append(name, button, duplicateButton);
   block.append(form);
   return block;
 }
@@ -1057,6 +1061,27 @@ async function updateComponentFromInspector(componentID) {
     log(`Component renamed: ${componentID}`);
   } catch (error) {
     log(`Rename component failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
+async function duplicateComponentFromInspector(componentID) {
+  const component = componentById(componentID);
+  if (!component || !isWorkspaceProject()) return;
+  const name = `${component.name || component.id} Copy`;
+  try {
+    const body = await api("/api/project/components/duplicate", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath, source_component_id: componentID, name }),
+    });
+    state.detail = body.project;
+    state.selectedComponentId = body.component.id;
+    renderAll();
+    log(`Component duplicated: ${componentID} -> ${body.component.id}`);
+  } catch (error) {
+    log(`Duplicate component failed: ${error.message}`);
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderProblems();
     setBottomTab("problems");
