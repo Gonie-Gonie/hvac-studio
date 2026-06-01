@@ -398,6 +398,154 @@ func TestCreateNodeEndpointAddsPublicIOAndDefaultInput(t *testing.T) {
 	}
 }
 
+func TestDeleteNodeEndpointCleansPublicIOAndConnections(t *testing.T) {
+	root := t.TempDir()
+	server, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Delete Node Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	nodePayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "scalar",
+		"direction":    "input",
+		"id":           "bias",
+		"default":      4.0,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodeResponse := httptest.NewRecorder()
+	nodeRequest := httptest.NewRequest(http.MethodPost, "/api/project/nodes", bytes.NewReader(nodePayload))
+	server.Handler().ServeHTTP(nodeResponse, nodeRequest)
+	if nodeResponse.Code != http.StatusCreated {
+		t.Fatalf("node status = %d body=%s", nodeResponse.Code, nodeResponse.Body.String())
+	}
+
+	deletePayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "scalar",
+		"node_id":      "bias",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deleteResponse := httptest.NewRecorder()
+	deleteRequest := httptest.NewRequest(http.MethodPost, "/api/project/nodes/delete", bytes.NewReader(deletePayload))
+	server.Handler().ServeHTTP(deleteResponse, deleteRequest)
+	if deleteResponse.Code != http.StatusOK {
+		t.Fatalf("delete input node status = %d body=%s", deleteResponse.Code, deleteResponse.Body.String())
+	}
+
+	loaded, err := project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if componentHasNode(loaded.Graph.Components[0], "bias") {
+		t.Fatal("deleted input node should be removed from component")
+	}
+	for _, input := range loaded.Graph.Systems[0].PublicInputs {
+		if input.ID == "scalar_bias" {
+			t.Fatal("deleted input node public input should be removed")
+		}
+	}
+	runInput, err := runtimecore.LoadInput(filepath.Join(loaded.Root, loaded.Project.DefaultInput))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := runInput.Inputs["scalar_bias"]; exists {
+		t.Fatal("deleted input node default input should be removed")
+	}
+
+	componentPayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"name":         "Second Gain",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	componentResponse := httptest.NewRecorder()
+	componentRequest := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(componentPayload))
+	server.Handler().ServeHTTP(componentResponse, componentRequest)
+	if componentResponse.Code != http.StatusCreated {
+		t.Fatalf("component status = %d body=%s", componentResponse.Code, componentResponse.Body.String())
+	}
+	includePayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "second_gain",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	includeResponse := httptest.NewRecorder()
+	includeRequest := httptest.NewRequest(http.MethodPost, "/api/project/system/components", bytes.NewReader(includePayload))
+	server.Handler().ServeHTTP(includeResponse, includeRequest)
+	if includeResponse.Code != http.StatusOK {
+		t.Fatalf("include status = %d body=%s", includeResponse.Code, includeResponse.Body.String())
+	}
+	connectionPayload, err := json.Marshal(map[string]any{
+		"project_path":   createBody.Project.ProjectPath,
+		"from_component": "scalar",
+		"from_node":      "result",
+		"to_component":   "second_gain",
+		"to_node":        "value",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	connectionResponse := httptest.NewRecorder()
+	connectionRequest := httptest.NewRequest(http.MethodPost, "/api/project/connections", bytes.NewReader(connectionPayload))
+	server.Handler().ServeHTTP(connectionResponse, connectionRequest)
+	if connectionResponse.Code != http.StatusCreated {
+		t.Fatalf("connection status = %d body=%s", connectionResponse.Code, connectionResponse.Body.String())
+	}
+	deleteOutputPayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "scalar",
+		"node_id":      "result",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deleteOutputResponse := httptest.NewRecorder()
+	deleteOutputRequest := httptest.NewRequest(http.MethodPost, "/api/project/nodes/delete", bytes.NewReader(deleteOutputPayload))
+	server.Handler().ServeHTTP(deleteOutputResponse, deleteOutputRequest)
+	if deleteOutputResponse.Code != http.StatusOK {
+		t.Fatalf("delete output node status = %d body=%s", deleteOutputResponse.Code, deleteOutputResponse.Body.String())
+	}
+	loaded, err = project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if componentHasNode(loaded.Graph.Components[0], "result") {
+		t.Fatal("deleted output node should be removed from component")
+	}
+	if len(loaded.Graph.Connections) != 0 || len(loaded.Graph.Systems[0].Connections) != 0 {
+		t.Fatalf("connections after output delete = graph:%d system:%d", len(loaded.Graph.Connections), len(loaded.Graph.Systems[0].Connections))
+	}
+	foundRestoredInput := false
+	for _, input := range loaded.Graph.Systems[0].PublicInputs {
+		if input.ID == "second_gain_value" {
+			foundRestoredInput = true
+		}
+	}
+	if !foundRestoredInput {
+		t.Fatal("target input should be restored as public after source output node deletion")
+	}
+}
+
 func TestCreateNodeEndpointRejectsExamples(t *testing.T) {
 	server := newTestServer(t)
 	payload := []byte(`{
@@ -408,6 +556,23 @@ func TestCreateNodeEndpointRejectsExamples(t *testing.T) {
 	}`)
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/api/project/nodes", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestDeleteNodeEndpointRejectsExamples(t *testing.T) {
+	server := newTestServer(t)
+	payload := []byte(`{
+		"project_path": "examples/001_scalar_component/project.bcsproj",
+		"component_id": "scalar",
+		"node_id": "value"
+	}`)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/nodes/delete", bytes.NewReader(payload))
 
 	server.Handler().ServeHTTP(response, request)
 

@@ -38,3 +38,4 @@
 - Add Studio system component removal while preserving component source artifacts.
 - Add scenario batch runs with saved batch records and Studio reopening support.
 - Add Studio workspace component display-name editing.
+- Add Studio node deletion with connection, public IO, and default input cleanup.

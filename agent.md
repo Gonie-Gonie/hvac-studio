@@ -73,6 +73,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Saved scenarios should be reusable immediately in Studio by reopening them into the Run Inputs panel.
 - Studio execution actions should flush workspace model edits that affect runtime behavior, especially component parameters and Python source, before invoking run/export paths.
 - Removing a Studio connection should restore the target input as editable public IO and reinsert its default input value when no other incoming connection owns that target.
+- Deleting a component node must clean related public IO, default inputs, and connections; if deleting an output removes an upstream connection, restore the still-existing target input as public IO.
 - Parameter Manager should let workspace users create Python-friendly parameter keys, not only edit template-created keys, so source edits and graph parameters can evolve together.
 - Examples should remain read-only, but Studio needs a first-class copy-to-workspace path so users can turn an example into an editable project without manually duplicating files.
 - Removing a component from a runnable system should not delete its source artifact; it should clean system membership, touching connections, public IO, and default inputs so the graph remains valid and reversible.

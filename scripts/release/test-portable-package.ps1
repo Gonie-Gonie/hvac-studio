@@ -364,6 +364,23 @@ try {
     throw "removed component default input should be removed: $ExtraInputId"
   }
 
+  $DeleteNodeBody = @{
+    project_path = $CreatedProject.project_path
+    component_id = 'scalar'
+    node_id = 'bias'
+  } | ConvertTo-Json -Depth 4
+  $DeleteNodeResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/nodes/delete" -Method POST -ContentType 'application/json' -Body $DeleteNodeBody -TimeoutSec 20
+  $DeleteNodeJson = $DeleteNodeResponse.Content | ConvertFrom-Json
+  if (($DeleteNodeJson.project.graph.components | Where-Object { $_.id -eq 'scalar' }).nodes.inputs | Where-Object { $_.id -eq 'bias' }) {
+    throw "deleted node still exists in component graph"
+  }
+  if ($DeleteNodeJson.project.graph.systems[0].public_inputs | Where-Object { $_.id -eq 'scalar_bias' }) {
+    throw "deleted node public input should be removed"
+  }
+  if ($null -ne $DeleteNodeJson.project.default_run_input.inputs.PSObject.Properties['scalar_bias']) {
+    throw "deleted node default input should be removed"
+  }
+
   Write-Host "portable package smoke test ok: $PackagePath"
 } finally {
   if ($null -ne $StudioProcess -and -not $StudioProcess.HasExited) {

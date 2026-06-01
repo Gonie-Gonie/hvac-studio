@@ -13,7 +13,7 @@ components/<component_id>.py
 
 New components are not silently added to the runnable system. Adding a component to a system is an explicit action.
 
-Workspace component input and output nodes can be added from the Inspector. If the component is already in the runnable system, new input nodes are exposed as public inputs and added to the default input file; new output nodes are exposed as public outputs.
+Workspace component input and output nodes can be added or deleted from the Inspector. If the component is already in the runnable system, new input nodes are exposed as public inputs and added to the default input file; new output nodes are exposed as public outputs. Deleting a node removes related public IO and connection references.
 
 Workspace component display names can be edited from the Inspector. Component IDs and Python class paths remain stable because connections, run records, and source files reference those IDs.
 

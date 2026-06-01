@@ -289,8 +289,8 @@ function renderInspector() {
     ["Class", component.class || ""],
   ]));
   if (isWorkspaceProject()) container.append(componentEditor(component));
-  container.append(inspectorBlock("Inputs", component.nodes.inputs.map((n) => [n.id, `${n.medium || ""} ${n.value_type || ""} ${n.unit || ""}`.trim()])));
-  container.append(inspectorBlock("Outputs", component.nodes.outputs.map((n) => [n.id, `${n.medium || ""} ${n.value_type || ""} ${n.unit || ""}`.trim()])));
+  container.append(nodeListBlock("Inputs", component, component.nodes.inputs || []));
+  container.append(nodeListBlock("Outputs", component, component.nodes.outputs || []));
   if (isWorkspaceProject()) container.append(nodeEditor(component));
   container.append(inspectorBlock("Parameters", Object.entries(component.parameters || {}).map(([k, v]) => [k, String(v)])));
   container.append(connectionEditor(component));
@@ -319,6 +319,39 @@ function inspectorBlock(title, rows) {
     const row = document.createElement("div");
     row.className = "kv";
     row.innerHTML = `<span class="kv-key">${escapeHTML(key)}</span><span>${escapeHTML(value)}</span>`;
+    block.append(row);
+  }
+  return block;
+}
+
+function nodeListBlock(title, component, nodes) {
+  const block = document.createElement("div");
+  block.className = "inspector-block";
+  block.innerHTML = `<div class="inspector-title">${escapeHTML(title)}</div>`;
+  if (!nodes.length) {
+    const row = document.createElement("div");
+    row.className = "kv";
+    row.innerHTML = `<span class="kv-key">empty</span><span></span>`;
+    block.append(row);
+    return block;
+  }
+  for (const node of nodes) {
+    const row = document.createElement("div");
+    row.className = "kv connection-row";
+    row.innerHTML = `
+      <span class="kv-key">${escapeHTML(node.id)}</span>
+      <span class="connection-value">
+        <span>${escapeHTML(`${node.medium || ""} ${node.value_type || ""} ${node.unit || ""}`.trim())}</span>
+      </span>
+    `;
+    if (isWorkspaceProject()) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "small-action";
+      button.textContent = "Delete";
+      button.addEventListener("click", () => deleteNodeFromInspector(component.id, node.id));
+      row.querySelector(".connection-value").append(button);
+    }
     block.append(row);
   }
   return block;
@@ -1127,6 +1160,26 @@ async function addNodeFromInspector(componentID) {
     log(`Node added: ${componentID}.${nodeID}`);
   } catch (error) {
     log(`Add node failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
+async function deleteNodeFromInspector(componentID, nodeID) {
+  if (!componentID || !nodeID || !isWorkspaceProject()) return;
+  if (!window.confirm(`Delete node ${componentID}.${nodeID}? Related connections and public IO mappings will be updated.`)) return;
+  try {
+    const body = await api("/api/project/nodes/delete", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath, component_id: componentID, node_id: nodeID }),
+    });
+    state.detail = body.project;
+    state.selectedComponentId = componentID;
+    renderAll();
+    log(`Node deleted: ${componentID}.${nodeID}`);
+  } catch (error) {
+    log(`Delete node failed: ${error.message}`);
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderProblems();
     setBottomTab("problems");
