@@ -25,3 +25,4 @@
 - Add validation problem metadata and clickable component-linked Problems rows in Studio.
 - Add Studio component Python source loading and workspace source saving.
 - Add Studio scenario artifact creation from current run inputs.
+- Document the connected Studio workflow covered by portable release smoke tests.

@@ -64,7 +64,23 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-porta
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-runtime-package.ps1 -Version 0.1.0-dev
 ```
 
-The portable package smoke test expands the zip, verifies `studio.exe`, `bcs-runner.exe`, `bcs-env.exe`, and `runtime/python/python.exe`, constrains `PATH` so system Python is not used, runs the feed-forward example through the CLI, starts Studio locally, calls `/api/projects`, and runs `/api/run`. The included `Start-Studio.ps1` waits for the local server before opening the browser.
+The portable package smoke test expands the zip, verifies `studio.exe`, `bcs-runner.exe`, `bcs-env.exe`, and `runtime/python/python.exe`, constrains `PATH` so system Python is not used, runs the feed-forward example through the CLI, starts Studio locally, and exercises the Studio API workflow.
+
+Current portable Studio smoke coverage:
+
+- Lists bundled examples through `/api/projects`.
+- Runs the feed-forward example through `/api/run`.
+- Creates a workspace project under `projects/`.
+- Reads and saves workspace component Python source.
+- Adds a Python component template and explicitly includes it in the entry system.
+- Saves component parameters to `graph.json`.
+- Saves default run inputs to the project `default_input` file.
+- Saves a scenario under `scenarios/`.
+- Runs the workspace project and writes `runs/run-*.json`.
+- Reopens the saved run record through `/api/project/run`.
+- Writes `exports/runtime_package/manifest.json`.
+
+The included `Start-Studio.ps1` waits for the local server before opening the browser.
 
 Studio-created projects are written under `projects/` by default. Workspace project runs are saved as `runs/run-*.json` inside each project.
 

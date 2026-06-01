@@ -15,7 +15,7 @@ The first stable slice is the runtime core plus a real Studio workspace shell:
 - A persistent Python worker using JSONL over stdio.
 - A Go `bcs-runner` CLI with `validate` and `run`.
 - Golden examples that behave as regression assets.
-- A Go-hosted Studio web UI that opens examples, renders the system canvas, inspects components, validates, runs, and exports public schema.
+- A Go-hosted Studio web UI that opens examples, creates workspace projects, edits parameters/default inputs/Python source, adds components, validates, runs, saves scenarios/run records, and exports public schema/runtime manifests.
 
 The Studio UI is intentionally built as the full product workspace first. Individual panels can be wired up gradually without changing the source-of-truth files or inventing a separate simulation engine.
 
@@ -97,8 +97,8 @@ Build and smoke-test the portable Studio release package:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-portable-package.ps1 -Version 0.1.0-dev
 ```
 
-The portable package includes `studio.exe`, `bcs-runner.exe`, `bcs-env.exe`, examples, and a bundled `runtime/python` for the included example runs.
-Studio-created projects live under `projects/`, and workspace project runs are saved as `runs/run-*.json`.
+The portable package includes `studio.exe`, `bcs-runner.exe`, `bcs-env.exe`, examples, and a bundled `runtime/python` for included example and workspace project runs.
+Studio-created projects live under `projects/`; workspace edits persist to project artifacts such as `graph.json`, `inputs/`, `components/`, `scenarios/`, `runs/`, and `exports/`.
 
 Build and smoke-test the runtime-only release package:
 

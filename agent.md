@@ -69,6 +69,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Validation problems should carry structured metadata where possible. Even simple inferred `component_id` links are useful because they keep the Problems panel connected to the graph authoring surface.
 - Python source editing must respect ownership: examples are read-only, workspace project component files can be saved, and the graph contract remains in `graph.json`.
 - Scenarios should start as explicit project artifacts under `scenarios/`, created from current run inputs/context, before adding richer dataset and validation workflows.
+- Portable smoke coverage should keep exercising the connected Studio workflow, not just server startup. The current smoke path covers project creation, source editing, component creation/inclusion, parameter/input/scenario/run/export artifacts, and bundled Python execution.
 
 ## Monitoring Checklist
 
