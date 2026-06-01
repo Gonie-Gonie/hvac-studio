@@ -288,6 +288,7 @@ function renderInspector() {
     ["Kind", component.kind],
     ["Class", component.class || ""],
   ]));
+  if (isWorkspaceProject()) container.append(componentEditor(component));
   container.append(inspectorBlock("Inputs", component.nodes.inputs.map((n) => [n.id, `${n.medium || ""} ${n.value_type || ""} ${n.unit || ""}`.trim()])));
   container.append(inspectorBlock("Outputs", component.nodes.outputs.map((n) => [n.id, `${n.medium || ""} ${n.value_type || ""} ${n.unit || ""}`.trim()])));
   if (isWorkspaceProject()) container.append(nodeEditor(component));
@@ -320,6 +321,31 @@ function inspectorBlock(title, rows) {
     row.innerHTML = `<span class="kv-key">${escapeHTML(key)}</span><span>${escapeHTML(value)}</span>`;
     block.append(row);
   }
+  return block;
+}
+
+function componentEditor(component) {
+  const block = document.createElement("div");
+  block.className = "inspector-block";
+  block.innerHTML = `<div class="inspector-title">Component Settings</div>`;
+
+  const form = document.createElement("div");
+  form.className = "connection-form";
+  const name = document.createElement("input");
+  name.id = "componentNameInput";
+  name.value = component.name || component.id;
+  name.setAttribute("aria-label", "Component name");
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = "Rename";
+  button.addEventListener("click", () => updateComponentFromInspector(component.id));
+  name.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") updateComponentFromInspector(component.id);
+  });
+
+  form.append(name, button);
+  block.append(form);
   return block;
 }
 
@@ -963,6 +989,30 @@ async function createComponent() {
   } catch (error) {
     log(`Create component failed: ${error.message}`);
     state.latestValidation = { error: error.message };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
+async function updateComponentFromInspector(componentID) {
+  if (!componentID || !isWorkspaceProject()) return;
+  const name = (el("componentNameInput")?.value || "").trim();
+  if (!name) {
+    showInlineProblem("Component name is required");
+    return;
+  }
+  try {
+    const body = await api("/api/project/components/update", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath, component_id: componentID, name }),
+    });
+    state.detail = body.project;
+    state.selectedComponentId = componentID;
+    renderAll();
+    log(`Component renamed: ${componentID}`);
+  } catch (error) {
+    log(`Rename component failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderProblems();
     setBottomTab("problems");
   }

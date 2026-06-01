@@ -77,6 +77,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Examples should remain read-only, but Studio needs a first-class copy-to-workspace path so users can turn an example into an editable project without manually duplicating files.
 - Removing a component from a runnable system should not delete its source artifact; it should clean system membership, touching connections, public IO, and default inputs so the graph remains valid and reversible.
 - Batch execution should start with saved scenarios and write explicit `runs/batch-*.json` artifacts before adding dataset-scale orchestration.
+- Component management should separate stable component IDs/classes from editable display labels until full refactoring/rename support exists.
 - Portable smoke coverage should keep exercising the connected Studio workflow, not just server startup. The current smoke path covers project copy/creation, node creation, source editing, component creation/inclusion/removal, connection creation/removal, parameter/input/scenario/batch/run/export artifacts, and bundled Python execution.
 - Release packaging must work from untagged development checkouts by falling back to a dev version with the current short SHA.
 - User documentation is part of the product. Keep Markdown source under `docs/user/`, explain both user workflows and the internal execution model users need to reason correctly, and plan for MkDocs HTML, in-app help, PDF manual, and release assets.

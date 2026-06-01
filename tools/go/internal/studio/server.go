@@ -75,6 +75,12 @@ type createComponentRequest struct {
 	Template    string `json:"template"`
 }
 
+type updateComponentRequest struct {
+	ProjectPath string `json:"project_path"`
+	ComponentID string `json:"component_id"`
+	Name        string `json:"name"`
+}
+
 type includeComponentRequest struct {
 	ProjectPath string `json:"project_path"`
 	SystemID    string `json:"system_id"`
@@ -270,6 +276,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("GET /api/project/scenario", s.handleScenarioRecord)
 	s.mux.HandleFunc("GET /api/project/source", s.handleSource)
 	s.mux.HandleFunc("POST /api/project/components", s.handleCreateComponent)
+	s.mux.HandleFunc("POST /api/project/components/update", s.handleUpdateComponent)
 	s.mux.HandleFunc("POST /api/project/system/components", s.handleIncludeComponent)
 	s.mux.HandleFunc("POST /api/project/system/components/remove", s.handleRemoveComponentFromSystem)
 	s.mux.HandleFunc("POST /api/project/nodes", s.handleCreateNode)
@@ -430,6 +437,34 @@ func (s *Server) handleCreateComponent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "component": component, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleUpdateComponent(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeUpdateComponentRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	component, err := updateComponent(loaded, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "component": component, "project": projectDetail(reloaded)})
 }
 
 func (s *Server) handleIncludeComponent(w http.ResponseWriter, r *http.Request) {
@@ -1192,6 +1227,28 @@ func createComponent(loaded *project.LoadedProject, req createComponentRequest) 
 	return component, nil
 }
 
+func updateComponent(loaded *project.LoadedProject, req updateComponentRequest) (model.Component, error) {
+	componentID := strings.TrimSpace(req.ComponentID)
+	if componentID == "" {
+		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "component_id is required")
+	}
+	componentName := strings.TrimSpace(req.Name)
+	if componentName == "" {
+		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "component name is required")
+	}
+	for index := range loaded.Graph.Components {
+		if loaded.Graph.Components[index].ID != componentID {
+			continue
+		}
+		loaded.Graph.Components[index].Name = componentName
+		if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
+			return model.Component{}, err
+		}
+		return loaded.Graph.Components[index], nil
+	}
+	return model.Component{}, apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
+}
+
 func includeComponentInSystem(loaded *project.LoadedProject, req includeComponentRequest) error {
 	componentID := strings.TrimSpace(req.ComponentID)
 	if componentID == "" {
@@ -1729,6 +1786,15 @@ func decodeCopyProjectRequest(r *http.Request) (copyProjectRequest, error) {
 func decodeCreateComponentRequest(r *http.Request) (createComponentRequest, error) {
 	defer r.Body.Close()
 	var req createComponentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeUpdateComponentRequest(r *http.Request) (updateComponentRequest, error) {
+	defer r.Body.Close()
+	var req updateComponentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}

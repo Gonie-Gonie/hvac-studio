@@ -135,6 +135,17 @@ try {
     throw "created project file was not written: $($CreatedProject.project_path)"
   }
 
+  $RenameBody = @{
+    project_path = $CreatedProject.project_path
+    component_id = 'scalar'
+    name = 'Portable Scalar Driver'
+  } | ConvertTo-Json -Depth 4
+  $RenameResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/components/update" -Method POST -ContentType 'application/json' -Body $RenameBody -TimeoutSec 20
+  $RenameJson = $RenameResponse.Content | ConvertFrom-Json
+  if (($RenameJson.project.graph.components | Where-Object { $_.id -eq 'scalar' }).name -ne 'Portable Scalar Driver') {
+    throw "workspace component rename did not persist"
+  }
+
   $NodeBody = @{
     project_path = $CreatedProject.project_path
     component_id = 'scalar'
