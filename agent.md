@@ -61,6 +61,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Studio GUI work should start from the full product workspace shape, then connect behavior incrementally. Avoid ambiguous tiny demo screens that obscure the intended workflow.
 - Studio-created projects should live under `projects/` in the portable package. Workspace runs should be persisted as `runs/run-*.json` records inside the project.
 - GUI edits should persist to source-of-truth artifacts immediately and explicitly. Current write scope starts with workspace-only component parameters saved to `graph.json`; bundled examples remain read-only through the Studio API.
+- Studio run input fields should come from the project's `default_input` file when available, not from hardcoded sample values. Saving run inputs writes back to that source artifact for workspace projects.
 
 ## Monitoring Checklist
 

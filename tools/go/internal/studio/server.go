@@ -39,12 +39,14 @@ type ProjectSummary struct {
 }
 
 type ProjectDetail struct {
-	Project     *model.Project `json:"project"`
-	Graph       *model.Graph   `json:"graph"`
-	ProjectPath string         `json:"project_path"`
-	GraphPath   string         `json:"graph_path"`
-	Root        string         `json:"root"`
-	Runs        []RunSummary   `json:"runs"`
+	Project          *model.Project        `json:"project"`
+	Graph            *model.Graph          `json:"graph"`
+	ProjectPath      string                `json:"project_path"`
+	GraphPath        string                `json:"graph_path"`
+	DefaultInputPath string                `json:"default_input_path"`
+	DefaultRunInput  *runtimecore.RunInput `json:"default_run_input"`
+	Root             string                `json:"root"`
+	Runs             []RunSummary          `json:"runs"`
 }
 
 type apiRequest struct {
@@ -62,6 +64,12 @@ type createProjectRequest struct {
 type updateParametersRequest struct {
 	ProjectPath string                    `json:"project_path"`
 	Parameters  map[string]map[string]any `json:"parameters"`
+}
+
+type updateInputRequest struct {
+	ProjectPath string         `json:"project_path"`
+	Inputs      map[string]any `json:"inputs"`
+	Context     map[string]any `json:"context"`
 }
 
 type RunSummary struct {
@@ -113,6 +121,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("GET /api/projects", s.handleProjects)
 	s.mux.HandleFunc("POST /api/projects", s.handleCreateProject)
 	s.mux.HandleFunc("GET /api/project", s.handleProject)
+	s.mux.HandleFunc("POST /api/project/input", s.handleUpdateInput)
 	s.mux.HandleFunc("POST /api/project/parameters", s.handleUpdateParameters)
 	s.mux.HandleFunc("POST /api/validate", s.handleValidate)
 	s.mux.HandleFunc("POST /api/run", s.handleRun)
@@ -215,6 +224,46 @@ func (s *Server) handleUpdateParameters(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeRuntime, err))
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleUpdateInput(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeUpdateInputRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	if req.Inputs == nil {
+		writeError(w, apperror.Errorf(apperror.CodeValidation, "inputs are required"))
+		return
+	}
+	inputPath, err := resolveProjectOwnedFile(loaded.Root, loaded.Project.DefaultInput)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	input := runtimecore.RunInput{Inputs: req.Inputs, Context: req.Context}
+	if input.Context == nil {
+		input.Context = map[string]any{}
+	}
+	if err := writeJSONFile(inputPath, input); err != nil {
 		writeError(w, apperror.Wrap(apperror.CodeRuntime, err))
 		return
 	}
@@ -329,7 +378,7 @@ func (s *Server) loadProject(projectPath string) (*project.LoadedProject, error)
 }
 
 func projectDetail(loaded *project.LoadedProject) ProjectDetail {
-	return ProjectDetail{
+	detail := ProjectDetail{
 		Project:     loaded.Project,
 		Graph:       loaded.Graph,
 		ProjectPath: loaded.Path,
@@ -337,6 +386,13 @@ func projectDetail(loaded *project.LoadedProject) ProjectDetail {
 		Root:        loaded.Root,
 		Runs:        loadRunSummaries(loaded.Root),
 	}
+	if inputPath, err := resolveProjectOwnedFile(loaded.Root, loaded.Project.DefaultInput); err == nil {
+		detail.DefaultInputPath = inputPath
+		if input, err := runtimecore.LoadInput(inputPath); err == nil {
+			detail.DefaultRunInput = &input
+		}
+	}
+	return detail
 }
 
 func (s *Server) findProjectSummaries(root string, source string) []ProjectSummary {
@@ -533,6 +589,15 @@ func decodeUpdateParametersRequest(r *http.Request) (updateParametersRequest, er
 	return req, nil
 }
 
+func decodeUpdateInputRequest(r *http.Request) (updateInputRequest, error) {
+	defer r.Body.Close()
+	var req updateInputRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
 func decodeRequest(r *http.Request) (apiRequest, error) {
 	defer r.Body.Close()
 	var req apiRequest
@@ -576,6 +641,29 @@ func resolveProjectFile(projectRoot string, path string) string {
 		return path
 	}
 	return filepath.Join(projectRoot, path)
+}
+
+func resolveProjectOwnedFile(projectRoot string, path string) (string, error) {
+	if path == "" {
+		return "", apperror.Errorf(apperror.CodeValidation, "project file path is required")
+	}
+	resolved := resolveProjectFile(projectRoot, path)
+	absPath, err := filepath.Abs(resolved)
+	if err != nil {
+		return "", apperror.Wrap(apperror.CodeValidation, err)
+	}
+	absRoot, err := filepath.Abs(projectRoot)
+	if err != nil {
+		return "", apperror.Wrap(apperror.CodeValidation, err)
+	}
+	rel, err := filepath.Rel(absRoot, absPath)
+	if err != nil {
+		return "", apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return "", apperror.Errorf(apperror.CodeValidation, "project file path must stay inside project root: %s", path)
+	}
+	return absPath, nil
 }
 
 func writeRunRecord(loaded *project.LoadedProject, input runtimecore.RunInput, result *runtimecore.RunResult) (RunSummary, error) {

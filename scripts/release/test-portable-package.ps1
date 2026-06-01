@@ -134,15 +134,29 @@ try {
     throw "workspace parameter update mismatch: gain=$($ParameterJson.project.graph.components[0].parameters.gain)"
   }
 
+  $InputBody = @{
+    project_path = $CreatedProject.project_path
+    inputs = @{
+      value = 5
+    }
+    context = @{
+      time = 0
+      dt = 60
+    }
+  } | ConvertTo-Json -Depth 8
+  $InputResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/input" -Method POST -ContentType 'application/json' -Body $InputBody -TimeoutSec 20
+  $InputJson = $InputResponse.Content | ConvertFrom-Json
+  if ($InputJson.project.default_run_input.inputs.value -ne 5) {
+    throw "workspace input update mismatch: value=$($InputJson.project.default_run_input.inputs.value)"
+  }
+
   $WorkspaceRunBody = @{
     project_path = $CreatedProject.project_path
-    inputs = @{ value = 4 }
-    context = @{ time = 0; dt = 60 }
     save = $true
   } | ConvertTo-Json -Depth 8
   $WorkspaceRunResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/run" -Method POST -ContentType 'application/json' -Body $WorkspaceRunBody -TimeoutSec 20
   $WorkspaceRunJson = $WorkspaceRunResponse.Content | ConvertFrom-Json
-  if ($WorkspaceRunJson.result.outputs.result -ne 12) {
+  if ($WorkspaceRunJson.result.outputs.result -ne 15) {
     throw "workspace run result mismatch: result=$($WorkspaceRunJson.result.outputs.result)"
   }
   $RunRecordPath = Join-Path (Split-Path -Parent $CreatedProject.project_path) $WorkspaceRunJson.run_record.relative_path

@@ -151,6 +151,91 @@ func TestUpdateParametersEndpointRejectsExamples(t *testing.T) {
 	}
 }
 
+func TestProjectEndpointIncludesDefaultRunInput(t *testing.T) {
+	server := newTestServer(t)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/project?project_path=examples/001_scalar_component/project.bcsproj", nil)
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Project ProjectDetail `json:"project"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Project.DefaultRunInput == nil {
+		t.Fatal("default_run_input is nil")
+	}
+	if got := body.Project.DefaultRunInput.Inputs["value"]; got != 4.0 {
+		t.Fatalf("default value = %v, want 4", got)
+	}
+}
+
+func TestUpdateInputEndpointWritesWorkspaceDefaultInput(t *testing.T) {
+	root := t.TempDir()
+	server, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Input Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	payload := []byte(`{
+		"project_path": "` + filepath.ToSlash(createBody.Project.ProjectPath) + `",
+		"inputs": {"value": 7},
+		"context": {"time": 0, "dt": 30}
+	}`)
+	updateResponse := httptest.NewRecorder()
+	updateRequest := httptest.NewRequest(http.MethodPost, "/api/project/input", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(updateResponse, updateRequest)
+	if updateResponse.Code != http.StatusOK {
+		t.Fatalf("update status = %d body=%s", updateResponse.Code, updateResponse.Body.String())
+	}
+
+	loaded, err := project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := runtimecore.LoadInput(filepath.Join(loaded.Root, loaded.Project.DefaultInput))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := input.Inputs["value"]; got != 7.0 {
+		t.Fatalf("input value = %v, want 7", got)
+	}
+}
+
+func TestUpdateInputEndpointRejectsExamples(t *testing.T) {
+	server := newTestServer(t)
+	payload := []byte(`{
+		"project_path": "examples/001_scalar_component/project.bcsproj",
+		"inputs": {"value": 7}
+	}`)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/input", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+}
+
 func TestRunEndpointRunsFeedForwardExample(t *testing.T) {
 	server := newTestServer(t)
 	payload := []byte(`{

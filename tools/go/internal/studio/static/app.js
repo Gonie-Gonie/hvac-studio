@@ -54,7 +54,7 @@ async function loadProject(projectPath) {
   state.latestResult = null;
   state.latestSchema = null;
   state.latestValidation = null;
-  el("saveParametersButton").classList.remove("dirty");
+  el("saveProjectButton").classList.remove("dirty");
 
   const body = await api(`/api/project?project_path=${encodeURIComponent(projectPath)}`);
   state.detail = body.project;
@@ -140,14 +140,16 @@ function renderRunInputs() {
   const container = el("runInputs");
   container.innerHTML = "";
   const inputs = currentSystem()?.public_inputs || [];
+  const savedInputs = state.detail?.default_run_input?.inputs || {};
   for (const input of inputs) {
     const field = document.createElement("div");
     field.className = "input-field";
-    const defaultValue = input.default ?? sampleValueFor(input.id);
+    const defaultValue = savedInputs[input.id] ?? input.default ?? sampleValueFor(input.id);
     field.innerHTML = `
       <label for="input-${escapeAttr(input.id)}">${escapeHTML(input.id)}</label>
       <input id="input-${escapeAttr(input.id)}" data-input-id="${escapeAttr(input.id)}" value="${escapeAttr(defaultValue)}" />
     `;
+    field.querySelector("input").addEventListener("input", markProjectDirty);
     container.append(field);
   }
 }
@@ -314,7 +316,7 @@ function parameterRow(component, name, value, editable) {
     input.dataset.parameterComponent = component.id;
     input.dataset.parameterName = name;
     input.addEventListener("input", () => {
-      el("saveParametersButton").classList.add("dirty");
+      markProjectDirty();
     });
     valueCell.append(input);
   } else {
@@ -398,15 +400,12 @@ async function validateProject() {
 }
 
 async function runProject() {
-  const inputs = {};
-  for (const input of document.querySelectorAll("[data-input-id]")) {
-    inputs[input.dataset.inputId] = coerceInput(input.value);
-  }
+  const inputs = collectRunInputs();
   try {
     const save = currentProject()?.source === "workspace";
     const body = await api("/api/run", {
       method: "POST",
-      body: JSON.stringify({ project_path: state.currentProjectPath, inputs, context: { time: 0, dt: 60 }, save }),
+      body: JSON.stringify({ project_path: state.currentProjectPath, inputs, context: currentRunContext(), save }),
     });
     state.latestResult = body.result;
     if (body.run_record) {
@@ -427,21 +426,29 @@ async function runProject() {
   renderResults();
 }
 
-async function saveParameters() {
+async function saveProjectEdits() {
   if (!isWorkspaceProject()) {
     log("Only workspace projects can be edited");
     return;
   }
   const parameters = collectParameterUpdates();
+  const inputs = collectRunInputs();
+  const context = currentRunContext();
   try {
-    const body = await api("/api/project/parameters", {
+    let body = await api("/api/project/input", {
       method: "POST",
-      body: JSON.stringify({ project_path: state.currentProjectPath, parameters }),
+      body: JSON.stringify({ project_path: state.currentProjectPath, inputs, context }),
     });
+    if (Object.keys(parameters).length) {
+      body = await api("/api/project/parameters", {
+        method: "POST",
+        body: JSON.stringify({ project_path: state.currentProjectPath, parameters }),
+      });
+    }
     state.detail = body.project;
-    el("saveParametersButton").classList.remove("dirty");
+    el("saveProjectButton").classList.remove("dirty");
     renderAll();
-    log("Parameters saved");
+    log("Project saved");
   } catch (error) {
     log(`Save failed: ${error.message}`);
     state.latestValidation = { error: error.message };
@@ -519,6 +526,18 @@ function coerceInput(value) {
   return Number.isNaN(numeric) ? trimmed : numeric;
 }
 
+function collectRunInputs() {
+  const inputs = {};
+  for (const input of document.querySelectorAll("[data-input-id]")) {
+    inputs[input.dataset.inputId] = coerceInput(input.value);
+  }
+  return inputs;
+}
+
+function currentRunContext() {
+  return state.detail?.default_run_input?.context || { time: 0, dt: 60 };
+}
+
 function collectParameterUpdates() {
   const updates = {};
   for (const input of document.querySelectorAll("[data-parameter-component]")) {
@@ -592,7 +611,13 @@ function updateCommandState() {
   el("validateButton").disabled = !hasProject;
   el("runButton").disabled = !hasProject;
   el("schemaButton").disabled = !hasProject;
-  el("saveParametersButton").disabled = !hasProject || !isWorkspaceProject();
+  el("saveProjectButton").disabled = !hasProject || !isWorkspaceProject();
+}
+
+function markProjectDirty() {
+  if (isWorkspaceProject()) {
+    el("saveProjectButton").classList.add("dirty");
+  }
 }
 
 function escapeHTML(value) {
@@ -612,7 +637,7 @@ function escapeAttr(value) {
 function bindEvents() {
   el("projectSelect").addEventListener("change", (event) => loadProject(event.target.value));
   el("newProjectButton").addEventListener("click", createProject);
-  el("saveParametersButton").addEventListener("click", saveParameters);
+  el("saveProjectButton").addEventListener("click", saveProjectEdits);
   el("validateButton").addEventListener("click", validateProject);
   el("runButton").addEventListener("click", runProject);
   el("schemaButton").addEventListener("click", exportSchema);
