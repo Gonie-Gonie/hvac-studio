@@ -58,6 +58,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-fast.ps1
 
 See [docs/setup.md](docs/setup.md) for the repo-local Go/Python layout.
 
+Read the milestone plan:
+
+```text
+docs/development-plan.md
+```
+
 Build and smoke-test the minimal runtime release package:
 
 ```powershell

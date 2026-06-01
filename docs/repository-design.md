@@ -16,6 +16,8 @@ External engine
 
 The GUI is intentionally delayed. It should edit and visualize source-of-truth files, not become a separate modeling engine.
 
+The UX-driven milestone plan lives in `docs/development-plan.md`. That plan adds the component-node-system authoring flow, component-aware Python editor, datasets, validation, calibration, optimization, SDK, and runtime-only delivery sequence on top of this runtime-first architecture.
+
 ## Source Of Truth
 
 The model source of truth is file-based:
@@ -65,4 +67,3 @@ python/bcs_sdk                  runner wrapper for research workflows
 schema                          JSON Schema contracts
 examples                        regression assets
 ```
-
