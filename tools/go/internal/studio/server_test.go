@@ -272,6 +272,133 @@ func TestIncludeComponentEndpointRejectsExamples(t *testing.T) {
 	}
 }
 
+func TestCreateConnectionEndpointConnectsComponents(t *testing.T) {
+	root := t.TempDir()
+	server, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Connection Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+	componentPayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"name":         "Second Gain",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	componentResponse := httptest.NewRecorder()
+	componentRequest := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(componentPayload))
+	server.Handler().ServeHTTP(componentResponse, componentRequest)
+	if componentResponse.Code != http.StatusCreated {
+		t.Fatalf("component status = %d body=%s", componentResponse.Code, componentResponse.Body.String())
+	}
+	includePayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "second_gain",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	includeResponse := httptest.NewRecorder()
+	includeRequest := httptest.NewRequest(http.MethodPost, "/api/project/system/components", bytes.NewReader(includePayload))
+	server.Handler().ServeHTTP(includeResponse, includeRequest)
+	if includeResponse.Code != http.StatusOK {
+		t.Fatalf("include status = %d body=%s", includeResponse.Code, includeResponse.Body.String())
+	}
+
+	connectionPayload, err := json.Marshal(map[string]any{
+		"project_path":   createBody.Project.ProjectPath,
+		"from_component": "scalar",
+		"from_node":      "result",
+		"to_component":   "second_gain",
+		"to_node":        "value",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	connectionResponse := httptest.NewRecorder()
+	connectionRequest := httptest.NewRequest(http.MethodPost, "/api/project/connections", bytes.NewReader(connectionPayload))
+	server.Handler().ServeHTTP(connectionResponse, connectionRequest)
+	if connectionResponse.Code != http.StatusCreated {
+		t.Fatalf("connection status = %d body=%s", connectionResponse.Code, connectionResponse.Body.String())
+	}
+
+	loaded, err := project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded.Graph.Connections) != 1 {
+		t.Fatalf("connection count = %d", len(loaded.Graph.Connections))
+	}
+	if len(loaded.Graph.Systems[0].Connections) != 1 {
+		t.Fatalf("system connection count = %d", len(loaded.Graph.Systems[0].Connections))
+	}
+	for _, input := range loaded.Graph.Systems[0].PublicInputs {
+		if input.ID == "second_gain_value" {
+			t.Fatal("connected target input should no longer be public")
+		}
+	}
+	input, err := runtimecore.LoadInput(filepath.Join(loaded.Root, loaded.Project.DefaultInput))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := input.Inputs["second_gain_value"]; exists {
+		t.Fatal("connected target default input should be removed")
+	}
+
+	runResponse := httptest.NewRecorder()
+	runPayload, err := json.Marshal(map[string]any{"project_path": createBody.Project.ProjectPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runRequest := httptest.NewRequest(http.MethodPost, "/api/run", bytes.NewReader(runPayload))
+	server.Handler().ServeHTTP(runResponse, runRequest)
+	if runResponse.Code != http.StatusOK {
+		t.Fatalf("run status = %d body=%s", runResponse.Code, runResponse.Body.String())
+	}
+	var runBody struct {
+		Result struct {
+			Outputs map[string]float64 `json:"outputs"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(runResponse.Body.Bytes(), &runBody); err != nil {
+		t.Fatal(err)
+	}
+	if runBody.Result.Outputs["second_gain_result"] != 8 {
+		t.Fatalf("second_gain_result = %v, want 8", runBody.Result.Outputs["second_gain_result"])
+	}
+}
+
+func TestCreateConnectionEndpointRejectsExamples(t *testing.T) {
+	server := newTestServer(t)
+	payload := []byte(`{
+		"project_path": "examples/003_feedforward_system/project.bcsproj",
+		"from_component": "load_model",
+		"from_node": "adjusted_load_kw",
+		"to_component": "controller",
+		"to_node": "cooling_load_kw"
+	}`)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/connections", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+}
+
 func TestUpdateParametersEndpointWritesWorkspaceGraph(t *testing.T) {
 	root := t.TempDir()
 	server, err := New(root)

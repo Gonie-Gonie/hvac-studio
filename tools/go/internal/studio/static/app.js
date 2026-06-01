@@ -273,6 +273,7 @@ function renderInspector() {
   container.append(inspectorBlock("Inputs", component.nodes.inputs.map((n) => [n.id, `${n.medium || ""} ${n.value_type || ""} ${n.unit || ""}`.trim()])));
   container.append(inspectorBlock("Outputs", component.nodes.outputs.map((n) => [n.id, `${n.medium || ""} ${n.value_type || ""} ${n.unit || ""}`.trim()])));
   container.append(inspectorBlock("Parameters", Object.entries(component.parameters || {}).map(([k, v]) => [k, String(v)])));
+  container.append(connectionEditor(component));
   const latestInputs = state.latestResult?.component_inputs?.[component.id];
   const latestOutputs = state.latestResult?.component_outputs?.[component.id];
   if (latestInputs) {
@@ -301,6 +302,88 @@ function inspectorBlock(title, rows) {
     block.append(row);
   }
   return block;
+}
+
+function connectionEditor(targetComponent) {
+  const block = document.createElement("div");
+  block.className = "inspector-block";
+  block.innerHTML = `<div class="inspector-title">Connections</div>`;
+  const existingRows = connectionRowsFor(targetComponent);
+  if (existingRows.length) {
+    for (const [key, value] of existingRows) {
+      const row = document.createElement("div");
+      row.className = "kv";
+      row.innerHTML = `<span class="kv-key">${escapeHTML(key)}</span><span>${escapeHTML(value)}</span>`;
+      block.append(row);
+    }
+  }
+
+  if (!isWorkspaceProject() || !selectedComponentInSystem()) {
+    if (!existingRows.length) {
+      const row = document.createElement("div");
+      row.className = "kv";
+      row.innerHTML = `<span class="kv-key">empty</span><span></span>`;
+      block.append(row);
+    }
+    return block;
+  }
+
+  const sourceOptions = systemOutputEndpoints(targetComponent.id);
+  const targetOptions = targetComponent.nodes.inputs || [];
+  if (!sourceOptions.length || !targetOptions.length) return block;
+
+  const form = document.createElement("div");
+  form.className = "connection-form";
+  const sourceSelect = document.createElement("select");
+  sourceSelect.dataset.connectionSource = "true";
+  for (const endpoint of sourceOptions) {
+    const option = document.createElement("option");
+    option.value = `${endpoint.component}.${endpoint.node}`;
+    option.textContent = `${endpoint.component}.${endpoint.node}`;
+    sourceSelect.append(option);
+  }
+  const targetSelect = document.createElement("select");
+  targetSelect.dataset.connectionTarget = "true";
+  for (const node of targetOptions) {
+    const option = document.createElement("option");
+    option.value = node.id;
+    option.textContent = `${targetComponent.id}.${node.id}`;
+    targetSelect.append(option);
+  }
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = "Connect";
+  button.addEventListener("click", () => createConnectionFromInspector(sourceSelect.value, targetComponent.id, targetSelect.value));
+  form.append(sourceSelect, targetSelect, button);
+  block.append(form);
+  return block;
+}
+
+function connectionRowsFor(component) {
+  const graph = state.detail?.graph;
+  const system = currentSystem();
+  if (!graph || !system) return [];
+  const rows = [];
+  for (const connectionId of system.connections || []) {
+    const connection = graph.connections.find((item) => item.id === connectionId);
+    if (!connection) continue;
+    if (connection.to.component === component.id) {
+      rows.push([connection.to.node, `${connection.from.component}.${connection.from.node}`]);
+    }
+    if (connection.from.component === component.id) {
+      rows.push([connection.from.node, `${connection.to.component}.${connection.to.node}`]);
+    }
+  }
+  return rows;
+}
+
+function systemOutputEndpoints(excludeComponentId) {
+  const system = currentSystem();
+  if (!system) return [];
+  return system.components
+    .map(componentById)
+    .filter((component) => component && component.id !== excludeComponentId)
+    .flatMap((component) => (component.nodes.outputs || []).map((node) => ({ component: component.id, node: node.id })));
 }
 
 function renderParameters() {
@@ -667,6 +750,31 @@ async function includeSelectedComponent() {
   } catch (error) {
     log(`Add to system failed: ${error.message}`);
     state.latestValidation = { error: error.message };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
+async function createConnectionFromInspector(sourceValue, toComponent, toNode) {
+  const [fromComponent, fromNode] = sourceValue.split(".");
+  if (!fromComponent || !fromNode || !toComponent || !toNode) return;
+  try {
+    const body = await api("/api/project/connections", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        from_component: fromComponent,
+        from_node: fromNode,
+        to_component: toComponent,
+        to_node: toNode,
+      }),
+    });
+    state.detail = body.project;
+    renderAll();
+    log(`Connected ${fromComponent}.${fromNode} -> ${toComponent}.${toNode}`);
+  } catch (error) {
+    log(`Connection failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderProblems();
     setBottomTab("problems");
   }

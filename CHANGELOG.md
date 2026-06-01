@@ -27,3 +27,4 @@
 - Add Studio scenario artifact creation from current run inputs.
 - Document the connected Studio workflow covered by portable release smoke tests.
 - Add the initial User Guide Markdown scaffold under `docs/user/` and document the planned HTML/PDF help release flow.
+- Add Studio node-to-node connection authoring for workspace systems.

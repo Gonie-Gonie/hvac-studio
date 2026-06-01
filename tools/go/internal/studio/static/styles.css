@@ -537,6 +537,17 @@ th {
   color: var(--muted);
 }
 
+.connection-form {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.connection-form select,
+.connection-form button {
+  width: 100%;
+}
+
 .problem-row {
   display: flex;
   gap: 8px;

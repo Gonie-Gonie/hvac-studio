@@ -64,6 +64,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Studio run input fields should come from the project's `default_input` file when available, not from hardcoded sample values. Saving run inputs writes back to that source artifact for workspace projects.
 - Newly created components should first be persisted as source artifacts (`graph.json` plus `components/<id>.py`) without silently changing system execution. System membership, connections, and public IO should be explicit authoring actions.
 - When a component is explicitly added to a system, the Studio should keep the runnable path intact by creating public IO mappings and extending `default_input` for new required public inputs.
+- When a node-to-node connection targets a previously public input, that input should stop being public and be removed from default input artifacts so the graph remains valid.
 - Saved runs are project artifacts. The GUI should be able to reopen `runs/run-*.json` records and use them for Results and Inspector state, not just show the latest transient response.
 - Export profiles should write concrete project artifacts under `exports/` before becoming full package builders. The first connected profile is `exports/runtime_package/manifest.json`.
 - Validation problems should carry structured metadata where possible. Even simple inferred `component_id` links are useful because they keep the Problems panel connected to the graph authoring surface.

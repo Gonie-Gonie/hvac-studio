@@ -150,6 +150,21 @@ try {
   if (-not ($IncludeJson.project.graph.systems[0].public_inputs | Where-Object { $_.id -eq $ExtraInputId })) {
     throw "included component public input was not created: $ExtraInputId"
   }
+  $ConnectionBody = @{
+    project_path = $CreatedProject.project_path
+    from_component = 'scalar'
+    from_node = 'result'
+    to_component = $CreatedComponent.id
+    to_node = 'value'
+  } | ConvertTo-Json -Depth 8
+  $ConnectionResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/connections" -Method POST -ContentType 'application/json' -Body $ConnectionBody -TimeoutSec 20
+  $ConnectionJson = $ConnectionResponse.Content | ConvertFrom-Json
+  if (-not ($ConnectionJson.project.graph.systems[0].connections | Where-Object { $_ -eq $ConnectionJson.connection.id })) {
+    throw "created connection was not added to the entry system"
+  }
+  if ($ConnectionJson.project.graph.systems[0].public_inputs | Where-Object { $_.id -eq $ExtraInputId }) {
+    throw "connected target input should no longer be public: $ExtraInputId"
+  }
 
   $ParameterBody = @{
     project_path = $CreatedProject.project_path
@@ -166,7 +181,6 @@ try {
   }
 
   $InputValues = @{ value = 5 }
-  $InputValues[$ExtraInputId] = 2
   $InputBody = @{
     project_path = $CreatedProject.project_path
     inputs = $InputValues
@@ -208,7 +222,7 @@ try {
   }
   $ExtraOutputId = "$($CreatedComponent.id)_result"
   $ExtraOutput = $WorkspaceRunJson.result.outputs.PSObject.Properties[$ExtraOutputId].Value
-  if ($ExtraOutput -ne 2) {
+  if ($ExtraOutput -ne 15) {
     throw "workspace included component result mismatch: $ExtraOutputId=$ExtraOutput"
   }
   $RunRecordPath = Join-Path (Split-Path -Parent $CreatedProject.project_path) $WorkspaceRunJson.run_record.relative_path

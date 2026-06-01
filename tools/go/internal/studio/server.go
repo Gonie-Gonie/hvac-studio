@@ -75,6 +75,15 @@ type includeComponentRequest struct {
 	ComponentID string `json:"component_id"`
 }
 
+type createConnectionRequest struct {
+	ProjectPath   string `json:"project_path"`
+	SystemID      string `json:"system_id"`
+	FromComponent string `json:"from_component"`
+	FromNode      string `json:"from_node"`
+	ToComponent   string `json:"to_component"`
+	ToNode        string `json:"to_node"`
+}
+
 type exportRequest struct {
 	ProjectPath string `json:"project_path"`
 	Profile     string `json:"profile"`
@@ -209,6 +218,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("GET /api/project/source", s.handleSource)
 	s.mux.HandleFunc("POST /api/project/components", s.handleCreateComponent)
 	s.mux.HandleFunc("POST /api/project/system/components", s.handleIncludeComponent)
+	s.mux.HandleFunc("POST /api/project/connections", s.handleCreateConnection)
 	s.mux.HandleFunc("POST /api/project/input", s.handleUpdateInput)
 	s.mux.HandleFunc("POST /api/project/parameters", s.handleUpdateParameters)
 	s.mux.HandleFunc("POST /api/project/source", s.handleUpdateSource)
@@ -338,6 +348,34 @@ func (s *Server) handleIncludeComponent(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleCreateConnection(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeCreateConnectionRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	connection, err := createConnection(loaded, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "connection": connection, "project": projectDetail(reloaded)})
 }
 
 func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
@@ -929,6 +967,67 @@ func includeComponentInSystem(loaded *project.LoadedProject, req includeComponen
 	return writeJSONFile(loaded.GraphPath, loaded.Graph)
 }
 
+func createConnection(loaded *project.LoadedProject, req createConnectionRequest) (model.Connection, error) {
+	systemID := req.SystemID
+	if systemID == "" {
+		systemID = loaded.Project.EntrySystem
+	}
+	systemIndex := -1
+	for index := range loaded.Graph.Systems {
+		if loaded.Graph.Systems[index].ID == systemID {
+			systemIndex = index
+			break
+		}
+	}
+	if systemIndex < 0 {
+		return model.Connection{}, apperror.Errorf(apperror.CodeValidation, "system not found: %s", systemID)
+	}
+	fromComponent := strings.TrimSpace(req.FromComponent)
+	fromNode := strings.TrimSpace(req.FromNode)
+	toComponent := strings.TrimSpace(req.ToComponent)
+	toNode := strings.TrimSpace(req.ToNode)
+	if fromComponent == "" || fromNode == "" || toComponent == "" || toNode == "" {
+		return model.Connection{}, apperror.Errorf(apperror.CodeValidation, "connection endpoints are required")
+	}
+
+	system := &loaded.Graph.Systems[systemIndex]
+	if !containsString(system.Components, fromComponent) {
+		return model.Connection{}, apperror.Errorf(apperror.CodeValidation, "connection source component is not in system: %s", fromComponent)
+	}
+	if !containsString(system.Components, toComponent) {
+		return model.Connection{}, apperror.Errorf(apperror.CodeValidation, "connection target component is not in system: %s", toComponent)
+	}
+
+	inputPath, input, err := loadEditableDefaultInput(loaded)
+	if err != nil {
+		return model.Connection{}, err
+	}
+	connection := model.Connection{
+		ID: uniqueConnectionID(
+			loaded.Graph,
+			fmt.Sprintf("%s_%s_to_%s_%s", fromComponent, fromNode, toComponent, toNode),
+		),
+		From: model.Endpoint{Component: fromComponent, Node: fromNode},
+		To:   model.Endpoint{Component: toComponent, Node: toNode},
+	}
+	removedPublicInputs := removePublicInputsFor(system, toComponent, toNode)
+	for _, inputID := range removedPublicInputs {
+		delete(input.Inputs, inputID)
+	}
+	loaded.Graph.Connections = append(loaded.Graph.Connections, connection)
+	system.Connections = append(system.Connections, connection.ID)
+	if _, err := compiler.Compile(loaded); err != nil {
+		return model.Connection{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if err := writeJSONFile(inputPath, input); err != nil {
+		return model.Connection{}, err
+	}
+	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
+		return model.Connection{}, err
+	}
+	return connection, nil
+}
+
 func loadComponentSource(loaded *project.LoadedProject, componentID string, readOnly bool) (SourceDetail, error) {
 	sourcePath, err := componentSourcePath(loaded, componentID)
 	if err != nil {
@@ -1024,6 +1123,15 @@ func decodeCreateComponentRequest(r *http.Request) (createComponentRequest, erro
 func decodeIncludeComponentRequest(r *http.Request) (includeComponentRequest, error) {
 	defer r.Body.Close()
 	var req includeComponentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeCreateConnectionRequest(r *http.Request) (createConnectionRequest, error) {
+	defer r.Body.Close()
+	var req createConnectionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}
@@ -1466,6 +1574,22 @@ func uniqueComponentID(graph *model.Graph, base string) string {
 	return candidate
 }
 
+func uniqueConnectionID(graph *model.Graph, base string) string {
+	base = strings.ReplaceAll(slugify(base), "-", "_")
+	if base == "" {
+		base = "connection"
+	}
+	exists := map[string]bool{}
+	for _, connection := range graph.Connections {
+		exists[connection.ID] = true
+	}
+	candidate := base
+	for index := 2; exists[candidate]; index++ {
+		candidate = fmt.Sprintf("%s_%d", base, index)
+	}
+	return candidate
+}
+
 func findComponent(graph *model.Graph, componentID string) (model.Component, bool) {
 	for _, component := range graph.Components {
 		if component.ID == componentID {
@@ -1500,6 +1624,20 @@ func hasPublicOutputFor(system model.System, componentID string, nodeID string) 
 		}
 	}
 	return false
+}
+
+func removePublicInputsFor(system *model.System, componentID string, nodeID string) []string {
+	removed := []string{}
+	kept := system.PublicInputs[:0]
+	for _, input := range system.PublicInputs {
+		if input.Component == componentID && input.Node == nodeID {
+			removed = append(removed, input.ID)
+			continue
+		}
+		kept = append(kept, input)
+	}
+	system.PublicInputs = kept
+	return removed
 }
 
 func uniquePublicNodeID(refs []model.PublicNodeRef, base string) string {
