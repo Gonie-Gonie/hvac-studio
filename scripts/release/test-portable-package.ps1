@@ -219,6 +219,7 @@ try {
       scalar = @{
         gain = 3
         offset = 2
+        smoke_temp = 7
       }
     }
   } | ConvertTo-Json -Depth 8
@@ -229,6 +230,25 @@ try {
   }
   if ($ParameterJson.project.graph.components[0].parameters.offset -ne 2) {
     throw "workspace parameter add mismatch: offset=$($ParameterJson.project.graph.components[0].parameters.offset)"
+  }
+  if ($ParameterJson.project.graph.components[0].parameters.smoke_temp -ne 7) {
+    throw "workspace parameter add mismatch: smoke_temp=$($ParameterJson.project.graph.components[0].parameters.smoke_temp)"
+  }
+  $DeleteParameterBody = @{
+    project_path = $CreatedProject.project_path
+    component_id = 'scalar'
+    name = 'smoke_temp'
+  } | ConvertTo-Json -Depth 4
+  $DeleteParameterResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/parameters/delete" -Method POST -ContentType 'application/json' -Body $DeleteParameterBody -TimeoutSec 20
+  $DeleteParameterJson = $DeleteParameterResponse.Content | ConvertFrom-Json
+  if ($null -ne $DeleteParameterJson.project.graph.components[0].parameters.PSObject.Properties['smoke_temp']) {
+    throw "deleted parameter should be removed from the component graph"
+  }
+  if ($DeleteParameterJson.project.graph.components[0].parameters.gain -ne 3) {
+    throw "parameter delete should keep remaining parameters"
+  }
+  if ($DeleteParameterJson.project.graph.components[0].parameters.offset -ne 2) {
+    throw "parameter delete should keep runtime-significant parameters"
   }
 
   $InputValues = @{ value = 5; scalar_bias = 4 }

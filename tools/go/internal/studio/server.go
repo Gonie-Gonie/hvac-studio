@@ -144,6 +144,12 @@ type updateParametersRequest struct {
 	Parameters  map[string]map[string]any `json:"parameters"`
 }
 
+type deleteParameterRequest struct {
+	ProjectPath string `json:"project_path"`
+	ComponentID string `json:"component_id"`
+	Name        string `json:"name"`
+}
+
 type updateInputRequest struct {
 	ProjectPath string         `json:"project_path"`
 	Inputs      map[string]any `json:"inputs"`
@@ -291,6 +297,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/project/connections/delete", s.handleDeleteConnection)
 	s.mux.HandleFunc("POST /api/project/input", s.handleUpdateInput)
 	s.mux.HandleFunc("POST /api/project/parameters", s.handleUpdateParameters)
+	s.mux.HandleFunc("POST /api/project/parameters/delete", s.handleDeleteParameter)
 	s.mux.HandleFunc("POST /api/project/source", s.handleUpdateSource)
 	s.mux.HandleFunc("POST /api/project/scenarios", s.handleCreateScenario)
 	s.mux.HandleFunc("POST /api/validate", s.handleValidate)
@@ -709,6 +716,33 @@ func (s *Server) handleUpdateParameters(w http.ResponseWriter, r *http.Request) 
 
 	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
 		writeError(w, apperror.Wrap(apperror.CodeRuntime, err))
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleDeleteParameter(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeDeleteParameterRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := deleteParameter(loaded, req); err != nil {
+		writeError(w, err)
 		return
 	}
 	reloaded, err := project.Load(loaded.Path)
@@ -1684,6 +1718,29 @@ func deleteNode(loaded *project.LoadedProject, req deleteNodeRequest) (model.Nod
 	return node, nil
 }
 
+func deleteParameter(loaded *project.LoadedProject, req deleteParameterRequest) error {
+	componentID := strings.TrimSpace(req.ComponentID)
+	name := strings.TrimSpace(req.Name)
+	if componentID == "" || name == "" {
+		return apperror.Errorf(apperror.CodeValidation, "component_id and name are required")
+	}
+	for index := range loaded.Graph.Components {
+		component := &loaded.Graph.Components[index]
+		if component.ID != componentID {
+			continue
+		}
+		if component.Parameters == nil {
+			return apperror.Errorf(apperror.CodeValidation, "parameter not found: %s.%s", componentID, name)
+		}
+		if _, found := component.Parameters[name]; !found {
+			return apperror.Errorf(apperror.CodeValidation, "parameter not found: %s.%s", componentID, name)
+		}
+		delete(component.Parameters, name)
+		return writeJSONFile(loaded.GraphPath, loaded.Graph)
+	}
+	return apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
+}
+
 func createConnection(loaded *project.LoadedProject, req createConnectionRequest) (model.Connection, error) {
 	systemID := req.SystemID
 	if systemID == "" {
@@ -2013,6 +2070,15 @@ func decodeCreateScenarioRequest(r *http.Request) (createScenarioRequest, error)
 func decodeUpdateParametersRequest(r *http.Request) (updateParametersRequest, error) {
 	defer r.Body.Close()
 	var req updateParametersRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeDeleteParameterRequest(r *http.Request) (deleteParameterRequest, error) {
+	defer r.Body.Close()
+	var req deleteParameterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}

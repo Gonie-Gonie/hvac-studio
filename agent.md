@@ -75,6 +75,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Removing a Studio connection should restore the target input as editable public IO and reinsert its default input value when no other incoming connection owns that target.
 - Deleting a component node must clean related public IO, default inputs, and connections; if deleting an output removes an upstream connection, restore the still-existing target input as public IO.
 - Parameter Manager should let workspace users create Python-friendly parameter keys, not only edit template-created keys, so source edits and graph parameters can evolve together.
+- Parameter deletion is a graph edit only; it should preserve other pending parameter edits before removing the selected key and still reject bundled examples.
 - Examples should remain read-only, but Studio needs a first-class copy-to-workspace path so users can turn an example into an editable project without manually duplicating files.
 - Removing a component from a runnable system should not delete its source artifact; it should clean system membership, touching connections, public IO, and default inputs so the graph remains valid and reversible.
 - Batch execution should start with saved scenarios and write explicit `runs/batch-*.json` artifacts before adding dataset-scale orchestration.

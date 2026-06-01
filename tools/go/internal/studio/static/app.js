@@ -551,7 +551,7 @@ function renderParameters() {
     }
   }
   if (!count) {
-    tbody.append(emptyRow(5));
+    tbody.append(emptyRow(6));
     calibration.append(emptyRow(5));
     optimization.append(emptyRow(4));
   }
@@ -622,6 +622,18 @@ function parameterRow(component, name, value, editable) {
   const roleCell = document.createElement("td");
   roleCell.textContent = roleFor(name);
   tr.append(roleCell);
+
+  const actionCell = document.createElement("td");
+  actionCell.className = "action-cell";
+  if (editable) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "small-action table-action";
+    button.textContent = "Delete";
+    button.addEventListener("click", () => deleteParameterFromManager(component.id, name));
+    actionCell.append(button);
+  }
+  tr.append(actionCell);
   return tr;
 }
 
@@ -1221,6 +1233,33 @@ async function addParameterFromManager() {
   }
 }
 
+async function deleteParameterFromManager(componentID, name) {
+  if (!componentID || !name || !isWorkspaceProject()) return;
+  if (!window.confirm(`Delete parameter ${componentID}.${name}?`)) return;
+  try {
+    const pending = parameterUpdatesExcluding(componentID, name);
+    if (Object.keys(pending).length) {
+      const updated = await api("/api/project/parameters", {
+        method: "POST",
+        body: JSON.stringify({ project_path: state.currentProjectPath, parameters: pending }),
+      });
+      state.detail = updated.project;
+    }
+    const body = await api("/api/project/parameters/delete", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath, component_id: componentID, name }),
+    });
+    state.detail = body.project;
+    renderAll();
+    log(`Parameter deleted: ${componentID}.${name}`);
+  } catch (error) {
+    log(`Delete parameter failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
 async function deleteConnectionFromInspector(connectionId) {
   if (!connectionId || !isWorkspaceProject()) return;
   try {
@@ -1323,6 +1362,15 @@ function collectParameterUpdates() {
     const name = input.dataset.parameterName;
     updates[componentID] ||= {};
     updates[componentID][name] = coerceParameter(input.value);
+  }
+  return updates;
+}
+
+function parameterUpdatesExcluding(componentID, name) {
+  const updates = collectParameterUpdates();
+  if (updates[componentID]) {
+    delete updates[componentID][name];
+    if (!Object.keys(updates[componentID]).length) delete updates[componentID];
   }
   return updates;
 }

@@ -1016,7 +1016,7 @@ func TestUpdateParametersEndpointWritesWorkspaceGraph(t *testing.T) {
 	payload, err := json.Marshal(map[string]any{
 		"project_path": createBody.Project.ProjectPath,
 		"parameters": map[string]any{
-			"scalar": map[string]any{"gain": 3.0, "offset": 2.0},
+			"scalar": map[string]any{"gain": 3.0, "offset": 2.0, "scratch": 7.0},
 		},
 	})
 	if err != nil {
@@ -1040,6 +1040,39 @@ func TestUpdateParametersEndpointWritesWorkspaceGraph(t *testing.T) {
 	if got := loaded.Graph.Components[0].Parameters["offset"]; got != 2.0 {
 		t.Fatalf("offset = %v, want 2", got)
 	}
+	if got := loaded.Graph.Components[0].Parameters["scratch"]; got != 7.0 {
+		t.Fatalf("scratch = %v, want 7", got)
+	}
+
+	deletePayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "scalar",
+		"name":         "scratch",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deleteResponse := httptest.NewRecorder()
+	deleteRequest := httptest.NewRequest(http.MethodPost, "/api/project/parameters/delete", bytes.NewReader(deletePayload))
+
+	server.Handler().ServeHTTP(deleteResponse, deleteRequest)
+
+	if deleteResponse.Code != http.StatusOK {
+		t.Fatalf("delete status = %d body=%s", deleteResponse.Code, deleteResponse.Body.String())
+	}
+	loaded, err = project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := loaded.Graph.Components[0].Parameters["scratch"]; exists {
+		t.Fatal("deleted parameter should be removed from component")
+	}
+	if got := loaded.Graph.Components[0].Parameters["gain"]; got != 3.0 {
+		t.Fatalf("gain after delete = %v, want 3", got)
+	}
+	if got := loaded.Graph.Components[0].Parameters["offset"]; got != 2.0 {
+		t.Fatalf("offset after delete = %v, want 2", got)
+	}
 }
 
 func TestUpdateParametersEndpointRejectsExamples(t *testing.T) {
@@ -1052,6 +1085,23 @@ func TestUpdateParametersEndpointRejectsExamples(t *testing.T) {
 	}`)
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/api/project/parameters", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestDeleteParameterEndpointRejectsExamples(t *testing.T) {
+	server := newTestServer(t)
+	payload := []byte(`{
+		"project_path": "examples/001_scalar_component/project.bcsproj",
+		"component_id": "scalar",
+		"name": "gain"
+	}`)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/parameters/delete", bytes.NewReader(payload))
 
 	server.Handler().ServeHTTP(response, request)
 

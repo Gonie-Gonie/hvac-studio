@@ -456,6 +456,15 @@ th {
   height: 28px;
 }
 
+.action-cell {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.table-action {
+  vertical-align: middle;
+}
+
 .empty-cell {
   color: var(--muted);
   text-align: center;
