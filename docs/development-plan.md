@@ -274,6 +274,7 @@ User-editable area:
 
 Acceptance criteria:
 
+- Studio Python panel can load component source files and save workspace edits while examples remain read-only. Started.
 - Editing nodes/parameters/states updates the generated scaffold.
 - Editing scaffold-protected areas is blocked or recovered safely.
 - Autocomplete can suggest `inputs["chw_in"]["temperature"]` style paths from component contract metadata.

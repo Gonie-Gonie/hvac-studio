@@ -67,6 +67,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Saved runs are project artifacts. The GUI should be able to reopen `runs/run-*.json` records and use them for Results and Inspector state, not just show the latest transient response.
 - Export profiles should write concrete project artifacts under `exports/` before becoming full package builders. The first connected profile is `exports/runtime_package/manifest.json`.
 - Validation problems should carry structured metadata where possible. Even simple inferred `component_id` links are useful because they keep the Problems panel connected to the graph authoring surface.
+- Python source editing must respect ownership: examples are read-only, workspace project component files can be saved, and the graph contract remains in `graph.json`.
 
 ## Monitoring Checklist
 

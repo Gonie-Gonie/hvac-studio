@@ -79,6 +79,12 @@ type exportRequest struct {
 	Profile     string `json:"profile"`
 }
 
+type sourceRequest struct {
+	ProjectPath string `json:"project_path"`
+	ComponentID string `json:"component_id"`
+	Content     string `json:"content"`
+}
+
 type updateParametersRequest struct {
 	ProjectPath string                    `json:"project_path"`
 	Parameters  map[string]map[string]any `json:"parameters"`
@@ -127,6 +133,13 @@ type ExportManifest struct {
 	ExecutionOrder []string              `json:"execution_order"`
 }
 
+type SourceDetail struct {
+	ComponentID  string `json:"component_id"`
+	RelativePath string `json:"relative_path"`
+	Content      string `json:"content"`
+	ReadOnly     bool   `json:"read_only"`
+}
+
 type Problem struct {
 	Severity    string `json:"severity"`
 	Message     string `json:"message"`
@@ -169,10 +182,12 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/projects", s.handleCreateProject)
 	s.mux.HandleFunc("GET /api/project", s.handleProject)
 	s.mux.HandleFunc("GET /api/project/run", s.handleRunRecord)
+	s.mux.HandleFunc("GET /api/project/source", s.handleSource)
 	s.mux.HandleFunc("POST /api/project/components", s.handleCreateComponent)
 	s.mux.HandleFunc("POST /api/project/system/components", s.handleIncludeComponent)
 	s.mux.HandleFunc("POST /api/project/input", s.handleUpdateInput)
 	s.mux.HandleFunc("POST /api/project/parameters", s.handleUpdateParameters)
+	s.mux.HandleFunc("POST /api/project/source", s.handleUpdateSource)
 	s.mux.HandleFunc("POST /api/validate", s.handleValidate)
 	s.mux.HandleFunc("POST /api/run", s.handleRun)
 	s.mux.HandleFunc("POST /api/schema", s.handleSchema)
@@ -224,6 +239,25 @@ func (s *Server) handleRunRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "run_record": record})
+}
+
+func (s *Server) handleSource(w http.ResponseWriter, r *http.Request) {
+	projectPath, err := s.resolveProjectPath(r.URL.Query().Get("project_path"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := project.Load(projectPath)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	source, err := loadComponentSource(loaded, r.URL.Query().Get("component_id"), s.ensureWorkspaceProject(loaded.Root) != nil)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "source": source})
 }
 
 func (s *Server) handleCreateComponent(w http.ResponseWriter, r *http.Request) {
@@ -398,6 +432,38 @@ func (s *Server) handleUpdateInput(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleUpdateSource(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeSourceRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	sourcePath, err := componentSourcePath(loaded, req.ComponentID)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := os.WriteFile(sourcePath, []byte(req.Content), 0o644); err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeRuntime, err))
+		return
+	}
+	source, err := loadComponentSource(loaded, req.ComponentID, false)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "source": source})
 }
 
 func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
@@ -814,6 +880,37 @@ func includeComponentInSystem(loaded *project.LoadedProject, req includeComponen
 	return writeJSONFile(loaded.GraphPath, loaded.Graph)
 }
 
+func loadComponentSource(loaded *project.LoadedProject, componentID string, readOnly bool) (SourceDetail, error) {
+	sourcePath, err := componentSourcePath(loaded, componentID)
+	if err != nil {
+		return SourceDetail{}, err
+	}
+	sourceBytes, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return SourceDetail{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	rel, _ := filepath.Rel(loaded.Root, sourcePath)
+	return SourceDetail{
+		ComponentID:  componentID,
+		RelativePath: filepath.ToSlash(rel),
+		Content:      string(sourceBytes),
+		ReadOnly:     readOnly,
+	}, nil
+}
+
+func componentSourcePath(loaded *project.LoadedProject, componentID string) (string, error) {
+	component, found := findComponent(loaded.Graph, componentID)
+	if !found {
+		return "", apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
+	}
+	parts := strings.Split(component.Class, ".")
+	if len(parts) < 3 || parts[0] != "components" {
+		return "", apperror.Errorf(apperror.CodeValidation, "component %s class does not map to a project source file: %s", componentID, component.Class)
+	}
+	modulePath := filepath.Join(parts[:len(parts)-1]...) + ".py"
+	return resolveProjectOwnedFile(loaded.Root, modulePath)
+}
+
 func (s *Server) resolveProjectPath(projectPath string) (string, error) {
 	if projectPath == "" {
 		return "", apperror.Errorf(apperror.CodeValidation, "project_path is required")
@@ -887,6 +984,15 @@ func decodeIncludeComponentRequest(r *http.Request) (includeComponentRequest, er
 func decodeExportRequest(r *http.Request) (exportRequest, error) {
 	defer r.Body.Close()
 	var req exportRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeSourceRequest(r *http.Request) (sourceRequest, error) {
+	defer r.Body.Close()
+	var req sourceRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}

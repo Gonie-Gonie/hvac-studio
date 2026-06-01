@@ -8,6 +8,8 @@ const state = {
   latestExport: null,
   latestSchema: null,
   latestValidation: null,
+  sourceByComponent: {},
+  loadingSource: {},
   logs: [],
 };
 
@@ -60,6 +62,8 @@ async function loadProject(projectPath) {
   state.latestExport = null;
   state.latestSchema = null;
   state.latestValidation = null;
+  state.sourceByComponent = {};
+  state.loadingSource = {};
   el("saveProjectButton").classList.remove("dirty");
 
   const body = await api(`/api/project?project_path=${encodeURIComponent(projectPath)}`);
@@ -129,6 +133,7 @@ function treeItem(id, label, meta) {
       state.selectedComponentId = id;
       renderCanvas();
       renderInspector();
+      renderPythonPanel();
       renderProjectTree();
       updateCommandState();
     }
@@ -212,6 +217,7 @@ function renderCanvas() {
       state.selectedComponentId = component.id;
       renderCanvas();
       renderInspector();
+      renderPythonPanel();
       renderProjectTree();
       updateCommandState();
     });
@@ -405,7 +411,18 @@ function renderSchema() {
 
 function renderPythonPanel() {
   const component = componentById(state.selectedComponentId);
-  el("pythonPanel").textContent = component ? `class ${component.class || component.id}\n\n# component contract managed by graph.json` : "";
+  const panel = el("pythonPanel");
+  panel.value = "";
+  panel.readOnly = true;
+  if (!component) return;
+  const source = state.sourceByComponent[component.id];
+  if (!source) {
+    panel.value = "";
+    loadComponentSource(component.id);
+    return;
+  }
+  panel.value = source.content;
+  panel.readOnly = source.read_only || !isWorkspaceProject();
 }
 
 function renderExportManifest() {
@@ -479,6 +496,22 @@ async function loadRunRecord(runID) {
   }
 }
 
+async function loadComponentSource(componentID) {
+  if (!componentID || state.loadingSource[componentID]) return;
+  state.loadingSource[componentID] = true;
+  try {
+    const body = await api(`/api/project/source?project_path=${encodeURIComponent(state.currentProjectPath)}&component_id=${encodeURIComponent(componentID)}`);
+    state.sourceByComponent[componentID] = body.source;
+    if (state.selectedComponentId === componentID) {
+      renderPythonPanel();
+    }
+  } catch (error) {
+    log(`Source load failed: ${error.message}`);
+  } finally {
+    state.loadingSource[componentID] = false;
+  }
+}
+
 async function saveProjectEdits() {
   if (!isWorkspaceProject()) {
     log("Only workspace projects can be edited");
@@ -487,6 +520,7 @@ async function saveProjectEdits() {
   const parameters = collectParameterUpdates();
   const inputs = collectRunInputs();
   const context = currentRunContext();
+  const sourceUpdate = currentSourceUpdate();
   try {
     let body = await api("/api/project/input", {
       method: "POST",
@@ -497,6 +531,13 @@ async function saveProjectEdits() {
         method: "POST",
         body: JSON.stringify({ project_path: state.currentProjectPath, parameters }),
       });
+    }
+    if (sourceUpdate) {
+      const sourceBody = await api("/api/project/source", {
+        method: "POST",
+        body: JSON.stringify({ project_path: state.currentProjectPath, component_id: sourceUpdate.component_id, content: sourceUpdate.content }),
+      });
+      state.sourceByComponent[sourceUpdate.component_id] = sourceBody.source;
     }
     state.detail = body.project;
     el("saveProjectButton").classList.remove("dirty");
@@ -631,6 +672,7 @@ function selectComponent(id) {
   state.selectedComponentId = id;
   renderCanvas();
   renderInspector();
+  renderPythonPanel();
   renderProjectTree();
   updateCommandState();
 }
@@ -666,6 +708,15 @@ function collectRunInputs() {
 
 function currentRunContext() {
   return state.detail?.default_run_input?.context || { time: 0, dt: 60 };
+}
+
+function currentSourceUpdate() {
+  const component = componentById(state.selectedComponentId);
+  if (!component || !isWorkspaceProject()) return null;
+  const source = state.sourceByComponent[component.id];
+  const panel = el("pythonPanel");
+  if (!source || source.read_only || panel.readOnly || panel.value === source.content) return null;
+  return { component_id: component.id, content: panel.value };
 }
 
 function collectParameterUpdates() {
@@ -777,6 +828,7 @@ function bindEvents() {
   el("runButton").addEventListener("click", runProject);
   el("schemaButton").addEventListener("click", exportSchema);
   el("exportButton").addEventListener("click", exportProject);
+  el("pythonPanel").addEventListener("input", markProjectDirty);
   document.querySelectorAll(".mode-button").forEach((button) => {
     button.addEventListener("click", () => setMode(button.dataset.mode));
   });

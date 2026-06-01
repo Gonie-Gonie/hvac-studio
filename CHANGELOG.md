@@ -23,3 +23,4 @@
 - Add Studio run record detail loading from saved `runs/run-*.json` artifacts.
 - Add Studio runtime export manifest generation under workspace `exports/`.
 - Add validation problem metadata and clickable component-linked Problems rows in Studio.
+- Add Studio component Python source loading and workspace source saving.

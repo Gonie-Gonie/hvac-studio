@@ -120,6 +120,22 @@ try {
     throw "created project file was not written: $($CreatedProject.project_path)"
   }
 
+  $SourceResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/source?project_path=$([uri]::EscapeDataString($CreatedProject.project_path))&component_id=scalar" -TimeoutSec 20
+  $SourceJson = $SourceResponse.Content | ConvertFrom-Json
+  if ($SourceJson.source.read_only) {
+    throw "workspace component source should be editable"
+  }
+  $SourceBody = @{
+    project_path = $CreatedProject.project_path
+    component_id = 'scalar'
+    content = "$($SourceJson.source.content)`n# portable source edit smoke`n"
+  } | ConvertTo-Json -Depth 4
+  $SourceUpdateResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/source" -Method POST -ContentType 'application/json' -Body $SourceBody -TimeoutSec 20
+  $SourceUpdateJson = $SourceUpdateResponse.Content | ConvertFrom-Json
+  if ($SourceUpdateJson.source.content -notmatch 'portable source edit smoke') {
+    throw "workspace source update did not round-trip"
+  }
+
   $ComponentBody = @{ project_path = $CreatedProject.project_path; name = 'Portable Extra Component'; template = 'scalar' } | ConvertTo-Json -Depth 4
   $ComponentResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/components" -Method POST -ContentType 'application/json' -Body $ComponentBody -TimeoutSec 20
   $CreatedComponent = ($ComponentResponse.Content | ConvertFrom-Json).component
