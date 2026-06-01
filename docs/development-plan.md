@@ -83,7 +83,7 @@ Scope:
 
 Acceptance criteria:
 
-- Invalid graph cases have golden validation errors.
+- Invalid graph cases have golden validation errors. Started with `tests/golden/validation/001_algebraic_loop`.
 - Algebraic loop detection reports the involved components.
 - Missing public inputs and missing declared outputs fail with actionable messages.
 - CLI errors return documented exit codes. Started in code with typed runner errors for validation, input, runtime, Python worker, and license/runtime categories.

@@ -1,0 +1,92 @@
+{
+  "schema_version": "0.1.0",
+  "systems": [
+    {
+      "id": "MainSystem",
+      "name": "Invalid Algebraic Loop",
+      "components": ["a", "b"],
+      "connections": ["a_to_b", "b_to_a"],
+      "public_inputs": [],
+      "public_outputs": []
+    }
+  ],
+  "components": [
+    {
+      "id": "a",
+      "name": "Component A",
+      "kind": "user_python",
+      "class": "components.a.ComponentA",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "in",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "out",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float"
+          }
+        ]
+      },
+      "parameters": {}
+    },
+    {
+      "id": "b",
+      "name": "Component B",
+      "kind": "user_python",
+      "class": "components.b.ComponentB",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "in",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "out",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float"
+          }
+        ]
+      },
+      "parameters": {}
+    }
+  ],
+  "connections": [
+    {
+      "id": "a_to_b",
+      "from": {
+        "component": "a",
+        "node": "out"
+      },
+      "to": {
+        "component": "b",
+        "node": "in"
+      }
+    },
+    {
+      "id": "b_to_a",
+      "from": {
+        "component": "b",
+        "node": "out"
+      },
+      "to": {
+        "component": "a",
+        "node": "in"
+      }
+    }
+  ]
+}
+

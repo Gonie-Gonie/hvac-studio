@@ -56,6 +56,12 @@ Run every runnable example and compare against its golden output:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-examples.ps1
 ```
 
+Run validation golden cases:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-validation.ps1
+```
+
 If PowerShell script execution is disabled on your machine, run:
 
 ```powershell
