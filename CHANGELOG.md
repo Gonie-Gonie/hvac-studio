@@ -40,3 +40,4 @@
 - Add Studio workspace component display-name editing.
 - Add Studio node deletion with connection, public IO, and default input cleanup.
 - Add Studio parameter deletion from the Parameter Manager.
+- Add Studio unused component deletion with source-file cleanup.

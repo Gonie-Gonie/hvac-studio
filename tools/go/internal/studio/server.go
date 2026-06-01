@@ -81,6 +81,11 @@ type updateComponentRequest struct {
 	Name        string `json:"name"`
 }
 
+type deleteComponentRequest struct {
+	ProjectPath string `json:"project_path"`
+	ComponentID string `json:"component_id"`
+}
+
 type includeComponentRequest struct {
 	ProjectPath string `json:"project_path"`
 	SystemID    string `json:"system_id"`
@@ -289,6 +294,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("GET /api/project/source", s.handleSource)
 	s.mux.HandleFunc("POST /api/project/components", s.handleCreateComponent)
 	s.mux.HandleFunc("POST /api/project/components/update", s.handleUpdateComponent)
+	s.mux.HandleFunc("POST /api/project/components/delete", s.handleDeleteComponent)
 	s.mux.HandleFunc("POST /api/project/system/components", s.handleIncludeComponent)
 	s.mux.HandleFunc("POST /api/project/system/components/remove", s.handleRemoveComponentFromSystem)
 	s.mux.HandleFunc("POST /api/project/nodes", s.handleCreateNode)
@@ -479,6 +485,33 @@ func (s *Server) handleUpdateComponent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "component": component, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleDeleteComponent(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeDeleteComponentRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := deleteComponent(loaded, req); err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "project": projectDetail(reloaded)})
 }
 
 func (s *Server) handleIncludeComponent(w http.ResponseWriter, r *http.Request) {
@@ -1318,6 +1351,63 @@ func updateComponent(loaded *project.LoadedProject, req updateComponentRequest) 
 	return model.Component{}, apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
 }
 
+func deleteComponent(loaded *project.LoadedProject, req deleteComponentRequest) error {
+	componentID := strings.TrimSpace(req.ComponentID)
+	if componentID == "" {
+		return apperror.Errorf(apperror.CodeValidation, "component_id is required")
+	}
+	componentIndex := -1
+	for index := range loaded.Graph.Components {
+		if loaded.Graph.Components[index].ID == componentID {
+			componentIndex = index
+			break
+		}
+	}
+	if componentIndex < 0 {
+		return apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
+	}
+	for _, system := range loaded.Graph.Systems {
+		if containsString(system.Components, componentID) {
+			return apperror.Errorf(apperror.CodeValidation, "component is still used by system %s; remove it from the system first", system.ID)
+		}
+	}
+	for _, connection := range loaded.Graph.Connections {
+		if connection.From.Component == componentID || connection.To.Component == componentID {
+			return apperror.Errorf(apperror.CodeValidation, "component still has connection reference: %s", connection.ID)
+		}
+	}
+
+	sourcePath, err := componentSourcePath(loaded, componentID)
+	if err != nil {
+		return err
+	}
+	sourceShared := false
+	for index := range loaded.Graph.Components {
+		if index == componentIndex {
+			continue
+		}
+		otherPath, err := componentSourcePath(loaded, loaded.Graph.Components[index].ID)
+		if err == nil && otherPath == sourcePath {
+			sourceShared = true
+			break
+		}
+	}
+
+	loaded.Graph.Components = append(loaded.Graph.Components[:componentIndex], loaded.Graph.Components[componentIndex+1:]...)
+	if _, err := compiler.Compile(loaded); err != nil {
+		return apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
+		return err
+	}
+	if !sourceShared {
+		if err := os.Remove(sourcePath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
 func includeComponentInSystem(loaded *project.LoadedProject, req includeComponentRequest) error {
 	componentID := strings.TrimSpace(req.ComponentID)
 	if componentID == "" {
@@ -1989,6 +2079,15 @@ func decodeCreateComponentRequest(r *http.Request) (createComponentRequest, erro
 func decodeUpdateComponentRequest(r *http.Request) (updateComponentRequest, error) {
 	defer r.Body.Close()
 	var req updateComponentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeDeleteComponentRequest(r *http.Request) (deleteComponentRequest, error) {
+	defer r.Body.Close()
+	var req deleteComponentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}

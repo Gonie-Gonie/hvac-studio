@@ -1102,6 +1102,28 @@ async function removeSelectedComponentFromSystem() {
   }
 }
 
+async function deleteSelectedComponent() {
+  const component = componentById(state.selectedComponentId);
+  if (!component || !isWorkspaceProject() || selectedComponentInSystem()) return;
+  if (!window.confirm(`Delete component ${component.id} and its source file?`)) return;
+  try {
+    const body = await api("/api/project/components/delete", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath, component_id: component.id }),
+    });
+    delete state.sourceByComponent[component.id];
+    state.detail = body.project;
+    state.selectedComponentId = null;
+    renderAll();
+    log(`Component deleted: ${component.id}`);
+  } catch (error) {
+    log(`Delete component failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
 async function createConnectionFromInspector(sourceValue, toComponent, toNode) {
   const [fromComponent, fromNode] = sourceValue.split(".");
   if (!fromComponent || !fromNode || !toComponent || !toNode) return;
@@ -1445,6 +1467,7 @@ function updateCommandState() {
   el("addComponentButton").disabled = !hasProject || !isWorkspaceProject();
   el("includeComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || selectedComponentInSystem();
   el("removeComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || !selectedComponentInSystem();
+  el("deleteComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || selectedComponentInSystem();
 }
 
 function markProjectDirty() {
@@ -1474,6 +1497,7 @@ function bindEvents() {
   el("addComponentButton").addEventListener("click", createComponent);
   el("includeComponentButton").addEventListener("click", includeSelectedComponent);
   el("removeComponentButton").addEventListener("click", removeSelectedComponentFromSystem);
+  el("deleteComponentButton").addEventListener("click", deleteSelectedComponent);
   el("saveProjectButton").addEventListener("click", saveProjectEdits);
   el("validateButton").addEventListener("click", validateProject);
   el("runButton").addEventListener("click", runProject);

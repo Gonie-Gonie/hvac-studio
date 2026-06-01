@@ -17,6 +17,8 @@ Workspace component input and output nodes can be added or deleted from the Insp
 
 Workspace component display names can be edited from the Inspector. Component IDs and Python class paths remain stable because connections, run records, and source files reference those IDs.
 
+Removing a component from a system cleans system membership, related connections, public IO, and default input entries, while keeping the component source artifact in the project. Deleting a component removes its graph entry and source file only after it is no longer used by a system.
+
 ## Component Contract
 
 A component contract includes:

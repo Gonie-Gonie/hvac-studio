@@ -384,6 +384,19 @@ try {
     throw "removed component default input should be removed: $ExtraInputId"
   }
 
+  $DeleteComponentBody = @{
+    project_path = $CreatedProject.project_path
+    component_id = $CreatedComponent.id
+  } | ConvertTo-Json -Depth 4
+  $DeleteComponentResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/components/delete" -Method POST -ContentType 'application/json' -Body $DeleteComponentBody -TimeoutSec 20
+  $DeleteComponentJson = $DeleteComponentResponse.Content | ConvertFrom-Json
+  if ($DeleteComponentJson.project.graph.components | Where-Object { $_.id -eq $CreatedComponent.id }) {
+    throw "deleted component should be removed from the graph"
+  }
+  if (Test-Path -LiteralPath $ComponentSourcePath) {
+    throw "deleted component source should be removed: $ComponentSourcePath"
+  }
+
   $DeleteNodeBody = @{
     project_path = $CreatedProject.project_path
     component_id = 'scalar'

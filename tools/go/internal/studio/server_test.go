@@ -304,6 +304,119 @@ func TestUpdateComponentEndpointRejectsExamples(t *testing.T) {
 	}
 }
 
+func TestDeleteComponentEndpointRemovesUnusedWorkspaceComponent(t *testing.T) {
+	root := t.TempDir()
+	server, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Delete Component Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	componentPayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"name":         "Scratch Gain",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	componentResponse := httptest.NewRecorder()
+	componentRequest := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(componentPayload))
+	server.Handler().ServeHTTP(componentResponse, componentRequest)
+	if componentResponse.Code != http.StatusCreated {
+		t.Fatalf("component status = %d body=%s", componentResponse.Code, componentResponse.Body.String())
+	}
+	sourcePath := filepath.Join(root, "projects", "delete-component-project", "components", "scratch_gain.py")
+	if _, err := os.Stat(sourcePath); err != nil {
+		t.Fatal(err)
+	}
+
+	deletePayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "scratch_gain",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deleteResponse := httptest.NewRecorder()
+	deleteRequest := httptest.NewRequest(http.MethodPost, "/api/project/components/delete", bytes.NewReader(deletePayload))
+	server.Handler().ServeHTTP(deleteResponse, deleteRequest)
+	if deleteResponse.Code != http.StatusOK {
+		t.Fatalf("delete status = %d body=%s", deleteResponse.Code, deleteResponse.Body.String())
+	}
+
+	loaded, err := project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found := findComponent(loaded.Graph, "scratch_gain"); found {
+		t.Fatal("deleted component should be removed from graph")
+	}
+	if _, err := os.Stat(sourcePath); !os.IsNotExist(err) {
+		t.Fatalf("component source should be removed, stat err=%v", err)
+	}
+}
+
+func TestDeleteComponentEndpointRejectsSystemComponent(t *testing.T) {
+	root := t.TempDir()
+	server, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Reject Delete Component Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "scalar",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/components/delete", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestDeleteComponentEndpointRejectsExamples(t *testing.T) {
+	server := newTestServer(t)
+	payload := []byte(`{
+		"project_path": "examples/001_scalar_component/project.bcsproj",
+		"component_id": "scalar"
+	}`)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/components/delete", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+}
+
 func TestCreateNodeEndpointAddsPublicIOAndDefaultInput(t *testing.T) {
 	root := t.TempDir()
 	server, err := New(root)
