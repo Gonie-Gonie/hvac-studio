@@ -91,6 +91,12 @@ Read the milestone plan:
 docs/development-plan.md
 ```
 
+Read the user guide draft:
+
+```text
+docs/user/index.md
+```
+
 Build and smoke-test the portable Studio release package:
 
 ```powershell

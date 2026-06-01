@@ -53,6 +53,8 @@ The runtime-only package is for delivery/external-engine integration and does no
 
 Both MVP packages include a bundled Python runtime under `runtime/python`, copied from the repo-local setup toolchain. Included examples run without system Python on `PATH`. Project-specific third-party package locking and dependency freezing are still later milestones.
 
+User documentation source lives under `docs/user/`. The planned documentation release flow is Markdown source to MkDocs HTML, offline/in-app help, PDF manual, and GitHub Release assets. The source scaffold exists now; automated HTML/PDF packaging is still a later release task.
+
 ## Local Release Test
 
 From a clean checkout:
@@ -167,6 +169,7 @@ v0.3
 - Runtime-only export
 - CLI delivery package
 - run / batch mode stabilization
+- MkDocs HTML and PDF user guide release assets
 
 v0.4
 - Python SDK workflow

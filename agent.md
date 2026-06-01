@@ -70,6 +70,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Python source editing must respect ownership: examples are read-only, workspace project component files can be saved, and the graph contract remains in `graph.json`.
 - Scenarios should start as explicit project artifacts under `scenarios/`, created from current run inputs/context, before adding richer dataset and validation workflows.
 - Portable smoke coverage should keep exercising the connected Studio workflow, not just server startup. The current smoke path covers project creation, source editing, component creation/inclusion, parameter/input/scenario/run/export artifacts, and bundled Python execution.
+- User documentation is part of the product. Keep Markdown source under `docs/user/`, explain both user workflows and the internal execution model users need to reason correctly, and plan for MkDocs HTML, in-app help, PDF manual, and release assets.
 
 ## Monitoring Checklist
 
@@ -88,3 +89,4 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Are UX features being staged so runtime support and golden examples exist before GUI polish?
 - Does the GUI shell preserve the complete Studio workflow even while individual features are still being connected?
 - Do GUI edit APIs reject examples/templates unless the user has created or copied them into `projects/`?
+- Are user guide pages explaining source-of-truth files, runner behavior, public IO, and Python worker boundaries clearly enough for model authors?

@@ -38,6 +38,7 @@ New Project
 5. Commit and push after each coherent test-green unit.
 6. Build the Studio as a complete workspace shell first, then progressively connect panel behavior.
 7. Release Windows-first as a portable installed tool while keeping engine/project/schema formats OS-independent.
+8. Treat user-facing documentation as a product surface: explain workflow and runtime behavior, not only button usage.
 
 ## Milestone 0: Repository And Release Foundation
 
@@ -535,3 +536,66 @@ Acceptance criteria:
 - Package smoke test exercises Studio API and runner CLI after zip expansion.
 - Installer work does not start until portable zip behavior is reproducible.
 - macOS packaging remains a deliberate post-MVP release target, not an implicit promise.
+
+## Milestone 14: User Guide, In-App Help, And Documentation Release
+
+Status: started with Markdown source under `docs/user/` and an initial `mkdocs.yml`.
+
+Goal: give users enough conceptual and procedural guidance to build correct component-node-system models.
+
+Documentation thesis:
+
+- The User Guide should explain how users operate the program.
+- It should also explain how project files, `graph.json`, public IO, the runner, and the Python worker cooperate internally.
+- It should avoid low-level implementation details that do not help users model correctly, such as worker protocol messages, WebView internals, or scheduler implementation details.
+
+Source structure:
+
+```text
+docs/user/
+  index.md
+  quick-start.md
+  core-concepts.md
+  how-it-works.md
+  create-component.md
+  edit-python-function.md
+  build-system.md
+  parameter-management.md
+  run-simulation.md
+  data-validation.md
+  calibration.md
+  optimization.md
+  cli-runner.md
+  export-runtime.md
+  troubleshooting.md
+  glossary.md
+```
+
+Target build flow:
+
+```text
+Markdown source
+-> MkDocs HTML site
+-> in-app Help Viewer / offline docs
+-> PDF manual
+-> GitHub Release assets
+```
+
+In-app help mapping direction:
+
+- Component Editor -> `docs/user/create-component.md`
+- Python Function Editor -> `docs/user/edit-python-function.md`
+- System Canvas -> `docs/user/build-system.md`
+- Parameter Manager -> `docs/user/parameter-management.md`
+- Validation Workspace -> `docs/user/data-validation.md`
+- Calibration Workspace -> `docs/user/calibration.md`
+- Optimization Workspace -> `docs/user/optimization.md`
+- CLI Export -> `docs/user/export-runtime.md`
+
+Acceptance criteria:
+
+- User Guide Markdown source exists and is linked from README. Started.
+- MkDocs config can build an offline HTML user guide. Started.
+- Release scripts can package HTML docs and a PDF manual as release assets.
+- Portable Studio can open relevant local help pages from major workspaces.
+- Runtime-only packages include concise user-facing CLI/runtime documentation.

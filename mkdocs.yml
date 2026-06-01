@@ -1,0 +1,28 @@
+site_name: HVAC Studio User Guide
+docs_dir: docs
+site_dir: dist/docs/site
+
+nav:
+  - User Guide:
+      - Overview: user/index.md
+      - Quick Start: user/quick-start.md
+      - Core Concepts: user/core-concepts.md
+      - How It Works: user/how-it-works.md
+      - Create Component: user/create-component.md
+      - Edit Python Function: user/edit-python-function.md
+      - Build System: user/build-system.md
+      - Parameter Management: user/parameter-management.md
+      - Run Simulation: user/run-simulation.md
+      - Data Validation: user/data-validation.md
+      - Calibration: user/calibration.md
+      - Optimization: user/optimization.md
+      - CLI Runner: user/cli-runner.md
+      - Export Runtime: user/export-runtime.md
+      - Troubleshooting: user/troubleshooting.md
+      - Glossary: user/glossary.md
+  - Project Docs:
+      - Setup: setup.md
+      - Release Process: release.md
+      - Development Plan: development-plan.md
+      - Repository Design: repository-design.md
+
