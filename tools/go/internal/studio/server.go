@@ -47,6 +47,7 @@ type ProjectDetail struct {
 	DefaultRunInput  *runtimecore.RunInput `json:"default_run_input"`
 	Root             string                `json:"root"`
 	Runs             []RunSummary          `json:"runs"`
+	Exports          []ExportSummary       `json:"exports"`
 }
 
 type apiRequest struct {
@@ -71,6 +72,11 @@ type includeComponentRequest struct {
 	ProjectPath string `json:"project_path"`
 	SystemID    string `json:"system_id"`
 	ComponentID string `json:"component_id"`
+}
+
+type exportRequest struct {
+	ProjectPath string `json:"project_path"`
+	Profile     string `json:"profile"`
 }
 
 type updateParametersRequest struct {
@@ -98,6 +104,27 @@ type RunRecord struct {
 	Inputs       map[string]any         `json:"inputs"`
 	Context      map[string]any         `json:"context"`
 	Result       *runtimecore.RunResult `json:"result"`
+}
+
+type ExportSummary struct {
+	Profile      string `json:"profile"`
+	RelativePath string `json:"relative_path"`
+	CreatedAtUTC string `json:"created_at_utc"`
+}
+
+type ExportManifest struct {
+	Profile        string                `json:"profile"`
+	CreatedAtUTC   string                `json:"created_at_utc"`
+	ProjectName    string                `json:"project_name"`
+	ProjectPath    string                `json:"project_path"`
+	GraphPath      string                `json:"graph_path"`
+	DefaultInput   string                `json:"default_input"`
+	Runner         string                `json:"runner"`
+	RuntimePython  string                `json:"runtime_python"`
+	Components     []string              `json:"components"`
+	PublicInputs   []model.PublicNodeRef `json:"public_inputs"`
+	PublicOutputs  []model.PublicNodeRef `json:"public_outputs"`
+	ExecutionOrder []string              `json:"execution_order"`
 }
 
 type apiError struct {
@@ -141,6 +168,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/validate", s.handleValidate)
 	s.mux.HandleFunc("POST /api/run", s.handleRun)
 	s.mux.HandleFunc("POST /api/schema", s.handleSchema)
+	s.mux.HandleFunc("POST /api/export", s.handleExport)
 	s.mux.Handle("/", staticHandler)
 }
 
@@ -454,6 +482,29 @@ func (s *Server) handleSchema(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "schema": schema})
 }
 
+func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeExportRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	summary, manifest, err := writeExportManifest(loaded, req.Profile)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "summary": summary, "export": manifest})
+}
+
 func (s *Server) loadProject(projectPath string) (*project.LoadedProject, error) {
 	resolved, err := s.resolveProjectPath(projectPath)
 	if err != nil {
@@ -474,6 +525,7 @@ func projectDetail(loaded *project.LoadedProject) ProjectDetail {
 		GraphPath:   loaded.GraphPath,
 		Root:        loaded.Root,
 		Runs:        loadRunSummaries(loaded.Root),
+		Exports:     loadExportSummaries(loaded.Root),
 	}
 	if inputPath, err := resolveProjectOwnedFile(loaded.Root, loaded.Project.DefaultInput); err == nil {
 		detail.DefaultInputPath = inputPath
@@ -824,6 +876,15 @@ func decodeIncludeComponentRequest(r *http.Request) (includeComponentRequest, er
 	return req, nil
 }
 
+func decodeExportRequest(r *http.Request) (exportRequest, error) {
+	defer r.Body.Close()
+	var req exportRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
 func decodeUpdateParametersRequest(r *http.Request) (updateParametersRequest, error) {
 	defer r.Body.Close()
 	var req updateParametersRequest
@@ -1009,6 +1070,81 @@ func loadRunRecord(projectRoot string, runID string) (RunRecord, error) {
 		return RunRecord{}, apperror.Wrap(apperror.CodeValidation, err)
 	}
 	return record, nil
+}
+
+func writeExportManifest(loaded *project.LoadedProject, profile string) (ExportSummary, ExportManifest, error) {
+	if profile == "" {
+		profile = "runtime_package"
+	}
+	if profile != "runtime_package" && profile != "research_project" {
+		return ExportSummary{}, ExportManifest{}, apperror.Errorf(apperror.CodeValidation, "unsupported export profile: %s", profile)
+	}
+	plan, err := compiler.Compile(loaded)
+	if err != nil {
+		return ExportSummary{}, ExportManifest{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	now := time.Now().UTC()
+	projectPath, _ := filepath.Rel(loaded.Root, loaded.Path)
+	graphPath, _ := filepath.Rel(loaded.Root, loaded.GraphPath)
+	manifest := ExportManifest{
+		Profile:        profile,
+		CreatedAtUTC:   now.Format(time.RFC3339Nano),
+		ProjectName:    loaded.Project.ProjectName,
+		ProjectPath:    filepath.ToSlash(projectPath),
+		GraphPath:      filepath.ToSlash(graphPath),
+		DefaultInput:   filepath.ToSlash(loaded.Project.DefaultInput),
+		Runner:         "bin/bcs-runner.exe",
+		RuntimePython:  "runtime/python/python.exe",
+		Components:     append([]string{}, plan.System.Components...),
+		PublicInputs:   append([]model.PublicNodeRef{}, plan.System.PublicInputs...),
+		PublicOutputs:  append([]model.PublicNodeRef{}, plan.System.PublicOutputs...),
+		ExecutionOrder: append([]string{}, plan.Order...),
+	}
+	exportPath := filepath.Join(loaded.Root, "exports", profile, "manifest.json")
+	if err := os.MkdirAll(filepath.Dir(exportPath), 0o755); err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
+	if err := writeJSONFile(exportPath, manifest); err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
+	rel, _ := filepath.Rel(loaded.Root, exportPath)
+	return ExportSummary{
+		Profile:      profile,
+		RelativePath: filepath.ToSlash(rel),
+		CreatedAtUTC: manifest.CreatedAtUTC,
+	}, manifest, nil
+}
+
+func loadExportSummaries(projectRoot string) []ExportSummary {
+	manifestFiles, err := filepath.Glob(filepath.Join(projectRoot, "exports", "*", "manifest.json"))
+	if err != nil {
+		return []ExportSummary{}
+	}
+	summaries := []ExportSummary{}
+	for _, manifestPath := range manifestFiles {
+		manifestBytes, err := os.ReadFile(manifestPath)
+		if err != nil {
+			continue
+		}
+		var manifest ExportManifest
+		if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+			continue
+		}
+		rel, _ := filepath.Rel(projectRoot, manifestPath)
+		profile := manifest.Profile
+		if profile == "" {
+			profile = filepath.Base(filepath.Dir(manifestPath))
+		}
+		summaries = append(summaries, ExportSummary{
+			Profile:      profile,
+			RelativePath: filepath.ToSlash(rel),
+			CreatedAtUTC: manifest.CreatedAtUTC,
+		})
+	}
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i].CreatedAtUTC > summaries[j].CreatedAtUTC
+	})
+	return summaries
 }
 
 func writeJSONFile(path string, value any) error {

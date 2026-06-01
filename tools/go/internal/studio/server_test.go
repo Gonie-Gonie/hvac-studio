@@ -517,6 +517,72 @@ func TestRunRecordEndpointReturnsSavedRecord(t *testing.T) {
 	}
 }
 
+func TestExportEndpointWritesRuntimeManifest(t *testing.T) {
+	root := t.TempDir()
+	server, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Export Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"profile":      "runtime_package",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/export", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Summary ExportSummary  `json:"summary"`
+		Export  ExportManifest `json:"export"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Summary.RelativePath != "exports/runtime_package/manifest.json" {
+		t.Fatalf("relative path = %s", body.Summary.RelativePath)
+	}
+	if body.Export.Runner != "bin/bcs-runner.exe" {
+		t.Fatalf("runner = %s", body.Export.Runner)
+	}
+	if _, err := os.Stat(filepath.Join(root, "projects", "export-project", "exports", "runtime_package", "manifest.json")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestExportEndpointRejectsExamples(t *testing.T) {
+	server := newTestServer(t)
+	payload := []byte(`{
+		"project_path": "examples/001_scalar_component/project.bcsproj",
+		"profile": "runtime_package"
+	}`)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/export", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+}
+
 func TestRunRecordsRoundTrip(t *testing.T) {
 	projectRoot := t.TempDir()
 	loaded := &project.LoadedProject{

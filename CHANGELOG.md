@@ -21,3 +21,4 @@
 - Add Studio workspace component creation for scalar Python component templates.
 - Add explicit Studio system inclusion for workspace components with generated public IO and default inputs.
 - Add Studio run record detail loading from saved `runs/run-*.json` artifacts.
+- Add Studio runtime export manifest generation under workspace `exports/`.

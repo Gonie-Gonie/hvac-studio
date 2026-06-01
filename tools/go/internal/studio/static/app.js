@@ -5,6 +5,7 @@ const state = {
   selectedComponentId: "",
   latestResult: null,
   latestRunRecord: null,
+  latestExport: null,
   latestSchema: null,
   latestValidation: null,
   logs: [],
@@ -54,6 +55,7 @@ async function loadProject(projectPath) {
   state.selectedComponentId = "";
   state.latestResult = null;
   state.latestRunRecord = null;
+  state.latestExport = null;
   state.latestSchema = null;
   state.latestValidation = null;
   el("saveProjectButton").classList.remove("dirty");
@@ -98,7 +100,7 @@ function renderProjectTree() {
     ["Parameter Sets", [treeStatic("default", "active")]],
     ["Runs", (state.detail.runs || []).map((item) => runTreeItem(item))],
     ["Scenarios", []],
-    ["Export Profiles", [treeStatic("research_project", "profile"), treeStatic("runtime_package", "profile")]],
+    ["Export Profiles", exportTreeItems()],
   ];
   for (const [title, items] of sections) {
     const section = document.createElement("div");
@@ -143,6 +145,14 @@ function runTreeItem(run) {
   const row = treeStatic(run.id, run.relative_path);
   row.addEventListener("click", () => loadRunRecord(run.id));
   return row;
+}
+
+function exportTreeItems() {
+  const exports = state.detail?.exports || [];
+  if (exports.length) {
+    return exports.map((item) => treeStatic(item.profile, item.relative_path));
+  }
+  return [treeStatic("research_project", "profile"), treeStatic("runtime_package", "profile")];
 }
 
 function renderRunInputs() {
@@ -388,11 +398,14 @@ function renderPythonPanel() {
 }
 
 function renderExportManifest() {
-  el("exportManifest").textContent = JSON.stringify({
+  const manifest = state.latestExport || {
     profile: "runtime_package",
     runner: "bin/bcs-runner.exe",
+    runtime_python: "runtime/python/python.exe",
     project: state.detail?.project_path,
-  }, null, 2);
+    default_input: state.detail?.project?.default_input,
+  };
+  el("exportManifest").textContent = JSON.stringify(manifest, null, 2);
 }
 
 async function validateProject() {
@@ -499,6 +512,26 @@ async function exportSchema() {
     log(`Schema failed: ${error.message}`);
   }
   renderSchema();
+}
+
+async function exportProject() {
+  try {
+    const body = await api("/api/export", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath, profile: "runtime_package" }),
+    });
+    state.latestExport = body.export;
+    state.detail.exports = [body.summary, ...(state.detail.exports || []).filter((item) => item.profile !== body.summary.profile)];
+    renderProjectTree();
+    renderExportManifest();
+    setMode("export");
+    log(`Export manifest written: ${body.summary.relative_path}`);
+  } catch (error) {
+    log(`Export failed: ${error.message}`);
+    state.latestValidation = { error: error.message };
+    renderProblems();
+    setBottomTab("problems");
+  }
 }
 
 async function createProject() {
@@ -688,6 +721,7 @@ function updateCommandState() {
   el("validateButton").disabled = !hasProject;
   el("runButton").disabled = !hasProject;
   el("schemaButton").disabled = !hasProject;
+  el("exportButton").disabled = !hasProject || !isWorkspaceProject();
   el("saveProjectButton").disabled = !hasProject || !isWorkspaceProject();
   el("addComponentButton").disabled = !hasProject || !isWorkspaceProject();
   el("includeComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || selectedComponentInSystem();
@@ -722,6 +756,7 @@ function bindEvents() {
   el("validateButton").addEventListener("click", validateProject);
   el("runButton").addEventListener("click", runProject);
   el("schemaButton").addEventListener("click", exportSchema);
+  el("exportButton").addEventListener("click", exportProject);
   document.querySelectorAll(".mode-button").forEach((button) => {
     button.addEventListener("click", () => setMode(button.dataset.mode));
   });

@@ -189,6 +189,17 @@ try {
     throw "workspace run record detail mismatch: result=$($RunRecordJson.run_record.result.outputs.result)"
   }
 
+  $ExportBody = @{ project_path = $CreatedProject.project_path; profile = 'runtime_package' } | ConvertTo-Json -Depth 4
+  $ExportResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/export" -Method POST -ContentType 'application/json' -Body $ExportBody -TimeoutSec 20
+  $ExportJson = $ExportResponse.Content | ConvertFrom-Json
+  $ExportManifestPath = Join-Path (Split-Path -Parent $CreatedProject.project_path) $ExportJson.summary.relative_path
+  if (-not (Test-Path -LiteralPath $ExportManifestPath)) {
+    throw "workspace export manifest was not written: $ExportManifestPath"
+  }
+  if ($ExportJson.export.runner -ne 'bin/bcs-runner.exe') {
+    throw "workspace export manifest runner mismatch: $($ExportJson.export.runner)"
+  }
+
   Write-Host "portable package smoke test ok: $PackagePath"
 } finally {
   if ($null -ne $StudioProcess -and -not $StudioProcess.HasExited) {
