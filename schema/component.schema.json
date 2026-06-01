@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hvac-studio.local/schema/component.schema.json",
+  "title": "Python Component Metadata",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "input_nodes": {
+      "type": "object"
+    },
+    "output_nodes": {
+      "type": "object"
+    },
+    "parameter_schema": {
+      "type": "object"
+    },
+    "state_schema": {
+      "type": "object"
+    }
+  }
+}
+

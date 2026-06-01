@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hvac-studio.local/schema/protocol.schema.json",
+  "title": "Python Worker JSONL Protocol",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/request"
+    },
+    {
+      "$ref": "#/$defs/response"
+    }
+  ],
+  "$defs": {
+    "request": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["ping", "load_component", "initialize_component", "evaluate_component", "shutdown"]
+        },
+        "component_id": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "project_root": {
+          "type": "string"
+        },
+        "inputs": {
+          "type": "object"
+        },
+        "state": {
+          "type": "object"
+        },
+        "params": {
+          "type": "object"
+        },
+        "context": {
+          "type": "object"
+        }
+      }
+    },
+    "response": {
+      "type": "object",
+      "required": ["id", "ok"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "message": {
+          "type": "string"
+        },
+        "outputs": {
+          "type": "object"
+        },
+        "state": {
+          "type": "object"
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "traceback": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hvac-studio.local/schema/output.schema.json",
+  "title": "Run Output",
+  "type": "object",
+  "required": ["ok", "outputs"],
+  "additionalProperties": true,
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "outputs": {
+      "type": "object"
+    },
+    "component_outputs": {
+      "type": "object"
+    },
+    "states": {
+      "type": "object"
+    },
+    "context": {
+      "type": "object"
+    }
+  }
+}
+

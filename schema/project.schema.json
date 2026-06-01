@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hvac-studio.local/schema/project.schema.json",
+  "title": "HVAC Studio Project",
+  "type": "object",
+  "required": ["project_name", "schema_version", "entry_system", "graph"],
+  "additionalProperties": false,
+  "properties": {
+    "project_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schema_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "engine_version": {
+      "type": "string"
+    },
+    "entry_system": {
+      "type": "string",
+      "minLength": 1
+    },
+    "graph": {
+      "type": "string",
+      "minLength": 1
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["builtin", "project", "external"]
+        },
+        "python": {
+          "type": "string"
+        },
+        "lockfile": {
+          "type": "string"
+        }
+      }
+    },
+    "default_input": {
+      "type": "string"
+    },
+    "default_output": {
+      "type": "string"
+    }
+  }
+}
+

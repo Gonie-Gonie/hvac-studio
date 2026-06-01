@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hvac-studio.local/schema/input.schema.json",
+  "title": "Run Input",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "inputs": {
+      "type": "object"
+    },
+    "context": {
+      "type": "object"
+    }
+  }
+}
+

@@ -1,0 +1,38 @@
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.repo_tools/
+.venv/
+venv/
+.bcs_env/
+*.egg-info/
+dist/
+build/
+
+# Go
+*.exe
+*.test
+coverage.out
+
+# Node/frontend
+node_modules/
+npm-debug.log*
+pnpm-lock.yaml
+yarn.lock
+
+# Runtime/build artifacts
+bin/
+out/
+outputs/generated/
+runtime/python/
+runtime/packages/
+logs/

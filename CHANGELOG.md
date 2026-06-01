@@ -1,0 +1,8 @@
+# Changelog
+
+## Unreleased
+
+- Initialize the monorepo structure for the Component-Node System Studio.
+- Add runtime-first working memory in `agent.md`.
+- Add initial Go runner, Python worker, schemas, scripts, and first scalar example.
+
