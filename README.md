@@ -58,6 +58,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-fast.ps1
 
 See [docs/setup.md](docs/setup.md) for the repo-local Go/Python layout.
 
+Build and smoke-test the minimal runtime release package:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-runtime-package.ps1 -Version 0.1.0-dev
+```
+
+See [docs/release.md](docs/release.md) for the GitHub Release process.
+
 Run the runner directly:
 
 ```powershell

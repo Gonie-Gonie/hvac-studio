@@ -7,5 +7,5 @@ if (-not $env:HVAC_STUDIO_PYTHON) {
 }
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..')
-Invoke-Checked $env:HVAC_STUDIO_PYTHON -m unittest discover -s (Join-Path $RepoRoot 'python\bcs_worker\tests')
-Invoke-Checked $env:HVAC_STUDIO_PYTHON -m unittest discover -s (Join-Path $RepoRoot 'python\bcs_sdk\tests')
+Invoke-Checked $env:HVAC_STUDIO_PYTHON @('-m', 'unittest', 'discover', '-s', (Join-Path $RepoRoot 'python\bcs_worker\tests'))
+Invoke-Checked $env:HVAC_STUDIO_PYTHON @('-m', 'unittest', 'discover', '-s', (Join-Path $RepoRoot 'python\bcs_sdk\tests'))

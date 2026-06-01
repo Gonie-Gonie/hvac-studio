@@ -2,6 +2,13 @@
   "schema_version": "0.1.0",
   "runtime_name": "hvac-studio-runtime",
   "python_worker": "python/bcs_worker",
-  "runner": "tools/go/cmd/bcs-runner"
+  "runner": "tools/go/cmd/bcs-runner",
+  "release_profiles": [
+    {
+      "id": "windows-amd64-runtime-mvp",
+      "artifact": "hvac-studio-runtime-<version>-windows-amd64.zip",
+      "entrypoint": "bin/bcs-runner.exe",
+      "includes_embedded_python": false
+    }
+  ]
 }
-

@@ -13,8 +13,8 @@ $Output = Join-Path ([IO.Path]::GetTempPath()) 'bcs-runner-001-output.json'
 
 Push-Location (Join-Path $RepoRoot 'tools\go')
 try {
-  Invoke-Checked $env:HVAC_STUDIO_GO run .\cmd\bcs-runner validate --project $Project
-  Invoke-Checked $env:HVAC_STUDIO_GO run .\cmd\bcs-runner run --project $Project --input $Input --output $Output
+  Invoke-Checked $env:HVAC_STUDIO_GO @('run', '.\cmd\bcs-runner', 'validate', '--project', $Project)
+  Invoke-Checked $env:HVAC_STUDIO_GO @('run', '.\cmd\bcs-runner', 'run', '--project', $Project, '--input', $Input, '--output', $Output)
   Get-Content -Raw -LiteralPath $Output
 } finally {
   Pop-Location

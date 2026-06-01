@@ -50,6 +50,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Fresh clones should be bootstrappable into a repo-local development environment. `scripts/dev/setup.ps1` installs Go, uv, uv-managed Python, and `.venv` inside the clone so normal development does not depend on user-profile toolchains.
 - Dev/test/build scripts should load `scripts/dev/env.ps1` and prefer `.repo_tools` / `.venv` before falling back to system tools.
 - Work should be committed and pushed at sensible milestones, especially after a test pass. Treat "test green -> commit -> push" as an operating rule unless the user says to hold changes locally.
+- The first releasable artifact is a Windows runtime MVP zip: runner executable, Python worker/source packages, schemas, docs, runtime manifest, and the scalar golden example. It does not yet vendor embedded Python.
 
 ## Monitoring Checklist
 
@@ -61,3 +62,4 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Can a future optimization loop keep the runner alive instead of starting Python repeatedly?
 - Are setup scripts keeping tool caches inside the repo-local ignored directories rather than leaking assumptions into the user's global environment?
 - After a coherent unit is tested, did we commit and push before starting the next unit?
+- Does every release package get smoke-tested after expansion, not just built?

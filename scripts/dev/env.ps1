@@ -47,7 +47,7 @@ function Resolve-Executable {
 function Invoke-Checked {
   param(
     [Parameter(Mandatory = $true)][string]$FilePath,
-    [Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments
+    [string[]]$Arguments = @()
   )
 
   & $FilePath @Arguments

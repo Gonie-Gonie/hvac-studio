@@ -9,7 +9,7 @@ if (-not $env:HVAC_STUDIO_GO) {
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 Push-Location (Join-Path $RepoRoot 'tools\go')
 try {
-  Invoke-Checked $env:HVAC_STUDIO_GO run .\cmd\bcs-runner @args
+  Invoke-Checked $env:HVAC_STUDIO_GO (@('run', '.\cmd\bcs-runner') + $args)
 } finally {
   Pop-Location
 }

@@ -1,0 +1,95 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version for manual release dry runs"
+        required: false
+        default: "0.1.0-dev"
+      create_release:
+        description: "Create a GitHub Release for manual runs"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  windows-runtime:
+    name: Windows runtime package
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bootstrap repo-local toolchain
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\setup.ps1
+
+      - name: Test runtime core
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-fast.ps1
+
+      - name: Resolve package version
+        id: version
+        shell: powershell
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $Version = "${{ github.ref_name }}".TrimStart("v")
+          } elseif ("${{ inputs.version }}" -ne "") {
+            $Version = "${{ inputs.version }}"
+          } else {
+            $Version = "0.1.0-dev"
+          }
+          "version=$Version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Package runtime
+        id: package
+        shell: powershell
+        run: |
+          $Output = powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\package-runtime.ps1 -Version "${{ steps.version.outputs.version }}"
+          $ZipPath = ($Output | Select-Object -Last 1)
+          if (-not (Test-Path -LiteralPath $ZipPath)) {
+            throw "package not found: $ZipPath"
+          }
+          "zip_path=$ZipPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Test runtime package
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-runtime-package.ps1 -PackagePath "${{ steps.package.outputs.zip_path }}"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hvac-studio-runtime-${{ steps.version.outputs.version }}-windows-amd64
+          path: ${{ steps.package.outputs.zip_path }}
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.create_release)
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Tag = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "v${{ steps.version.outputs.version }}" }
+          $GhArgs = @(
+            "release", "create", $Tag,
+            "${{ steps.package.outputs.zip_path }}",
+            "--title", $Tag,
+            "--generate-notes"
+          )
+          if ("${{ github.ref_type }}" -ne "tag") {
+            $GhArgs += "--prerelease"
+          }
+          gh @GhArgs
