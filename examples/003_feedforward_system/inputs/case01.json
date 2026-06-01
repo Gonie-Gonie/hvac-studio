@@ -1,0 +1,11 @@
+{
+  "inputs": {
+    "building_load_kw": 500.0,
+    "base_chw_setpoint_c": 7.0
+  },
+  "context": {
+    "time": 0,
+    "dt": 60
+  }
+}
+

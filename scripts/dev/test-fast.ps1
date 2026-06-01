@@ -6,7 +6,7 @@ $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 
 & (Join-Path $RepoRoot 'scripts\dev\test-go.ps1')
 & (Join-Path $RepoRoot 'scripts\dev\test-python.ps1')
-& (Join-Path $RepoRoot 'scripts\dev\test-runner.ps1')
+& (Join-Path $RepoRoot 'scripts\dev\test-examples.ps1')
 
 $Npm = Get-Command npm -ErrorAction SilentlyContinue
 if ($null -ne $Npm -and (Test-Path (Join-Path $RepoRoot 'app\studio\frontend\package.json'))) {

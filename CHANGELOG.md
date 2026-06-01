@@ -7,3 +7,4 @@
 - Add initial Go runner, Python worker, schemas, scripts, and first scalar example.
 - Add repo-local setup and minimal runtime release packaging.
 - Add UX-driven development plan for component-node-system authoring, validation, calibration, optimization, SDK, and delivery.
+- Add the first multi-component feed-forward runtime example and golden example test runner.

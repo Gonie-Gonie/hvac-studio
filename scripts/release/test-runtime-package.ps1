@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 . (Join-Path $RepoRoot 'scripts\dev\env.ps1')
+. (Join-Path $RepoRoot 'scripts\dev\json-assert.ps1')
 
 if (-not $PackagePath) {
   $PackageOutput = & (Join-Path $RepoRoot 'scripts\release\package-runtime.ps1') -Version $Version
@@ -28,22 +29,35 @@ try {
   }
 
   $Runner = Join-Path $PackageDir.FullName 'bin\bcs-runner.exe'
-  $Project = Join-Path $PackageDir.FullName 'examples\001_scalar_component\project.bcsproj'
-  $Input = Join-Path $PackageDir.FullName 'examples\001_scalar_component\inputs\case01.json'
-  $Output = Join-Path $PackageDir.FullName 'outputs\001_scalar_component.json'
-
-  Invoke-Checked $Runner @('validate', '--project', $Project)
-  Invoke-Checked $Runner @('run', '--project', $Project, '--input', $Input, '--output', $Output)
-
-  $Result = Get-Content -Raw -LiteralPath $Output | ConvertFrom-Json
-  if (-not $Result.ok) {
-    throw 'runtime package run returned ok=false'
-  }
-  if ([double]$Result.outputs.result -ne 10.0) {
-    throw "unexpected example result: $($Result.outputs.result)"
+  $Projects = Get-ChildItem -LiteralPath (Join-Path $PackageDir.FullName 'examples') -Recurse -Filter 'project.bcsproj' |
+    Sort-Object FullName
+  if ($Projects.Count -eq 0) {
+    throw 'runtime package contains no runnable examples'
   }
 
-  Write-Host "runtime package smoke test ok: $PackagePath"
+  foreach ($Project in $Projects) {
+    $ExampleRoot = Split-Path -Parent $Project.FullName
+    $ExampleName = Split-Path -Leaf $ExampleRoot
+    $Input = Join-Path $ExampleRoot 'inputs\case01.json'
+    $Expected = Join-Path $ExampleRoot 'expected\output.json'
+    $Output = Join-Path $PackageDir.FullName "outputs\$ExampleName.json"
+
+    if (-not (Test-Path -LiteralPath $Input)) {
+      throw "$ExampleName is missing inputs/case01.json"
+    }
+    if (-not (Test-Path -LiteralPath $Expected)) {
+      throw "$ExampleName is missing expected/output.json"
+    }
+
+    Invoke-Checked $Runner @('validate', '--project', $Project.FullName)
+    Invoke-Checked $Runner @('run', '--project', $Project.FullName, '--input', $Input, '--output', $Output)
+
+    $ExpectedJson = Get-Content -Raw -LiteralPath $Expected | ConvertFrom-Json
+    $ActualJson = Get-Content -Raw -LiteralPath $Output | ConvertFrom-Json
+    Assert-JsonSubset -Expected $ExpectedJson -Actual $ActualJson -Path '$'
+  }
+
+  Write-Host "runtime package smoke test ok: $PackagePath examples=$($Projects.Count)"
 } finally {
   Remove-Item -LiteralPath $TestRoot -Recurse -Force -ErrorAction SilentlyContinue
 }

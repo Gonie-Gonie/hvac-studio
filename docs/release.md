@@ -8,7 +8,7 @@ This project releases the runtime core first. A release is valid when it can pro
 - `schema`
 - `runtime`
 - `docs`
-- `examples/001_scalar_component`
+- runnable examples under `examples`
 
 The MVP package still requires Python 3.11+ on `PATH`. A future runtime-only package will vendor `runtime/python`.
 
@@ -35,7 +35,7 @@ The release package test expands that zip in a temp directory and runs:
 .\bin\bcs-runner.exe run --project .\examples\001_scalar_component\project.bcsproj --input .\examples\001_scalar_component\inputs\case01.json
 ```
 
-It verifies that the public output `result` is `10.0`.
+It verifies each runnable example against `expected/output.json`.
 
 ## GitHub Release
 
@@ -87,4 +87,3 @@ permissions:
 - Commit and push all changes.
 - Create and push a version tag.
 - Confirm the GitHub Release contains the Windows runtime zip.
-

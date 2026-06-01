@@ -50,6 +50,12 @@ Run the fast checks:
 .\scripts\dev\test-fast.ps1
 ```
 
+Run every runnable example and compare against its golden output:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-examples.ps1
+```
+
 If PowerShell script execution is disabled on your machine, run:
 
 ```powershell

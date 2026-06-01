@@ -1,0 +1,272 @@
+{
+  "schema_version": "0.1.0",
+  "systems": [
+    {
+      "id": "MainSystem",
+      "name": "Feed-Forward System",
+      "components": ["load_model", "controller", "chiller", "aggregator"],
+      "connections": [
+        "load_to_controller",
+        "load_to_chiller",
+        "controller_to_chiller",
+        "chiller_power_to_aggregator"
+      ],
+      "public_inputs": [
+        {
+          "id": "building_load_kw",
+          "name": "Building Cooling Load",
+          "component": "load_model",
+          "node": "building_load_kw",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "kW",
+          "required": true
+        },
+        {
+          "id": "base_chw_setpoint_c",
+          "name": "Base Chilled Water Setpoint",
+          "component": "controller",
+          "node": "base_chw_setpoint_c",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "degC",
+          "required": true
+        }
+      ],
+      "public_outputs": [
+        {
+          "id": "total_power_kw",
+          "name": "Total Electric Power",
+          "component": "aggregator",
+          "node": "total_power_kw",
+          "medium": "electricity",
+          "value_type": "float",
+          "unit": "kW"
+        },
+        {
+          "id": "chiller_power_kw",
+          "name": "Chiller Electric Power",
+          "component": "chiller",
+          "node": "power_kw",
+          "medium": "electricity",
+          "value_type": "float",
+          "unit": "kW"
+        },
+        {
+          "id": "chw_supply_temp_c",
+          "name": "Chilled Water Supply Temperature",
+          "component": "chiller",
+          "node": "chw_supply_temp_c",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "degC"
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "load_model",
+      "name": "Load Model",
+      "kind": "user_python",
+      "class": "components.load_model.LoadModel",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "building_load_kw",
+            "name": "Building Cooling Load",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "adjusted_load_kw",
+            "name": "Adjusted Cooling Load",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "kW"
+          }
+        ]
+      },
+      "parameters": {
+        "load_factor": 1.1
+      }
+    },
+    {
+      "id": "controller",
+      "name": "Setpoint Controller",
+      "kind": "user_python",
+      "class": "components.controller.SetpointController",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "cooling_load_kw",
+            "name": "Cooling Load",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          },
+          {
+            "id": "base_chw_setpoint_c",
+            "name": "Base Chilled Water Setpoint",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "chw_setpoint_c",
+            "name": "Chilled Water Setpoint",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC"
+          }
+        ]
+      },
+      "parameters": {
+        "reset_per_100kw": 0.1,
+        "reference_load_kw": 500.0
+      }
+    },
+    {
+      "id": "chiller",
+      "name": "Simple Chiller",
+      "kind": "user_python",
+      "class": "components.chiller.SimpleChiller",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "cooling_load_kw",
+            "name": "Cooling Load",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          },
+          {
+            "id": "chw_setpoint_c",
+            "name": "Chilled Water Setpoint",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "power_kw",
+            "name": "Electric Power",
+            "direction": "outlet",
+            "medium": "electricity",
+            "value_type": "float",
+            "unit": "kW"
+          },
+          {
+            "id": "chw_supply_temp_c",
+            "name": "Chilled Water Supply Temperature",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC"
+          }
+        ]
+      },
+      "parameters": {
+        "cop": 5.0,
+        "approach_c": 0.2
+      }
+    },
+    {
+      "id": "aggregator",
+      "name": "Output Aggregator",
+      "kind": "user_python",
+      "class": "components.aggregator.OutputAggregator",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "chiller_power_kw",
+            "name": "Chiller Electric Power",
+            "direction": "inlet",
+            "medium": "electricity",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "total_power_kw",
+            "name": "Total Electric Power",
+            "direction": "outlet",
+            "medium": "electricity",
+            "value_type": "float",
+            "unit": "kW"
+          }
+        ]
+      },
+      "parameters": {
+        "aux_power_kw": 12.0
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "load_to_controller",
+      "from": {
+        "component": "load_model",
+        "node": "adjusted_load_kw"
+      },
+      "to": {
+        "component": "controller",
+        "node": "cooling_load_kw"
+      }
+    },
+    {
+      "id": "load_to_chiller",
+      "from": {
+        "component": "load_model",
+        "node": "adjusted_load_kw"
+      },
+      "to": {
+        "component": "chiller",
+        "node": "cooling_load_kw"
+      }
+    },
+    {
+      "id": "controller_to_chiller",
+      "from": {
+        "component": "controller",
+        "node": "chw_setpoint_c"
+      },
+      "to": {
+        "component": "chiller",
+        "node": "chw_setpoint_c"
+      }
+    },
+    {
+      "id": "chiller_power_to_aggregator",
+      "from": {
+        "component": "chiller",
+        "node": "power_kw"
+      },
+      "to": {
+        "component": "aggregator",
+        "node": "chiller_power_kw"
+      }
+    }
+  ]
+}
+

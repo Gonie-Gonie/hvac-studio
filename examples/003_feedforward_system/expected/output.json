@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "outputs": {
+    "total_power_kw": 122.0,
+    "chiller_power_kw": 110.0,
+    "chw_supply_temp_c": 7.15
+  },
+  "execution_order": [
+    "load_model",
+    "controller",
+    "chiller",
+    "aggregator"
+  ]
+}
+

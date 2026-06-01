@@ -137,6 +137,8 @@ Acceptance criteria:
 
 ## Milestone 3: Feed-Forward Component-Node Systems
 
+Status: started with `examples/003_feedforward_system`.
+
 Goal: support multiple user-defined components connected through nodes.
 
 Scope:
@@ -473,4 +475,3 @@ Acceptance criteria:
 - Release package vendors Python runtime or a frozen project environment.
 - Package smoke test validates and runs without system Python.
 - CLI guide and schemas are included in the package.
-
