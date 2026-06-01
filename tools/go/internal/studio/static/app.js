@@ -543,6 +543,7 @@ async function validateProject() {
 }
 
 async function runProject() {
+  if (!(await saveModelEditsBeforeExecution())) return;
   const inputs = collectRunInputs();
   try {
     const save = currentProject()?.source === "workspace";
@@ -568,6 +569,35 @@ async function runProject() {
   renderInspector();
   renderProblems();
   renderResults();
+}
+
+async function saveModelEditsBeforeExecution() {
+  if (!isWorkspaceProject()) return true;
+  const parameters = collectParameterUpdates();
+  const sourceUpdate = currentSourceUpdate();
+  try {
+    if (Object.keys(parameters).length) {
+      const body = await api("/api/project/parameters", {
+        method: "POST",
+        body: JSON.stringify({ project_path: state.currentProjectPath, parameters }),
+      });
+      state.detail = body.project;
+    }
+    if (sourceUpdate) {
+      const sourceBody = await api("/api/project/source", {
+        method: "POST",
+        body: JSON.stringify({ project_path: state.currentProjectPath, component_id: sourceUpdate.component_id, content: sourceUpdate.content }),
+      });
+      state.sourceByComponent[sourceUpdate.component_id] = sourceBody.source;
+    }
+    return true;
+  } catch (error) {
+    log(`Save before execution failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+    return false;
+  }
 }
 
 async function loadRunRecord(runID) {
@@ -672,6 +702,7 @@ async function exportSchema() {
 }
 
 async function exportProject() {
+  if (!(await saveModelEditsBeforeExecution())) return;
   try {
     const body = await api("/api/export", {
       method: "POST",
