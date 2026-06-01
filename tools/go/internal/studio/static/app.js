@@ -317,16 +317,30 @@ function connectionEditor(targetComponent) {
   block.className = "inspector-block";
   block.innerHTML = `<div class="inspector-title">Connections</div>`;
   const existingRows = connectionRowsFor(targetComponent);
+  const canEditConnections = isWorkspaceProject() && selectedComponentInSystem();
   if (existingRows.length) {
-    for (const [key, value] of existingRows) {
-      const row = document.createElement("div");
-      row.className = "kv";
-      row.innerHTML = `<span class="kv-key">${escapeHTML(key)}</span><span>${escapeHTML(value)}</span>`;
-      block.append(row);
+    for (const connectionRow of existingRows) {
+      const rowEl = document.createElement("div");
+      rowEl.className = "kv connection-row";
+      rowEl.innerHTML = `
+        <span class="kv-key">${escapeHTML(connectionRow.key)}</span>
+        <span class="connection-value">
+          <span>${escapeHTML(connectionRow.value)}</span>
+        </span>
+      `;
+      if (canEditConnections) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "small-action";
+        button.textContent = "Remove";
+        button.addEventListener("click", () => deleteConnectionFromInspector(connectionRow.id));
+        rowEl.querySelector(".connection-value").append(button);
+      }
+      block.append(rowEl);
     }
   }
 
-  if (!isWorkspaceProject() || !selectedComponentInSystem()) {
+  if (!canEditConnections) {
     if (!existingRows.length) {
       const row = document.createElement("div");
       row.className = "kv";
@@ -376,10 +390,10 @@ function connectionRowsFor(component) {
     const connection = graph.connections.find((item) => item.id === connectionId);
     if (!connection) continue;
     if (connection.to.component === component.id) {
-      rows.push([connection.to.node, `${connection.from.component}.${connection.from.node}`]);
+      rows.push({ id: connection.id, key: `input ${connection.to.node}`, value: `${connection.from.component}.${connection.from.node}` });
     }
     if (connection.from.component === component.id) {
-      rows.push([connection.from.node, `${connection.to.component}.${connection.to.node}`]);
+      rows.push({ id: connection.id, key: `output ${connection.from.node}`, value: `${connection.to.component}.${connection.to.node}` });
     }
   }
   return rows;
@@ -827,6 +841,24 @@ async function createConnectionFromInspector(sourceValue, toComponent, toNode) {
     log(`Connected ${fromComponent}.${fromNode} -> ${toComponent}.${toNode}`);
   } catch (error) {
     log(`Connection failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
+async function deleteConnectionFromInspector(connectionId) {
+  if (!connectionId || !isWorkspaceProject()) return;
+  try {
+    const body = await api("/api/project/connections/delete", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath, connection_id: connectionId }),
+    });
+    state.detail = body.project;
+    renderAll();
+    log(`Connection removed: ${connectionId}`);
+  } catch (error) {
+    log(`Remove connection failed: ${error.message}`);
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderProblems();
     setBottomTab("problems");

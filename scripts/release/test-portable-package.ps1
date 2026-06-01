@@ -251,6 +251,22 @@ try {
     throw "workspace export manifest runner mismatch: $($ExportJson.export.runner)"
   }
 
+  $DeleteConnectionBody = @{
+    project_path = $CreatedProject.project_path
+    connection_id = $ConnectionJson.connection.id
+  } | ConvertTo-Json -Depth 4
+  $DeleteConnectionResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/connections/delete" -Method POST -ContentType 'application/json' -Body $DeleteConnectionBody -TimeoutSec 20
+  $DeleteConnectionJson = $DeleteConnectionResponse.Content | ConvertFrom-Json
+  if ($DeleteConnectionJson.project.graph.systems[0].connections | Where-Object { $_ -eq $ConnectionJson.connection.id }) {
+    throw "deleted connection was still referenced by the entry system"
+  }
+  if (-not ($DeleteConnectionJson.project.graph.systems[0].public_inputs | Where-Object { $_.id -eq $ExtraInputId })) {
+    throw "deleted connection target input was not restored as public: $ExtraInputId"
+  }
+  if ($null -eq $DeleteConnectionJson.project.default_run_input.inputs.PSObject.Properties[$ExtraInputId]) {
+    throw "deleted connection target default input was not restored: $ExtraInputId"
+  }
+
   Write-Host "portable package smoke test ok: $PackagePath"
 } finally {
   if ($null -ne $StudioProcess -and -not $StudioProcess.HasExited) {

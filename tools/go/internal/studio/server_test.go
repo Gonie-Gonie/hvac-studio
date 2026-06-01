@@ -333,6 +333,12 @@ func TestCreateConnectionEndpointConnectsComponents(t *testing.T) {
 	if connectionResponse.Code != http.StatusCreated {
 		t.Fatalf("connection status = %d body=%s", connectionResponse.Code, connectionResponse.Body.String())
 	}
+	var connectionBody struct {
+		Connection model.Connection `json:"connection"`
+	}
+	if err := json.Unmarshal(connectionResponse.Body.Bytes(), &connectionBody); err != nil {
+		t.Fatal(err)
+	}
 
 	loaded, err := project.Load(createBody.Project.ProjectPath)
 	if err != nil {
@@ -378,6 +384,47 @@ func TestCreateConnectionEndpointConnectsComponents(t *testing.T) {
 	if runBody.Result.Outputs["second_gain_result"] != 8 {
 		t.Fatalf("second_gain_result = %v, want 8", runBody.Result.Outputs["second_gain_result"])
 	}
+
+	deletePayload, err := json.Marshal(map[string]any{
+		"project_path":  createBody.Project.ProjectPath,
+		"connection_id": connectionBody.Connection.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deleteResponse := httptest.NewRecorder()
+	deleteRequest := httptest.NewRequest(http.MethodPost, "/api/project/connections/delete", bytes.NewReader(deletePayload))
+	server.Handler().ServeHTTP(deleteResponse, deleteRequest)
+	if deleteResponse.Code != http.StatusOK {
+		t.Fatalf("delete connection status = %d body=%s", deleteResponse.Code, deleteResponse.Body.String())
+	}
+	loaded, err = project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded.Graph.Connections) != 0 {
+		t.Fatalf("connection count after delete = %d", len(loaded.Graph.Connections))
+	}
+	if len(loaded.Graph.Systems[0].Connections) != 0 {
+		t.Fatalf("system connection count after delete = %d", len(loaded.Graph.Systems[0].Connections))
+	}
+	foundPublicInput := false
+	for _, input := range loaded.Graph.Systems[0].PublicInputs {
+		if input.ID == "second_gain_value" {
+			foundPublicInput = true
+			break
+		}
+	}
+	if !foundPublicInput {
+		t.Fatal("deleted connection target input should become public again")
+	}
+	input, err = runtimecore.LoadInput(filepath.Join(loaded.Root, loaded.Project.DefaultInput))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := input.Inputs["second_gain_value"]; !exists {
+		t.Fatal("deleted connection target default input should be restored")
+	}
 }
 
 func TestCreateConnectionEndpointRejectsExamples(t *testing.T) {
@@ -391,6 +438,22 @@ func TestCreateConnectionEndpointRejectsExamples(t *testing.T) {
 	}`)
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/api/project/connections", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestDeleteConnectionEndpointRejectsExamples(t *testing.T) {
+	server := newTestServer(t)
+	payload := []byte(`{
+		"project_path": "examples/003_feedforward_system/project.bcsproj",
+		"connection_id": "load_to_controller"
+	}`)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/connections/delete", bytes.NewReader(payload))
 
 	server.Handler().ServeHTTP(response, request)
 

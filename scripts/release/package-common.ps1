@@ -25,13 +25,27 @@ function Resolve-Version {
     return '0.1.0-dev'
   }
 
-  $ExactTag = (& git describe --tags --exact-match 2>$null)
-  if ($LASTEXITCODE -eq 0 -and $ExactTag) {
+  $PreviousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    $ExactTag = (& git describe --tags --exact-match 2>$null)
+    $ExactTagExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $PreviousErrorActionPreference
+  }
+  if ($ExactTagExitCode -eq 0 -and $ExactTag) {
     return $ExactTag.TrimStart('v')
   }
 
-  $ShortSha = (& git rev-parse --short HEAD 2>$null)
-  if ($LASTEXITCODE -eq 0 -and $ShortSha) {
+  $PreviousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    $ShortSha = (& git rev-parse --short HEAD 2>$null)
+    $ShortShaExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $PreviousErrorActionPreference
+  }
+  if ($ShortShaExitCode -eq 0 -and $ShortSha) {
     return "0.1.0-dev-$ShortSha"
   }
 

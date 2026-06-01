@@ -72,7 +72,9 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Scenarios should start as explicit project artifacts under `scenarios/`, created from current run inputs/context, before adding richer dataset and validation workflows.
 - Saved scenarios should be reusable immediately in Studio by reopening them into the Run Inputs panel.
 - Studio execution actions should flush workspace model edits that affect runtime behavior, especially component parameters and Python source, before invoking run/export paths.
-- Portable smoke coverage should keep exercising the connected Studio workflow, not just server startup. The current smoke path covers project creation, source editing, component creation/inclusion, parameter/input/scenario/run/export artifacts, and bundled Python execution.
+- Removing a Studio connection should restore the target input as editable public IO and reinsert its default input value when no other incoming connection owns that target.
+- Portable smoke coverage should keep exercising the connected Studio workflow, not just server startup. The current smoke path covers project creation, source editing, component creation/inclusion, connection creation/removal, parameter/input/scenario/run/export artifacts, and bundled Python execution.
+- Release packaging must work from untagged development checkouts by falling back to a dev version with the current short SHA.
 - User documentation is part of the product. Keep Markdown source under `docs/user/`, explain both user workflows and the internal execution model users need to reason correctly, and plan for MkDocs HTML, in-app help, PDF manual, and release assets.
 
 ## Monitoring Checklist

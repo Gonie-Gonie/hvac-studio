@@ -30,3 +30,5 @@
 - Add Studio node-to-node connection authoring for workspace systems.
 - Add Studio scenario reopening so saved scenarios can populate run inputs.
 - Save workspace parameter/source model edits before Studio run and export actions.
+- Add Studio connection removal with public/default input restoration for workspace systems.
+- Make release package version resolution tolerate untagged development checkouts.

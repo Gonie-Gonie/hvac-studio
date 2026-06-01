@@ -84,6 +84,12 @@ type createConnectionRequest struct {
 	ToNode        string `json:"to_node"`
 }
 
+type deleteConnectionRequest struct {
+	ProjectPath  string `json:"project_path"`
+	SystemID     string `json:"system_id"`
+	ConnectionID string `json:"connection_id"`
+}
+
 type exportRequest struct {
 	ProjectPath string `json:"project_path"`
 	Profile     string `json:"profile"`
@@ -220,6 +226,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/project/components", s.handleCreateComponent)
 	s.mux.HandleFunc("POST /api/project/system/components", s.handleIncludeComponent)
 	s.mux.HandleFunc("POST /api/project/connections", s.handleCreateConnection)
+	s.mux.HandleFunc("POST /api/project/connections/delete", s.handleDeleteConnection)
 	s.mux.HandleFunc("POST /api/project/input", s.handleUpdateInput)
 	s.mux.HandleFunc("POST /api/project/parameters", s.handleUpdateParameters)
 	s.mux.HandleFunc("POST /api/project/source", s.handleUpdateSource)
@@ -396,6 +403,34 @@ func (s *Server) handleCreateConnection(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "connection": connection, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleDeleteConnection(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeDeleteConnectionRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	connection, err := deleteConnection(loaded, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "connection": connection, "project": projectDetail(reloaded)})
 }
 
 func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
@@ -1048,6 +1083,89 @@ func createConnection(loaded *project.LoadedProject, req createConnectionRequest
 	return connection, nil
 }
 
+func deleteConnection(loaded *project.LoadedProject, req deleteConnectionRequest) (model.Connection, error) {
+	connectionID := strings.TrimSpace(req.ConnectionID)
+	if connectionID == "" {
+		return model.Connection{}, apperror.Errorf(apperror.CodeValidation, "connection_id is required")
+	}
+	systemID := req.SystemID
+	if systemID == "" {
+		systemID = loaded.Project.EntrySystem
+	}
+	systemIndex := -1
+	for index := range loaded.Graph.Systems {
+		if loaded.Graph.Systems[index].ID == systemID {
+			systemIndex = index
+			break
+		}
+	}
+	if systemIndex < 0 {
+		return model.Connection{}, apperror.Errorf(apperror.CodeValidation, "system not found: %s", systemID)
+	}
+
+	connectionIndex := -1
+	var connection model.Connection
+	for index, item := range loaded.Graph.Connections {
+		if item.ID == connectionID {
+			connectionIndex = index
+			connection = item
+			break
+		}
+	}
+	if connectionIndex < 0 {
+		return model.Connection{}, apperror.Errorf(apperror.CodeValidation, "connection not found: %s", connectionID)
+	}
+
+	system := &loaded.Graph.Systems[systemIndex]
+	if !containsString(system.Connections, connectionID) {
+		return model.Connection{}, apperror.Errorf(apperror.CodeValidation, "system %s does not contain connection: %s", systemID, connectionID)
+	}
+
+	inputPath, input, err := loadEditableDefaultInput(loaded)
+	if err != nil {
+		return model.Connection{}, err
+	}
+	system.Connections = removeString(system.Connections, connectionID)
+	if !graphReferencesConnection(loaded.Graph.Systems, connectionID) {
+		loaded.Graph.Connections = append(loaded.Graph.Connections[:connectionIndex], loaded.Graph.Connections[connectionIndex+1:]...)
+	}
+	if !systemHasIncomingConnection(*system, loaded.Graph, connection.To.Component, connection.To.Node) && !hasPublicInputFor(*system, connection.To.Component, connection.To.Node) {
+		component, foundComponent := findComponent(loaded.Graph, connection.To.Component)
+		if !foundComponent {
+			return model.Connection{}, apperror.Errorf(apperror.CodeValidation, "connection target component not found: %s", connection.To.Component)
+		}
+		node, foundNode := findInputNode(component, connection.To.Node)
+		if !foundNode {
+			return model.Connection{}, apperror.Errorf(apperror.CodeValidation, "connection target input node not found: %s.%s", connection.To.Component, connection.To.Node)
+		}
+		publicID := uniquePublicNodeID(system.PublicInputs, connection.To.Component+"_"+connection.To.Node)
+		system.PublicInputs = append(system.PublicInputs, model.PublicNodeRef{
+			ID:        publicID,
+			Name:      node.Name,
+			Component: connection.To.Component,
+			Node:      node.ID,
+			Medium:    node.Medium,
+			ValueType: node.ValueType,
+			Unit:      node.Unit,
+			Required:  node.Required,
+			Default:   node.Default,
+		})
+		if _, exists := input.Inputs[publicID]; !exists {
+			input.Inputs[publicID] = defaultValueForNode(node)
+		}
+	}
+	if _, err := compiler.Compile(loaded); err != nil {
+		return model.Connection{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if err := writeJSONFile(inputPath, input); err != nil {
+		return model.Connection{}, err
+	}
+	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
+		return model.Connection{}, err
+	}
+	return connection, nil
+}
+
 func loadComponentSource(loaded *project.LoadedProject, componentID string, readOnly bool) (SourceDetail, error) {
 	sourcePath, err := componentSourcePath(loaded, componentID)
 	if err != nil {
@@ -1152,6 +1270,15 @@ func decodeIncludeComponentRequest(r *http.Request) (includeComponentRequest, er
 func decodeCreateConnectionRequest(r *http.Request) (createConnectionRequest, error) {
 	defer r.Body.Close()
 	var req createConnectionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeDeleteConnectionRequest(r *http.Request) (deleteConnectionRequest, error) {
+	defer r.Body.Close()
+	var req deleteConnectionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}
@@ -1641,10 +1768,50 @@ func findComponent(graph *model.Graph, componentID string) (model.Component, boo
 	return model.Component{}, false
 }
 
+func findInputNode(component model.Component, nodeID string) (model.Node, bool) {
+	for _, node := range component.Nodes.Inputs {
+		if node.ID == nodeID {
+			return node, true
+		}
+	}
+	return model.Node{}, false
+}
+
 func containsString(values []string, target string) bool {
 	for _, value := range values {
 		if value == target {
 			return true
+		}
+	}
+	return false
+}
+
+func removeString(values []string, target string) []string {
+	kept := values[:0]
+	for _, value := range values {
+		if value == target {
+			continue
+		}
+		kept = append(kept, value)
+	}
+	return kept
+}
+
+func graphReferencesConnection(systems []model.System, connectionID string) bool {
+	for _, system := range systems {
+		if containsString(system.Connections, connectionID) {
+			return true
+		}
+	}
+	return false
+}
+
+func systemHasIncomingConnection(system model.System, graph *model.Graph, componentID string, nodeID string) bool {
+	for _, connectionID := range system.Connections {
+		for _, connection := range graph.Connections {
+			if connection.ID == connectionID && connection.To.Component == componentID && connection.To.Node == nodeID {
+				return true
+			}
 		}
 	}
 	return false
