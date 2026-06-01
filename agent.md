@@ -51,6 +51,9 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Dev/test/build scripts should load `scripts/dev/env.ps1` and prefer `.repo_tools` / `.venv` before falling back to system tools.
 - Work should be committed and pushed at sensible milestones, especially after a test pass. Treat "test green -> commit -> push" as an operating rule unless the user says to hold changes locally.
 - The first releasable artifact is a Windows runtime MVP zip: runner executable, Python worker/source packages, schemas, docs, runtime manifest, and the scalar golden example. It does not yet vendor embedded Python.
+- The first user-facing app release should be a Windows 10/11 x64 portable Studio zip. Installer packaging comes after portable behavior is reproducible.
+- macOS is a future experimental release target after MVP. Keep engine, project files, graph schema, and component schema OS-independent, but do not let macOS packaging slow the Windows MVP.
+- OS-specific path, process, runtime, executable naming, installer, signing, and packaging logic should be isolated behind platform/release boundaries.
 - The UX development plan is tracked in `docs/development-plan.md`. It folds in the Component-Node-System UX flow: project creation, component/node/parameter/state authoring, protected Python function-body editing, system canvas, validation, run/debug, datasets, validation, calibration, optimization, SDK, and runtime-only delivery.
 - GUI component editing should eventually show a generated scaffold but persist contract metadata separately from user-editable function bodies, e.g. `component.json`, `user_init.py`, `user_step.py`, and helpers.
 - Dataset, parameter set, scenario, run record, validation, calibration, and optimization artifacts must become source-of-truth project objects rather than transient GUI state.
@@ -67,5 +70,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Are setup scripts keeping tool caches inside the repo-local ignored directories rather than leaking assumptions into the user's global environment?
 - After a coherent unit is tested, did we commit and push before starting the next unit?
 - Does every release package get smoke-tested after expansion, not just built?
+- Are Windows portable, runtime-only, and future installer packages clearly separated?
+- Are we accidentally hardcoding Windows-specific behavior into engine/compiler/runtime packages instead of release/platform code?
 - Are UX features being staged so runtime support and golden examples exist before GUI polish?
 - Does the GUI shell preserve the complete Studio workflow even while individual features are still being connected?

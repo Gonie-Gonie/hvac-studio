@@ -40,20 +40,54 @@ func main() {
 }
 
 func findRepoRoot() (string, error) {
-	dir, err := os.Getwd()
-	if err != nil {
-		return "", err
+	starts := []string{}
+	if dir, err := os.Getwd(); err == nil {
+		starts = append(starts, dir)
 	}
+	if exe, err := os.Executable(); err == nil {
+		exeDir := filepath.Dir(exe)
+		starts = append(starts, exeDir, filepath.Dir(exeDir))
+	}
+
+	seen := map[string]bool{}
+	for _, start := range starts {
+		absStart, err := filepath.Abs(start)
+		if err != nil || seen[absStart] {
+			continue
+		}
+		seen[absStart] = true
+		root, err := findRootFrom(absStart)
+		if err == nil {
+			return root, nil
+		}
+	}
+	return "", fmt.Errorf("could not find repository or portable package root")
+}
+
+func findRootFrom(dir string) (string, error) {
 	for {
-		if _, err := os.Stat(filepath.Join(dir, "examples")); err == nil {
-			if _, err := os.Stat(filepath.Join(dir, "tools", "go", "go.mod")); err == nil {
-				return dir, nil
-			}
+		if looksLikeRoot(dir) {
+			return dir, nil
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("could not find repository root from %s", dir)
+			return "", fmt.Errorf("could not find repository or portable package root from %s", dir)
 		}
 		dir = parent
 	}
+}
+
+func looksLikeRoot(dir string) bool {
+	if !pathExists(filepath.Join(dir, "examples")) {
+		return false
+	}
+	return pathExists(filepath.Join(dir, "tools", "go", "go.mod")) ||
+		pathExists(filepath.Join(dir, "bin", "bcs-runner.exe")) ||
+		pathExists(filepath.Join(dir, "bin", "bcs-runner")) ||
+		(pathExists(filepath.Join(dir, "release-manifest.json")) && pathExists(filepath.Join(dir, "runtime", "manifest.json")))
+}
+
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

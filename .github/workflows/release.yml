@@ -20,8 +20,8 @@ permissions:
   contents: write
 
 jobs:
-  windows-runtime:
-    name: Windows runtime package
+  windows-packages:
+    name: Windows packages
     runs-on: windows-latest
 
     steps:
@@ -53,8 +53,24 @@ jobs:
           }
           "version=$Version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
+      - name: Package portable Studio
+        id: portable
+        shell: powershell
+        run: |
+          $Output = powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\package-portable.ps1 -Version "${{ steps.version.outputs.version }}"
+          $ZipPath = ($Output | Select-Object -Last 1)
+          if (-not (Test-Path -LiteralPath $ZipPath)) {
+            throw "package not found: $ZipPath"
+          }
+          "zip_path=$ZipPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Test portable Studio package
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-portable-package.ps1 -PackagePath "${{ steps.portable.outputs.zip_path }}"
+
       - name: Package runtime
-        id: package
+        id: runtime
         shell: powershell
         run: |
           $Output = powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\package-runtime.ps1 -Version "${{ steps.version.outputs.version }}"
@@ -67,13 +83,20 @@ jobs:
       - name: Test runtime package
         shell: powershell
         run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-runtime-package.ps1 -PackagePath "${{ steps.package.outputs.zip_path }}"
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-runtime-package.ps1 -PackagePath "${{ steps.runtime.outputs.zip_path }}"
 
-      - name: Upload workflow artifact
+      - name: Upload portable Studio artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hvac-studio-${{ steps.version.outputs.version }}-windows-amd64-portable
+          path: ${{ steps.portable.outputs.zip_path }}
+          if-no-files-found: error
+
+      - name: Upload runtime artifact
         uses: actions/upload-artifact@v4
         with:
           name: hvac-studio-runtime-${{ steps.version.outputs.version }}-windows-amd64
-          path: ${{ steps.package.outputs.zip_path }}
+          path: ${{ steps.runtime.outputs.zip_path }}
           if-no-files-found: error
 
       - name: Create GitHub Release
@@ -85,7 +108,8 @@ jobs:
           $Tag = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "v${{ steps.version.outputs.version }}" }
           $GhArgs = @(
             "release", "create", $Tag,
-            "${{ steps.package.outputs.zip_path }}",
+            "${{ steps.portable.outputs.zip_path }}",
+            "${{ steps.runtime.outputs.zip_path }}",
             "--title", $Tag,
             "--generate-notes"
           )

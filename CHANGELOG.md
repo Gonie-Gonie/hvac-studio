@@ -13,3 +13,4 @@
 - Add `bcs-runner schema` for exporting system public input/output interface metadata.
 - Add component input snapshots to run output for future inspector/debug UX.
 - Add the first full Studio workspace shell with project explorer, system canvas, inspector, runtime actions, bottom panels, and future workflow surfaces.
+- Document Windows-first portable release strategy and add portable Studio package smoke testing.

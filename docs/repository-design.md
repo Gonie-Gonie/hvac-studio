@@ -18,6 +18,8 @@ The GUI is intentionally delayed. It should edit and visualize source-of-truth f
 
 The first Studio implementation is a Go-hosted web workspace embedded in `tools/go/cmd/studio`. It exists to lock down the product-scale UI shape early while each panel is progressively connected to runtime-backed behavior.
 
+Distribution is Windows-first, but source-of-truth files and engine packages should stay OS-independent. OS-specific path, process, runtime, executable naming, installer, signing, and packaging behavior should be isolated instead of leaking through compiler/runtime code.
+
 The UX-driven milestone plan lives in `docs/development-plan.md`. That plan adds the component-node-system authoring flow, component-aware Python editor, datasets, validation, calibration, optimization, SDK, and runtime-only delivery sequence on top of this runtime-first architecture.
 
 ## Source Of Truth
@@ -65,6 +67,7 @@ tools/go/internal/compiler      validation and execution plan compilation
 tools/go/internal/pythonworker  JSONL stdio worker client
 tools/go/internal/runtime       run orchestration
 tools/go/internal/studio        local Studio web host and API
+tools/go/internal/platform      planned OS-specific path/process/runtime boundary
 python/bcs_worker               user component host process
 python/bcs_sdk                  runner wrapper for research workflows
 schema                          JSON Schema contracts

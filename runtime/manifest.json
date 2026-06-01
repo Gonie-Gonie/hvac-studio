@@ -5,6 +5,12 @@
   "runner": "tools/go/cmd/bcs-runner",
   "release_profiles": [
     {
+      "id": "windows-amd64-studio-portable",
+      "artifact": "hvac-studio-<version>-windows-amd64-portable.zip",
+      "entrypoint": "bin/studio.exe",
+      "includes_embedded_python": false
+    },
+    {
       "id": "windows-amd64-runtime-mvp",
       "artifact": "hvac-studio-runtime-<version>-windows-amd64.zip",
       "entrypoint": "bin/bcs-runner.exe",

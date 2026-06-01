@@ -1,16 +1,53 @@
 # Release Process
 
-This project releases the runtime core first. A release is valid when it can produce and smoke-test a Windows runtime package containing:
+HVAC Studio is released as a Windows-first installed/portable engineering tool. The engine, project files, graph schema, and component schema must remain OS-independent, but the initial release target is deliberately narrow.
 
-- `bin/bcs-runner.exe`
-- `python/bcs_worker`
-- `python/bcs_sdk`
-- `schema`
-- `runtime`
-- `docs`
-- runnable examples under `examples`
+```text
+Primary supported platform:
+- Windows 10/11 x64
 
-The MVP package still requires Python 3.11+ on `PATH`. A future runtime-only package will vendor `runtime/python`.
+Future / experimental platform:
+- macOS after MVP
+
+Development policy:
+- Windows-first release
+- Cross-platform-ready architecture
+- OS-specific path, process, runtime, and packaging logic isolated behind explicit boundaries
+```
+
+## Release Artifacts
+
+Current release scripts produce two Windows artifacts:
+
+```text
+dist/hvac-studio-<version>-windows-amd64-portable.zip
+dist/hvac-studio-runtime-<version>-windows-amd64.zip
+```
+
+The portable Studio package is the first user-facing distribution:
+
+```text
+hvac-studio-<version>-windows-amd64-portable/
+  bin/
+    studio.exe
+    bcs-runner.exe
+    bcs-env.exe
+  python/
+    bcs_worker/
+    bcs_sdk/
+  runtime/
+  schema/
+  examples/
+  templates/
+  docs/
+  Start-Studio.ps1
+  PACKAGE_README.md
+  release-manifest.json
+```
+
+The runtime-only package is for delivery/external-engine integration and does not include the Studio GUI.
+
+Both MVP packages still require Python 3.11+ on `PATH`. A later release must vendor `runtime/python` before claiming no external Python requirement.
 
 ## Local Release Test
 
@@ -19,24 +56,32 @@ From a clean checkout:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\setup.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-fast.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-portable-package.ps1 -Version 0.1.0-dev
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-runtime-package.ps1 -Version 0.1.0-dev
 ```
 
-The package script writes:
+The portable package smoke test expands the zip, verifies `studio.exe`, `bcs-runner.exe`, and `bcs-env.exe`, runs the feed-forward example through the CLI, starts Studio locally, calls `/api/projects`, and runs `/api/run`.
 
-```text
-dist/hvac-studio-runtime-<version>-windows-amd64.zip
-```
+The runtime package smoke test expands the zip and verifies each runnable example against `expected/output.json`.
 
-The release package test expands that zip in a temp directory and runs:
+## Installer Scope
 
-```powershell
-.\bin\bcs-runner.exe validate --project .\examples\001_scalar_component\project.bcsproj
-.\bin\bcs-runner.exe run --project .\examples\001_scalar_component\project.bcsproj --input .\examples\001_scalar_component\inputs\case01.json
-.\bin\bcs-runner.exe schema --project .\examples\001_scalar_component\project.bcsproj --output .\outputs\interface_schema.json
-```
+Installer packaging is intentionally later than portable zip packaging.
 
-It verifies each runnable example against `expected/output.json`.
+Portable zip first:
+
+- easier internal research distribution
+- easier debugging
+- no Program Files or start-menu assumptions
+- suitable for MVP and lab testing
+
+Installer later:
+
+- Program Files installation
+- Start Menu registration
+- optional project folder association
+- WebView2/runtime checks
+- code signing policy
 
 ## GitHub Release
 
@@ -55,13 +100,12 @@ The workflow:
 1. Checks out the repository with tags.
 2. Runs repo-local setup.
 3. Runs `test-fast`.
-4. Builds `bcs-runner.exe`.
-5. Packages the runtime zip.
-6. Smoke-tests the zip.
-7. Uploads the zip as a workflow artifact.
-8. Creates a GitHub Release for tag pushes.
+4. Builds and smoke-tests the Windows portable Studio package.
+5. Builds and smoke-tests the Windows runtime-only package.
+6. Uploads both zips as workflow artifacts.
+7. Creates a GitHub Release for tag pushes.
 
-Manual dry runs are available through GitHub Actions `workflow_dispatch`. Manual runs upload an artifact; they only create a GitHub Release when `create_release` is selected.
+Manual dry runs are available through GitHub Actions `workflow_dispatch`. Manual runs upload artifacts; they only create a GitHub Release when `create_release` is selected.
 
 ## Required Permissions
 
@@ -80,6 +124,41 @@ permissions:
 - Package filenames omit the leading `v`.
 - Untagged local packages use `0.1.0-dev-<shortsha>` unless a version is passed explicitly.
 
+## Roadmap
+
+```text
+v0.1
+- Windows portable zip
+- studio.exe
+- bcs-runner.exe
+- bcs-env.exe
+- MVP Python worker/source package
+- simple example project
+
+v0.2
+- Windows installer
+- WebView2/runtime checks
+- optional project folder association
+
+v0.3
+- Runtime-only export
+- CLI delivery package
+- run / batch mode stabilization
+
+v0.4
+- Python SDK workflow
+- serve mode
+- optimization example
+
+v1.0
+- Stable Windows release
+- validation / calibration / optimization workflow cleanup
+
+v1.x
+- macOS experimental release target
+- macOS packaging, codesign, and notarization review
+```
+
 ## Runtime Exit Codes
 
 The runner uses stable exit code categories for external engines:
@@ -97,7 +176,8 @@ The runner uses stable exit code categories for external engines:
 
 - Update `CHANGELOG.md`.
 - Run `scripts/dev/test-fast.ps1`.
+- Run `scripts/release/test-portable-package.ps1`.
 - Run `scripts/release/test-runtime-package.ps1`.
 - Commit and push all changes.
 - Create and push a version tag.
-- Confirm the GitHub Release contains the Windows runtime zip.
+- Confirm the GitHub Release contains both Windows zips.

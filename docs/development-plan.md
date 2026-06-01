@@ -37,6 +37,7 @@ New Project
 4. Make every milestone testable by CLI/golden examples before attaching GUI.
 5. Commit and push after each coherent test-green unit.
 6. Build the Studio as a complete workspace shell first, then progressively connect panel behavior.
+7. Release Windows-first as a portable installed tool while keeping engine/project/schema formats OS-independent.
 
 ## Milestone 0: Repository And Release Foundation
 
@@ -50,18 +51,21 @@ Already present:
 - Python worker JSONL protocol.
 - First scalar example.
 - Minimal Windows runtime release package.
+- Go-hosted Studio shell and Windows portable package script.
 
 Near-term additions:
 
 - Add CI workflow for non-release test runs.
 - Add release package smoke test to CI.
-- Add `examples` golden comparison helper.
+- Add embedded `runtime/python` packaging for Windows.
+- Add explicit platform abstraction for path, process, runtime, and executable naming boundaries.
 
 Acceptance criteria:
 
 - Fresh clone can run `scripts/dev/setup.ps1`.
 - `scripts/dev/test-fast.ps1` passes using repo-local tools.
 - `scripts/release/test-runtime-package.ps1` builds, expands, and smoke-tests a runtime zip.
+- `scripts/release/test-portable-package.ps1` builds, expands, and smoke-tests a portable Studio zip.
 
 ## Milestone 1: Runtime Core Contract
 
@@ -480,3 +484,40 @@ Acceptance criteria:
 - Release package vendors Python runtime or a frozen project environment.
 - Package smoke test validates and runs without system Python.
 - CLI guide and schemas are included in the package.
+
+## Milestone 13: Installed Studio Distribution
+
+Goal: release HVAC Studio as a Windows-first installed/portable engineering tool.
+
+Distribution order:
+
+- Windows portable zip first.
+- Windows installer after the portable package is stable.
+- macOS experimental package after MVP.
+
+Portable package target:
+
+```text
+hvac-studio-<version>-windows-amd64-portable/
+  bin/
+    studio.exe
+    bcs-runner.exe
+    bcs-env.exe
+  runtime/
+    python/
+  python/
+    bcs_worker/
+    bcs_sdk/
+  schema/
+  examples/
+  templates/
+  docs/
+```
+
+Acceptance criteria:
+
+- Portable package launches Studio and opens included examples.
+- CLI runner validates and runs included examples.
+- Package smoke test exercises Studio API and runner CLI after zip expansion.
+- Installer work does not start until portable zip behavior is reproducible.
+- macOS packaging remains a deliberate post-MVP release target, not an implicit promise.
