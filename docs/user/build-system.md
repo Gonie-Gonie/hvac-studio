@@ -6,6 +6,8 @@ A system is the runnable composition of components, connections, public inputs, 
 
 Creating a component only creates the component artifact. Adding it to the entry system is explicit. When Studio includes a component in the system, it currently creates public IO mappings and extends the default input file for new required public inputs.
 
+Components can be removed from the runnable system without deleting their source artifact. Studio removes system membership, connections touching that component, public IO mappings, and default input values that belonged to that system membership.
+
 ## Connections
 
 Connections link output nodes to input nodes. They are stored in `graph.json`, validated by the compiler, and used to compute execution order.

@@ -611,6 +611,112 @@ func TestCreateConnectionEndpointConnectsComponents(t *testing.T) {
 	}
 }
 
+func TestRemoveComponentFromSystemEndpointCleansRuntimeSurface(t *testing.T) {
+	root := t.TempDir()
+	server, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Removal Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	componentPayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"name":         "Second Gain",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	componentResponse := httptest.NewRecorder()
+	componentRequest := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(componentPayload))
+	server.Handler().ServeHTTP(componentResponse, componentRequest)
+	if componentResponse.Code != http.StatusCreated {
+		t.Fatalf("component status = %d body=%s", componentResponse.Code, componentResponse.Body.String())
+	}
+	includePayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "second_gain",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	includeResponse := httptest.NewRecorder()
+	includeRequest := httptest.NewRequest(http.MethodPost, "/api/project/system/components", bytes.NewReader(includePayload))
+	server.Handler().ServeHTTP(includeResponse, includeRequest)
+	if includeResponse.Code != http.StatusOK {
+		t.Fatalf("include status = %d body=%s", includeResponse.Code, includeResponse.Body.String())
+	}
+	connectionPayload, err := json.Marshal(map[string]any{
+		"project_path":   createBody.Project.ProjectPath,
+		"from_component": "scalar",
+		"from_node":      "result",
+		"to_component":   "second_gain",
+		"to_node":        "value",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	connectionResponse := httptest.NewRecorder()
+	connectionRequest := httptest.NewRequest(http.MethodPost, "/api/project/connections", bytes.NewReader(connectionPayload))
+	server.Handler().ServeHTTP(connectionResponse, connectionRequest)
+	if connectionResponse.Code != http.StatusCreated {
+		t.Fatalf("connection status = %d body=%s", connectionResponse.Code, connectionResponse.Body.String())
+	}
+
+	removePayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "second_gain",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	removeResponse := httptest.NewRecorder()
+	removeRequest := httptest.NewRequest(http.MethodPost, "/api/project/system/components/remove", bytes.NewReader(removePayload))
+	server.Handler().ServeHTTP(removeResponse, removeRequest)
+	if removeResponse.Code != http.StatusOK {
+		t.Fatalf("remove status = %d body=%s", removeResponse.Code, removeResponse.Body.String())
+	}
+
+	loaded, err := project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !componentHasNode(loaded.Graph.Components[1], "value") {
+		t.Fatal("removed system component artifact should remain in graph")
+	}
+	if containsString(loaded.Graph.Systems[0].Components, "second_gain") {
+		t.Fatal("removed component should not remain in system")
+	}
+	if len(loaded.Graph.Systems[0].Connections) != 0 {
+		t.Fatalf("system connection count = %d, want 0", len(loaded.Graph.Systems[0].Connections))
+	}
+	if len(loaded.Graph.Connections) != 0 {
+		t.Fatalf("graph connection count = %d, want 0", len(loaded.Graph.Connections))
+	}
+	for _, input := range loaded.Graph.Systems[0].PublicInputs {
+		if input.Component == "second_gain" {
+			t.Fatal("removed component public input should be removed")
+		}
+	}
+	input, err := runtimecore.LoadInput(filepath.Join(loaded.Root, loaded.Project.DefaultInput))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := input.Inputs["second_gain_value"]; exists {
+		t.Fatal("removed component default input should be removed")
+	}
+}
+
 func TestCreateConnectionEndpointRejectsExamples(t *testing.T) {
 	server := newTestServer(t)
 	payload := []byte(`{
@@ -622,6 +728,22 @@ func TestCreateConnectionEndpointRejectsExamples(t *testing.T) {
 	}`)
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/api/project/connections", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestRemoveComponentFromSystemEndpointRejectsExamples(t *testing.T) {
+	server := newTestServer(t)
+	payload := []byte(`{
+		"project_path": "examples/003_feedforward_system/project.bcsproj",
+		"component_id": "chiller"
+	}`)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/system/components/remove", bytes.NewReader(payload))
 
 	server.Handler().ServeHTTP(response, request)
 

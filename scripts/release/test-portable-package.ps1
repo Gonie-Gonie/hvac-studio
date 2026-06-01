@@ -313,6 +313,25 @@ try {
     throw "deleted connection target default input was not restored: $ExtraInputId"
   }
 
+  $RemoveComponentBody = @{
+    project_path = $CreatedProject.project_path
+    component_id = $CreatedComponent.id
+  } | ConvertTo-Json -Depth 4
+  $RemoveComponentResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/system/components/remove" -Method POST -ContentType 'application/json' -Body $RemoveComponentBody -TimeoutSec 20
+  $RemoveComponentJson = $RemoveComponentResponse.Content | ConvertFrom-Json
+  if ($RemoveComponentJson.project.graph.systems[0].components | Where-Object { $_ -eq $CreatedComponent.id }) {
+    throw "removed component was still in the entry system"
+  }
+  if (-not ($RemoveComponentJson.project.graph.components | Where-Object { $_.id -eq $CreatedComponent.id })) {
+    throw "removed system component artifact should remain in the graph"
+  }
+  if ($RemoveComponentJson.project.graph.systems[0].public_inputs | Where-Object { $_.id -eq $ExtraInputId }) {
+    throw "removed component public input should be removed: $ExtraInputId"
+  }
+  if ($null -ne $RemoveComponentJson.project.default_run_input.inputs.PSObject.Properties[$ExtraInputId]) {
+    throw "removed component default input should be removed: $ExtraInputId"
+  }
+
   Write-Host "portable package smoke test ok: $PackagePath"
 } finally {
   if ($null -ne $StudioProcess -and -not $StudioProcess.HasExited) {

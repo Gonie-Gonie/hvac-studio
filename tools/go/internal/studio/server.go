@@ -244,6 +244,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("GET /api/project/source", s.handleSource)
 	s.mux.HandleFunc("POST /api/project/components", s.handleCreateComponent)
 	s.mux.HandleFunc("POST /api/project/system/components", s.handleIncludeComponent)
+	s.mux.HandleFunc("POST /api/project/system/components/remove", s.handleRemoveComponentFromSystem)
 	s.mux.HandleFunc("POST /api/project/nodes", s.handleCreateNode)
 	s.mux.HandleFunc("POST /api/project/connections", s.handleCreateConnection)
 	s.mux.HandleFunc("POST /api/project/connections/delete", s.handleDeleteConnection)
@@ -400,6 +401,33 @@ func (s *Server) handleIncludeComponent(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if err := includeComponentInSystem(loaded, req); err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleRemoveComponentFromSystem(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeIncludeComponentRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := removeComponentFromSystem(loaded, req); err != nil {
 		writeError(w, err)
 		return
 	}
@@ -1131,6 +1159,104 @@ func includeComponentInSystem(loaded *project.LoadedProject, req includeComponen
 		})
 	}
 
+	if err := writeJSONFile(inputPath, input); err != nil {
+		return err
+	}
+	return writeJSONFile(loaded.GraphPath, loaded.Graph)
+}
+
+func removeComponentFromSystem(loaded *project.LoadedProject, req includeComponentRequest) error {
+	componentID := strings.TrimSpace(req.ComponentID)
+	if componentID == "" {
+		return apperror.Errorf(apperror.CodeValidation, "component_id is required")
+	}
+	if _, foundComponent := findComponent(loaded.Graph, componentID); !foundComponent {
+		return apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
+	}
+
+	systemID := req.SystemID
+	if systemID == "" {
+		systemID = loaded.Project.EntrySystem
+	}
+	systemIndex := -1
+	for index := range loaded.Graph.Systems {
+		if loaded.Graph.Systems[index].ID == systemID {
+			systemIndex = index
+			break
+		}
+	}
+	if systemIndex < 0 {
+		return apperror.Errorf(apperror.CodeValidation, "system not found: %s", systemID)
+	}
+
+	system := &loaded.Graph.Systems[systemIndex]
+	if !containsString(system.Components, componentID) {
+		return nil
+	}
+	inputPath, input, err := loadEditableDefaultInput(loaded)
+	if err != nil {
+		return err
+	}
+
+	system.Components = removeString(system.Components, componentID)
+	removedPublicInputs := removePublicInputsForComponent(system, componentID)
+	for _, inputID := range removedPublicInputs {
+		delete(input.Inputs, inputID)
+	}
+	removePublicOutputsForComponent(system, componentID)
+
+	removedConnections := []model.Connection{}
+	keptConnectionIDs := system.Connections[:0]
+	for _, connectionID := range system.Connections {
+		connection, found := findConnection(loaded.Graph, connectionID)
+		if !found {
+			keptConnectionIDs = append(keptConnectionIDs, connectionID)
+			continue
+		}
+		if connection.From.Component == componentID || connection.To.Component == componentID {
+			removedConnections = append(removedConnections, connection)
+			continue
+		}
+		keptConnectionIDs = append(keptConnectionIDs, connectionID)
+	}
+	system.Connections = keptConnectionIDs
+
+	for _, connection := range removedConnections {
+		if connection.To.Component == componentID || !containsString(system.Components, connection.To.Component) {
+			continue
+		}
+		if systemHasIncomingConnection(*system, loaded.Graph, connection.To.Component, connection.To.Node) || hasPublicInputFor(*system, connection.To.Component, connection.To.Node) {
+			continue
+		}
+		component, foundComponent := findComponent(loaded.Graph, connection.To.Component)
+		if !foundComponent {
+			return apperror.Errorf(apperror.CodeValidation, "connection target component not found: %s", connection.To.Component)
+		}
+		node, foundNode := findInputNode(component, connection.To.Node)
+		if !foundNode {
+			return apperror.Errorf(apperror.CodeValidation, "connection target input node not found: %s.%s", connection.To.Component, connection.To.Node)
+		}
+		publicID := uniquePublicNodeID(system.PublicInputs, connection.To.Component+"_"+connection.To.Node)
+		system.PublicInputs = append(system.PublicInputs, model.PublicNodeRef{
+			ID:        publicID,
+			Name:      node.Name,
+			Component: connection.To.Component,
+			Node:      node.ID,
+			Medium:    node.Medium,
+			ValueType: node.ValueType,
+			Unit:      node.Unit,
+			Required:  node.Required,
+			Default:   node.Default,
+		})
+		if _, exists := input.Inputs[publicID]; !exists {
+			input.Inputs[publicID] = defaultValueForNode(node)
+		}
+	}
+
+	loaded.Graph.Connections = removeUnreferencedConnections(loaded.Graph.Connections, loaded.Graph.Systems)
+	if _, err := compiler.Compile(loaded); err != nil {
+		return apperror.Wrap(apperror.CodeValidation, err)
+	}
 	if err := writeJSONFile(inputPath, input); err != nil {
 		return err
 	}
@@ -2071,6 +2197,15 @@ func findComponent(graph *model.Graph, componentID string) (model.Component, boo
 	return model.Component{}, false
 }
 
+func findConnection(graph *model.Graph, connectionID string) (model.Connection, bool) {
+	for _, connection := range graph.Connections {
+		if connection.ID == connectionID {
+			return connection, true
+		}
+	}
+	return model.Connection{}, false
+}
+
 func findInputNode(component model.Component, nodeID string) (model.Node, bool) {
 	for _, node := range component.Nodes.Inputs {
 		if node.ID == nodeID {
@@ -2182,6 +2317,41 @@ func removePublicInputsFor(system *model.System, componentID string, nodeID stri
 	}
 	system.PublicInputs = kept
 	return removed
+}
+
+func removePublicInputsForComponent(system *model.System, componentID string) []string {
+	removed := []string{}
+	kept := system.PublicInputs[:0]
+	for _, input := range system.PublicInputs {
+		if input.Component == componentID {
+			removed = append(removed, input.ID)
+			continue
+		}
+		kept = append(kept, input)
+	}
+	system.PublicInputs = kept
+	return removed
+}
+
+func removePublicOutputsForComponent(system *model.System, componentID string) {
+	kept := system.PublicOutputs[:0]
+	for _, output := range system.PublicOutputs {
+		if output.Component == componentID {
+			continue
+		}
+		kept = append(kept, output)
+	}
+	system.PublicOutputs = kept
+}
+
+func removeUnreferencedConnections(connections []model.Connection, systems []model.System) []model.Connection {
+	kept := connections[:0]
+	for _, connection := range connections {
+		if graphReferencesConnection(systems, connection.ID) {
+			kept = append(kept, connection)
+		}
+	}
+	return kept
 }
 
 func uniquePublicNodeID(refs []model.PublicNodeRef, base string) string {

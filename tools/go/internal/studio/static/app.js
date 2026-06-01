@@ -936,6 +936,26 @@ async function includeSelectedComponent() {
   }
 }
 
+async function removeSelectedComponentFromSystem() {
+  const component = componentById(state.selectedComponentId);
+  if (!component || !isWorkspaceProject() || !selectedComponentInSystem()) return;
+  if (!window.confirm(`Remove ${component.id} from the runnable system? The component source will remain in the project.`)) return;
+  try {
+    const body = await api("/api/project/system/components/remove", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath, component_id: component.id }),
+    });
+    state.detail = body.project;
+    renderAll();
+    log(`Component removed from system: ${component.id}`);
+  } catch (error) {
+    log(`Remove from system failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
 async function createConnectionFromInspector(sourceValue, toComponent, toNode) {
   const [fromComponent, fromNode] = sourceValue.split(".");
   if (!fromComponent || !fromNode || !toComponent || !toNode) return;
@@ -1221,6 +1241,7 @@ function updateCommandState() {
   el("copyProjectButton").disabled = !hasProject;
   el("addComponentButton").disabled = !hasProject || !isWorkspaceProject();
   el("includeComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || selectedComponentInSystem();
+  el("removeComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || !selectedComponentInSystem();
 }
 
 function markProjectDirty() {
@@ -1249,6 +1270,7 @@ function bindEvents() {
   el("copyProjectButton").addEventListener("click", copyProject);
   el("addComponentButton").addEventListener("click", createComponent);
   el("includeComponentButton").addEventListener("click", includeSelectedComponent);
+  el("removeComponentButton").addEventListener("click", removeSelectedComponentFromSystem);
   el("saveProjectButton").addEventListener("click", saveProjectEdits);
   el("validateButton").addEventListener("click", validateProject);
   el("runButton").addEventListener("click", runProject);
