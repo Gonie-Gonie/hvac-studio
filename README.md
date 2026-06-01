@@ -90,6 +90,7 @@ Run the runner directly:
 cd tools\go
 go run .\cmd\bcs-runner validate --project ..\..\examples\001_scalar_component\project.bcsproj
 go run .\cmd\bcs-runner run --project ..\..\examples\001_scalar_component\project.bcsproj --input ..\..\examples\001_scalar_component\inputs\case01.json
+go run .\cmd\bcs-runner schema --project ..\..\examples\003_feedforward_system\project.bcsproj --output ..\..\examples\003_feedforward_system\outputs\schema.json
 ```
 
 ## Component Contract

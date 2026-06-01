@@ -10,3 +10,4 @@
 - Add the first multi-component feed-forward runtime example and golden example test runner.
 - Add typed runner error categories for documented CLI exit codes.
 - Add CLI validation golden tests for invalid graph diagnostics.
+- Add `bcs-runner schema` for exporting system public input/output interface metadata.

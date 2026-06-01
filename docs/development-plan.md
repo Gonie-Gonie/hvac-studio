@@ -80,6 +80,7 @@ Scope:
   - `4`: Python worker error
   - `5`: license/runtime error
 - One-case run result format with component outputs, states, context, and execution order.
+- Public interface schema export through `bcs-runner schema`.
 
 Acceptance criteria:
 

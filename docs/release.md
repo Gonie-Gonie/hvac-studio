@@ -33,6 +33,7 @@ The release package test expands that zip in a temp directory and runs:
 ```powershell
 .\bin\bcs-runner.exe validate --project .\examples\001_scalar_component\project.bcsproj
 .\bin\bcs-runner.exe run --project .\examples\001_scalar_component\project.bcsproj --input .\examples\001_scalar_component\inputs\case01.json
+.\bin\bcs-runner.exe schema --project .\examples\001_scalar_component\project.bcsproj --output .\outputs\interface_schema.json
 ```
 
 It verifies each runnable example against `expected/output.json`.

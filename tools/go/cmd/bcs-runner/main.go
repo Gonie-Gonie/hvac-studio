@@ -11,6 +11,7 @@ import (
 	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
 	runtimecore "github.com/goniegonie/hvac-studio/tools/go/internal/runtime"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/schemaexport"
 )
 
 func main() {
@@ -31,6 +32,8 @@ func run(args []string) error {
 		return validate(args[2:])
 	case "run":
 		return runProject(args[2:])
+	case "schema":
+		return exportSchema(args[2:])
 	default:
 		return usage()
 	}
@@ -108,6 +111,28 @@ func runProject(args []string) error {
 	return apperror.Wrap(apperror.CodeRuntime, runtimecore.WriteResult(resolvedOutput, result))
 }
 
+func exportSchema(args []string) error {
+	flags := flag.NewFlagSet("schema", flag.ContinueOnError)
+	projectPath := flags.String("project", "", "path to project.bcsproj")
+	outputPath := flags.String("output", "", "path to output JSON")
+	if err := flags.Parse(args); err != nil {
+		return apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if *projectPath == "" {
+		return apperror.Errorf(apperror.CodeValidation, "--project is required")
+	}
+
+	loaded, err := project.Load(*projectPath)
+	if err != nil {
+		return apperror.Wrap(apperror.CodeValidation, err)
+	}
+	schema, err := schemaexport.Export(loaded)
+	if err != nil {
+		return apperror.Wrap(apperror.CodeValidation, err)
+	}
+	return apperror.Wrap(apperror.CodeRuntime, schemaexport.Write(resolveProjectPath(loaded.Root, *outputPath), schema))
+}
+
 func resolveProjectPath(projectRoot string, path string) string {
 	if path == "" {
 		return ""
@@ -119,5 +144,5 @@ func resolveProjectPath(projectRoot string, path string) string {
 }
 
 func usage() error {
-	return apperror.Errorf(apperror.CodeValidation, "usage: bcs-runner <validate|run> --project project.bcsproj")
+	return apperror.Errorf(apperror.CodeValidation, "usage: bcs-runner <validate|run|schema> --project project.bcsproj")
 }
