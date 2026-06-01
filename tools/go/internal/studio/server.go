@@ -59,6 +59,11 @@ type createProjectRequest struct {
 	Template string `json:"template"`
 }
 
+type updateParametersRequest struct {
+	ProjectPath string                    `json:"project_path"`
+	Parameters  map[string]map[string]any `json:"parameters"`
+}
+
 type RunSummary struct {
 	ID           string         `json:"id"`
 	RelativePath string         `json:"relative_path"`
@@ -108,6 +113,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("GET /api/projects", s.handleProjects)
 	s.mux.HandleFunc("POST /api/projects", s.handleCreateProject)
 	s.mux.HandleFunc("GET /api/project", s.handleProject)
+	s.mux.HandleFunc("POST /api/project/parameters", s.handleUpdateParameters)
 	s.mux.HandleFunc("POST /api/validate", s.handleValidate)
 	s.mux.HandleFunc("POST /api/run", s.handleRun)
 	s.mux.HandleFunc("POST /api/schema", s.handleSchema)
@@ -153,16 +159,71 @@ func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"ok": true,
-		"project": ProjectDetail{
-			Project:     loaded.Project,
-			Graph:       loaded.Graph,
-			ProjectPath: loaded.Path,
-			GraphPath:   loaded.GraphPath,
-			Root:        loaded.Root,
-			Runs:        loadRunSummaries(loaded.Root),
-		},
+		"ok":      true,
+		"project": projectDetail(loaded),
 	})
+}
+
+func (s *Server) handleUpdateParameters(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeUpdateParametersRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	if len(req.Parameters) == 0 {
+		writeError(w, apperror.Errorf(apperror.CodeValidation, "parameters are required"))
+		return
+	}
+
+	for componentID, parameters := range req.Parameters {
+		if strings.TrimSpace(componentID) == "" {
+			writeError(w, apperror.Errorf(apperror.CodeValidation, "component id is required"))
+			return
+		}
+		found := false
+		for componentIndex := range loaded.Graph.Components {
+			component := &loaded.Graph.Components[componentIndex]
+			if component.ID != componentID {
+				continue
+			}
+			found = true
+			if component.Parameters == nil {
+				component.Parameters = map[string]any{}
+			}
+			for name, value := range parameters {
+				if strings.TrimSpace(name) == "" {
+					writeError(w, apperror.Errorf(apperror.CodeValidation, "parameter name is required"))
+					return
+				}
+				component.Parameters[name] = value
+			}
+			break
+		}
+		if !found {
+			writeError(w, apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID))
+			return
+		}
+	}
+
+	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeRuntime, err))
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "project": projectDetail(reloaded)})
 }
 
 func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
@@ -265,6 +326,17 @@ func (s *Server) loadProject(projectPath string) (*project.LoadedProject, error)
 		return nil, apperror.Wrap(apperror.CodeValidation, err)
 	}
 	return loaded, nil
+}
+
+func projectDetail(loaded *project.LoadedProject) ProjectDetail {
+	return ProjectDetail{
+		Project:     loaded.Project,
+		Graph:       loaded.Graph,
+		ProjectPath: loaded.Path,
+		GraphPath:   loaded.GraphPath,
+		Root:        loaded.Root,
+		Runs:        loadRunSummaries(loaded.Root),
+	}
 }
 
 func (s *Server) findProjectSummaries(root string, source string) []ProjectSummary {
@@ -424,9 +496,37 @@ func (s *Server) resolveProjectPath(projectPath string) (string, error) {
 	return absProjectPath, nil
 }
 
+func (s *Server) ensureWorkspaceProject(projectRoot string) error {
+	workspaceRoot, err := filepath.Abs(filepath.Join(s.repoRoot, "projects"))
+	if err != nil {
+		return apperror.Wrap(apperror.CodeValidation, err)
+	}
+	absProjectRoot, err := filepath.Abs(projectRoot)
+	if err != nil {
+		return apperror.Wrap(apperror.CodeValidation, err)
+	}
+	rel, err := filepath.Rel(workspaceRoot, absProjectRoot)
+	if err != nil {
+		return apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return apperror.Errorf(apperror.CodeValidation, "only workspace projects under projects/ can be edited")
+	}
+	return nil
+}
+
 func decodeCreateProjectRequest(r *http.Request) (createProjectRequest, error) {
 	defer r.Body.Close()
 	var req createProjectRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeUpdateParametersRequest(r *http.Request) (updateParametersRequest, error) {
+	defer r.Body.Close()
+	var req updateParametersRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}

@@ -60,6 +60,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Dataset, parameter set, scenario, run record, validation, calibration, and optimization artifacts must become source-of-truth project objects rather than transient GUI state.
 - Studio GUI work should start from the full product workspace shape, then connect behavior incrementally. Avoid ambiguous tiny demo screens that obscure the intended workflow.
 - Studio-created projects should live under `projects/` in the portable package. Workspace runs should be persisted as `runs/run-*.json` records inside the project.
+- GUI edits should persist to source-of-truth artifacts immediately and explicitly. Current write scope starts with workspace-only component parameters saved to `graph.json`; bundled examples remain read-only through the Studio API.
 
 ## Monitoring Checklist
 
@@ -77,3 +78,4 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Are we accidentally hardcoding Windows-specific behavior into engine/compiler/runtime packages instead of release/platform code?
 - Are UX features being staged so runtime support and golden examples exist before GUI polish?
 - Does the GUI shell preserve the complete Studio workflow even while individual features are still being connected?
+- Do GUI edit APIs reject examples/templates unless the user has created or copied them into `projects/`?

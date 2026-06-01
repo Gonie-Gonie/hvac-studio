@@ -55,6 +55,12 @@ button:disabled {
   background: #eef2f6;
 }
 
+button.dirty:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 select,
 input {
   border: 1px solid var(--line-strong);
@@ -409,6 +415,12 @@ th {
   font-weight: 700;
   text-transform: uppercase;
   background: #fbfcfe;
+}
+
+.table-input {
+  width: 100%;
+  min-width: 96px;
+  height: 28px;
 }
 
 .empty-cell {

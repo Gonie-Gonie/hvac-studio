@@ -223,6 +223,7 @@ Acceptance criteria:
 - Validate, Run, and Schema buttons use the same runtime/compiler path as the CLI runner. Started.
 - GUI can create a workspace project from the scalar Python component template. Started.
 - Runs from workspace projects are saved as `runs/run-*.json` records. Started.
+- Parameter Manager can edit workspace component parameters and persist them to `graph.json`. Started.
 - Problems, results, schema, logs, inspector, parameter, dataset, validation, calibration, optimization, and export workspaces are visible from the first shell. Started.
 - Problems panel links validation messages to graph or source locations where possible.
 
@@ -333,6 +334,8 @@ Acceptance criteria:
 - Validation run writes structured metrics and links high-error timesteps to inspectable node/component values.
 
 ## Milestone 8: Parameter Manager And Parameter Sets
+
+Status: started with direct workspace component-parameter editing.
 
 Goal: make parameters first-class research objects.
 

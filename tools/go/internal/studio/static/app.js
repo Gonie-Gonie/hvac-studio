@@ -54,6 +54,7 @@ async function loadProject(projectPath) {
   state.latestResult = null;
   state.latestSchema = null;
   state.latestValidation = null;
+  el("saveParametersButton").classList.remove("dirty");
 
   const body = await api(`/api/project?project_path=${encodeURIComponent(projectPath)}`);
   state.detail = body.project;
@@ -79,6 +80,7 @@ function renderAll() {
   const project = state.detail?.project;
   el("systemTitle").textContent = project?.entry_system || "System";
   el("systemSubtitle").textContent = project ? `${project.project_name} / ${state.detail.graph_path}` : "";
+  updateCommandState();
 }
 
 function renderProjectTree() {
@@ -279,12 +281,13 @@ function renderParameters() {
   calibration.innerHTML = "";
   optimization.innerHTML = "";
   const components = state.detail?.graph?.components || [];
+  const editable = isWorkspaceProject();
   let count = 0;
   for (const component of components) {
     for (const [name, value] of Object.entries(component.parameters || {})) {
       count++;
-      tbody.append(row([`${component.id}.${name}`, "component", unitFor(name), String(value), roleFor(name)]));
-      calibration.append(row([`${component.id}.${name}`, String(value), "", "", roleFor(name) === "calibration target" ? "yes" : ""]));
+      tbody.append(parameterRow(component, name, value, editable));
+      calibration.append(row([`${component.id}.${name}`, parameterInputValue(value), "", "", roleFor(name) === "calibration target" ? "yes" : ""]));
       optimization.append(row([`${component.id}.${name}`, "component", "", ""]));
     }
   }
@@ -293,6 +296,36 @@ function renderParameters() {
     calibration.append(emptyRow(5));
     optimization.append(emptyRow(4));
   }
+}
+
+function parameterRow(component, name, value, editable) {
+  const tr = document.createElement("tr");
+  for (const cellValue of [`${component.id}.${name}`, "component", unitFor(name)]) {
+    const td = document.createElement("td");
+    td.textContent = cellValue;
+    tr.append(td);
+  }
+
+  const valueCell = document.createElement("td");
+  if (editable) {
+    const input = document.createElement("input");
+    input.className = "table-input";
+    input.value = parameterInputValue(value);
+    input.dataset.parameterComponent = component.id;
+    input.dataset.parameterName = name;
+    input.addEventListener("input", () => {
+      el("saveParametersButton").classList.add("dirty");
+    });
+    valueCell.append(input);
+  } else {
+    valueCell.textContent = parameterInputValue(value);
+  }
+  tr.append(valueCell);
+
+  const roleCell = document.createElement("td");
+  roleCell.textContent = roleFor(name);
+  tr.append(roleCell);
+  return tr;
 }
 
 function row(values) {
@@ -394,6 +427,29 @@ async function runProject() {
   renderResults();
 }
 
+async function saveParameters() {
+  if (!isWorkspaceProject()) {
+    log("Only workspace projects can be edited");
+    return;
+  }
+  const parameters = collectParameterUpdates();
+  try {
+    const body = await api("/api/project/parameters", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath, parameters }),
+    });
+    state.detail = body.project;
+    el("saveParametersButton").classList.remove("dirty");
+    renderAll();
+    log("Parameters saved");
+  } catch (error) {
+    log(`Save failed: ${error.message}`);
+    state.latestValidation = { error: error.message };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
 async function exportSchema() {
   try {
     const body = await api("/api/schema", {
@@ -439,6 +495,10 @@ function currentProject() {
   return state.projects.find((project) => project.project_path === state.currentProjectPath);
 }
 
+function isWorkspaceProject() {
+  return currentProject()?.source === "workspace";
+}
+
 function componentById(id) {
   return (state.detail?.graph?.components || []).find((component) => component.id === id);
 }
@@ -457,6 +517,39 @@ function coerceInput(value) {
   if (trimmed === "") return "";
   const numeric = Number(trimmed);
   return Number.isNaN(numeric) ? trimmed : numeric;
+}
+
+function collectParameterUpdates() {
+  const updates = {};
+  for (const input of document.querySelectorAll("[data-parameter-component]")) {
+    const componentID = input.dataset.parameterComponent;
+    const name = input.dataset.parameterName;
+    updates[componentID] ||= {};
+    updates[componentID][name] = coerceParameter(input.value);
+  }
+  return updates;
+}
+
+function coerceParameter(value) {
+  const trimmed = value.trim();
+  if (trimmed === "") return "";
+  if (trimmed === "true") return true;
+  if (trimmed === "false") return false;
+  if (trimmed === "null") return null;
+  if (trimmed.startsWith("{") || trimmed.startsWith("[") || trimmed.startsWith('"')) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return trimmed;
+    }
+  }
+  const numeric = Number(trimmed);
+  return Number.isNaN(numeric) ? trimmed : numeric;
+}
+
+function parameterInputValue(value) {
+  if (typeof value === "object" && value !== null) return JSON.stringify(value);
+  return String(value ?? "");
 }
 
 function unitFor(name) {
@@ -494,6 +587,14 @@ function setBottomTab(name) {
   });
 }
 
+function updateCommandState() {
+  const hasProject = Boolean(state.detail);
+  el("validateButton").disabled = !hasProject;
+  el("runButton").disabled = !hasProject;
+  el("schemaButton").disabled = !hasProject;
+  el("saveParametersButton").disabled = !hasProject || !isWorkspaceProject();
+}
+
 function escapeHTML(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -511,6 +612,7 @@ function escapeAttr(value) {
 function bindEvents() {
   el("projectSelect").addEventListener("change", (event) => loadProject(event.target.value));
   el("newProjectButton").addEventListener("click", createProject);
+  el("saveParametersButton").addEventListener("click", saveParameters);
   el("validateButton").addEventListener("click", validateProject);
   el("runButton").addEventListener("click", runProject);
   el("schemaButton").addEventListener("click", exportSchema);

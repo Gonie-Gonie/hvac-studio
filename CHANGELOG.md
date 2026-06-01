@@ -16,3 +16,4 @@
 - Document Windows-first portable release strategy and add portable Studio package smoke testing.
 - Bundle repo-local Python into Windows portable/runtime packages and test package execution without system Python on `PATH`.
 - Add Studio workspace project creation and saved run records.
+- Add Studio workspace parameter editing backed by `graph.json` and portable smoke coverage for changed run results.
