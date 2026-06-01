@@ -9,6 +9,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
+	runtimecore "github.com/goniegonie/hvac-studio/tools/go/internal/runtime"
 )
 
 func TestProjectsEndpointListsExamples(t *testing.T) {
@@ -51,6 +55,38 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	}
 }
 
+func TestCreateProjectEndpointCreatesWorkspaceProject(t *testing.T) {
+	root := t.TempDir()
+	server, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := []byte(`{"name":"My First Project"}`)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Project.Source != "workspace" {
+		t.Fatalf("source = %s", body.Project.Source)
+	}
+	if _, err := os.Stat(filepath.Join(root, "projects", "my-first-project", "components", "scalar.py")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := project.Load(body.Project.ProjectPath); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRunEndpointRunsFeedForwardExample(t *testing.T) {
 	server := newTestServer(t)
 	payload := []byte(`{
@@ -82,6 +118,37 @@ func TestRunEndpointRunsFeedForwardExample(t *testing.T) {
 	}
 	if body.Result.Outputs["total_power_kw"] != 122 {
 		t.Fatalf("total_power_kw = %v", body.Result.Outputs["total_power_kw"])
+	}
+}
+
+func TestRunRecordsRoundTrip(t *testing.T) {
+	projectRoot := t.TempDir()
+	loaded := &project.LoadedProject{
+		Project: &model.Project{ProjectName: "recorded"},
+		Root:    projectRoot,
+	}
+	input := runtimecore.RunInput{
+		Inputs:  map[string]any{"value": 4.0},
+		Context: map[string]any{"time": 0.0, "dt": 60.0},
+	}
+	result := &runtimecore.RunResult{
+		OK:      true,
+		Outputs: map[string]any{"result": 8.0},
+	}
+
+	summary, err := writeRunRecord(loaded, input, result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.RelativePath == "" {
+		t.Fatal("run summary did not include relative path")
+	}
+	summaries := loadRunSummaries(projectRoot)
+	if len(summaries) != 1 {
+		t.Fatalf("run summary count = %d", len(summaries))
+	}
+	if summaries[0].ID != summary.ID {
+		t.Fatalf("run id = %s, want %s", summaries[0].ID, summary.ID)
 	}
 }
 

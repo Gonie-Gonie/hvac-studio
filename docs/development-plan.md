@@ -221,6 +221,8 @@ Acceptance criteria:
 
 - GUI can open scalar and feed-forward examples and display systems/components/nodes. Started.
 - Validate, Run, and Schema buttons use the same runtime/compiler path as the CLI runner. Started.
+- GUI can create a workspace project from the scalar Python component template. Started.
+- Runs from workspace projects are saved as `runs/run-*.json` records. Started.
 - Problems, results, schema, logs, inspector, parameter, dataset, validation, calibration, optimization, and export workspaces are visible from the first shell. Started.
 - Problems panel links validation messages to graph or source locations where possible.
 
@@ -518,6 +520,7 @@ hvac-studio-<version>-windows-amd64-portable/
 Acceptance criteria:
 
 - Portable package launches Studio and opens included examples.
+- Portable package can create projects under `projects/`.
 - CLI runner validates and runs included examples using bundled `runtime/python`.
 - Package smoke test exercises Studio API and runner CLI after zip expansion.
 - Installer work does not start until portable zip behavior is reproducible.

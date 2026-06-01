@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
@@ -34,6 +35,7 @@ type ProjectSummary struct {
 	Name         string `json:"name"`
 	ProjectPath  string `json:"project_path"`
 	RelativePath string `json:"relative_path"`
+	Source       string `json:"source"`
 }
 
 type ProjectDetail struct {
@@ -42,12 +44,35 @@ type ProjectDetail struct {
 	ProjectPath string         `json:"project_path"`
 	GraphPath   string         `json:"graph_path"`
 	Root        string         `json:"root"`
+	Runs        []RunSummary   `json:"runs"`
 }
 
 type apiRequest struct {
 	ProjectPath string         `json:"project_path"`
 	Inputs      map[string]any `json:"inputs"`
 	Context     map[string]any `json:"context"`
+	Save        bool           `json:"save"`
+}
+
+type createProjectRequest struct {
+	Name     string `json:"name"`
+	Template string `json:"template"`
+}
+
+type RunSummary struct {
+	ID           string         `json:"id"`
+	RelativePath string         `json:"relative_path"`
+	CreatedAtUTC string         `json:"created_at_utc"`
+	Outputs      map[string]any `json:"outputs"`
+}
+
+type RunRecord struct {
+	ID           string                 `json:"id"`
+	ProjectName  string                 `json:"project_name"`
+	CreatedAtUTC string                 `json:"created_at_utc"`
+	Inputs       map[string]any         `json:"inputs"`
+	Context      map[string]any         `json:"context"`
+	Result       *runtimecore.RunResult `json:"result"`
 }
 
 type apiError struct {
@@ -81,6 +106,7 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("GET /api/projects", s.handleProjects)
+	s.mux.HandleFunc("POST /api/projects", s.handleCreateProject)
 	s.mux.HandleFunc("GET /api/project", s.handleProject)
 	s.mux.HandleFunc("POST /api/validate", s.handleValidate)
 	s.mux.HandleFunc("POST /api/run", s.handleRun)
@@ -89,28 +115,30 @@ func (s *Server) routes(staticHandler http.Handler) {
 }
 
 func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
-	examplesRoot := filepath.Join(s.repoRoot, "examples")
 	projects := []ProjectSummary{}
-	_ = filepath.WalkDir(examplesRoot, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || d.Name() != "project.bcsproj" {
-			return nil
-		}
-		loaded, err := project.Load(path)
-		if err != nil {
-			return nil
-		}
-		rel, _ := filepath.Rel(s.repoRoot, path)
-		projects = append(projects, ProjectSummary{
-			Name:         loaded.Project.ProjectName,
-			ProjectPath:  path,
-			RelativePath: filepath.ToSlash(rel),
-		})
-		return nil
-	})
+	projects = append(projects, s.findProjectSummaries(filepath.Join(s.repoRoot, "projects"), "workspace")...)
+	projects = append(projects, s.findProjectSummaries(filepath.Join(s.repoRoot, "examples"), "example")...)
 	sort.Slice(projects, func(i, j int) bool {
+		if projects[i].Source != projects[j].Source {
+			return projects[i].Source == "workspace"
+		}
 		return projects[i].RelativePath < projects[j].RelativePath
 	})
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "projects": projects})
+}
+
+func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeCreateProjectRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	summary, err := s.createProject(req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "project": summary})
 }
 
 func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
@@ -132,6 +160,7 @@ func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
 			ProjectPath: loaded.Path,
 			GraphPath:   loaded.GraphPath,
 			Root:        loaded.Root,
+			Runs:        loadRunSummaries(loaded.Root),
 		},
 	})
 }
@@ -195,7 +224,16 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "result": result})
+	response := map[string]any{"ok": true, "result": result}
+	if req.Save {
+		runRecord, err := writeRunRecord(loaded, input, result)
+		if err != nil {
+			writeError(w, apperror.Wrap(apperror.CodeRuntime, err))
+			return
+		}
+		response["run_record"] = runRecord
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (s *Server) handleSchema(w http.ResponseWriter, r *http.Request) {
@@ -229,6 +267,139 @@ func (s *Server) loadProject(projectPath string) (*project.LoadedProject, error)
 	return loaded, nil
 }
 
+func (s *Server) findProjectSummaries(root string, source string) []ProjectSummary {
+	projects := []ProjectSummary{}
+	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || d.Name() != "project.bcsproj" {
+			return nil
+		}
+		loaded, err := project.Load(path)
+		if err != nil {
+			return nil
+		}
+		rel, _ := filepath.Rel(s.repoRoot, path)
+		projects = append(projects, ProjectSummary{
+			Name:         loaded.Project.ProjectName,
+			ProjectPath:  path,
+			RelativePath: filepath.ToSlash(rel),
+			Source:       source,
+		})
+		return nil
+	})
+	return projects
+}
+
+func (s *Server) createProject(req createProjectRequest) (ProjectSummary, error) {
+	projectName := strings.TrimSpace(req.Name)
+	if projectName == "" {
+		return ProjectSummary{}, apperror.Errorf(apperror.CodeValidation, "project name is required")
+	}
+	template := req.Template
+	if template == "" {
+		template = "scalar"
+	}
+	if template != "scalar" {
+		return ProjectSummary{}, apperror.Errorf(apperror.CodeValidation, "unsupported project template: %s", template)
+	}
+
+	slug := slugify(projectName)
+	if slug == "" {
+		return ProjectSummary{}, apperror.Errorf(apperror.CodeValidation, "project name must contain letters or numbers")
+	}
+	projectRoot := filepath.Join(s.repoRoot, "projects", slug)
+	if _, err := os.Stat(projectRoot); err == nil {
+		return ProjectSummary{}, apperror.Errorf(apperror.CodeValidation, "project already exists: projects/%s", slug)
+	}
+	if err := os.MkdirAll(filepath.Join(projectRoot, "components"), 0o755); err != nil {
+		return ProjectSummary{}, err
+	}
+	if err := os.MkdirAll(filepath.Join(projectRoot, "inputs"), 0o755); err != nil {
+		return ProjectSummary{}, err
+	}
+	if err := os.MkdirAll(filepath.Join(projectRoot, "runs"), 0o755); err != nil {
+		return ProjectSummary{}, err
+	}
+
+	proj := model.Project{
+		ProjectName:   projectName,
+		SchemaVersion: "0.1.0",
+		EngineVersion: "0.1.0",
+		EntrySystem:   "MainSystem",
+		Graph:         "graph.json",
+		Environment: model.EnvironmentConfig{
+			Mode:   "project",
+			Python: "python",
+		},
+		DefaultInput:  "inputs/case01.json",
+		DefaultOutput: "runs/latest.json",
+	}
+	required := true
+	graph := model.Graph{
+		SchemaVersion: "0.1.0",
+		Systems: []model.System{
+			{
+				ID:          "MainSystem",
+				Name:        "Main System",
+				Components:  []string{"scalar"},
+				Connections: []string{},
+				PublicInputs: []model.PublicNodeRef{
+					{ID: "value", Name: "Value", Component: "scalar", Node: "value", Medium: "signal", ValueType: "float", Unit: "", Required: &required},
+				},
+				PublicOutputs: []model.PublicNodeRef{
+					{ID: "result", Name: "Result", Component: "scalar", Node: "result", Medium: "signal", ValueType: "float", Unit: ""},
+				},
+			},
+		},
+		Components: []model.Component{
+			{
+				ID:    "scalar",
+				Name:  "Scalar Component",
+				Kind:  "user_python",
+				Class: "components.scalar.ScalarComponent",
+				Nodes: model.NodeSet{
+					Inputs: []model.Node{
+						{ID: "value", Name: "Value", Direction: "inlet", Medium: "signal", ValueType: "float", Unit: "", Required: &required},
+					},
+					Outputs: []model.Node{
+						{ID: "result", Name: "Result", Direction: "outlet", Medium: "signal", ValueType: "float", Unit: ""},
+					},
+				},
+				Parameters: map[string]any{"gain": 2.0},
+			},
+		},
+		Connections: []model.Connection{},
+	}
+	input := runtimecore.RunInput{
+		Inputs:  map[string]any{"value": 4.0},
+		Context: map[string]any{"time": 0.0, "dt": 60.0},
+	}
+
+	if err := writeJSONFile(filepath.Join(projectRoot, "project.bcsproj"), proj); err != nil {
+		return ProjectSummary{}, err
+	}
+	if err := writeJSONFile(filepath.Join(projectRoot, "graph.json"), graph); err != nil {
+		return ProjectSummary{}, err
+	}
+	if err := writeJSONFile(filepath.Join(projectRoot, "inputs", "case01.json"), input); err != nil {
+		return ProjectSummary{}, err
+	}
+	if err := os.WriteFile(filepath.Join(projectRoot, "components", "__init__.py"), []byte(""), 0o644); err != nil {
+		return ProjectSummary{}, err
+	}
+	if err := os.WriteFile(filepath.Join(projectRoot, "components", "scalar.py"), []byte(scalarComponentSource), 0o644); err != nil {
+		return ProjectSummary{}, err
+	}
+
+	projectPath := filepath.Join(projectRoot, "project.bcsproj")
+	rel, _ := filepath.Rel(s.repoRoot, projectPath)
+	return ProjectSummary{
+		Name:         projectName,
+		ProjectPath:  projectPath,
+		RelativePath: filepath.ToSlash(rel),
+		Source:       "workspace",
+	}, nil
+}
+
 func (s *Server) resolveProjectPath(projectPath string) (string, error) {
 	if projectPath == "" {
 		return "", apperror.Errorf(apperror.CodeValidation, "project_path is required")
@@ -251,6 +422,15 @@ func (s *Server) resolveProjectPath(projectPath string) (string, error) {
 		return "", apperror.Wrap(apperror.CodeValidation, err)
 	}
 	return absProjectPath, nil
+}
+
+func decodeCreateProjectRequest(r *http.Request) (createProjectRequest, error) {
+	defer r.Body.Close()
+	var req createProjectRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
 }
 
 func decodeRequest(r *http.Request) (apiRequest, error) {
@@ -297,3 +477,104 @@ func resolveProjectFile(projectRoot string, path string) string {
 	}
 	return filepath.Join(projectRoot, path)
 }
+
+func writeRunRecord(loaded *project.LoadedProject, input runtimecore.RunInput, result *runtimecore.RunResult) (RunSummary, error) {
+	now := time.Now().UTC()
+	runID := "run-" + now.Format("20060102-150405.000000000")
+	runsRoot := filepath.Join(loaded.Root, "runs")
+	if err := os.MkdirAll(runsRoot, 0o755); err != nil {
+		return RunSummary{}, err
+	}
+	runPath := filepath.Join(runsRoot, runID+".json")
+	record := RunRecord{
+		ID:           runID,
+		ProjectName:  loaded.Project.ProjectName,
+		CreatedAtUTC: now.Format(time.RFC3339Nano),
+		Inputs:       input.Inputs,
+		Context:      input.Context,
+		Result:       result,
+	}
+	if err := writeJSONFile(runPath, record); err != nil {
+		return RunSummary{}, err
+	}
+	rel, _ := filepath.Rel(loaded.Root, runPath)
+	return RunSummary{
+		ID:           runID,
+		RelativePath: filepath.ToSlash(rel),
+		CreatedAtUTC: record.CreatedAtUTC,
+		Outputs:      result.Outputs,
+	}, nil
+}
+
+func loadRunSummaries(projectRoot string) []RunSummary {
+	runFiles, err := filepath.Glob(filepath.Join(projectRoot, "runs", "run-*.json"))
+	if err != nil {
+		return []RunSummary{}
+	}
+	summaries := []RunSummary{}
+	for _, runPath := range runFiles {
+		runBytes, err := os.ReadFile(runPath)
+		if err != nil {
+			continue
+		}
+		var record RunRecord
+		if err := json.Unmarshal(runBytes, &record); err != nil {
+			continue
+		}
+		rel, _ := filepath.Rel(projectRoot, runPath)
+		outputs := map[string]any{}
+		if record.Result != nil {
+			outputs = record.Result.Outputs
+		}
+		summaries = append(summaries, RunSummary{
+			ID:           record.ID,
+			RelativePath: filepath.ToSlash(rel),
+			CreatedAtUTC: record.CreatedAtUTC,
+			Outputs:      outputs,
+		})
+	}
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i].CreatedAtUTC > summaries[j].CreatedAtUTC
+	})
+	return summaries
+}
+
+func writeJSONFile(path string, value any) error {
+	output, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(output, '\n'), 0o644)
+}
+
+func slugify(value string) string {
+	var b strings.Builder
+	lastDash := false
+	for _, r := range strings.ToLower(value) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash && b.Len() > 0 {
+			b.WriteRune('-')
+			lastDash = true
+		}
+	}
+	return strings.Trim(b.String(), "-")
+}
+
+const scalarComponentSource = `class ScalarComponent:
+    input_nodes = {}
+    output_nodes = {}
+    parameter_schema = {}
+    state_schema = {}
+
+    def initialize(self, params, context):
+        return {}
+
+    def evaluate(self, inputs, state, params, context):
+        value = float(inputs["value"])
+        gain = float(params.get("gain", 2.0))
+        return {"result": value * gain}, state
+`

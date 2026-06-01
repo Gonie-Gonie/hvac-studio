@@ -39,6 +39,7 @@ hvac-studio-<version>-windows-amd64-portable/
     python/
   schema/
   examples/
+  projects/
   templates/
   docs/
   Start-Studio.ps1
@@ -64,6 +65,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-runti
 ```
 
 The portable package smoke test expands the zip, verifies `studio.exe`, `bcs-runner.exe`, `bcs-env.exe`, and `runtime/python/python.exe`, constrains `PATH` so system Python is not used, runs the feed-forward example through the CLI, starts Studio locally, calls `/api/projects`, and runs `/api/run`. The included `Start-Studio.ps1` waits for the local server before opening the browser.
+
+Studio-created projects are written under `projects/` by default. Workspace project runs are saved as `runs/run-*.json` inside each project.
 
 The runtime package smoke test expands the zip, constrains `PATH`, and verifies each runnable example against `expected/output.json`.
 

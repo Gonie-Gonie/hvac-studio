@@ -15,3 +15,4 @@
 - Add the first full Studio workspace shell with project explorer, system canvas, inspector, runtime actions, bottom panels, and future workflow surfaces.
 - Document Windows-first portable release strategy and add portable Studio package smoke testing.
 - Bundle repo-local Python into Windows portable/runtime packages and test package execution without system Python on `PATH`.
+- Add Studio workspace project creation and saved run records.

@@ -41,11 +41,17 @@ Copy-Tree -Source (Join-Path $RepoRoot 'README.md') -Destination (Join-Path $Sta
 Copy-Tree -Source (Join-Path $RepoRoot 'CHANGELOG.md') -Destination (Join-Path $StageRoot 'CHANGELOG.md')
 
 New-Item -ItemType Directory -Force -Path (Join-Path $StageRoot 'templates\components'), (Join-Path $StageRoot 'templates\systems') | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $StageRoot 'projects') | Out-Null
 @"
 # Templates
 
 Component and system templates will be added as the authoring model stabilizes.
 "@ | Set-Content -LiteralPath (Join-Path $StageRoot 'templates\README.md') -Encoding UTF8
+@"
+# Projects
+
+Studio-created projects are stored here by default in the portable package.
+"@ | Set-Content -LiteralPath (Join-Path $StageRoot 'projects\README.md') -Encoding UTF8
 
 @"
 param(

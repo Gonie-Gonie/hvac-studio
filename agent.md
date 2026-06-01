@@ -59,6 +59,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - GUI component editing should eventually show a generated scaffold but persist contract metadata separately from user-editable function bodies, e.g. `component.json`, `user_init.py`, `user_step.py`, and helpers.
 - Dataset, parameter set, scenario, run record, validation, calibration, and optimization artifacts must become source-of-truth project objects rather than transient GUI state.
 - Studio GUI work should start from the full product workspace shape, then connect behavior incrementally. Avoid ambiguous tiny demo screens that obscure the intended workflow.
+- Studio-created projects should live under `projects/` in the portable package. Workspace runs should be persisted as `runs/run-*.json` records inside the project.
 
 ## Monitoring Checklist
 

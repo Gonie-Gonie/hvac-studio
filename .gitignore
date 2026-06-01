@@ -36,3 +36,5 @@ outputs/generated/
 runtime/python/
 runtime/packages/
 logs/
+projects/
+examples/**/runs/

@@ -37,11 +37,11 @@ async function loadProjects() {
   for (const project of state.projects) {
     const option = document.createElement("option");
     option.value = project.project_path;
-    option.textContent = project.relative_path;
+    option.textContent = `${project.source === "workspace" ? "Project" : "Example"} / ${project.relative_path}`;
     select.append(option);
   }
   const feedForward = state.projects.find((p) => p.name === "003_feedforward_system");
-  const first = feedForward || state.projects[0];
+  const first = state.projects.find((p) => p.source === "workspace") || feedForward || state.projects[0];
   if (first) {
     select.value = first.project_path;
     await loadProject(first.project_path);
@@ -92,7 +92,7 @@ function renderProjectTree() {
     ["Python Source", graph.components.map((item) => treeItem(item.id, item.class || "", "class"))],
     ["Datasets", []],
     ["Parameter Sets", [treeStatic("default", "active")]],
-    ["Runs", []],
+    ["Runs", (state.detail.runs || []).map((item) => treeStatic(item.id, item.relative_path))],
     ["Scenarios", []],
     ["Export Profiles", [treeStatic("research_project", "profile"), treeStatic("runtime_package", "profile")]],
   ];
@@ -370,12 +370,19 @@ async function runProject() {
     inputs[input.dataset.inputId] = coerceInput(input.value);
   }
   try {
+    const save = currentProject()?.source === "workspace";
     const body = await api("/api/run", {
       method: "POST",
-      body: JSON.stringify({ project_path: state.currentProjectPath, inputs, context: { time: 0, dt: 60 } }),
+      body: JSON.stringify({ project_path: state.currentProjectPath, inputs, context: { time: 0, dt: 60 }, save }),
     });
     state.latestResult = body.result;
-    log("Run complete");
+    if (body.run_record) {
+      state.detail.runs = [body.run_record, ...(state.detail.runs || [])];
+      log(`Run saved: ${body.run_record.relative_path}`);
+      renderProjectTree();
+    } else {
+      log("Run complete");
+    }
     setBottomTab("results");
   } catch (error) {
     log(`Run failed: ${error.message}`);
@@ -402,10 +409,34 @@ async function exportSchema() {
   renderSchema();
 }
 
+async function createProject() {
+  const name = window.prompt("Project name", "New Python Component Project");
+  if (!name || !name.trim()) return;
+  try {
+    const body = await api("/api/projects", {
+      method: "POST",
+      body: JSON.stringify({ name: name.trim(), template: "scalar" }),
+    });
+    await loadProjects();
+    el("projectSelect").value = body.project.project_path;
+    await loadProject(body.project.project_path);
+    log(`Created ${body.project.relative_path}`);
+  } catch (error) {
+    log(`Create project failed: ${error.message}`);
+    state.latestValidation = { error: error.message };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
 function currentSystem() {
   const detail = state.detail;
   if (!detail) return null;
   return detail.graph.systems.find((system) => system.id === detail.project.entry_system) || detail.graph.systems[0];
+}
+
+function currentProject() {
+  return state.projects.find((project) => project.project_path === state.currentProjectPath);
 }
 
 function componentById(id) {
@@ -479,6 +510,7 @@ function escapeAttr(value) {
 
 function bindEvents() {
   el("projectSelect").addEventListener("change", (event) => loadProject(event.target.value));
+  el("newProjectButton").addEventListener("click", createProject);
   el("validateButton").addEventListener("click", validateProject);
   el("runButton").addEventListener("click", runProject);
   el("schemaButton").addEventListener("click", exportSchema);
@@ -497,4 +529,3 @@ loadProjects().catch((error) => {
   renderProblems();
   log(error.message);
 });
-

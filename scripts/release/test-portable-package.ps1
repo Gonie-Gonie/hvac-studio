@@ -113,6 +113,29 @@ try {
     throw "Studio API smoke result mismatch: total_power_kw=$($RunJson.result.outputs.total_power_kw)"
   }
 
+  $CreateBody = @{ name = 'Portable Smoke Project'; template = 'scalar' } | ConvertTo-Json -Depth 4
+  $CreateResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/projects" -Method POST -ContentType 'application/json' -Body $CreateBody -TimeoutSec 20
+  $CreatedProject = ($CreateResponse.Content | ConvertFrom-Json).project
+  if (-not (Test-Path -LiteralPath $CreatedProject.project_path)) {
+    throw "created project file was not written: $($CreatedProject.project_path)"
+  }
+
+  $WorkspaceRunBody = @{
+    project_path = $CreatedProject.project_path
+    inputs = @{ value = 4 }
+    context = @{ time = 0; dt = 60 }
+    save = $true
+  } | ConvertTo-Json -Depth 8
+  $WorkspaceRunResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/run" -Method POST -ContentType 'application/json' -Body $WorkspaceRunBody -TimeoutSec 20
+  $WorkspaceRunJson = $WorkspaceRunResponse.Content | ConvertFrom-Json
+  if ($WorkspaceRunJson.result.outputs.result -ne 8) {
+    throw "workspace run result mismatch: result=$($WorkspaceRunJson.result.outputs.result)"
+  }
+  $RunRecordPath = Join-Path (Split-Path -Parent $CreatedProject.project_path) $WorkspaceRunJson.run_record.relative_path
+  if (-not (Test-Path -LiteralPath $RunRecordPath)) {
+    throw "workspace run record was not written: $RunRecordPath"
+  }
+
   Write-Host "portable package smoke test ok: $PackagePath"
 } finally {
   if ($null -ne $StudioProcess -and -not $StudioProcess.HasExited) {
