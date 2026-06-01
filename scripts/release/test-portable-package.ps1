@@ -210,6 +210,11 @@ try {
   if (-not (Test-Path -LiteralPath $ScenarioPath)) {
     throw "workspace scenario was not written: $ScenarioPath"
   }
+  $ScenarioReadResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/scenario?project_path=$([uri]::EscapeDataString($CreatedProject.project_path))&scenario_id=$([uri]::EscapeDataString($ScenarioJson.summary.id))" -TimeoutSec 20
+  $ScenarioReadJson = $ScenarioReadResponse.Content | ConvertFrom-Json
+  if ($ScenarioReadJson.scenario.inputs.value -ne 5) {
+    throw "workspace scenario read mismatch: value=$($ScenarioReadJson.scenario.inputs.value)"
+  }
 
   $WorkspaceRunBody = @{
     project_path = $CreatedProject.project_path

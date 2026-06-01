@@ -8,6 +8,7 @@ const state = {
   latestExport: null,
   latestSchema: null,
   latestValidation: null,
+  activeRunInput: null,
   sourceByComponent: {},
   loadingSource: {},
   logs: [],
@@ -62,6 +63,7 @@ async function loadProject(projectPath) {
   state.latestExport = null;
   state.latestSchema = null;
   state.latestValidation = null;
+  state.activeRunInput = null;
   state.sourceByComponent = {};
   state.loadingSource = {};
   el("saveProjectButton").classList.remove("dirty");
@@ -105,7 +107,7 @@ function renderProjectTree() {
     ["Datasets", []],
     ["Parameter Sets", [treeStatic("default", "active")]],
     ["Runs", (state.detail.runs || []).map((item) => runTreeItem(item))],
-    ["Scenarios", (state.detail.scenarios || []).map((item) => treeStatic(item.name || item.id, item.relative_path))],
+    ["Scenarios", (state.detail.scenarios || []).map((item) => scenarioTreeItem(item))],
     ["Export Profiles", exportTreeItems()],
   ];
   for (const [title, items] of sections) {
@@ -154,6 +156,12 @@ function runTreeItem(run) {
   return row;
 }
 
+function scenarioTreeItem(scenario) {
+  const row = treeStatic(scenario.name || scenario.id, scenario.relative_path);
+  row.addEventListener("click", () => loadScenario(scenario.id));
+  return row;
+}
+
 function exportTreeItems() {
   const exports = state.detail?.exports || [];
   if (exports.length) {
@@ -166,7 +174,7 @@ function renderRunInputs() {
   const container = el("runInputs");
   container.innerHTML = "";
   const inputs = currentSystem()?.public_inputs || [];
-  const savedInputs = state.detail?.default_run_input?.inputs || {};
+  const savedInputs = state.activeRunInput?.inputs || state.detail?.default_run_input?.inputs || {};
   for (const input of inputs) {
     const field = document.createElement("div");
     field.className = "input-field";
@@ -579,6 +587,20 @@ async function loadRunRecord(runID) {
   }
 }
 
+async function loadScenario(scenarioID) {
+  try {
+    const body = await api(`/api/project/scenario?project_path=${encodeURIComponent(state.currentProjectPath)}&scenario_id=${encodeURIComponent(scenarioID)}`);
+    state.activeRunInput = body.scenario;
+    renderRunInputs();
+    log(`Scenario loaded: ${body.scenario.name || scenarioID}`);
+  } catch (error) {
+    log(`Open scenario failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
 async function loadComponentSource(componentID) {
   if (!componentID || state.loadingSource[componentID]) return;
   state.loadingSource[componentID] = true;
@@ -838,7 +860,7 @@ function collectRunInputs() {
 }
 
 function currentRunContext() {
-  return state.detail?.default_run_input?.context || { time: 0, dt: 60 };
+  return state.activeRunInput?.context || state.detail?.default_run_input?.context || { time: 0, dt: 60 };
 }
 
 function currentSourceUpdate() {

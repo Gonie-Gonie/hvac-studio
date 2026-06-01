@@ -31,3 +31,4 @@ Selecting a component after a run shows its latest inputs and outputs in the Ins
 
 Current run inputs can be saved as scenario artifacts under `scenarios/`.
 
+Saved scenarios can be reopened from the Project tree to populate the Run Inputs panel for repeatable one-case runs.

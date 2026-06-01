@@ -833,6 +833,61 @@ func TestCreateScenarioEndpointWritesWorkspaceScenario(t *testing.T) {
 	}
 }
 
+func TestScenarioEndpointReturnsSavedScenario(t *testing.T) {
+	root := t.TempDir()
+	server, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Scenario Read Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+	payload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"name":         "Design Day",
+		"inputs":       map[string]any{"value": 9},
+		"context":      map[string]any{"time": 0, "dt": 60},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	createScenarioResponse := httptest.NewRecorder()
+	createScenarioRequest := httptest.NewRequest(http.MethodPost, "/api/project/scenarios", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(createScenarioResponse, createScenarioRequest)
+	if createScenarioResponse.Code != http.StatusCreated {
+		t.Fatalf("scenario status = %d body=%s", createScenarioResponse.Code, createScenarioResponse.Body.String())
+	}
+
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/project/scenario?project_path="+url.QueryEscape(createBody.Project.ProjectPath)+"&scenario_id=design-day",
+		nil,
+	)
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Scenario ScenarioRecord `json:"scenario"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Scenario.Inputs["value"] != 9.0 {
+		t.Fatalf("scenario input = %v, want 9", body.Scenario.Inputs["value"])
+	}
+}
+
 func TestCreateScenarioEndpointRejectsExamples(t *testing.T) {
 	server := newTestServer(t)
 	payload := []byte(`{

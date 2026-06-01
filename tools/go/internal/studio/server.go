@@ -215,6 +215,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/projects", s.handleCreateProject)
 	s.mux.HandleFunc("GET /api/project", s.handleProject)
 	s.mux.HandleFunc("GET /api/project/run", s.handleRunRecord)
+	s.mux.HandleFunc("GET /api/project/scenario", s.handleScenarioRecord)
 	s.mux.HandleFunc("GET /api/project/source", s.handleSource)
 	s.mux.HandleFunc("POST /api/project/components", s.handleCreateComponent)
 	s.mux.HandleFunc("POST /api/project/system/components", s.handleIncludeComponent)
@@ -274,6 +275,25 @@ func (s *Server) handleRunRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "run_record": record})
+}
+
+func (s *Server) handleScenarioRecord(w http.ResponseWriter, r *http.Request) {
+	projectPath, err := s.resolveProjectPath(r.URL.Query().Get("project_path"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := project.Load(projectPath)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	record, err := loadScenarioRecord(loaded.Root, r.URL.Query().Get("scenario_id"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "scenario": record})
 }
 
 func (s *Server) handleSource(w http.ResponseWriter, r *http.Request) {
@@ -1456,6 +1476,28 @@ func loadScenarioSummaries(projectRoot string) []ScenarioSummary {
 		return summaries[i].CreatedAtUTC > summaries[j].CreatedAtUTC
 	})
 	return summaries
+}
+
+func loadScenarioRecord(projectRoot string, scenarioID string) (ScenarioRecord, error) {
+	if scenarioID == "" {
+		return ScenarioRecord{}, apperror.Errorf(apperror.CodeValidation, "scenario_id is required")
+	}
+	if filepath.Base(scenarioID) != scenarioID || strings.ContainsAny(scenarioID, `/\`) {
+		return ScenarioRecord{}, apperror.Errorf(apperror.CodeValidation, "scenario_id must be a scenario id")
+	}
+	scenarioPath, err := resolveProjectOwnedFile(projectRoot, filepath.Join("scenarios", scenarioID+".json"))
+	if err != nil {
+		return ScenarioRecord{}, err
+	}
+	scenarioBytes, err := os.ReadFile(scenarioPath)
+	if err != nil {
+		return ScenarioRecord{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	var record ScenarioRecord
+	if err := json.Unmarshal(scenarioBytes, &record); err != nil {
+		return ScenarioRecord{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	return record, nil
 }
 
 func writeExportManifest(loaded *project.LoadedProject, profile string) (ExportSummary, ExportManifest, error) {
