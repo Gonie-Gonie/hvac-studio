@@ -243,6 +243,7 @@ Acceptance criteria:
 - Run, batch, and export APIs reject saved source-check errors server-side. Started.
 - Code workspace snippets generate evaluate skeletons from all selected component input/output nodes. Started.
 - Code workspace shows source-check issue rows in the contract panel and can focus line-specific problems. Started.
+- Source checks load draft Python source to catch import and class-load errors before run/export. Started.
 
 ## Milestone 5: Component-Aware Python Editor
 

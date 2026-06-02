@@ -93,6 +93,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Deleting a component artifact is allowed only after it is out of every system and has no connection references; then graph entry and unshared source file are removed together.
 - Duplicating a component should copy its graph contract, parameters, and Python source as a new unused component; system assembly remains explicit through `Use`.
 - Source checks should catch obvious authoring errors before execution: expected class name, `evaluate`/`initialize` signatures, return-shape hints, and Python syntax when a runtime is available.
+- Source checks should load the draft Python source in a short-lived Python process to catch import and class-load errors before run/export, while still treating actual component evaluation as runtime behavior.
 - Saving a Python source file should return the current source check result; execution actions should stop on saved source-check errors instead of letting users discover obvious contract breaks through later runtime failures.
 - Source checks may warn when graph input/output node names are not visibly referenced in Python source, but dynamic Python patterns should remain possible, so these contract-reference hints must stay warnings unless runtime validation proves an error.
 - Run, batch, and export APIs must gate on saved source-check errors server-side, not only through GUI dirty-draft handling, because API automation and reopened projects can bypass frontend state.

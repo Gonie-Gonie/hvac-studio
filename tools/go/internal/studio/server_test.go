@@ -1882,6 +1882,52 @@ func TestCheckSourceEndpointReportsEvaluateSignatureProblem(t *testing.T) {
 	}
 }
 
+func TestCheckSourceEndpointReportsImportProblem(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Source Import Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "scalar",
+		"content":      "import definitely_missing_hvac_studio_package\n\nclass ScalarComponent:\n    def evaluate(self, inputs, state, params, context):\n        value = float(inputs.get(\"value\", 0.0))\n        return {\"result\": value}, state\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/source/check", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Check SourceCheck `json:"check"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Check.OK {
+		t.Fatal("source check should fail when source imports a missing package")
+	}
+	if !hasProblemMessageContaining(body.Check.Problems, "source load failed:") {
+		t.Fatalf("load problem missing from %#v", body.Check.Problems)
+	}
+	if !hasProblemMessageContaining(body.Check.Problems, "definitely_missing_hvac_studio_package") {
+		t.Fatalf("missing import name was not reported in %#v", body.Check.Problems)
+	}
+}
+
 func TestCheckSourceEndpointAcceptsWorkspaceSource(t *testing.T) {
 	root, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
@@ -2524,6 +2570,15 @@ func TestRunRecordsRoundTrip(t *testing.T) {
 func hasProblemMessage(problems []Problem, message string) bool {
 	for _, problem := range problems {
 		if problem.Message == message {
+			return true
+		}
+	}
+	return false
+}
+
+func hasProblemMessageContaining(problems []Problem, text string) bool {
+	for _, problem := range problems {
+		if strings.Contains(problem.Message, text) {
 			return true
 		}
 	}

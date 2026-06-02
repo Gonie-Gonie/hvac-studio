@@ -2167,7 +2167,11 @@ func checkComponentSource(ctx context.Context, loaded *project.LoadedProject, re
 		check.Problems = append(check.Problems, Problem{Severity: "warning", Message: "source has no return statement", ComponentID: componentID})
 	}
 	check.Problems = append(check.Problems, sourceContractReferenceProblems(component, req.Content)...)
-	check.Problems = append(check.Problems, pythonSyntaxProblems(ctx, loaded, componentID, filepath.ToSlash(rel), req.Content)...)
+	syntaxProblems := pythonSyntaxProblems(ctx, loaded, componentID, filepath.ToSlash(rel), req.Content)
+	check.Problems = append(check.Problems, syntaxProblems...)
+	if !hasErrorProblems(syntaxProblems) && expectedClass != "" {
+		check.Problems = append(check.Problems, pythonLoadProblems(ctx, loaded, componentID, filepath.ToSlash(rel), expectedClass, req.Content)...)
+	}
 	check.OK = !hasErrorProblems(check.Problems)
 	return check, nil
 }
@@ -2353,6 +2357,41 @@ func pythonSyntaxProblems(ctx context.Context, loaded *project.LoadedProject, co
 			return []Problem{{Severity: "warning", Message: "python syntax check unavailable: " + err.Error(), ComponentID: componentID}}
 		}
 		return []Problem{syntaxProblemFromStderr(componentID, stderrText)}
+	}
+	return []Problem{}
+}
+
+func pythonLoadProblems(ctx context.Context, loaded *project.LoadedProject, componentID string, relativePath string, expectedClass string, content string) []Problem {
+	pythonExe := resolveStudioPython(loaded.Root, loaded.Project.Environment)
+	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	script := strings.Join([]string{
+		"import sys",
+		"namespace = {}",
+		"source = sys.stdin.read()",
+		"exec(compile(source, sys.argv[1], 'exec'), namespace)",
+		"cls = namespace.get(sys.argv[2])",
+		"if cls is None:",
+		"    raise AttributeError('expected class is missing: ' + sys.argv[2])",
+		"if not callable(cls):",
+		"    raise TypeError('expected class is not callable: ' + sys.argv[2])",
+	}, "\n")
+	cmd := exec.CommandContext(checkCtx, pythonExe, "-c", script, relativePath, expectedClass)
+	cmd.Dir = loaded.Root
+	cmd.Stdin = strings.NewReader(content)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if checkCtx.Err() != nil {
+			return []Problem{{Severity: "warning", Message: "python load check timed out", ComponentID: componentID}}
+		}
+		stderrText := strings.TrimSpace(stderr.String())
+		if stderrText == "" {
+			return []Problem{{Severity: "warning", Message: "python load check unavailable: " + err.Error(), ComponentID: componentID}}
+		}
+		problem := syntaxProblemFromStderr(componentID, stderrText)
+		problem.Message = "source load failed: " + problem.Message
+		return []Problem{problem}
 	}
 	return []Problem{}
 }
