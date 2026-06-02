@@ -5,12 +5,10 @@ import {
   coerceParameter,
   formatValue,
   parameterInputValue,
-  roleFor,
   sampleValueFor,
-  unitFor,
 } from "./format.js";
+import { renderRunOutputWorkspace } from "./run-output.js";
 import { state } from "./state.js";
-import { renderValidationWorkspace as renderValidationChart } from "./validation-chart.js";
 
 function log(message) {
   const time = new Date().toLocaleTimeString();
@@ -73,7 +71,7 @@ function renderAll() {
   renderProblems();
   renderResults();
   renderSchema();
-  renderValidationWorkspace();
+  renderRunWorkspace();
   renderPythonPanel();
   renderExportManifest();
   const project = state.detail?.project;
@@ -91,8 +89,6 @@ function renderProjectTree() {
     ["Systems", graph.systems.map((item) => treeItem(item.id, item.name || item.id, "system"))],
     ["Components", graph.components.map((item) => treeItem(item.id, item.name || item.id, item.kind))],
     ["Python Source", graph.components.map((item) => treeItem(item.id, item.class || "", "class"))],
-    ["Datasets", []],
-    ["Parameter Sets", [treeStatic("default", "active")]],
     ["Runs", (state.detail.runs || []).map((item) => runTreeItem(item))],
     ["Batches", (state.detail.batches || []).map((item) => batchTreeItem(item))],
     ["Scenarios", (state.detail.scenarios || []).map((item) => scenarioTreeItem(item))],
@@ -161,7 +157,7 @@ function exportTreeItems() {
   if (exports.length) {
     return exports.map((item) => treeStatic(item.profile, item.relative_path));
   }
-  return [treeStatic("research_project", "profile"), treeStatic("runtime_package", "profile")];
+  return [treeStatic("runtime_package", "ready")];
 }
 
 function renderRunInputs() {
@@ -519,12 +515,8 @@ function systemOutputEndpoints(excludeComponentId) {
 
 function renderParameters() {
   const tbody = el("parameterRows");
-  const calibration = el("calibrationRows");
-  const optimization = el("optimizationRows");
   const addForm = el("parameterAddForm");
   tbody.innerHTML = "";
-  calibration.innerHTML = "";
-  optimization.innerHTML = "";
   addForm.innerHTML = "";
   const components = state.detail?.graph?.components || [];
   const editable = isWorkspaceProject();
@@ -534,14 +526,10 @@ function renderParameters() {
     for (const [name, value] of Object.entries(component.parameters || {})) {
       count++;
       tbody.append(parameterRow(component, name, value, editable));
-      calibration.append(row([`${component.id}.${name}`, parameterInputValue(value), "", "", roleFor(name) === "calibration target" ? "yes" : ""]));
-      optimization.append(row([`${component.id}.${name}`, "component", "", ""]));
     }
   }
   if (!count) {
-    tbody.append(emptyRow(6));
-    calibration.append(emptyRow(5));
-    optimization.append(emptyRow(4));
+    tbody.append(emptyRow(4));
   }
 }
 
@@ -585,7 +573,7 @@ function renderParameterAddForm(container, components, editable) {
 
 function parameterRow(component, name, value, editable) {
   const tr = document.createElement("tr");
-  for (const cellValue of [`${component.id}.${name}`, "component", unitFor(name)]) {
+  for (const cellValue of [component.id, name]) {
     const td = document.createElement("td");
     td.textContent = cellValue;
     tr.append(td);
@@ -607,10 +595,6 @@ function parameterRow(component, name, value, editable) {
   }
   tr.append(valueCell);
 
-  const roleCell = document.createElement("td");
-  roleCell.textContent = roleFor(name);
-  tr.append(roleCell);
-
   const actionCell = document.createElement("td");
   actionCell.className = "action-cell";
   if (editable) {
@@ -622,12 +606,6 @@ function parameterRow(component, name, value, editable) {
     actionCell.append(button);
   }
   tr.append(actionCell);
-  return tr;
-}
-
-function row(values) {
-  const tr = document.createElement("tr");
-  tr.innerHTML = values.map((value) => `<td>${escapeHTML(value)}</td>`).join("");
   return tr;
 }
 
@@ -673,8 +651,8 @@ function renderResults() {
   el("resultsPanel").textContent = value ? JSON.stringify(value, null, 2) : "";
 }
 
-function renderValidationWorkspace() {
-  renderValidationChart(state, el("validationMetricRows"), el("validationChart"));
+function renderRunWorkspace() {
+  renderRunOutputWorkspace(state, el("runSummaryRows"), el("runOutputChart"));
 }
 
 function renderSchema() {
@@ -872,6 +850,7 @@ async function runProject() {
     } else {
       log("Run complete");
     }
+    setMode("run");
     setBottomTab("results");
   } catch (error) {
     log(`Run failed: ${error.message}`);
@@ -881,7 +860,7 @@ async function runProject() {
   renderInspector();
   renderProblems();
   renderResults();
-  renderValidationWorkspace();
+  renderRunWorkspace();
 }
 
 async function runBatch() {
@@ -897,7 +876,8 @@ async function runBatch() {
     state.detail.batches = [body.summary, ...(state.detail.batches || [])];
     renderProjectTree();
     renderResults();
-    renderValidationWorkspace();
+    renderRunWorkspace();
+    setMode("run");
     setBottomTab("results");
     log(`Batch saved: ${body.summary.relative_path}`);
   } catch (error) {
@@ -946,7 +926,8 @@ async function loadRunRecord(runID) {
     state.latestResult = body.run_record.result;
     renderInspector();
     renderResults();
-    renderValidationWorkspace();
+    renderRunWorkspace();
+    setMode("run");
     setBottomTab("results");
     log(`Run opened: ${runID}`);
   } catch (error) {
@@ -964,7 +945,8 @@ async function loadBatchRecord(batchID) {
     state.latestRunRecord = null;
     state.latestResult = null;
     renderResults();
-    renderValidationWorkspace();
+    renderRunWorkspace();
+    setMode("run");
     setBottomTab("results");
     log(`Batch opened: ${batchID}`);
   } catch (error) {

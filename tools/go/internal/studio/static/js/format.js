@@ -36,18 +36,6 @@ export function parameterInputValue(value) {
   return String(value ?? "");
 }
 
-export function unitFor(name) {
-  if (name.includes("power") || name.includes("capacity") || name.includes("load")) return "kW";
-  if (name.includes("setpoint") || name.includes("_c")) return "degC";
-  return "";
-}
-
-export function roleFor(name) {
-  if (name.includes("cop") || name.includes("factor")) return "calibration target";
-  if (name.includes("setpoint")) return "scenario input";
-  return "fixed";
-}
-
 export function formatValue(value) {
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);

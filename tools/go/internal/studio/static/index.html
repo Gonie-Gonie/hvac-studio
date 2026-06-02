@@ -29,7 +29,6 @@
           <button id="scenarioButton" type="button" disabled>Scenario</button>
           <button id="schemaButton" type="button">Schema</button>
           <button id="batchButton" type="button" disabled>Batch</button>
-          <button id="serveButton" type="button" disabled>Serve</button>
           <button id="exportButton" type="button" disabled>Export</button>
         </nav>
       </header>
@@ -50,10 +49,7 @@
             <button class="mode-button active" data-mode="canvas" type="button">System</button>
             <button class="mode-button" data-mode="code" type="button">Code</button>
             <button class="mode-button" data-mode="parameters" type="button">Parameters</button>
-            <button class="mode-button" data-mode="datasets" type="button">Datasets</button>
-            <button class="mode-button" data-mode="validation" type="button">Validation</button>
-            <button class="mode-button" data-mode="calibration" type="button">Calibration</button>
-            <button class="mode-button" data-mode="optimization" type="button">Optimization</button>
+            <button class="mode-button" data-mode="run" type="button">Run</button>
             <button class="mode-button" data-mode="export" type="button">Export</button>
           </section>
 
@@ -106,11 +102,9 @@
               <table>
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Scope</th>
-                    <th>Unit</th>
+                    <th>Component</th>
+                    <th>Parameter</th>
                     <th>Value</th>
-                    <th>Role</th>
                     <th>Action</th>
                   </tr>
                 </thead>
@@ -119,133 +113,31 @@
             </div>
           </section>
 
-          <section id="datasetsView" class="view split-workspace">
+          <section id="runView" class="view split-workspace">
             <div class="table-shell">
-              <div class="table-title">Datasets</div>
+              <div class="table-title">Latest Run</div>
               <table>
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Rows</th>
-                    <th>Mapped Inputs</th>
-                    <th>Mapped Outputs</th>
+                    <th>Item</th>
+                    <th>Value</th>
+                    <th>Source</th>
                   </tr>
                 </thead>
-                <tbody>
-                  <tr><td colspan="4" class="empty-cell">No datasets</td></tr>
-                </tbody>
-              </table>
-            </div>
-            <div class="table-shell">
-              <div class="table-title">Column Mapping</div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Dataset Column</th>
-                    <th>System Public Node</th>
-                    <th>Role</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr><td colspan="3" class="empty-cell">No mappings</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section id="validationView" class="view split-workspace">
-            <div class="table-shell">
-              <div class="table-title">Validation Metrics</div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Output</th>
-                    <th>RMSE</th>
-                    <th>MAE</th>
-                    <th>MBE</th>
-                    <th>CVRMSE</th>
-                    <th>R2</th>
-                  </tr>
-                </thead>
-                <tbody id="validationMetricRows">
-                  <tr><td colspan="6" class="empty-cell">No validation run</td></tr>
+                <tbody id="runSummaryRows">
+                  <tr><td colspan="3" class="empty-cell">No run yet</td></tr>
                 </tbody>
               </table>
             </div>
             <div class="chart-panel">
               <div class="table-title">Run Output Preview</div>
-              <div id="validationChart" class="bar-chart"></div>
-            </div>
-          </section>
-
-          <section id="calibrationView" class="view split-workspace">
-            <div class="table-shell">
-              <div class="table-title">Calibration Parameters</div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Parameter</th>
-                    <th>Current</th>
-                    <th>Lower</th>
-                    <th>Upper</th>
-                    <th>Selected</th>
-                  </tr>
-                </thead>
-                <tbody id="calibrationRows"></tbody>
-              </table>
-            </div>
-            <div class="table-shell">
-              <div class="table-title">Calibration Results</div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Metric</th>
-                    <th>Initial</th>
-                    <th>Final</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr><td colspan="3" class="empty-cell">No calibration result</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section id="optimizationView" class="view split-workspace">
-            <div class="table-shell">
-              <div class="table-title">Decision Variables</div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Scope</th>
-                    <th>Lower</th>
-                    <th>Upper</th>
-                  </tr>
-                </thead>
-                <tbody id="optimizationRows"></tbody>
-              </table>
-            </div>
-            <div class="table-shell">
-              <div class="table-title">Objective And Constraints</div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Type</th>
-                    <th>Expression</th>
-                    <th>Target</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr><td>Objective</td><td>total_power</td><td>minimize</td></tr>
-                </tbody>
-              </table>
+              <div id="runOutputChart" class="bar-chart"></div>
             </div>
           </section>
 
           <section id="exportView" class="view split-workspace">
             <div class="table-shell">
-              <div class="table-title">Export Profiles</div>
+              <div class="table-title">Runtime Export</div>
               <table>
                 <thead>
                   <tr>
@@ -255,9 +147,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr><td>Research Project</td><td>project environment</td><td>available</td></tr>
                   <tr><td>Runtime Package</td><td>windows-amd64</td><td>available</td></tr>
-                  <tr><td>Frozen Model</td><td>embedded runtime</td><td>pending</td></tr>
                 </tbody>
               </table>
             </div>

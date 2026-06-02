@@ -91,6 +91,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Wails desktop binaries must be built with the Wails production tags (`-tags desktop,production`); plain `go build` can produce a runtime error dialog even when compilation succeeds.
 - User-facing package tools should not be placeholders. `bcs-env.exe check` is now the package self-diagnostic for Python runtime, worker, SDK, schema, examples, and entrypoints, and release smoke tests should keep using it.
 - Studio static frontend should stay modular under `tools/go/internal/studio/static/js/`: shared state/API/DOM/format helpers and focused workspace renderers should be extracted instead of growing one monolithic `app.js`.
+- Studio UI should show only implemented workflow surfaces during development. Future dataset/validation/calibration/optimization areas belong in the plan/docs until runtime-backed artifacts and actions exist, so the running app stays understandable and honest.
 - User documentation is part of the product. Keep Markdown source under `docs/user/`, explain both user workflows and the internal execution model users need to reason correctly, and plan for MkDocs HTML, in-app help, PDF manual, and release assets.
 
 ## Monitoring Checklist
@@ -109,5 +110,6 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Are we accidentally hardcoding Windows-specific behavior into engine/compiler/runtime packages instead of release/platform code?
 - Are UX features being staged so runtime support and golden examples exist before GUI polish?
 - Does the GUI shell preserve the complete Studio workflow even while individual features are still being connected?
+- Are unimplemented future UI surfaces hidden until they have source-of-truth files and runtime-backed actions?
 - Do GUI edit APIs reject examples/templates unless the user has created or copied them into `projects/`?
 - Are user guide pages explaining source-of-truth files, runner behavior, public IO, and Python worker boundaries clearly enough for model authors?
