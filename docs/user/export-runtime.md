@@ -13,9 +13,10 @@ exports/runtime_package/project/graph.json
 exports/runtime_package/project/components/
 exports/runtime_package/project/inputs/
 exports/runtime_package/project/scenarios/
+exports/runtime_package/schema/public-io.json
 ```
 
-This is the first connected runtime export artifact. It copies the source-of-truth project files needed by the runner, and the manifest records the exported files plus public IO and execution order. Full package building with bundled runner/Python remains a later milestone.
+This is the first connected runtime export artifact. It copies the source-of-truth project files needed by the runner, writes a public input/output schema for consumers, and records the exported files plus public IO and execution order in the manifest. Full package building with bundled runner/Python remains a later milestone.
 
 ## Target Runtime Package Shape
 

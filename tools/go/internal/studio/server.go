@@ -244,20 +244,21 @@ type ExportSummary struct {
 }
 
 type ExportManifest struct {
-	Profile        string                `json:"profile"`
-	CreatedAtUTC   string                `json:"created_at_utc"`
-	ProjectName    string                `json:"project_name"`
-	ProjectRoot    string                `json:"project_root"`
-	ProjectPath    string                `json:"project_path"`
-	GraphPath      string                `json:"graph_path"`
-	DefaultInput   string                `json:"default_input"`
-	Runner         string                `json:"runner"`
-	RuntimePython  string                `json:"runtime_python"`
-	Files          []string              `json:"files"`
-	Components     []string              `json:"components"`
-	PublicInputs   []model.PublicNodeRef `json:"public_inputs"`
-	PublicOutputs  []model.PublicNodeRef `json:"public_outputs"`
-	ExecutionOrder []string              `json:"execution_order"`
+	Profile         string                `json:"profile"`
+	CreatedAtUTC    string                `json:"created_at_utc"`
+	ProjectName     string                `json:"project_name"`
+	ProjectRoot     string                `json:"project_root"`
+	ProjectPath     string                `json:"project_path"`
+	GraphPath       string                `json:"graph_path"`
+	DefaultInput    string                `json:"default_input"`
+	InterfaceSchema string                `json:"interface_schema"`
+	Runner          string                `json:"runner"`
+	RuntimePython   string                `json:"runtime_python"`
+	Files           []string              `json:"files"`
+	Components      []string              `json:"components"`
+	PublicInputs    []model.PublicNodeRef `json:"public_inputs"`
+	PublicOutputs   []model.PublicNodeRef `json:"public_outputs"`
+	ExecutionOrder  []string              `json:"execution_order"`
 }
 
 type SourceDetail struct {
@@ -2982,21 +2983,32 @@ func writeExportManifest(loaded *project.LoadedProject, profile string) (ExportS
 	if err != nil {
 		return ExportSummary{}, ExportManifest{}, err
 	}
+	interfaceSchemaPath := "schema/public-io.json"
+	schema, err := schemaexport.Export(loaded)
+	if err != nil {
+		return ExportSummary{}, ExportManifest{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if err := schemaexport.Write(filepath.Join(exportRoot, filepath.FromSlash(interfaceSchemaPath)), schema); err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
+	files = append(files, interfaceSchemaPath)
+	sort.Strings(files)
 	manifest := ExportManifest{
-		Profile:        profile,
-		CreatedAtUTC:   now.Format(time.RFC3339Nano),
-		ProjectName:    loaded.Project.ProjectName,
-		ProjectRoot:    "project",
-		ProjectPath:    exportArtifactPath(projectPath),
-		GraphPath:      exportArtifactPath(graphPath),
-		DefaultInput:   exportArtifactPath(defaultInputPath),
-		Runner:         "bin/bcs-runner.exe",
-		RuntimePython:  "runtime/python/python.exe",
-		Files:          files,
-		Components:     append([]string{}, plan.System.Components...),
-		PublicInputs:   append([]model.PublicNodeRef{}, plan.System.PublicInputs...),
-		PublicOutputs:  append([]model.PublicNodeRef{}, plan.System.PublicOutputs...),
-		ExecutionOrder: append([]string{}, plan.Order...),
+		Profile:         profile,
+		CreatedAtUTC:    now.Format(time.RFC3339Nano),
+		ProjectName:     loaded.Project.ProjectName,
+		ProjectRoot:     "project",
+		ProjectPath:     exportArtifactPath(projectPath),
+		GraphPath:       exportArtifactPath(graphPath),
+		DefaultInput:    exportArtifactPath(defaultInputPath),
+		InterfaceSchema: interfaceSchemaPath,
+		Runner:          "bin/bcs-runner.exe",
+		RuntimePython:   "runtime/python/python.exe",
+		Files:           files,
+		Components:      append([]string{}, plan.System.Components...),
+		PublicInputs:    append([]model.PublicNodeRef{}, plan.System.PublicInputs...),
+		PublicOutputs:   append([]model.PublicNodeRef{}, plan.System.PublicOutputs...),
+		ExecutionOrder:  append([]string{}, plan.Order...),
 	}
 	exportPath := filepath.Join(exportRoot, "manifest.json")
 	if err := os.MkdirAll(filepath.Dir(exportPath), 0o755); err != nil {

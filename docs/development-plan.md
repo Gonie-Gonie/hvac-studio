@@ -234,7 +234,7 @@ Acceptance criteria:
 - Saved run records can be reopened from the Project tree and shown in Results. Started.
 - Parameter Manager can edit workspace component parameters and persist them to `graph.json`. Started.
 - Problems, results, schema, logs, inspector, parameters, run output, and runtime export workspaces are visible in the active shell. Started.
-- Export button can write a workspace `exports/runtime_package/` artifact with manifest plus source-of-truth project files. Started.
+- Export button can write a workspace `exports/runtime_package/` artifact with manifest, public IO schema, and source-of-truth project files. Started.
 - Problems panel links validation messages to graph or source locations where possible. Started with inferred component links for validation errors.
 
 ## Milestone 5: Component-Aware Python Editor

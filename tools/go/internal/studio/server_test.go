@@ -16,6 +16,7 @@ import (
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
 	runtimecore "github.com/goniegonie/hvac-studio/tools/go/internal/runtime"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/schemaexport"
 )
 
 func TestProjectsEndpointListsExamples(t *testing.T) {
@@ -2138,6 +2139,9 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	if body.Export.DefaultInput != "project/inputs/case01.json" {
 		t.Fatalf("default input = %s", body.Export.DefaultInput)
 	}
+	if body.Export.InterfaceSchema != "schema/public-io.json" {
+		t.Fatalf("interface schema = %s", body.Export.InterfaceSchema)
+	}
 	if body.Export.Runner != "bin/bcs-runner.exe" {
 		t.Fatalf("runner = %s", body.Export.Runner)
 	}
@@ -2147,6 +2151,7 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 		"project/components/__init__.py",
 		"project/components/scalar.py",
 		"project/inputs/case01.json",
+		"schema/public-io.json",
 	}
 	exportRoot := filepath.Join(root, "projects", "export-project", "exports", "runtime_package")
 	for _, rel := range expectedFiles {
@@ -2164,6 +2169,17 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(exportRoot, "manifest.json")); err != nil {
 		t.Fatalf("manifest: %v", err)
+	}
+	var exportedSchema schemaexport.InterfaceSchema
+	schemaBytes, err := os.ReadFile(filepath.Join(exportRoot, "schema", "public-io.json"))
+	if err != nil {
+		t.Fatalf("schema: %v", err)
+	}
+	if err := json.Unmarshal(schemaBytes, &exportedSchema); err != nil {
+		t.Fatalf("decode schema: %v", err)
+	}
+	if len(exportedSchema.Inputs) != 1 || len(exportedSchema.Outputs) != 1 {
+		t.Fatalf("schema inputs/outputs = %d/%d", len(exportedSchema.Inputs), len(exportedSchema.Outputs))
 	}
 	exportedProjectPath := filepath.Join(exportRoot, "project", "project.bcsproj")
 	exportedLoaded, err := project.Load(exportedProjectPath)

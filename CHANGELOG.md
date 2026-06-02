@@ -58,3 +58,4 @@
 - Reject undeclared Python component output keys at runtime so returned outputs must match graph output nodes exactly.
 - Include component-linked Problems metadata in Studio run API responses for runtime contract errors.
 - Make Studio Problems rows navigate to the component canvas or source line when component and line metadata are available.
+- Include the public IO schema in Studio runtime export artifacts.

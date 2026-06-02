@@ -434,7 +434,10 @@ try {
   if ($ExportJson.export.project_path -ne 'project/project.bcsproj') {
     throw "workspace export project path mismatch: $($ExportJson.export.project_path)"
   }
-  foreach ($ExportFile in @('project/project.bcsproj', 'project/graph.json', 'project/components/scalar.py', 'project/inputs/case01.json')) {
+  if ($ExportJson.export.interface_schema -ne 'schema/public-io.json') {
+    throw "workspace export interface schema mismatch: $($ExportJson.export.interface_schema)"
+  }
+  foreach ($ExportFile in @('project/project.bcsproj', 'project/graph.json', 'project/components/scalar.py', 'project/inputs/case01.json', 'schema/public-io.json')) {
     if ($ExportJson.export.files -notcontains $ExportFile) {
       throw "workspace export file missing from manifest: $ExportFile"
     }
@@ -442,6 +445,11 @@ try {
     if (-not (Test-Path -LiteralPath $ExportArtifactPath)) {
       throw "workspace export artifact was not written: $ExportArtifactPath"
     }
+  }
+  $ExportSchemaPath = Join-Path (Split-Path -Parent $ExportManifestPath) 'schema\public-io.json'
+  $ExportSchemaJson = Get-Content -Raw -LiteralPath $ExportSchemaPath | ConvertFrom-Json
+  if (@($ExportSchemaJson.inputs).Count -lt 1 -or @($ExportSchemaJson.outputs).Count -lt 1) {
+    throw "workspace export schema missing public inputs or outputs"
   }
   $ExportProjectPath = Join-Path (Split-Path -Parent $ExportManifestPath) 'project\project.bcsproj'
   $ExportInputPath = Join-Path (Split-Path -Parent $ExportManifestPath) 'project\inputs\case01.json'
