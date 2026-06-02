@@ -616,14 +616,60 @@ th {
   text-align: center;
 }
 
-.plot-placeholder {
+.chart-panel {
   min-height: 280px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background:
-    linear-gradient(135deg, transparent 0 49%, #c8d2df 49% 51%, transparent 51%),
-    linear-gradient(45deg, transparent 0 49%, #c8d2df 49% 51%, transparent 51%),
-    var(--surface);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.bar-chart {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) minmax(140px, 2fr) minmax(72px, auto);
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+}
+
+.bar-label,
+.bar-value,
+.chart-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.bar-value {
+  text-align: right;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.bar-track {
+  height: 12px;
+  border-radius: 999px;
+  background: #edf2f7;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.bar-fill.negative {
+  background: #b25f5f;
+}
+
+.chart-empty {
+  padding: 20px 4px;
 }
 
 .bottom-panel {

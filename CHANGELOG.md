@@ -47,3 +47,4 @@
 - Build Wails Studio binaries with the required production tags and make portable smoke detect Wails error dialogs.
 - Replace the placeholder `bcs-env` command with a package environment checker used by portable and runtime smoke tests.
 - Replace placeholder portable templates with source project/component templates used by Studio project creation.
+- Split Studio static JavaScript into ES modules and replace the validation plot placeholder with a runtime output preview.

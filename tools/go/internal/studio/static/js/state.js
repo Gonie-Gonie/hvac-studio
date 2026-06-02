@@ -1,0 +1,18 @@
+export const state = {
+  projects: [],
+  currentProjectPath: "",
+  detail: null,
+  selectedComponentId: "",
+  latestResult: null,
+  latestRunRecord: null,
+  latestBatchRecord: null,
+  latestExport: null,
+  latestSchema: null,
+  latestValidation: null,
+  activeRunInput: null,
+  sourceByComponent: {},
+  sourceDraftByComponent: {},
+  sourceCheckByComponent: {},
+  loadingSource: {},
+  logs: [],
+};

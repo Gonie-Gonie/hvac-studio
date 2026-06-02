@@ -1,42 +1,21 @@
-const state = {
-  projects: [],
-  currentProjectPath: "",
-  detail: null,
-  selectedComponentId: "",
-  latestResult: null,
-  latestRunRecord: null,
-  latestBatchRecord: null,
-  latestExport: null,
-  latestSchema: null,
-  latestValidation: null,
-  activeRunInput: null,
-  sourceByComponent: {},
-  sourceDraftByComponent: {},
-  sourceCheckByComponent: {},
-  loadingSource: {},
-  logs: [],
-};
-
-const el = (id) => document.getElementById(id);
+import { api } from "./api.js";
+import { el, escapeAttr, escapeHTML } from "./dom.js";
+import {
+  coerceInput,
+  coerceParameter,
+  formatValue,
+  parameterInputValue,
+  roleFor,
+  sampleValueFor,
+  unitFor,
+} from "./format.js";
+import { state } from "./state.js";
+import { renderValidationWorkspace as renderValidationChart } from "./validation-chart.js";
 
 function log(message) {
   const time = new Date().toLocaleTimeString();
   state.logs.unshift(`[${time}] ${message}`);
   renderLogs();
-}
-
-async function api(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  const body = await response.json();
-  if (!response.ok || body.ok === false) {
-    const error = new Error(body.message || `Request failed: ${path}`);
-    error.body = body;
-    throw error;
-  }
-  return body;
 }
 
 async function loadProjects(preferredProjectPath = "") {
@@ -94,6 +73,7 @@ function renderAll() {
   renderProblems();
   renderResults();
   renderSchema();
+  renderValidationWorkspace();
   renderPythonPanel();
   renderExportManifest();
   const project = state.detail?.project;
@@ -693,6 +673,10 @@ function renderResults() {
   el("resultsPanel").textContent = value ? JSON.stringify(value, null, 2) : "";
 }
 
+function renderValidationWorkspace() {
+  renderValidationChart(state, el("validationMetricRows"), el("validationChart"));
+}
+
 function renderSchema() {
   el("schemaPanel").textContent = state.latestSchema ? JSON.stringify(state.latestSchema, null, 2) : "";
 }
@@ -897,6 +881,7 @@ async function runProject() {
   renderInspector();
   renderProblems();
   renderResults();
+  renderValidationWorkspace();
 }
 
 async function runBatch() {
@@ -912,6 +897,7 @@ async function runBatch() {
     state.detail.batches = [body.summary, ...(state.detail.batches || [])];
     renderProjectTree();
     renderResults();
+    renderValidationWorkspace();
     setBottomTab("results");
     log(`Batch saved: ${body.summary.relative_path}`);
   } catch (error) {
@@ -960,6 +946,7 @@ async function loadRunRecord(runID) {
     state.latestResult = body.run_record.result;
     renderInspector();
     renderResults();
+    renderValidationWorkspace();
     setBottomTab("results");
     log(`Run opened: ${runID}`);
   } catch (error) {
@@ -977,6 +964,7 @@ async function loadBatchRecord(batchID) {
     state.latestRunRecord = null;
     state.latestResult = null;
     renderResults();
+    renderValidationWorkspace();
     setBottomTab("results");
     log(`Batch opened: ${batchID}`);
   } catch (error) {
@@ -1593,22 +1581,6 @@ function selectedComponentInSystem() {
   return Boolean(system && state.selectedComponentId && system.components.includes(state.selectedComponentId));
 }
 
-function sampleValueFor(id) {
-  const samples = {
-    value: 4,
-    building_load_kw: 500,
-    base_chw_setpoint_c: 7,
-  };
-  return samples[id] ?? "";
-}
-
-function coerceInput(value) {
-  const trimmed = value.trim();
-  if (trimmed === "") return "";
-  const numeric = Number(trimmed);
-  return Number.isNaN(numeric) ? trimmed : numeric;
-}
-
 function collectRunInputs() {
   const inputs = {};
   for (const input of document.querySelectorAll("[data-input-id]")) {
@@ -1660,45 +1632,6 @@ function parameterUpdatesExcluding(componentID, name) {
     if (!Object.keys(updates[componentID]).length) delete updates[componentID];
   }
   return updates;
-}
-
-function coerceParameter(value) {
-  const trimmed = value.trim();
-  if (trimmed === "") return "";
-  if (trimmed === "true") return true;
-  if (trimmed === "false") return false;
-  if (trimmed === "null") return null;
-  if (trimmed.startsWith("{") || trimmed.startsWith("[") || trimmed.startsWith('"')) {
-    try {
-      return JSON.parse(trimmed);
-    } catch {
-      return trimmed;
-    }
-  }
-  const numeric = Number(trimmed);
-  return Number.isNaN(numeric) ? trimmed : numeric;
-}
-
-function parameterInputValue(value) {
-  if (typeof value === "object" && value !== null) return JSON.stringify(value);
-  return String(value ?? "");
-}
-
-function unitFor(name) {
-  if (name.includes("power") || name.includes("capacity") || name.includes("load")) return "kW";
-  if (name.includes("setpoint") || name.includes("_c")) return "degC";
-  return "";
-}
-
-function roleFor(name) {
-  if (name.includes("cop") || name.includes("factor")) return "calibration target";
-  if (name.includes("setpoint")) return "scenario input";
-  return "fixed";
-}
-
-function formatValue(value) {
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
 }
 
 function setMode(mode) {
@@ -1780,20 +1713,6 @@ function handleSourceEditorKeydown(event) {
 function syncSourceGutterScroll(event) {
   const gutter = el("sourceLineNumbers");
   if (gutter) gutter.scrollTop = event.target.scrollTop;
-}
-
-function escapeHTML(value) {
-  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#039;",
-  })[char]);
-}
-
-function escapeAttr(value) {
-  return escapeHTML(value);
 }
 
 function bindEvents() {

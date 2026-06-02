@@ -55,6 +55,28 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("HVAC Studio")) {
 		t.Fatalf("index did not contain Studio shell")
 	}
+	if !bytes.Contains(body, []byte(`type="module"`)) {
+		t.Fatalf("index did not load the Studio JavaScript module")
+	}
+}
+
+func TestStaticModuleEntrypointServes(t *testing.T) {
+	server := newTestServer(t)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/js/app.js", nil)
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
+		t.Fatalf("module entrypoint did not contain expected imports")
+	}
 }
 
 func TestCreateProjectEndpointCreatesWorkspaceProject(t *testing.T) {
