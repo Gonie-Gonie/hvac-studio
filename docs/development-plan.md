@@ -532,7 +532,7 @@ hvac-studio-<version>-windows-amd64-portable/
 
 Acceptance criteria:
 
-- Portable package launches Studio from `HVAC Studio.exe` and opens an app-style desktop window.
+- Portable package launches Studio from `HVAC Studio.exe` as a Wails desktop app without launching a browser or binding a normal-use TCP port.
 - Portable package can create projects under `projects/`.
 - CLI runner validates and runs included examples using bundled `runtime/python`.
 - Package smoke test exercises Studio API and runner CLI after zip expansion.

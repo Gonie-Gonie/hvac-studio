@@ -38,7 +38,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
   - `python/bcs_sdk` for research/optimization wrappers around the runner.
   - `schema` for source-of-truth JSON schemas.
   - `examples` as regression assets, not demos only.
-  - `app/studio` reserved for the later Wails/React GUI.
+  - `tools/go/cmd/studio` hosts the current Wails desktop entrypoint; `app/studio` can remain future React/product notes if needed.
 
 ## Active Design Decisions
 

@@ -67,7 +67,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-porta
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-runtime-package.ps1 -Version 0.1.0-dev
 ```
 
-The portable package smoke test expands the zip, verifies `HVAC Studio.exe`, `bin/studio.exe`, `bcs-runner.exe`, `bcs-env.exe`, and `runtime/python/python.exe`, constrains `PATH` so system Python is not used, runs the feed-forward example through the CLI, starts Studio locally with `--no-window`, and exercises the Studio API workflow.
+The portable package smoke test expands the zip, verifies `HVAC Studio.exe`, `bin/studio.exe`, `bcs-runner.exe`, `bcs-env.exe`, and `runtime/python/python.exe`, constrains `PATH` so system Python is not used, briefly launches the Wails desktop entrypoint, runs the feed-forward example through the CLI, starts `bin/studio.exe --server`, and exercises the Studio API workflow.
 
 Current portable Studio smoke coverage:
 
@@ -83,7 +83,7 @@ Current portable Studio smoke coverage:
 - Reopens the saved run record through `/api/project/run`.
 - Writes `exports/runtime_package/manifest.json`.
 
-The root-level `HVAC Studio.exe` starts the local server and opens an app-style Studio window. The included `Start-Studio.ps1` remains available for scripted launches and can pass `-NoBrowser` for server-only automation.
+The root-level `HVAC Studio.exe` opens the Wails desktop app without launching a browser or binding a normal-use TCP port. The included `Start-Studio.ps1` remains available for scripted launches, and server/API automation should use `bin\studio.exe --server` or `Start-Studio.ps1 -Server`.
 
 Studio-created projects are written under `projects/` by default. Workspace project runs are saved as `runs/run-*.json` inside each project.
 

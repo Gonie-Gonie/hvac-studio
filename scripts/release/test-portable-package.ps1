@@ -32,6 +32,7 @@ function Get-FreePort {
 $TestRoot = New-PackageTestRoot -Prefix 'hvac-portable-test'
 
 $StudioProcess = $null
+$DesktopProcess = $null
 $ErrLog = ''
 $OriginalPath = $env:PATH
 
@@ -55,6 +56,17 @@ try {
 
   $env:PATH = Get-MinimalPackagePath -PackageRoot $PackageDir.FullName
 
+  $DesktopProcess = Start-Process -FilePath $Studio -PassThru -ArgumentList @(
+    '--repo',
+    $PackageDir.FullName
+  )
+  Start-Sleep -Seconds 3
+  if ($DesktopProcess.HasExited) {
+    throw "Studio desktop app exited during launch smoke"
+  }
+  Stop-Process -Id $DesktopProcess.Id -Force -ErrorAction SilentlyContinue
+  $DesktopProcess = $null
+
   $Project = Join-Path $PackageDir.FullName 'examples\003_feedforward_system\project.bcsproj'
   $Input = Join-Path $PackageDir.FullName 'examples\003_feedforward_system\inputs\case01.json'
   $Expected = Join-Path $PackageDir.FullName 'examples\003_feedforward_system\expected\output.json'
@@ -72,12 +84,12 @@ try {
   $Port = Get-FreePort
   $OutLog = Join-Path $TestRoot 'studio.out.log'
   $ErrLog = Join-Path $TestRoot 'studio.err.log'
-  $StudioProcess = Start-Process -FilePath $Studio -WindowStyle Hidden -PassThru -RedirectStandardOutput $OutLog -RedirectStandardError $ErrLog -ArgumentList @(
+  $StudioProcess = Start-Process -FilePath $StudioServer -WindowStyle Hidden -PassThru -RedirectStandardOutput $OutLog -RedirectStandardError $ErrLog -ArgumentList @(
     '--repo',
     $PackageDir.FullName,
+    '--server',
     '--addr',
-    "127.0.0.1:$Port",
-    '--no-window'
+    "127.0.0.1:$Port"
   )
 
   $ProjectsUrl = "http://127.0.0.1:$Port/api/projects"
@@ -446,6 +458,9 @@ try {
 
   Write-Host "portable package smoke test ok: $PackagePath"
 } finally {
+  if ($null -ne $DesktopProcess -and -not $DesktopProcess.HasExited) {
+    Stop-Process -Id $DesktopProcess.Id -Force -ErrorAction SilentlyContinue
+  }
   if ($null -ne $StudioProcess -and -not $StudioProcess.HasExited) {
     Stop-Process -Id $StudioProcess.Id -Force -ErrorAction SilentlyContinue
   }

@@ -10,7 +10,7 @@ From the repository:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\run-studio.ps1
 ```
 
-The launcher starts the local Studio server and opens an app-style Studio window. In a portable package, double-click:
+The launcher opens the Wails Studio desktop app. In a portable package, double-click:
 
 ```text
 HVAC Studio.exe

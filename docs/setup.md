@@ -42,7 +42,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\run-runner.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\run-studio.ps1
 ```
 
-`run-studio.ps1` opens an app-style Studio window by default. Add `-NoWindow` to run only the local server for automation.
+`run-studio.ps1` opens the Wails Studio desktop app by default. Add `-Server` to run only the local HTTP API for automation.
 
 ## Notes
 

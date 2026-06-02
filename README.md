@@ -15,7 +15,7 @@ The first stable slice is the runtime core plus a real Studio workspace shell:
 - A persistent Python worker using JSONL over stdio.
 - A Go `bcs-runner` CLI with `validate` and `run`.
 - Golden examples that behave as regression assets.
-- A Go-hosted Studio web UI that opens examples, creates workspace projects, edits parameters/default inputs/Python source, adds components, validates, runs, saves scenarios/run records, and exports public schema/runtime manifests.
+- A Wails-based Studio desktop UI that opens examples, creates workspace projects, edits parameters/default inputs/Python source, adds components, validates, runs, saves scenarios/run records, and exports public schema/runtime manifests.
 
 The Studio UI is intentionally built as the full product workspace first. Individual panels can be wired up gradually without changing the source-of-truth files or inventing a separate simulation engine.
 
@@ -71,7 +71,7 @@ Launch the Studio workspace:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\run-studio.ps1
 ```
 
-The development launcher starts the local Studio server and opens an app-style Studio window. Use `-NoWindow` when you only want the local server for automation.
+The development launcher opens the Wails Studio desktop app. Use `-Server` when you only want the local Studio HTTP API for automation.
 
 If PowerShell script execution is disabled on your machine, run:
 
@@ -100,7 +100,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-porta
 ```
 
 The portable package includes root-level `HVAC Studio.exe`, `bin/studio.exe`, `bcs-runner.exe`, `bcs-env.exe`, examples, and a bundled `runtime/python` for included example and workspace project runs.
-Users launch the app by double-clicking `HVAC Studio.exe`; automation can run `bin/studio.exe --no-window`.
+Users launch the app by double-clicking `HVAC Studio.exe`; automation can run `bin\studio.exe --server`.
 Studio-created projects live under `projects/`; workspace edits persist to project artifacts such as `graph.json`, `inputs/`, `components/`, `scenarios/`, `runs/`, and `exports/`.
 
 Build and smoke-test the runtime-only release package:

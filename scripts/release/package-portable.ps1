@@ -57,7 +57,9 @@ Studio-created projects are stored here by default in the portable package.
 @"
 param(
   [string]`$Addr = '127.0.0.1:5174',
-  [switch]`$NoBrowser
+  [switch]`$Server,
+  [switch]`$NoBrowser,
+  [switch]`$NoWindow
 )
 
 `$ErrorActionPreference = 'Stop'
@@ -77,40 +79,51 @@ New-Item -ItemType Directory -Force -Path `$LogRoot | Out-Null
 `$OutLog = Join-Path `$LogRoot 'studio.out.log'
 `$ErrLog = Join-Path `$LogRoot 'studio.err.log'
 
-Write-Host "Starting HVAC Studio at `$Url"
 `$StudioArgs = @(
   '--repo',
-  `$Root,
-  '--addr',
-  `$Addr
+  `$Root
 )
-if (`$NoBrowser) {
-  `$StudioArgs += '--no-window'
-}
-`$StudioProcess = Start-Process -FilePath `$Studio -WindowStyle Hidden -PassThru -RedirectStandardOutput `$OutLog -RedirectStandardError `$ErrLog -ArgumentList `$StudioArgs
 
-`$Ready = `$false
-for (`$Index = 0; `$Index -lt 40; `$Index++) {
-  try {
-    `$Response = Invoke-WebRequest -UseBasicParsing -Uri "`$Url/api/projects" -TimeoutSec 2
-    if (`$Response.StatusCode -eq 200) {
-      `$Ready = `$true
-      break
+if (`$NoBrowser -or `$NoWindow) {
+  `$Server = `$true
+}
+
+if (`$Server) {
+  Write-Host "Starting HVAC Studio server mode at `$Url"
+  `$StudioArgs += @(
+    '--server',
+    '--addr',
+    `$Addr
+  )
+  `$StudioProcess = Start-Process -FilePath `$Studio -WindowStyle Hidden -PassThru -RedirectStandardOutput `$OutLog -RedirectStandardError `$ErrLog -ArgumentList `$StudioArgs
+
+  `$Ready = `$false
+  for (`$Index = 0; `$Index -lt 40; `$Index++) {
+    try {
+      `$Response = Invoke-WebRequest -UseBasicParsing -Uri "`$Url/api/projects" -TimeoutSec 2
+      if (`$Response.StatusCode -eq 200) {
+        `$Ready = `$true
+        break
+      }
+    } catch {
+      Start-Sleep -Milliseconds 500
     }
-  } catch {
-    Start-Sleep -Milliseconds 500
   }
+
+  if (-not `$Ready) {
+    Write-Host "Studio server failed to start. stdout: `$OutLog stderr: `$ErrLog"
+    if (Test-Path -LiteralPath `$ErrLog) {
+      Get-Content -LiteralPath `$ErrLog -Tail 40
+    }
+    throw "Studio did not respond at `$Url"
+  }
+
+  Write-Host "HVAC Studio server is running. Close this window or press Ctrl+C to stop it."
+} else {
+  Write-Host "Starting HVAC Studio desktop app"
+  `$StudioProcess = Start-Process -FilePath `$Studio -PassThru -ArgumentList `$StudioArgs
 }
 
-if (-not `$Ready) {
-  Write-Host "Studio failed to start. stdout: `$OutLog stderr: `$ErrLog"
-  if (Test-Path -LiteralPath `$ErrLog) {
-    Get-Content -LiteralPath `$ErrLog -Tail 40
-  }
-  throw "Studio did not respond at `$Url"
-}
-
-Write-Host "HVAC Studio is running. Close this window or press Ctrl+C to stop it."
 try {
   Wait-Process -Id `$StudioProcess.Id
 } finally {
@@ -174,6 +187,8 @@ $ReleaseManifest = [ordered]@{
   notes = @(
     'Windows-first portable Studio package.',
     'Engine and project format are OS-independent; macOS packaging is a future experimental target.',
+    'HVAC Studio.exe opens a native Wails desktop window for normal use.',
+    'bin/studio.exe --server is reserved for scripted API smoke tests and automation.',
     'Includes a bundled Python runtime for included examples.',
     'Project-specific third-party Python package locking is still a later milestone.'
   )
@@ -193,7 +208,7 @@ Launch Studio:
 & '.\HVAC Studio.exe'
 ```
 
-The Studio executable starts the local Studio server and opens an app-style desktop window. `Start-Studio.ps1` remains available for scripted launches.
+The Studio executable opens a native Wails desktop window without launching a browser. `Start-Studio.ps1` remains available for scripted launches, and `.\bin\studio.exe --server` is the server/API automation entrypoint.
 
 Run the CLI smoke example:
 

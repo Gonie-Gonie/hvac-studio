@@ -1,5 +1,6 @@
 param(
   [string]$Addr = '127.0.0.1:5174',
+  [switch]$Server,
   [switch]$NoWindow
 )
 
@@ -19,12 +20,14 @@ try {
     'run',
     '.\cmd\studio',
     '--repo',
-    $RepoRoot,
-    '--addr',
-    $Addr
+    $RepoRoot
   )
-  if ($NoWindow) {
-    $StudioArgs += '--no-window'
+  if ($Server -or $NoWindow) {
+    $StudioArgs += @(
+      '--server',
+      '--addr',
+      $Addr
+    )
   }
   Invoke-Checked $env:HVAC_STUDIO_GO $StudioArgs
 } finally {

@@ -9,6 +9,7 @@
       "artifact": "hvac-studio-<version>-windows-amd64-portable.zip",
       "entrypoint": "HVAC Studio.exe",
       "server_entrypoint": "bin/studio.exe",
+      "server_args": ["--server"],
       "includes_embedded_python": true
     },
     {
