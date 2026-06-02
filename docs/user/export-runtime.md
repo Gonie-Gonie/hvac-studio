@@ -8,6 +8,8 @@ The Export button can write:
 
 ```text
 exports/runtime_package/manifest.json
+exports/runtime_package/README.md
+exports/runtime_package/run-default.ps1
 exports/runtime_package/bin/bcs-runner.exe
 exports/runtime_package/bin/bcs-env.exe
 exports/runtime_package/project/project.bcsproj
@@ -19,7 +21,7 @@ exports/runtime_package/runtime/python/
 exports/runtime_package/schema/public-io.json
 ```
 
-This is the first connected runtime export artifact. It copies the source-of-truth project files needed by the runner, writes a public input/output schema for consumers, and records the exported files plus public IO and execution order in the manifest. When Studio is running from a portable/runtime package, export also copies the packaged runner tools and Python runtime into the export folder so the exported project can run without a system Python install.
+This is the first connected runtime export artifact. It copies the source-of-truth project files needed by the runner, writes a public input/output schema for consumers, adds a default Windows run script, and records the exported files plus public IO and execution order in the manifest. When Studio is running from a portable/runtime package, export also copies the packaged runner tools and Python runtime into the export folder so the exported project can run without a system Python install.
 
 ## Target Runtime Package Shape
 

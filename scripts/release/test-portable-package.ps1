@@ -437,7 +437,7 @@ try {
   if ($ExportJson.export.interface_schema -ne 'schema/public-io.json') {
     throw "workspace export interface schema mismatch: $($ExportJson.export.interface_schema)"
   }
-  foreach ($ExportFile in @('bin/bcs-runner.exe', 'bin/bcs-env.exe', 'project/project.bcsproj', 'project/graph.json', 'project/components/scalar.py', 'project/inputs/case01.json', 'runtime/python/python.exe', 'schema/public-io.json')) {
+  foreach ($ExportFile in @('README.md', 'bin/bcs-runner.exe', 'bin/bcs-env.exe', 'project/project.bcsproj', 'project/graph.json', 'project/components/scalar.py', 'project/inputs/case01.json', 'run-default.ps1', 'runtime/python/python.exe', 'schema/public-io.json')) {
     if ($ExportJson.export.files -notcontains $ExportFile) {
       throw "workspace export file missing from manifest: $ExportFile"
     }
@@ -464,6 +464,14 @@ try {
   $ExportExtraOutput = $ExportRunJson.outputs.PSObject.Properties[$ExtraOutputId].Value
   if ($ExportExtraOutput -ne 21) {
     throw "exported runtime included component result mismatch: $ExtraOutputId=$ExportExtraOutput"
+  }
+  $ExportRunScript = Join-Path (Split-Path -Parent $ExportManifestPath) 'run-default.ps1'
+  $ExportScriptOutputPath = Join-Path $TestRoot 'exported-runtime-script-output.json'
+  $PowerShellExe = Join-Path $PSHOME 'powershell.exe'
+  Invoke-Checked $PowerShellExe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ExportRunScript, '-Output', $ExportScriptOutputPath)
+  $ExportScriptRunJson = Get-Content -Raw -LiteralPath $ExportScriptOutputPath | ConvertFrom-Json
+  if ($ExportScriptRunJson.outputs.result -ne 21) {
+    throw "exported runtime script result mismatch: result=$($ExportScriptRunJson.outputs.result)"
   }
 
   $DeleteConnectionBody = @{

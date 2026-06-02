@@ -3048,6 +3048,11 @@ func writeExportManifest(loaded *project.LoadedProject, profile string) (ExportS
 		return ExportSummary{}, ExportManifest{}, err
 	}
 	files = append(files, interfaceSchemaPath)
+	entrypointFiles, err := writeRuntimeExportEntrypoints(exportRoot, exportArtifactPath(projectPath), exportArtifactPath(defaultInputPath))
+	if err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
+	files = append(files, entrypointFiles...)
 	sort.Strings(files)
 	manifest := ExportManifest{
 		Profile:         profile,
@@ -3137,6 +3142,85 @@ func writeRuntimeExportSupportFiles(projectRoot string, exportRoot string) ([]st
 	}
 	sort.Strings(files)
 	return files, nil
+}
+
+func writeRuntimeExportEntrypoints(exportRoot string, projectPath string, defaultInput string) ([]string, error) {
+	files := []struct {
+		rel     string
+		content string
+	}{
+		{rel: "README.md", content: runtimeExportReadme(projectPath, defaultInput)},
+		{rel: "run-default.ps1", content: runtimeExportRunScript(projectPath, defaultInput)},
+	}
+	written := []string{}
+	for _, file := range files {
+		path := filepath.Join(exportRoot, filepath.FromSlash(file.rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(path, []byte(file.content), 0o644); err != nil {
+			return nil, err
+		}
+		written = append(written, file.rel)
+	}
+	return written, nil
+}
+
+func runtimeExportRunScript(projectPath string, defaultInput string) string {
+	projectLiteral := powerShellSingleQuotedPath(projectPath)
+	inputLiteral := powerShellSingleQuotedPath(defaultInput)
+	return strings.TrimLeft(fmt.Sprintf(`
+param(
+  [string]$Output = ""
+)
+
+$ErrorActionPreference = 'Stop'
+$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Runner = Join-Path $Root 'bin\bcs-runner.exe'
+if (-not (Test-Path -LiteralPath $Runner)) {
+  $Runner = 'bcs-runner.exe'
+}
+$PythonRoot = Join-Path $Root 'runtime\python'
+if (Test-Path -LiteralPath $PythonRoot) {
+  $env:PATH = (@($PythonRoot, (Join-Path $Root 'bin'), $env:PATH) | Where-Object { $_ }) -join [IO.Path]::PathSeparator
+}
+$Project = Join-Path $Root '%s'
+$DefaultInput = '%s'
+$RunArgs = @('run', '--project', $Project)
+if ($DefaultInput) {
+  $RunArgs += @('--input', (Join-Path $Root $DefaultInput))
+}
+if (-not $Output) {
+  $Output = Join-Path $Root 'outputs\latest.json'
+}
+$OutputDir = Split-Path -Parent $Output
+if ($OutputDir) {
+  New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
+}
+& $Runner validate --project $Project
+& $Runner @RunArgs --output $Output
+Write-Host "wrote $Output"
+`, projectLiteral, inputLiteral), "\r\n")
+}
+
+func runtimeExportReadme(projectPath string, defaultInput string) string {
+	inputLine := ""
+	if defaultInput != "" {
+		inputLine = fmt.Sprintf("- Default input: `%s`\n", defaultInput)
+	}
+	return "# Runtime Export\n\n" +
+		"This folder contains a runnable Studio runtime export.\n\n" +
+		fmt.Sprintf("- Project: `%s`\n", projectPath) +
+		inputLine +
+		"- Public IO schema: `schema/public-io.json`\n" +
+		"- Runner: `bin/bcs-runner.exe`\n\n" +
+		"Run the default case on Windows:\n\n" +
+		"`powershell -ExecutionPolicy Bypass -File .\\run-default.ps1`\n"
+}
+
+func powerShellSingleQuotedPath(path string) string {
+	path = strings.ReplaceAll(filepath.ToSlash(path), "/", `\`)
+	return strings.ReplaceAll(path, `'`, `''`)
 }
 
 func findRuntimeSupportRoot(start string) string {

@@ -2322,6 +2322,7 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 		t.Fatalf("runner = %s", body.Export.Runner)
 	}
 	expectedFiles := []string{
+		"README.md",
 		"bin/bcs-env.exe",
 		"bin/bcs-runner.exe",
 		"project/project.bcsproj",
@@ -2331,6 +2332,7 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 		"project/inputs/case01.json",
 		"runtime/manifest.json",
 		"runtime/python/python.exe",
+		"run-default.ps1",
 		"schema/public-io.json",
 	}
 	exportRoot := filepath.Join(root, "projects", "export-project", "exports", "runtime_package")
