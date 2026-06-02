@@ -78,6 +78,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Problems panel rows should navigate to the most specific authoring surface available: source line for Python problems, otherwise the selected component on the system canvas.
 - Python source editing must respect ownership: examples are read-only, workspace project component files can be saved, and the graph contract remains in `graph.json`.
 - Direct Python authoring belongs in a first-class Code workspace with component contract context, source drafts, explicit save/revert/check actions, and snippets; source files remain the source of truth.
+- Code snippets should be generated from the selected component's graph contract, especially all declared input/output nodes, so they teach the actual component shape rather than a one-node toy shape.
 - Scenarios should start as explicit project artifacts under `scenarios/`, created from current run inputs/context, before adding richer dataset and validation workflows.
 - Saved scenarios should be reusable immediately in Studio by reopening them into the Run Inputs panel.
 - Studio execution actions should flush workspace model edits that affect runtime behavior, especially component parameters and Python source, before invoking run/export paths.

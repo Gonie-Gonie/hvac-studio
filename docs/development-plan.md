@@ -238,6 +238,7 @@ Acceptance criteria:
 - Problems panel links validation, run, and batch-case messages to graph or source locations where possible. Started with inferred component links for runtime errors.
 - Source save returns source-check feedback and execution actions stop on saved source-check errors. Started.
 - Source checks warn when Python source does not visibly reference required graph inputs or declared outputs. Started.
+- Code workspace snippets generate evaluate skeletons from all selected component input/output nodes. Started.
 
 ## Milestone 5: Component-Aware Python Editor
 

@@ -1143,21 +1143,61 @@ function insertSourceSnippet() {
 }
 
 function sourceSnippet(kind, component) {
-  const firstInput = (component.nodes.inputs || [])[0]?.id || "value";
+  const inputBindings = pythonInputBindings(component);
+  const firstInput = inputBindings[0]?.id || "value";
   const firstOutput = (component.nodes.outputs || [])[0]?.id || "result";
   const firstParam = Object.keys(component.parameters || {})[0] || "gain";
   switch (kind) {
     case "initialize":
       return `\n    def initialize(self, params, context):\n        return {}\n`;
     case "output":
-      return `"${firstOutput}": value`;
+      return `${pythonStringLiteral(firstOutput)}: value`;
     case "input":
-      return `inputs.get("${firstInput}", 0.0)`;
+      return `inputs.get(${pythonStringLiteral(firstInput)}, 0.0)`;
     case "parameter":
-      return `params.get("${firstParam}", 1.0)`;
+      return `params.get(${pythonStringLiteral(firstParam)}, 1.0)`;
     default:
-      return `\n    def evaluate(self, inputs, state, params, context):\n        value = float(inputs.get("${firstInput}", 0.0))\n        return {"${firstOutput}": value}, state\n`;
+      return evaluateSnippet(component, inputBindings);
   }
+}
+
+function evaluateSnippet(component, inputBindings) {
+  const bindings = inputBindings.length ? inputBindings : [{ id: "value", varName: "value" }];
+  const inputLines = bindings.map((item) => `        ${item.varName} = float(inputs.get(${pythonStringLiteral(item.id)}, 0.0))`).join("\n");
+  const primaryValue = bindings[0].varName;
+  const outputs = component.nodes.outputs || [];
+  const outputLines = (outputs.length ? outputs : [{ id: "result" }])
+    .map((node) => `            ${pythonStringLiteral(node.id)}: ${primaryValue},`)
+    .join("\n");
+  return `\n    def evaluate(self, inputs, state, params, context):\n${inputLines}\n        return {\n${outputLines}\n        }, state\n`;
+}
+
+function pythonInputBindings(component) {
+  const used = new Set();
+  return (component.nodes.inputs || []).map((node, index) => {
+    const fallback = `input_${index + 1}`;
+    const base = pythonIdentifier(node.id) || fallback;
+    let candidate = base;
+    let suffix = 2;
+    while (used.has(candidate)) {
+      candidate = `${base}_${suffix}`;
+      suffix += 1;
+    }
+    used.add(candidate);
+    return { id: node.id || fallback, varName: candidate };
+  });
+}
+
+function pythonIdentifier(value) {
+  const identifier = String(value || "")
+    .replace(/[^A-Za-z0-9_]/g, "_")
+    .replace(/^([0-9])/, "_$1")
+    .replace(/^_+$/, "");
+  return identifier || "";
+}
+
+function pythonStringLiteral(value) {
+  return JSON.stringify(String(value || ""));
 }
 
 async function saveProjectEdits() {

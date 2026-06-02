@@ -88,6 +88,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("applySourceSaveResponse")) {
 		t.Fatalf("module entrypoint did not include source save response handling")
 	}
+	if !bytes.Contains(body, []byte("evaluateSnippet")) {
+		t.Fatalf("module entrypoint did not include contract-aware evaluate snippets")
+	}
 }
 
 func TestStaticExportWorkspaceModuleServes(t *testing.T) {
