@@ -437,7 +437,7 @@ try {
   if ($ExportJson.export.interface_schema -ne 'schema/public-io.json') {
     throw "workspace export interface schema mismatch: $($ExportJson.export.interface_schema)"
   }
-  foreach ($ExportFile in @('project/project.bcsproj', 'project/graph.json', 'project/components/scalar.py', 'project/inputs/case01.json', 'schema/public-io.json')) {
+  foreach ($ExportFile in @('bin/bcs-runner.exe', 'bin/bcs-env.exe', 'project/project.bcsproj', 'project/graph.json', 'project/components/scalar.py', 'project/inputs/case01.json', 'runtime/python/python.exe', 'schema/public-io.json')) {
     if ($ExportJson.export.files -notcontains $ExportFile) {
       throw "workspace export file missing from manifest: $ExportFile"
     }
@@ -451,11 +451,12 @@ try {
   if (@($ExportSchemaJson.inputs).Count -lt 1 -or @($ExportSchemaJson.outputs).Count -lt 1) {
     throw "workspace export schema missing public inputs or outputs"
   }
+  $ExportRunnerPath = Join-Path (Split-Path -Parent $ExportManifestPath) 'bin\bcs-runner.exe'
   $ExportProjectPath = Join-Path (Split-Path -Parent $ExportManifestPath) 'project\project.bcsproj'
   $ExportInputPath = Join-Path (Split-Path -Parent $ExportManifestPath) 'project\inputs\case01.json'
   $ExportOutputPath = Join-Path $TestRoot 'exported-runtime-output.json'
-  Invoke-Checked $Runner @('validate', '--project', $ExportProjectPath)
-  Invoke-Checked $Runner @('run', '--project', $ExportProjectPath, '--input', $ExportInputPath, '--output', $ExportOutputPath)
+  Invoke-Checked $ExportRunnerPath @('validate', '--project', $ExportProjectPath)
+  Invoke-Checked $ExportRunnerPath @('run', '--project', $ExportProjectPath, '--input', $ExportInputPath, '--output', $ExportOutputPath)
   $ExportRunJson = Get-Content -Raw -LiteralPath $ExportOutputPath | ConvertFrom-Json
   if ($ExportRunJson.outputs.result -ne 21) {
     throw "exported runtime run result mismatch: result=$($ExportRunJson.outputs.result)"

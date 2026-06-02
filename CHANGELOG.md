@@ -63,3 +63,4 @@
 - Return source check results from Studio source saves and stop execution actions when flushed source drafts contain source-check errors.
 - Warn during Studio source checks when required graph inputs or declared outputs are not visibly referenced in component Python source.
 - Show the exported public IO schema path in the Studio Export workspace summary.
+- Copy packaged runner tools and Python runtime into Studio runtime exports when package support files are available.

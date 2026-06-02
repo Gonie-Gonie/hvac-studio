@@ -2266,6 +2266,7 @@ func TestBatchEndpointRejectsExamples(t *testing.T) {
 
 func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	root, server := newIsolatedTestServer(t)
+	seedTestRuntimeSupport(t, root)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Export Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -2321,11 +2322,15 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 		t.Fatalf("runner = %s", body.Export.Runner)
 	}
 	expectedFiles := []string{
+		"bin/bcs-env.exe",
+		"bin/bcs-runner.exe",
 		"project/project.bcsproj",
 		"project/graph.json",
 		"project/components/__init__.py",
 		"project/components/scalar.py",
 		"project/inputs/case01.json",
+		"runtime/manifest.json",
+		"runtime/python/python.exe",
 		"schema/public-io.json",
 	}
 	exportRoot := filepath.Join(root, "projects", "export-project", "exports", "runtime_package")
@@ -2454,6 +2459,24 @@ func seedTestTemplates(t *testing.T, root string) {
 	}
 	if err := copyProjectTree(filepath.Join(repoRoot, "templates"), filepath.Join(root, "templates")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func seedTestRuntimeSupport(t *testing.T, root string) {
+	t.Helper()
+	for rel, content := range map[string]string{
+		"bin/bcs-runner.exe":        "runner",
+		"bin/bcs-env.exe":           "env",
+		"runtime/manifest.json":     `{"runtime":"test"}`,
+		"runtime/python/python.exe": "python",
+	} {
+		path := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

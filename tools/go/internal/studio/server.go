@@ -3027,10 +3027,18 @@ func writeExportManifest(loaded *project.LoadedProject, profile string) (ExportS
 		}
 	}
 	exportRoot := filepath.Join(loaded.Root, "exports", profile)
+	if err := resetGeneratedDir(filepath.Join(loaded.Root, "exports"), exportRoot); err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
 	files, err := writeRuntimeExportProject(loaded, filepath.Join(exportRoot, "project"))
 	if err != nil {
 		return ExportSummary{}, ExportManifest{}, err
 	}
+	supportFiles, err := writeRuntimeExportSupportFiles(loaded.Root, exportRoot)
+	if err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
+	files = append(files, supportFiles...)
 	interfaceSchemaPath := "schema/public-io.json"
 	schema, err := schemaexport.Export(loaded)
 	if err != nil {
@@ -3112,6 +3120,46 @@ func writeRuntimeExportProject(loaded *project.LoadedProject, targetRoot string)
 	return files, nil
 }
 
+func writeRuntimeExportSupportFiles(projectRoot string, exportRoot string) ([]string, error) {
+	supportRoot := findRuntimeSupportRoot(projectRoot)
+	if supportRoot == "" {
+		return []string{}, nil
+	}
+	files := []string{}
+	seen := map[string]bool{}
+	for _, rel := range []string{"bin/bcs-runner.exe", "bin/bcs-env.exe", "runtime/manifest.json"} {
+		if err := copyExternalExportFile(supportRoot, exportRoot, rel, &files, seen); err != nil {
+			return nil, err
+		}
+	}
+	if err := copyExternalExportDir(supportRoot, exportRoot, "runtime/python", &files, seen); err != nil {
+		return nil, err
+	}
+	sort.Strings(files)
+	return files, nil
+}
+
+func findRuntimeSupportRoot(start string) string {
+	absStart, err := filepath.Abs(start)
+	if err != nil {
+		return ""
+	}
+	for {
+		runner := filepath.Join(absStart, "bin", "bcs-runner.exe")
+		python := filepath.Join(absStart, "runtime", "python", "python.exe")
+		if _, runnerErr := os.Stat(runner); runnerErr == nil {
+			if _, pythonErr := os.Stat(python); pythonErr == nil {
+				return absStart
+			}
+		}
+		parent := filepath.Dir(absStart)
+		if parent == absStart {
+			return ""
+		}
+		absStart = parent
+	}
+}
+
 func copyRuntimeExportDir(projectRoot string, targetRoot string, rel string, files *[]string, seen map[string]bool) error {
 	sourceRoot, err := resolveProjectOwnedFile(projectRoot, rel)
 	if err != nil {
@@ -3151,6 +3199,42 @@ func copyRuntimeExportDir(projectRoot string, targetRoot string, rel string, fil
 	})
 }
 
+func copyExternalExportDir(sourceRoot string, targetRoot string, rel string, files *[]string, seen map[string]bool) error {
+	sourcePath := filepath.Join(sourceRoot, filepath.FromSlash(rel))
+	info, err := os.Stat(sourcePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return apperror.Errorf(apperror.CodeValidation, "export support source is not a directory: %s", rel)
+	}
+	return filepath.WalkDir(sourcePath, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		sourceRel, err := filepath.Rel(sourcePath, path)
+		if err != nil {
+			return err
+		}
+		if sourceRel == "." {
+			return nil
+		}
+		if entry.IsDir() && entry.Name() == "__pycache__" {
+			return filepath.SkipDir
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(entry.Name(), ".pyc") || strings.HasSuffix(entry.Name(), ".pyo") {
+			return nil
+		}
+		return copyExternalExportFile(sourceRoot, targetRoot, filepath.Join(rel, sourceRel), files, seen)
+	})
+}
+
 func copyRuntimeExportFile(projectRoot string, targetRoot string, rel string, files *[]string, seen map[string]bool) error {
 	if rel == "" || rel == "." {
 		return nil
@@ -3178,6 +3262,41 @@ func copyRuntimeExportFile(projectRoot string, targetRoot string, rel string, fi
 		return err
 	}
 	targetPath := filepath.Join(targetRoot, ownedRel)
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(targetPath, bytes, info.Mode().Perm()); err != nil {
+		return err
+	}
+	seen[artifactPath] = true
+	*files = append(*files, artifactPath)
+	return nil
+}
+
+func copyExternalExportFile(sourceRoot string, targetRoot string, rel string, files *[]string, seen map[string]bool) error {
+	if rel == "" || rel == "." {
+		return nil
+	}
+	artifactPath := filepath.ToSlash(rel)
+	if seen[artifactPath] {
+		return nil
+	}
+	sourcePath := filepath.Join(sourceRoot, filepath.FromSlash(rel))
+	info, err := os.Stat(sourcePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		return nil
+	}
+	bytes, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return err
+	}
+	targetPath := filepath.Join(targetRoot, filepath.FromSlash(rel))
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
 		return err
 	}
