@@ -62,3 +62,4 @@
 - Store component-linked Problems metadata for failed Studio batch cases and surface those problems when batch records are opened.
 - Return source check results from Studio source saves and stop execution actions when flushed source drafts contain source-check errors.
 - Warn during Studio source checks when required graph inputs or declared outputs are not visibly referenced in component Python source.
+- Show the exported public IO schema path in the Studio Export workspace summary.

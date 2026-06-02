@@ -107,6 +107,9 @@ func TestStaticExportWorkspaceModuleServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("renderExportWorkspace")) {
 		t.Fatalf("export workspace module did not contain renderer")
 	}
+	if !bytes.Contains(body, []byte("Interface schema")) {
+		t.Fatalf("export workspace module did not render interface schema")
+	}
 }
 
 func TestCreateProjectEndpointCreatesWorkspaceProject(t *testing.T) {

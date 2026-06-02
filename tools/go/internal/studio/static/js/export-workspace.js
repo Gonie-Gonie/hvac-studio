@@ -14,6 +14,7 @@ function exportManifestFor(state) {
     project_path: "project/project.bcsproj",
     graph_path: "project/graph.json",
     default_input: state.detail?.project?.default_input ? `project/${state.detail.project.default_input}` : "",
+    interface_schema: "schema/public-io.json",
     runner: "bin/bcs-runner.exe",
     runtime_python: "runtime/python/python.exe",
     files: [],
@@ -30,6 +31,7 @@ function renderSummaryRows(state, manifest, tbody) {
     ["Status", status],
     ["Project", manifest.project_path || ""],
     ["Default input", manifest.default_input || ""],
+    ["Interface schema", manifest.interface_schema || ""],
     ["Files", String((manifest.files || []).length)],
   ];
   if (manifest.created_at_utc) rows.splice(2, 0, ["Created", manifest.created_at_utc]);
