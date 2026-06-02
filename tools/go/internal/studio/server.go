@@ -938,7 +938,16 @@ func (s *Server) handleUpdateSource(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "source": source})
+	check, err := checkComponentSource(r.Context(), loaded, sourceCheckRequest{
+		ProjectPath: req.ProjectPath,
+		ComponentID: req.ComponentID,
+		Content:     req.Content,
+	})
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "source": source, "check": check})
 }
 
 func (s *Server) handleCreateScenario(w http.ResponseWriter, r *http.Request) {

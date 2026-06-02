@@ -85,6 +85,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("openProblem")) {
 		t.Fatalf("module entrypoint did not include problem navigation")
 	}
+	if !bytes.Contains(body, []byte("applySourceSaveResponse")) {
+		t.Fatalf("module entrypoint did not include source save response handling")
+	}
 }
 
 func TestStaticExportWorkspaceModuleServes(t *testing.T) {
@@ -1715,6 +1718,22 @@ func TestUpdateSourceEndpointWritesWorkspaceSource(t *testing.T) {
 	server.Handler().ServeHTTP(response, request)
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Source SourceDetail `json:"source"`
+		Check  SourceCheck  `json:"check"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Source.Content != content {
+		t.Fatalf("response source = %q", body.Source.Content)
+	}
+	if body.Check.OK {
+		t.Fatal("source save check should report missing evaluate")
+	}
+	if len(body.Check.Problems) == 0 {
+		t.Fatal("source save check returned no problems")
 	}
 	sourceBytes, err := os.ReadFile(filepath.Join(root, "projects", "source-project", "components", "scalar.py"))
 	if err != nil {

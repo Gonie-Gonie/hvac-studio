@@ -236,6 +236,7 @@ Acceptance criteria:
 - Problems, results, schema, logs, inspector, parameters, run output, and runtime export workspaces are visible in the active shell. Started.
 - Export button can write a workspace `exports/runtime_package/` artifact with manifest, public IO schema, and source-of-truth project files. Started.
 - Problems panel links validation, run, and batch-case messages to graph or source locations where possible. Started with inferred component links for runtime errors.
+- Source save returns source-check feedback and execution actions stop on saved source-check errors. Started.
 
 ## Milestone 5: Component-Aware Python Editor
 

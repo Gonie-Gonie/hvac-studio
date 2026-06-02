@@ -87,6 +87,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Deleting a component artifact is allowed only after it is out of every system and has no connection references; then graph entry and unshared source file are removed together.
 - Duplicating a component should copy its graph contract, parameters, and Python source as a new unused component; system assembly remains explicit through `Use`.
 - Source checks should catch obvious authoring errors before execution: expected class name, `evaluate`/`initialize` signatures, return-shape hints, and Python syntax when a runtime is available.
+- Saving a Python source file should return the current source check result; execution actions should stop on saved source-check errors instead of letting users discover obvious contract breaks through later runtime failures.
 - Studio project validation should combine graph compilation with Python source contract checks for all `user_python` components, so Validate reflects the actual component-node-system authoring contract.
 - Batch execution should start with saved scenarios and write explicit `runs/batch-*.json` artifacts before adding dataset-scale orchestration.
 - Failed batch cases should retain structured Problems metadata so reopening a batch record can still guide the user back to the component/source surface.

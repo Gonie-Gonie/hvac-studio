@@ -955,6 +955,7 @@ async function saveModelEditsBeforeExecution() {
   if (!isWorkspaceProject()) return true;
   const parameters = collectParameterUpdates();
   const sourceUpdates = collectSourceUpdates();
+  const sourceProblems = [];
   try {
     if (Object.keys(parameters).length) {
       const body = await api("/api/project/parameters", {
@@ -968,9 +969,16 @@ async function saveModelEditsBeforeExecution() {
         method: "POST",
         body: JSON.stringify({ project_path: state.currentProjectPath, component_id: sourceUpdate.component_id, content: sourceUpdate.content }),
       });
-      state.sourceByComponent[sourceUpdate.component_id] = sourceBody.source;
-      state.sourceDraftByComponent[sourceUpdate.component_id] = sourceBody.source.content;
+      sourceProblems.push(...applySourceSaveResponse(sourceUpdate.component_id, sourceBody));
     }
+    if (sourceProblems.some((problem) => problem.severity === "error")) {
+      state.latestValidation = { problems: sourceProblems };
+      renderProblems();
+      setBottomTab("problems");
+      log("Source validation failed before execution");
+      return false;
+    }
+    if (sourceProblems.length) state.latestValidation = { problems: sourceProblems };
     return true;
   } catch (error) {
     log(`Save before execution failed: ${error.message}`);
@@ -1066,9 +1074,11 @@ async function saveCurrentSource() {
       method: "POST",
       body: JSON.stringify({ project_path: state.currentProjectPath, component_id: component.id, content }),
     });
-    state.sourceByComponent[component.id] = body.source;
-    state.sourceDraftByComponent[component.id] = body.source.content;
+    const sourceProblems = applySourceSaveResponse(component.id, body);
+    state.latestValidation = { problems: sourceProblems };
     renderPythonPanel();
+    renderProblems();
+    if (sourceProblems.length) setBottomTab("problems");
     log(`Source saved: ${component.id}`);
   } catch (error) {
     log(`Source save failed: ${error.message}`);
@@ -1076,6 +1086,14 @@ async function saveCurrentSource() {
     renderProblems();
     setBottomTab("problems");
   }
+}
+
+function applySourceSaveResponse(componentID, body) {
+  state.sourceByComponent[componentID] = body.source;
+  state.sourceDraftByComponent[componentID] = body.source.content;
+  if (!body.check) return [];
+  state.sourceCheckByComponent[componentID] = body.check;
+  return body.check.problems || [];
 }
 
 async function checkCurrentSource() {
@@ -1151,6 +1169,7 @@ async function saveProjectEdits() {
   const inputs = collectRunInputs();
   const context = currentRunContext();
   const sourceUpdates = collectSourceUpdates();
+  const sourceProblems = [];
   try {
     let body = await api("/api/project/input", {
       method: "POST",
@@ -1167,12 +1186,13 @@ async function saveProjectEdits() {
         method: "POST",
         body: JSON.stringify({ project_path: state.currentProjectPath, component_id: sourceUpdate.component_id, content: sourceUpdate.content }),
       });
-      state.sourceByComponent[sourceUpdate.component_id] = sourceBody.source;
-      state.sourceDraftByComponent[sourceUpdate.component_id] = sourceBody.source.content;
+      sourceProblems.push(...applySourceSaveResponse(sourceUpdate.component_id, sourceBody));
     }
     state.detail = body.project;
+    if (sourceProblems.length) state.latestValidation = { problems: sourceProblems };
     el("saveProjectButton").classList.remove("dirty");
     renderAll();
+    if (sourceProblems.some((problem) => problem.severity === "error")) setBottomTab("problems");
     log("Project saved");
   } catch (error) {
     log(`Save failed: ${error.message}`);
