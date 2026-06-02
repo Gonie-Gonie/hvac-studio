@@ -653,7 +653,7 @@ function renderResults() {
 }
 
 function renderRunWorkspace() {
-  renderRunOutputWorkspace(state, el("runSummaryRows"), el("runOutputChart"));
+  renderRunOutputWorkspace(state, el("runSummaryRows"), el("runOutputRows"), el("runOutputChart"));
 }
 
 function renderSchema() {

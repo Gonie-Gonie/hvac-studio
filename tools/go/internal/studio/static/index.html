@@ -114,20 +114,37 @@
           </section>
 
           <section id="runView" class="view split-workspace">
-            <div class="table-shell">
-              <div class="table-title">Latest Run</div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Item</th>
-                    <th>Value</th>
-                    <th>Source</th>
-                  </tr>
-                </thead>
-                <tbody id="runSummaryRows">
-                  <tr><td colspan="3" class="empty-cell">No run yet</td></tr>
-                </tbody>
-              </table>
+            <div class="stacked-workspace">
+              <div class="table-shell">
+                <div class="table-title">Latest Run</div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>Value</th>
+                      <th>Source</th>
+                    </tr>
+                  </thead>
+                  <tbody id="runSummaryRows">
+                    <tr><td colspan="3" class="empty-cell">No run yet</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="table-shell">
+                <div class="table-title">Public Outputs</div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Output</th>
+                      <th>Value</th>
+                      <th>Source</th>
+                    </tr>
+                  </thead>
+                  <tbody id="runOutputRows">
+                    <tr><td colspan="3" class="empty-cell">No outputs yet</td></tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
             <div class="chart-panel">
               <div class="table-title">Run Output Preview</div>

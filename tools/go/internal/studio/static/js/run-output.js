@@ -1,9 +1,10 @@
 import { escapeHTML } from "./dom.js";
 import { formatValue } from "./format.js";
 
-export function renderRunOutputWorkspace(state, summary, chart) {
-  if (!summary || !chart) return;
+export function renderRunOutputWorkspace(state, summary, outputRows, chart) {
+  if (!summary || !outputRows || !chart) return;
   renderRunSummary(state, summary);
+  renderPublicOutputs(state, outputRows);
   renderOutputChart(state, chart);
 }
 
@@ -22,6 +23,26 @@ function renderRunSummary(state, summary) {
       <td>${escapeHTML(item.source)}</td>
     `;
     summary.append(row);
+  }
+}
+
+function renderPublicOutputs(state, tbody) {
+  tbody.innerHTML = "";
+  const context = latestResultContext(state);
+  const outputs = context.result?.outputs || {};
+  const entries = Object.entries(outputs);
+  if (!entries.length) {
+    tbody.innerHTML = `<tr><td colspan="3" class="empty-cell">No outputs yet</td></tr>`;
+    return;
+  }
+  for (const [name, value] of entries) {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${escapeHTML(name)}</td>
+      <td>${escapeHTML(formatValue(value))}</td>
+      <td>${escapeHTML(context.source)}</td>
+    `;
+    tbody.append(row);
   }
 }
 
@@ -89,11 +110,17 @@ function resultSummaryRows(result, source) {
 }
 
 function latestNumericOutputs(state) {
-  const result = state.latestResult || state.latestRunRecord?.result || firstBatchResult(state);
-  const outputs = result?.outputs || {};
+  const outputs = latestResultContext(state).result?.outputs || {};
   return Object.entries(outputs)
     .filter(([, value]) => typeof value === "number" && Number.isFinite(value))
     .map(([id, value]) => ({ id, value }));
+}
+
+function latestResultContext(state) {
+  if (state.latestBatchRecord) return { result: firstBatchResult(state), source: "first ok case" };
+  if (state.latestRunRecord) return { result: state.latestRunRecord.result, source: "saved run" };
+  if (state.latestResult) return { result: state.latestResult, source: "current run" };
+  return { result: null, source: "" };
 }
 
 function firstBatchResult(state) {
