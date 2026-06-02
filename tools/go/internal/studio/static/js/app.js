@@ -1864,15 +1864,50 @@ function handleSourceEditorKeydown(event) {
     saveCurrentSource();
     return;
   }
+  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+    event.preventDefault();
+    checkCurrentSource();
+    return;
+  }
   if (event.key === "Tab") {
     event.preventDefault();
-    const editor = event.target;
-    const start = editor.selectionStart;
-    const end = editor.selectionEnd;
+    handleSourceIndent(event.target, event.shiftKey);
+  }
+}
+
+function handleSourceIndent(editor, outdent) {
+  const start = editor.selectionStart ?? 0;
+  const end = editor.selectionEnd ?? start;
+  if (!outdent && start === end) {
     editor.value = `${editor.value.slice(0, start)}    ${editor.value.slice(end)}`;
     editor.selectionStart = editor.selectionEnd = start + 4;
     updateSourceDraftFromEditor(editor);
+    return;
   }
+
+  const value = editor.value;
+  const lineStart = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+  const adjustedEnd = end > start && value[end - 1] === "\n" ? end - 1 : end;
+  const nextLineBreak = value.indexOf("\n", adjustedEnd);
+  const lineEnd = nextLineBreak < 0 ? value.length : nextLineBreak;
+  const selected = value.slice(lineStart, lineEnd);
+  const lines = selected.split("\n");
+  const transformed = lines.map((line) => (outdent ? outdentLine(line) : `    ${line}`));
+  const replacement = transformed.join("\n");
+  const delta = replacement.length - selected.length;
+  const firstLineDelta = transformed[0].length - lines[0].length;
+
+  editor.value = `${value.slice(0, lineStart)}${replacement}${value.slice(lineEnd)}`;
+  editor.selectionStart = Math.max(lineStart, start + firstLineDelta);
+  editor.selectionEnd = Math.max(editor.selectionStart, end + delta);
+  updateSourceDraftFromEditor(editor);
+}
+
+function outdentLine(line) {
+  if (line.startsWith("    ")) return line.slice(4);
+  if (line.startsWith("\t")) return line.slice(1);
+  const leadingSpaces = line.match(/^ +/)?.[0]?.length || 0;
+  return line.slice(Math.min(4, leadingSpaces));
 }
 
 function syncSourceGutterScroll(event) {

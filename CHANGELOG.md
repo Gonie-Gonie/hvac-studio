@@ -73,3 +73,4 @@
 - Document first-use package checks, Python source editing, runtime export, and export troubleshooting in the user guide.
 - Show source-check issues in the Studio Code workspace contract panel with clickable source-line navigation.
 - Extend Studio source checks to execute draft source loading so import and class-load errors are reported before run/export.
+- Add Python editor keyboard handling for save, check, multi-line indent, and outdent.

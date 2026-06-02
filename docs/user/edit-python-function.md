@@ -12,6 +12,8 @@ The source checker validates the expected Python class name, the presence of `ev
 
 Line-specific source-check rows can be clicked from the Code workspace or Problems panel to focus the editor line.
 
+The editor supports tab indentation and outdent for selected Python lines. `Ctrl+S` saves the current source, and `Ctrl+Enter` runs the source check.
+
 ## Component Class Shape
 
 ```python

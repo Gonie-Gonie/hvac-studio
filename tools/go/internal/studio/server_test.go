@@ -97,6 +97,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("sourceIssueBlock")) {
 		t.Fatalf("module entrypoint did not include source issue panel rendering")
 	}
+	if !bytes.Contains(body, []byte("handleSourceIndent")) {
+		t.Fatalf("module entrypoint did not include source indentation handling")
+	}
 }
 
 func TestStaticExportWorkspaceModuleServes(t *testing.T) {

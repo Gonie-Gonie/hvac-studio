@@ -81,6 +81,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Direct Python authoring belongs in a first-class Code workspace with component contract context, source drafts, explicit save/revert/check actions, and snippets; source files remain the source of truth.
 - Code snippets should be generated from the selected component's graph contract, especially all declared input/output nodes, so they teach the actual component shape rather than a one-node toy shape.
 - Source-check feedback should be visible inside the Code workspace itself, not only in the global Problems panel, and line-specific issues should focus the editor line.
+- The Python editor should preserve familiar code-editing mechanics such as save/check shortcuts and line-based indent/outdent, without adding visible shortcut tutorial text inside the app UI.
 - Scenarios should start as explicit project artifacts under `scenarios/`, created from current run inputs/context, before adding richer dataset and validation workflows.
 - Saved scenarios should be reusable immediately in Studio by reopening them into the Run Inputs panel.
 - Studio execution actions should flush workspace model edits that affect runtime behavior, especially component parameters and Python source, before invoking run/export paths.
