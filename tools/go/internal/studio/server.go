@@ -2121,8 +2121,23 @@ func checkComponentSource(ctx context.Context, loaded *project.LoadedProject, re
 	} else if line := findPythonClassLine(req.Content, expectedClass); line == 0 {
 		check.Problems = append(check.Problems, Problem{Severity: "error", Message: fmt.Sprintf("expected class is missing: %s", expectedClass), ComponentID: componentID})
 	}
-	if line := findPythonMethodLine(req.Content, "evaluate"); line == 0 {
+	if line, params := findPythonMethodSignature(req.Content, "evaluate"); line == 0 {
 		check.Problems = append(check.Problems, Problem{Severity: "error", Message: "evaluate method is missing", ComponentID: componentID})
+	} else if !pythonMethodSignatureMatches(params, []string{"self", "inputs", "state", "params", "context"}) {
+		check.Problems = append(check.Problems, Problem{
+			Severity:    "error",
+			Message:     "evaluate signature must be (self, inputs, state, params, context)",
+			ComponentID: componentID,
+			Line:        line,
+		})
+	}
+	if line, params := findPythonMethodSignature(req.Content, "initialize"); line != 0 && !pythonMethodSignatureMatches(params, []string{"self", "params", "context"}) {
+		check.Problems = append(check.Problems, Problem{
+			Severity:    "error",
+			Message:     "initialize signature must be (self, params, context)",
+			ComponentID: componentID,
+			Line:        line,
+		})
 	}
 	if !strings.Contains(req.Content, "return") {
 		check.Problems = append(check.Problems, Problem{Severity: "warning", Message: "source has no return statement", ComponentID: componentID})
@@ -2200,9 +2215,48 @@ func findPythonClassLine(content string, className string) int {
 	return regexpLine(content, pattern.FindStringIndex(content))
 }
 
-func findPythonMethodLine(content string, methodName string) int {
-	pattern := regexp.MustCompile(`(?m)^\s+def\s+` + regexp.QuoteMeta(methodName) + `\s*\(`)
-	return regexpLine(content, pattern.FindStringIndex(content))
+func findPythonMethodSignature(content string, methodName string) (int, []string) {
+	pattern := regexp.MustCompile(`(?m)^\s+def\s+` + regexp.QuoteMeta(methodName) + `\s*\(([^)]*)\)`)
+	match := pattern.FindStringSubmatchIndex(content)
+	if len(match) < 4 {
+		return 0, nil
+	}
+	return regexpLine(content, match[:2]), pythonParameterNames(content[match[2]:match[3]])
+}
+
+func pythonParameterNames(signature string) []string {
+	parts := strings.Split(signature, ",")
+	names := []string{}
+	for _, part := range parts {
+		name := strings.TrimSpace(part)
+		if name == "" {
+			continue
+		}
+		name = strings.TrimLeft(name, "*")
+		if index := strings.Index(name, "="); index >= 0 {
+			name = name[:index]
+		}
+		if index := strings.Index(name, ":"); index >= 0 {
+			name = name[:index]
+		}
+		name = strings.TrimSpace(name)
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+func pythonMethodSignatureMatches(actual []string, expected []string) bool {
+	if len(actual) != len(expected) {
+		return false
+	}
+	for i := range expected {
+		if actual[i] != expected[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func regexpLine(content string, match []int) int {

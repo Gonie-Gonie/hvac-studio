@@ -1718,6 +1718,55 @@ func TestCheckSourceEndpointReportsContractProblems(t *testing.T) {
 	}
 }
 
+func TestCheckSourceEndpointReportsEvaluateSignatureProblem(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Source Signature Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "scalar",
+		"content":      "class ScalarComponent:\n    def evaluate(self, inputs):\n        return {\"result\": 1}, {}\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/source/check", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Check SourceCheck `json:"check"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Check.OK {
+		t.Fatal("source check should fail when evaluate signature is wrong")
+	}
+	if len(body.Check.Problems) != 1 {
+		t.Fatalf("problems = %#v", body.Check.Problems)
+	}
+	if !strings.Contains(body.Check.Problems[0].Message, "evaluate signature") {
+		t.Fatalf("problem = %#v", body.Check.Problems[0])
+	}
+	if body.Check.Problems[0].Line != 2 {
+		t.Fatalf("line = %d, want 2", body.Check.Problems[0].Line)
+	}
+}
+
 func TestCheckSourceEndpointAcceptsWorkspaceSource(t *testing.T) {
 	root, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()

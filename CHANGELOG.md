@@ -54,3 +54,4 @@
 - Add a detailed Studio export workspace view for runtime export summary, file list, and manifest JSON.
 - Add a public output table to the Studio Run workspace alongside run summary and output chart.
 - Extend Studio project validation to check user Python component source contracts and surface component-linked source problems.
+- Add Studio source contract checks for `evaluate` and `initialize` Python method signatures before runtime execution.
