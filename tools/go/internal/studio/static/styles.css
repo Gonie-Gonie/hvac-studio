@@ -534,6 +534,13 @@ h2,
   display: grid;
 }
 
+.stacked-workspace {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
 .table-shell {
   border: 1px solid var(--line);
   border-radius: 8px;

@@ -136,20 +136,35 @@
           </section>
 
           <section id="exportView" class="view split-workspace">
-            <div class="table-shell">
-              <div class="table-title">Runtime Export</div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Profile</th>
-                    <th>Runtime</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr><td>Runtime Package</td><td>windows-amd64</td><td>available</td></tr>
-                </tbody>
-              </table>
+            <div class="stacked-workspace">
+              <div class="table-shell">
+                <div class="table-title">Runtime Export</div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody id="exportSummaryRows">
+                    <tr><td colspan="2" class="empty-cell">No export yet</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="table-shell">
+                <div class="table-title">Exported Files</div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Path</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="exportFileRows">
+                    <tr><td colspan="2" class="empty-cell">No files written yet</td></tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
             <pre id="exportManifest" class="code-pane"></pre>
           </section>

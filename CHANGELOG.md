@@ -51,3 +51,4 @@
 - Remove unimplemented Studio future workspaces from the active UI and promote actual run output state into a focused Run workspace.
 - Expand Studio runtime export from a manifest-only artifact to a project artifact containing source-of-truth project files.
 - Verify exported Studio runtime project artifacts can be loaded, compiled, and run by packaged release smoke tests.
+- Add a detailed Studio export workspace view for runtime export summary, file list, and manifest JSON.

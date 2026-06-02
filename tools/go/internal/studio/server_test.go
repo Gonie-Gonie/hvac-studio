@@ -78,6 +78,28 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
 		t.Fatalf("module entrypoint did not contain expected imports")
 	}
+	if !bytes.Contains(body, []byte(`from "./export-workspace.js"`)) {
+		t.Fatalf("module entrypoint did not import export workspace renderer")
+	}
+}
+
+func TestStaticExportWorkspaceModuleServes(t *testing.T) {
+	server := newTestServer(t)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/js/export-workspace.js", nil)
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(body, []byte("renderExportWorkspace")) {
+		t.Fatalf("export workspace module did not contain renderer")
+	}
 }
 
 func TestCreateProjectEndpointCreatesWorkspaceProject(t *testing.T) {

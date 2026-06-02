@@ -7,6 +7,7 @@ import {
   parameterInputValue,
   sampleValueFor,
 } from "./format.js";
+import { renderExportWorkspace } from "./export-workspace.js";
 import { renderRunOutputWorkspace } from "./run-output.js";
 import { state } from "./state.js";
 
@@ -73,7 +74,7 @@ function renderAll() {
   renderSchema();
   renderRunWorkspace();
   renderPythonPanel();
-  renderExportManifest();
+  renderExportWorkspaceView();
   const project = state.detail?.project;
   el("systemTitle").textContent = project?.entry_system || "System";
   el("systemSubtitle").textContent = project ? `${project.project_name} / ${state.detail.graph_path}` : "";
@@ -805,18 +806,8 @@ function updateLineNumbers(value) {
   gutter.textContent = Array.from({ length: lines }, (_, index) => String(index + 1)).join("\n");
 }
 
-function renderExportManifest() {
-  const manifest = state.latestExport || {
-    profile: "runtime_package",
-    project_root: "project",
-    project_path: "project/project.bcsproj",
-    graph_path: "project/graph.json",
-    default_input: state.detail?.project?.default_input ? `project/${state.detail.project.default_input}` : "",
-    runner: "bin/bcs-runner.exe",
-    runtime_python: "runtime/python/python.exe",
-    files: [],
-  };
-  el("exportManifest").textContent = JSON.stringify(manifest, null, 2);
+function renderExportWorkspaceView() {
+  renderExportWorkspace(state, el("exportSummaryRows"), el("exportFileRows"), el("exportManifest"));
 }
 
 async function validateProject() {
@@ -1144,7 +1135,7 @@ async function exportProject() {
     state.latestExport = body.export;
     state.detail.exports = [body.summary, ...(state.detail.exports || []).filter((item) => item.profile !== body.summary.profile)];
     renderProjectTree();
-    renderExportManifest();
+    renderExportWorkspaceView();
     setMode("export");
     log(`Export manifest written: ${body.summary.relative_path}`);
   } catch (error) {
