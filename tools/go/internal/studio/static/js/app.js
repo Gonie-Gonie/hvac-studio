@@ -864,7 +864,7 @@ function updateSourceChrome(component, source, draft) {
       status.classList.add("ok");
     }
   }
-  for (const id of ["saveSourceButton", "revertSourceButton", "checkSourceButton", "insertSnippetButton", "sourceSnippetSelect"]) {
+  for (const id of ["saveSourceButton", "saveRunSourceButton", "revertSourceButton", "checkSourceButton", "insertSnippetButton", "sourceSnippetSelect"]) {
     const control = el(id);
     if (control) control.disabled = !component || !source || (id !== "checkSourceButton" && !editable);
   }
@@ -2047,6 +2047,7 @@ function bindEvents() {
   el("exportButton").addEventListener("click", exportProject);
   el("sourceComponentSelect").addEventListener("change", (event) => selectComponent(event.target.value));
   el("saveSourceButton").addEventListener("click", saveCurrentSource);
+  el("saveRunSourceButton").addEventListener("click", runProject);
   el("checkSourceButton").addEventListener("click", checkCurrentSource);
   el("revertSourceButton").addEventListener("click", revertCurrentSource);
   el("insertSnippetButton").addEventListener("click", insertSourceSnippet);

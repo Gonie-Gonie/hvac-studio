@@ -112,6 +112,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("selectedConnectionId")) {
 		t.Fatalf("module entrypoint did not include canvas connection selection state")
 	}
+	if !bytes.Contains(body, []byte("saveRunSourceButton")) {
+		t.Fatalf("module entrypoint did not include source save-and-run action binding")
+	}
 }
 
 func TestStaticExportWorkspaceModuleServes(t *testing.T) {
