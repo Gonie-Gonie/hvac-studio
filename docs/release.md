@@ -52,7 +52,9 @@ hvac-studio-<version>-windows-amd64-portable/
 
 The runtime-only package is for delivery/external-engine integration and does not include the Studio GUI.
 
-Both MVP packages include a bundled Python runtime under `runtime/python`, copied from the repo-local setup toolchain. Included examples run without system Python on `PATH`. Project-specific third-party package locking and dependency freezing are still later milestones.
+Both MVP packages include `bin/bcs-env.exe` and a bundled Python runtime under `runtime/python`, copied from the repo-local setup toolchain. Included examples run without system Python on `PATH`. Project-specific third-party package locking and dependency freezing are still later milestones.
+
+`bcs-env.exe check` verifies the package root, bundled Python runtime, Python worker, SDK, schemas, examples, and required executables. Release smoke tests call it with `--json` before running examples or Studio API checks.
 
 Studio desktop binaries are built through `scripts/release/build-studio.ps1` with Wails production tags: `-tags desktop,production`. A plain `go build` can compile but show a Wails runtime error dialog instead of opening the app window.
 
@@ -69,7 +71,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-porta
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-runtime-package.ps1 -Version 0.1.0-dev
 ```
 
-The portable package smoke test expands the zip, verifies `HVAC Studio.exe`, `bin/studio.exe`, `bcs-runner.exe`, `bcs-env.exe`, and `runtime/python/python.exe`, constrains `PATH` so system Python is not used, briefly launches the Wails desktop entrypoint, runs the feed-forward example through the CLI, starts `bin/studio.exe --server`, and exercises the Studio API workflow.
+The portable package smoke test expands the zip, verifies `HVAC Studio.exe`, `bin/studio.exe`, `bcs-runner.exe`, `bcs-env.exe`, and `runtime/python/python.exe`, constrains `PATH` so system Python is not used, runs `bcs-env.exe check --json`, briefly launches the Wails desktop entrypoint, runs the feed-forward example through the CLI, starts `bin/studio.exe --server`, and exercises the Studio API workflow.
 
 Current portable Studio smoke coverage:
 

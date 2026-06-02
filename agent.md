@@ -88,6 +88,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Release packaging must work from untagged development checkouts by falling back to a dev version with the current short SHA.
 - The portable Studio package should have a user-facing root `HVAC Studio.exe` that opens a native Wails desktop window without launching a browser or binding a normal-use TCP port; `bin/studio.exe --server` remains the automation/server-only entrypoint.
 - Wails desktop binaries must be built with the Wails production tags (`-tags desktop,production`); plain `go build` can produce a runtime error dialog even when compilation succeeds.
+- User-facing package tools should not be placeholders. `bcs-env.exe check` is now the package self-diagnostic for Python runtime, worker, SDK, schema, examples, and entrypoints, and release smoke tests should keep using it.
 - User documentation is part of the product. Keep Markdown source under `docs/user/`, explain both user workflows and the internal execution model users need to reason correctly, and plan for MkDocs HTML, in-app help, PDF manual, and release assets.
 
 ## Monitoring Checklist

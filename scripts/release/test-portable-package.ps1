@@ -88,7 +88,17 @@ try {
   $Output = Join-Path $PackageDir.FullName 'outputs\003_feedforward_system.json'
 
   Invoke-Checked $PackagedPython @('--version')
-  Invoke-Checked $EnvTool @()
+  $EnvStatusRaw = & $EnvTool check --root $PackageDir.FullName --json
+  if ($LASTEXITCODE -ne 0) {
+    throw "bcs-env check failed: $EnvStatusRaw"
+  }
+  $EnvStatus = $EnvStatusRaw | ConvertFrom-Json
+  if (-not $EnvStatus.ok) {
+    throw "bcs-env reported package problems: $($EnvStatus.problems -join '; ')"
+  }
+  if ($EnvStatus.mode -ne 'portable-studio') {
+    throw "bcs-env mode mismatch: $($EnvStatus.mode)"
+  }
   Invoke-Checked $Runner @('validate', '--project', $Project)
   Invoke-Checked $Runner @('run', '--project', $Project, '--input', $Input, '--output', $Output)
 

@@ -30,12 +30,26 @@ try {
   }
 
   $Runner = Join-Path $PackageDir.FullName 'bin\bcs-runner.exe'
+  $EnvTool = Join-Path $PackageDir.FullName 'bin\bcs-env.exe'
   $PackagedPython = Join-Path $PackageDir.FullName 'runtime\python\python.exe'
-  if (-not (Test-Path -LiteralPath $PackagedPython)) {
-    throw "runtime package is missing $PackagedPython"
+  foreach ($RequiredPath in @($Runner, $EnvTool, $PackagedPython)) {
+    if (-not (Test-Path -LiteralPath $RequiredPath)) {
+      throw "runtime package is missing $RequiredPath"
+    }
   }
   $env:PATH = Get-MinimalPackagePath -PackageRoot $PackageDir.FullName
   Invoke-Checked $PackagedPython @('--version')
+  $EnvStatusRaw = & $EnvTool check --root $PackageDir.FullName --json
+  if ($LASTEXITCODE -ne 0) {
+    throw "bcs-env check failed: $EnvStatusRaw"
+  }
+  $EnvStatus = $EnvStatusRaw | ConvertFrom-Json
+  if (-not $EnvStatus.ok) {
+    throw "bcs-env reported runtime package problems: $($EnvStatus.problems -join '; ')"
+  }
+  if ($EnvStatus.mode -ne 'runtime-package') {
+    throw "bcs-env mode mismatch: $($EnvStatus.mode)"
+  }
 
   $Projects = Get-ChildItem -LiteralPath (Join-Path $PackageDir.FullName 'examples') -Recurse -Filter 'project.bcsproj' |
     Sort-Object FullName

@@ -470,6 +470,7 @@ Target package shape:
 DeliveredModel/
   bin/
     bcs-runner.exe
+    bcs-env.exe
   model/
     project.bcsproj
     graph.json
@@ -493,11 +494,13 @@ Delivery requirements:
 - Logs.
 - Clear exit codes.
 - Structured errors for external engines.
+- Package environment check through `bcs-env.exe check`.
 
 Acceptance criteria:
 
 - Release package vendors Python runtime or a frozen project environment.
 - Package smoke test validates and runs without system Python.
+- Runtime and portable smoke tests run `bcs-env.exe check --json` before runner/API checks.
 - CLI guide and schemas are included in the package.
 
 ## Milestone 13: Installed Studio Distribution
@@ -535,6 +538,7 @@ Acceptance criteria:
 - Portable package launches Studio from `HVAC Studio.exe` as a Wails desktop app without launching a browser or binding a normal-use TCP port.
 - Portable package can create projects under `projects/`.
 - CLI runner validates and runs included examples using bundled `runtime/python`.
+- `bcs-env.exe check` verifies packaged Python, worker, schemas, examples, and entrypoints.
 - Package smoke test exercises Studio API and runner CLI after zip expansion.
 - Installer work does not start until portable zip behavior is reproducible.
 - macOS packaging remains a deliberate post-MVP release target, not an implicit promise.

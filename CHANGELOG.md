@@ -45,3 +45,4 @@
 - Add a dedicated Studio Code workspace for direct Python source editing, snippets, contract context, and source checks.
 - Add a double-clickable portable Studio entrypoint backed by a Wails desktop window, with `bin/studio.exe --server` reserved for API automation.
 - Build Wails Studio binaries with the required production tags and make portable smoke detect Wails error dialogs.
+- Replace the placeholder `bcs-env` command with a package environment checker used by portable and runtime smoke tests.

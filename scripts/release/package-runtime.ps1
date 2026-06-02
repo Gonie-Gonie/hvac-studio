@@ -25,6 +25,7 @@ Remove-Item -LiteralPath $ZipPath -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $StageRoot | Out-Null
 
 Copy-Tree -Source (Join-Path $RepoRoot 'bin\bcs-runner.exe') -Destination (Join-Path $StageRoot 'bin\bcs-runner.exe')
+Copy-Tree -Source (Join-Path $RepoRoot 'bin\bcs-env.exe') -Destination (Join-Path $StageRoot 'bin\bcs-env.exe')
 Copy-Tree -Source (Join-Path $RepoRoot 'python\bcs_worker') -Destination (Join-Path $StageRoot 'python\bcs_worker')
 Copy-Tree -Source (Join-Path $RepoRoot 'python\bcs_sdk') -Destination (Join-Path $StageRoot 'python\bcs_sdk')
 Copy-Tree -Source (Join-Path $RepoRoot 'schema') -Destination (Join-Path $StageRoot 'schema')
@@ -53,6 +54,7 @@ $ReleaseManifest = [ordered]@{
   includes_embedded_python = $true
   entrypoints = [ordered]@{
     runner = 'bin/bcs-runner.exe'
+    env = 'bin/bcs-env.exe'
     example_project = 'examples/001_scalar_component/project.bcsproj'
   }
   notes = @(
@@ -63,21 +65,28 @@ $ReleaseManifest = [ordered]@{
 
 $ReleaseManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $StageRoot 'release-manifest.json') -Encoding UTF8
 
-@"
-# HVAC Studio Runtime Package
-
-Version: $ResolvedVersion
-Runtime: $RuntimeId
-
-Run the included smoke example:
-
-```powershell
-.\bin\bcs-runner.exe validate --project .\examples\001_scalar_component\project.bcsproj
-.\bin\bcs-runner.exe run --project .\examples\001_scalar_component\project.bcsproj --input .\examples\001_scalar_component\inputs\case01.json --output .\outputs\001_scalar_component.json
-```
-
-This MVP package includes the runner executable, bundled Python runtime, and Python worker source. Project-specific third-party Python package locking is still a later milestone.
-"@ | Set-Content -LiteralPath (Join-Path $StageRoot 'PACKAGE_README.md') -Encoding UTF8
+$PackageReadme = @(
+  '# HVAC Studio Runtime Package'
+  ''
+  "Version: $ResolvedVersion"
+  "Runtime: $RuntimeId"
+  ''
+  'Run the included smoke example:'
+  ''
+  '```powershell'
+  '.\bin\bcs-runner.exe validate --project .\examples\001_scalar_component\project.bcsproj'
+  '.\bin\bcs-runner.exe run --project .\examples\001_scalar_component\project.bcsproj --input .\examples\001_scalar_component\inputs\case01.json --output .\outputs\001_scalar_component.json'
+  '```'
+  ''
+  'This MVP package includes the runner executable, environment checker, bundled Python runtime, and Python worker source. Project-specific third-party Python package locking is still a later milestone.'
+  ''
+  'Check the packaged runtime:'
+  ''
+  '```powershell'
+  '.\bin\bcs-env.exe check'
+  '```'
+)
+$PackageReadme | Set-Content -LiteralPath (Join-Path $StageRoot 'PACKAGE_README.md') -Encoding UTF8
 
 Remove-PythonCaches -Root $StageRoot
 Compress-Archive -LiteralPath $StageRoot -DestinationPath $ZipPath -Force

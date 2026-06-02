@@ -101,6 +101,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-porta
 
 The portable package includes root-level `HVAC Studio.exe`, `bin/studio.exe`, `bcs-runner.exe`, `bcs-env.exe`, examples, and a bundled `runtime/python` for included example and workspace project runs.
 Users launch the app by double-clicking `HVAC Studio.exe`; automation can run `bin\studio.exe --server`.
+Use `bin\bcs-env.exe check` inside a package to verify the bundled Python runtime, worker, schemas, examples, and executables.
 Studio-created projects live under `projects/`; workspace edits persist to project artifacts such as `graph.json`, `inputs/`, `components/`, `scenarios/`, `runs/`, and `exports/`.
 
 Build and smoke-test the runtime-only release package:
