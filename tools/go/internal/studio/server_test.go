@@ -1878,7 +1878,7 @@ func TestBatchEndpointRejectsExamples(t *testing.T) {
 	}
 }
 
-func TestExportEndpointWritesRuntimeManifest(t *testing.T) {
+func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	root, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Export Project"}`)))
@@ -1916,11 +1916,44 @@ func TestExportEndpointWritesRuntimeManifest(t *testing.T) {
 	if body.Summary.RelativePath != "exports/runtime_package/manifest.json" {
 		t.Fatalf("relative path = %s", body.Summary.RelativePath)
 	}
+	if body.Export.ProjectRoot != "project" {
+		t.Fatalf("project root = %s", body.Export.ProjectRoot)
+	}
+	if body.Export.ProjectPath != "project/project.bcsproj" {
+		t.Fatalf("project path = %s", body.Export.ProjectPath)
+	}
+	if body.Export.GraphPath != "project/graph.json" {
+		t.Fatalf("graph path = %s", body.Export.GraphPath)
+	}
+	if body.Export.DefaultInput != "project/inputs/case01.json" {
+		t.Fatalf("default input = %s", body.Export.DefaultInput)
+	}
 	if body.Export.Runner != "bin/bcs-runner.exe" {
 		t.Fatalf("runner = %s", body.Export.Runner)
 	}
-	if _, err := os.Stat(filepath.Join(root, "projects", "export-project", "exports", "runtime_package", "manifest.json")); err != nil {
-		t.Fatal(err)
+	expectedFiles := []string{
+		"project/project.bcsproj",
+		"project/graph.json",
+		"project/components/__init__.py",
+		"project/components/scalar.py",
+		"project/inputs/case01.json",
+	}
+	exportRoot := filepath.Join(root, "projects", "export-project", "exports", "runtime_package")
+	for _, rel := range expectedFiles {
+		if !containsString(body.Export.Files, rel) {
+			t.Fatalf("export files missing %s in %v", rel, body.Export.Files)
+		}
+		if _, err := os.Stat(filepath.Join(exportRoot, filepath.FromSlash(rel))); err != nil {
+			t.Fatalf("export file %s: %v", rel, err)
+		}
+	}
+	for _, rel := range body.Export.Files {
+		if strings.HasPrefix(rel, "project/runs/") || strings.HasPrefix(rel, "project/exports/") {
+			t.Fatalf("export should not include generated project artifact %s", rel)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(exportRoot, "manifest.json")); err != nil {
+		t.Fatalf("manifest: %v", err)
 	}
 }
 

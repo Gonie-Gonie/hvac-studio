@@ -8,9 +8,14 @@ The Export button can write:
 
 ```text
 exports/runtime_package/manifest.json
+exports/runtime_package/project/project.bcsproj
+exports/runtime_package/project/graph.json
+exports/runtime_package/project/components/
+exports/runtime_package/project/inputs/
+exports/runtime_package/project/scenarios/
 ```
 
-This is the first connected export profile artifact. Full package building remains a later milestone.
+This is the first connected runtime export artifact. It copies the source-of-truth project files needed by the runner, and the manifest records the exported files plus public IO and execution order. Full package building with bundled runner/Python remains a later milestone.
 
 ## Target Runtime Package Shape
 
@@ -41,4 +46,3 @@ DeliveredModel/
 - example input/output files
 - structured errors and exit codes
 - smoke test after package expansion
-

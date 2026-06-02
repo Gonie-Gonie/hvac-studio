@@ -247,11 +247,13 @@ type ExportManifest struct {
 	Profile        string                `json:"profile"`
 	CreatedAtUTC   string                `json:"created_at_utc"`
 	ProjectName    string                `json:"project_name"`
+	ProjectRoot    string                `json:"project_root"`
 	ProjectPath    string                `json:"project_path"`
 	GraphPath      string                `json:"graph_path"`
 	DefaultInput   string                `json:"default_input"`
 	Runner         string                `json:"runner"`
 	RuntimePython  string                `json:"runtime_python"`
+	Files          []string              `json:"files"`
 	Components     []string              `json:"components"`
 	PublicInputs   []model.PublicNodeRef `json:"public_inputs"`
 	PublicOutputs  []model.PublicNodeRef `json:"public_outputs"`
@@ -2865,23 +2867,43 @@ func writeExportManifest(loaded *project.LoadedProject, profile string) (ExportS
 		return ExportSummary{}, ExportManifest{}, apperror.Wrap(apperror.CodeValidation, err)
 	}
 	now := time.Now().UTC()
-	projectPath, _ := filepath.Rel(loaded.Root, loaded.Path)
-	graphPath, _ := filepath.Rel(loaded.Root, loaded.GraphPath)
+	projectPath, _, err := projectOwnedRelativePath(loaded.Root, loaded.Path)
+	if err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
+	graphPath, _, err := projectOwnedRelativePath(loaded.Root, loaded.GraphPath)
+	if err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
+	defaultInputPath := ""
+	if loaded.Project.DefaultInput != "" {
+		defaultInputPath, _, err = projectOwnedRelativePath(loaded.Root, loaded.Project.DefaultInput)
+		if err != nil {
+			return ExportSummary{}, ExportManifest{}, err
+		}
+	}
+	exportRoot := filepath.Join(loaded.Root, "exports", profile)
+	files, err := writeRuntimeExportProject(loaded, filepath.Join(exportRoot, "project"))
+	if err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
 	manifest := ExportManifest{
 		Profile:        profile,
 		CreatedAtUTC:   now.Format(time.RFC3339Nano),
 		ProjectName:    loaded.Project.ProjectName,
-		ProjectPath:    filepath.ToSlash(projectPath),
-		GraphPath:      filepath.ToSlash(graphPath),
-		DefaultInput:   filepath.ToSlash(loaded.Project.DefaultInput),
+		ProjectRoot:    "project",
+		ProjectPath:    exportArtifactPath(projectPath),
+		GraphPath:      exportArtifactPath(graphPath),
+		DefaultInput:   exportArtifactPath(defaultInputPath),
 		Runner:         "bin/bcs-runner.exe",
 		RuntimePython:  "runtime/python/python.exe",
+		Files:          files,
 		Components:     append([]string{}, plan.System.Components...),
 		PublicInputs:   append([]model.PublicNodeRef{}, plan.System.PublicInputs...),
 		PublicOutputs:  append([]model.PublicNodeRef{}, plan.System.PublicOutputs...),
 		ExecutionOrder: append([]string{}, plan.Order...),
 	}
-	exportPath := filepath.Join(loaded.Root, "exports", profile, "manifest.json")
+	exportPath := filepath.Join(exportRoot, "manifest.json")
 	if err := os.MkdirAll(filepath.Dir(exportPath), 0o755); err != nil {
 		return ExportSummary{}, ExportManifest{}, err
 	}
@@ -2894,6 +2916,160 @@ func writeExportManifest(loaded *project.LoadedProject, profile string) (ExportS
 		RelativePath: filepath.ToSlash(rel),
 		CreatedAtUTC: manifest.CreatedAtUTC,
 	}, manifest, nil
+}
+
+func exportArtifactPath(path string) string {
+	if path == "" {
+		return ""
+	}
+	return filepath.ToSlash(filepath.Join("project", path))
+}
+
+func writeRuntimeExportProject(loaded *project.LoadedProject, targetRoot string) ([]string, error) {
+	if err := resetGeneratedDir(filepath.Dir(targetRoot), targetRoot); err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(targetRoot, 0o755); err != nil {
+		return nil, err
+	}
+
+	files := []string{}
+	seen := map[string]bool{}
+	projectPath, _, err := projectOwnedRelativePath(loaded.Root, loaded.Path)
+	if err != nil {
+		return nil, err
+	}
+	graphPath, _, err := projectOwnedRelativePath(loaded.Root, loaded.GraphPath)
+	if err != nil {
+		return nil, err
+	}
+	for _, rel := range []string{projectPath, graphPath, loaded.Project.DefaultInput} {
+		if err := copyRuntimeExportFile(loaded.Root, targetRoot, rel, &files, seen); err != nil {
+			return nil, err
+		}
+	}
+	for _, rel := range []string{"components", "inputs", "scenarios"} {
+		if err := copyRuntimeExportDir(loaded.Root, targetRoot, rel, &files, seen); err != nil {
+			return nil, err
+		}
+	}
+	sort.Strings(files)
+	return files, nil
+}
+
+func copyRuntimeExportDir(projectRoot string, targetRoot string, rel string, files *[]string, seen map[string]bool) error {
+	sourceRoot, err := resolveProjectOwnedFile(projectRoot, rel)
+	if err != nil {
+		return err
+	}
+	info, err := os.Stat(sourceRoot)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return apperror.Errorf(apperror.CodeValidation, "export source is not a directory: %s", rel)
+	}
+	return filepath.WalkDir(sourceRoot, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		sourceRel, err := filepath.Rel(sourceRoot, path)
+		if err != nil {
+			return err
+		}
+		if sourceRel == "." {
+			return nil
+		}
+		if entry.IsDir() && entry.Name() == "__pycache__" {
+			return filepath.SkipDir
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(entry.Name(), ".pyc") || strings.HasSuffix(entry.Name(), ".pyo") {
+			return nil
+		}
+		return copyRuntimeExportFile(projectRoot, targetRoot, filepath.Join(rel, sourceRel), files, seen)
+	})
+}
+
+func copyRuntimeExportFile(projectRoot string, targetRoot string, rel string, files *[]string, seen map[string]bool) error {
+	if rel == "" || rel == "." {
+		return nil
+	}
+	ownedRel, sourcePath, err := projectOwnedRelativePath(projectRoot, rel)
+	if err != nil {
+		return err
+	}
+	info, err := os.Stat(sourcePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		return nil
+	}
+	artifactPath := exportArtifactPath(ownedRel)
+	if seen[artifactPath] {
+		return nil
+	}
+	bytes, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return err
+	}
+	targetPath := filepath.Join(targetRoot, ownedRel)
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(targetPath, bytes, info.Mode().Perm()); err != nil {
+		return err
+	}
+	seen[artifactPath] = true
+	*files = append(*files, artifactPath)
+	return nil
+}
+
+func projectOwnedRelativePath(projectRoot string, path string) (string, string, error) {
+	resolved, err := resolveProjectOwnedFile(projectRoot, path)
+	if err != nil {
+		return "", "", err
+	}
+	absRoot, err := filepath.Abs(projectRoot)
+	if err != nil {
+		return "", "", apperror.Wrap(apperror.CodeValidation, err)
+	}
+	rel, err := filepath.Rel(absRoot, resolved)
+	if err != nil {
+		return "", "", apperror.Wrap(apperror.CodeValidation, err)
+	}
+	return rel, resolved, nil
+}
+
+func resetGeneratedDir(ownerRoot string, targetPath string) error {
+	ownerRoot, err := filepath.Abs(ownerRoot)
+	if err != nil {
+		return err
+	}
+	targetPath, err = filepath.Abs(targetPath)
+	if err != nil {
+		return err
+	}
+	rel, err := filepath.Rel(ownerRoot, targetPath)
+	if err != nil {
+		return err
+	}
+	if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return apperror.Errorf(apperror.CodeValidation, "generated export path must stay inside export root: %s", targetPath)
+	}
+	if err := os.RemoveAll(targetPath); err != nil {
+		return err
+	}
+	return os.MkdirAll(targetPath, 0o755)
 }
 
 func loadExportSummaries(projectRoot string) []ExportSummary {

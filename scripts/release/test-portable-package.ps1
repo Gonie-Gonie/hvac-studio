@@ -415,6 +415,21 @@ try {
   if ($ExportJson.export.runner -ne 'bin/bcs-runner.exe') {
     throw "workspace export manifest runner mismatch: $($ExportJson.export.runner)"
   }
+  if ($ExportJson.export.project_root -ne 'project') {
+    throw "workspace export project root mismatch: $($ExportJson.export.project_root)"
+  }
+  if ($ExportJson.export.project_path -ne 'project/project.bcsproj') {
+    throw "workspace export project path mismatch: $($ExportJson.export.project_path)"
+  }
+  foreach ($ExportFile in @('project/project.bcsproj', 'project/graph.json', 'project/components/scalar.py', 'project/inputs/case01.json')) {
+    if ($ExportJson.export.files -notcontains $ExportFile) {
+      throw "workspace export file missing from manifest: $ExportFile"
+    }
+    $ExportArtifactPath = Join-Path (Split-Path -Parent $ExportManifestPath) ($ExportFile -replace '/', [IO.Path]::DirectorySeparatorChar)
+    if (-not (Test-Path -LiteralPath $ExportArtifactPath)) {
+      throw "workspace export artifact was not written: $ExportArtifactPath"
+    }
+  }
 
   $DeleteConnectionBody = @{
     project_path = $CreatedProject.project_path

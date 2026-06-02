@@ -808,10 +808,13 @@ function updateLineNumbers(value) {
 function renderExportManifest() {
   const manifest = state.latestExport || {
     profile: "runtime_package",
+    project_root: "project",
+    project_path: "project/project.bcsproj",
+    graph_path: "project/graph.json",
+    default_input: state.detail?.project?.default_input ? `project/${state.detail.project.default_input}` : "",
     runner: "bin/bcs-runner.exe",
     runtime_python: "runtime/python/python.exe",
-    project: state.detail?.project_path,
-    default_input: state.detail?.project?.default_input,
+    files: [],
   };
   el("exportManifest").textContent = JSON.stringify(manifest, null, 2);
 }

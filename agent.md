@@ -67,7 +67,8 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - When a component is explicitly added to a system, the Studio should keep the runnable path intact by creating public IO mappings and extending `default_input` for new required public inputs.
 - When a node-to-node connection targets a previously public input, that input should stop being public and be removed from default input artifacts so the graph remains valid.
 - Saved runs are project artifacts. The GUI should be able to reopen `runs/run-*.json` records and use them for Results and Inspector state, not just show the latest transient response.
-- Export profiles should write concrete project artifacts under `exports/` before becoming full package builders. The first connected profile is `exports/runtime_package/manifest.json`.
+- Export profiles should write concrete project artifacts under `exports/` before becoming full package builders. The first connected profile is `exports/runtime_package/`.
+- Runtime export should include a copied `exports/runtime_package/project/` source-of-truth project artifact, not only a manifest, before growing into a full runner/Python package builder.
 - Validation problems should carry structured metadata where possible. Even simple inferred `component_id` links are useful because they keep the Problems panel connected to the graph authoring surface.
 - Python source editing must respect ownership: examples are read-only, workspace project component files can be saved, and the graph contract remains in `graph.json`.
 - Direct Python authoring belongs in a first-class Code workspace with component contract context, source drafts, explicit save/revert/check actions, and snippets; source files remain the source of truth.
