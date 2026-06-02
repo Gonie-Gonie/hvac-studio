@@ -477,6 +477,13 @@ h2,
   stroke: #617d98;
   stroke-width: 2;
   fill: none;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.connection-line.selected {
+  stroke: var(--accent);
+  stroke-width: 3;
 }
 
 .system-canvas {
@@ -837,6 +844,10 @@ th {
 
 .connection-row {
   grid-template-columns: 88px minmax(0, 1fr);
+}
+
+.connection-row.selected {
+  background: var(--accent-soft);
 }
 
 .connection-value {

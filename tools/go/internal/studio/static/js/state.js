@@ -10,6 +10,7 @@ export const state = {
   latestSchema: null,
   latestValidation: null,
   activeRunInput: null,
+  selectedConnectionId: "",
   sourceByComponent: {},
   sourceDraftByComponent: {},
   sourceCheckByComponent: {},

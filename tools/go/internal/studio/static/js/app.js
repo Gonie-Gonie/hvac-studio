@@ -52,6 +52,7 @@ async function loadProject(projectPath) {
   state.sourceCheckByComponent = {};
   state.loadingSource = {};
   state.pendingConnection = null;
+  state.selectedConnectionId = "";
   el("saveProjectButton").classList.remove("dirty");
 
   const body = await api(`/api/project?project_path=${encodeURIComponent(projectPath)}`);
@@ -215,6 +216,7 @@ function renderCanvas() {
     `;
     node.addEventListener("click", () => {
       state.selectedComponentId = component.id;
+      state.selectedConnectionId = "";
       renderCanvas();
       renderInspector();
       renderPythonPanel();
@@ -272,6 +274,7 @@ function handleCanvasEndpointClick(componentID, nodeID, direction) {
     return;
   }
   state.selectedComponentId = componentID;
+  state.selectedConnectionId = "";
   if (direction === "output") {
     state.pendingConnection = { component: componentID, node: nodeID };
     renderCanvas();
@@ -319,11 +322,30 @@ function drawConnections(positions) {
     const y2 = to.y + 63;
     const mid = Math.max(40, (x2 - x1) / 2);
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("class", "connection-line");
+    path.setAttribute("class", `connection-line ${state.selectedConnectionId === connection.id ? "selected" : ""}`);
+    path.dataset.connectionId = connection.id;
     path.setAttribute("marker-end", "url(#arrow)");
     path.setAttribute("d", `M ${x1} ${y1} C ${x1 + mid} ${y1}, ${x2 - mid} ${y2}, ${x2} ${y2}`);
+    path.addEventListener("click", (event) => {
+      event.stopPropagation();
+      selectConnection(connection.id);
+    });
     layer.append(path);
   }
+}
+
+function selectConnection(connectionID) {
+  const connection = state.detail?.graph?.connections?.find((item) => item.id === connectionID);
+  if (!connection) return;
+  state.selectedConnectionId = connection.id;
+  state.selectedComponentId = connection.to.component;
+  state.pendingConnection = null;
+  renderCanvas();
+  renderInspector();
+  renderPythonPanel();
+  renderProjectTree();
+  updateCommandState();
+  log(`Connection selected: ${connection.from.component}.${connection.from.node} -> ${connection.to.component}.${connection.to.node}`);
 }
 
 function renderInspector() {
@@ -498,19 +520,23 @@ function connectionEditor(targetComponent) {
   if (existingRows.length) {
     for (const connectionRow of existingRows) {
       const rowEl = document.createElement("div");
-      rowEl.className = "kv connection-row";
+      rowEl.className = `kv connection-row ${connectionRow.id === state.selectedConnectionId ? "selected" : ""}`;
       rowEl.innerHTML = `
         <span class="kv-key">${escapeHTML(connectionRow.key)}</span>
         <span class="connection-value">
           <span>${escapeHTML(connectionRow.value)}</span>
         </span>
       `;
+      rowEl.addEventListener("click", () => selectConnection(connectionRow.id));
       if (canEditConnections) {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "small-action";
         button.textContent = "Remove";
-        button.addEventListener("click", () => deleteConnectionFromInspector(connectionRow.id));
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          deleteConnectionFromInspector(connectionRow.id);
+        });
         rowEl.querySelector(".connection-value").append(button);
       }
       block.append(rowEl);
@@ -1629,10 +1655,12 @@ async function createConnection(fromComponent, fromNode, toComponent, toNode) {
     });
     state.detail = body.project;
     state.pendingConnection = null;
+    state.selectedConnectionId = body.connection?.id || "";
     renderAll();
     log(`Connected ${fromComponent}.${fromNode} -> ${toComponent}.${toNode}`);
   } catch (error) {
     state.pendingConnection = null;
+    state.selectedConnectionId = "";
     log(`Connection failed: ${error.message}`);
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderProblems();
@@ -1782,6 +1810,7 @@ async function deleteConnectionFromInspector(connectionId) {
       body: JSON.stringify({ project_path: state.currentProjectPath, connection_id: connectionId }),
     });
     state.detail = body.project;
+    if (state.selectedConnectionId === connectionId) state.selectedConnectionId = "";
     renderAll();
     log(`Connection removed: ${connectionId}`);
   } catch (error) {

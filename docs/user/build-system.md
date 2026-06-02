@@ -16,7 +16,7 @@ Studio can build connections directly on the canvas. Click a source output node,
 
 The Inspector also supports the same operation with explicit source and target endpoint controls.
 
-Existing connections can also be removed from the Inspector. Removing a connection restores the target input as a public input and adds it back to the default input file, so the value can be edited again in Run Inputs.
+Existing connections can also be selected from the canvas line or the Inspector. Removing a connection from the Inspector restores the target input as a public input and adds it back to the default input file, so the value can be edited again in Run Inputs.
 
 ## Public IO Mapping
 
