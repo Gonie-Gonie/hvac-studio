@@ -76,6 +76,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Export workspace summaries should show user-relevant artifact paths such as project file, default input, and public IO schema instead of hiding them only in raw manifest JSON.
 - Validation problems should carry structured metadata where possible. Even simple inferred `component_id` links are useful because they keep the Problems panel connected to the graph authoring surface.
 - Problems panel rows should navigate to the most specific authoring surface available: source line for Python problems, otherwise the selected component on the system canvas.
+- Successful actions should clear or replace stale Problems state; old errors must not survive after a run/save/export path has actually succeeded.
 - Python source editing must respect ownership: examples are read-only, workspace project component files can be saved, and the graph contract remains in `graph.json`.
 - Direct Python authoring belongs in a first-class Code workspace with component contract context, source drafts, explicit save/revert/check actions, and snippets; source files remain the source of truth.
 - Code snippets should be generated from the selected component's graph contract, especially all declared input/output nodes, so they teach the actual component shape rather than a one-node toy shape.

@@ -631,6 +631,10 @@ function renderProblems() {
   panel.append(problemRow({ severity: "ok", message: "No problems" }));
 }
 
+function setProblems(problems = []) {
+  state.latestValidation = { problems };
+}
+
 function problemRow(problem) {
   const row = document.createElement("div");
   row.className = "problem-row";
@@ -886,6 +890,7 @@ async function runProject() {
     state.latestResult = body.result;
     state.latestRunRecord = null;
     state.latestBatchRecord = null;
+    setProblems();
     if (body.run_record) {
       state.detail.runs = [body.run_record, ...(state.detail.runs || [])];
       log(`Run saved: ${body.run_record.relative_path}`);
@@ -995,6 +1000,7 @@ async function loadRunRecord(runID) {
     state.latestRunRecord = body.run_record;
     state.latestBatchRecord = null;
     state.latestResult = body.run_record.result;
+    setProblems();
     renderInspector();
     renderResults();
     renderRunWorkspace();
@@ -1003,7 +1009,7 @@ async function loadRunRecord(runID) {
     log(`Run opened: ${runID}`);
   } catch (error) {
     log(`Open run failed: ${error.message}`);
-    state.latestValidation = { error: error.message };
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderProblems();
     setBottomTab("problems");
   }
@@ -1229,7 +1235,7 @@ async function saveProjectEdits() {
       sourceProblems.push(...applySourceSaveResponse(sourceUpdate.component_id, sourceBody));
     }
     state.detail = body.project;
-    if (sourceProblems.length) state.latestValidation = { problems: sourceProblems };
+    setProblems(sourceProblems);
     el("saveProjectButton").classList.remove("dirty");
     renderAll();
     if (sourceProblems.some((problem) => problem.severity === "error")) setBottomTab("problems");
@@ -1266,13 +1272,14 @@ async function exportProject() {
     });
     state.latestExport = body.export;
     state.detail.exports = [body.summary, ...(state.detail.exports || []).filter((item) => item.profile !== body.summary.profile)];
+    setProblems();
     renderProjectTree();
     renderExportWorkspaceView();
     setMode("export");
     log(`Export manifest written: ${body.summary.relative_path}`);
   } catch (error) {
     log(`Export failed: ${error.message}`);
-    state.latestValidation = { error: error.message };
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderProblems();
     setBottomTab("problems");
   }

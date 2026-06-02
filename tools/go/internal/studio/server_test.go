@@ -91,6 +91,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("evaluateSnippet")) {
 		t.Fatalf("module entrypoint did not include contract-aware evaluate snippets")
 	}
+	if !bytes.Contains(body, []byte("setProblems")) {
+		t.Fatalf("module entrypoint did not include explicit problem state handling")
+	}
 }
 
 func TestStaticExportWorkspaceModuleServes(t *testing.T) {
