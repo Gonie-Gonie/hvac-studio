@@ -15,5 +15,6 @@ export const state = {
   sourceCheckByComponent: {},
   loadingSource: {},
   pendingSourceFocus: null,
+  pendingConnection: null,
   logs: [],
 };

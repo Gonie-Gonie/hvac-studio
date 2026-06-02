@@ -100,6 +100,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("handleSourceIndent")) {
 		t.Fatalf("module entrypoint did not include source indentation handling")
 	}
+	if !bytes.Contains(body, []byte("handleCanvasEndpointClick")) {
+		t.Fatalf("module entrypoint did not include direct canvas endpoint connection handling")
+	}
+	if !bytes.Contains(body, []byte("pendingConnection")) {
+		t.Fatalf("module entrypoint did not include pending canvas connection state")
+	}
 }
 
 func TestStaticExportWorkspaceModuleServes(t *testing.T) {

@@ -534,10 +534,21 @@ h2,
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
 }
 
 .node-pill.output {
   background: #e8f5ee;
+}
+
+.node-pill.pending-source {
+  background: #dbeafe;
+  outline: 2px solid var(--accent);
+}
+
+.node-pill.targetable {
+  background: #fff7ed;
+  outline: 1px dashed #c2410c;
 }
 
 .split-workspace {

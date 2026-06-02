@@ -51,6 +51,7 @@ async function loadProject(projectPath) {
   state.sourceDraftByComponent = {};
   state.sourceCheckByComponent = {};
   state.loadingSource = {};
+  state.pendingConnection = null;
   el("saveProjectButton").classList.remove("dirty");
 
   const body = await api(`/api/project?project_path=${encodeURIComponent(projectPath)}`);
@@ -208,8 +209,8 @@ function renderCanvas() {
         <span class="component-kind">${escapeHTML(component.kind)}</span>
       </div>
       <div class="node-list">
-        ${component.nodes.inputs.map((n) => `<span class="node-pill">${escapeHTML(n.id)}</span>`).join("")}
-        ${component.nodes.outputs.map((n) => `<span class="node-pill output">${escapeHTML(n.id)}</span>`).join("")}
+        ${component.nodes.inputs.map((n) => canvasNodePill(component.id, n, "input")).join("")}
+        ${component.nodes.outputs.map((n) => canvasNodePill(component.id, n, "output")).join("")}
       </div>
     `;
     node.addEventListener("click", () => {
@@ -220,10 +221,65 @@ function renderCanvas() {
       renderProjectTree();
       updateCommandState();
     });
+    node.querySelectorAll("[data-node-endpoint]").forEach((endpoint) => {
+      endpoint.addEventListener("click", (event) => {
+        event.stopPropagation();
+        handleCanvasEndpointClick(endpoint.dataset.componentId, endpoint.dataset.nodeId, endpoint.dataset.direction);
+      });
+    });
     canvas.append(node);
   });
 
   requestAnimationFrame(() => drawConnections(positions));
+}
+
+function canvasNodePill(componentID, node, direction) {
+  const pending = state.pendingConnection;
+  const selected = direction === "output" && pending?.component === componentID && pending?.node === node.id;
+  const targetable = direction === "input" && pending && pending.component !== componentID;
+  const classes = [
+    "node-pill",
+    direction === "output" ? "output" : "",
+    selected ? "pending-source" : "",
+    targetable ? "targetable" : "",
+  ].filter(Boolean).join(" ");
+  return `<span class="${classes}" data-node-endpoint="true" data-component-id="${escapeAttr(componentID)}" data-node-id="${escapeAttr(node.id)}" data-direction="${escapeAttr(direction)}">${escapeHTML(node.id)}</span>`;
+}
+
+function handleCanvasEndpointClick(componentID, nodeID, direction) {
+  if (!isWorkspaceProject()) {
+    state.selectedComponentId = componentID;
+    renderCanvas();
+    renderInspector();
+    renderPythonPanel();
+    renderProjectTree();
+    updateCommandState();
+    return;
+  }
+  state.selectedComponentId = componentID;
+  if (direction === "output") {
+    state.pendingConnection = { component: componentID, node: nodeID };
+    renderCanvas();
+    renderInspector();
+    renderPythonPanel();
+    renderProjectTree();
+    updateCommandState();
+    log(`Connection source selected: ${componentID}.${nodeID}`);
+    return;
+  }
+  if (direction === "input" && state.pendingConnection) {
+    if (state.pendingConnection.component === componentID) {
+      showInlineProblem("Select an input on another component");
+      return;
+    }
+    createConnection(state.pendingConnection.component, state.pendingConnection.node, componentID, nodeID);
+    return;
+  }
+  renderCanvas();
+  renderInspector();
+  renderPythonPanel();
+  renderProjectTree();
+  updateCommandState();
 }
 
 function drawConnections(positions) {
@@ -1533,6 +1589,11 @@ async function deleteSelectedComponent() {
 async function createConnectionFromInspector(sourceValue, toComponent, toNode) {
   const [fromComponent, fromNode] = sourceValue.split(".");
   if (!fromComponent || !fromNode || !toComponent || !toNode) return;
+  await createConnection(fromComponent, fromNode, toComponent, toNode);
+}
+
+async function createConnection(fromComponent, fromNode, toComponent, toNode) {
+  if (!fromComponent || !fromNode || !toComponent || !toNode || !isWorkspaceProject()) return;
   try {
     const body = await api("/api/project/connections", {
       method: "POST",
@@ -1545,12 +1606,15 @@ async function createConnectionFromInspector(sourceValue, toComponent, toNode) {
       }),
     });
     state.detail = body.project;
+    state.pendingConnection = null;
     renderAll();
     log(`Connected ${fromComponent}.${fromNode} -> ${toComponent}.${toNode}`);
   } catch (error) {
+    state.pendingConnection = null;
     log(`Connection failed: ${error.message}`);
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderProblems();
+    renderCanvas();
     setBottomTab("problems");
   }
 }
