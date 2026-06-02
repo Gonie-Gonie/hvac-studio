@@ -8,6 +8,8 @@ Studio has a dedicated Code workspace for direct component Python source editing
 
 Before run, batch, and export actions, Studio flushes dirty workspace source drafts to the project source files. If saved source files have source-check errors, Studio stops the action and shows Problems first. The server enforces the same gate for API calls, reopened projects, and export requests. The source file remains the source of truth; the editor is only an authoring surface.
 
+After a successful run, the Code workspace contract panel shows the selected component's latest input and output values from the runner result.
+
 The source checker validates the expected Python class name, the presence of `evaluate`, basic return-shape hints, graph input/output name references, Python syntax, and draft source load/import errors when a Python runtime is available.
 
 Line-specific source-check rows can be clicked from the Code workspace or Problems panel to focus the editor line.

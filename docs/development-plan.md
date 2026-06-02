@@ -248,6 +248,7 @@ Acceptance criteria:
 - Source checks load draft Python source to catch import and class-load errors before run/export. Started.
 - Python editor supports save/check shortcuts and line-based indent/outdent. Started.
 - Code workspace can run the project after source edits through the normal save/check/run path. Started.
+- Code workspace shows selected component last-run inputs and outputs alongside source contract context. Started.
 - System canvas shows latest run input/output values on component node endpoints. Started.
 - API coverage pins the edit-source, connect-components, run-result propagation workflow. Started.
 

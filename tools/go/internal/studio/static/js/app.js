@@ -898,7 +898,20 @@ function renderSourceContract(component) {
   container.append(contractBlock("Inputs", (component.nodes.inputs || []).map((node) => [node.id, nodeTypeLabel(node)])));
   container.append(contractBlock("Outputs", (component.nodes.outputs || []).map((node) => [node.id, nodeTypeLabel(node)])));
   container.append(contractBlock("Parameters", Object.entries(component.parameters || {}).map(([name, value]) => [name, parameterInputValue(value)])));
+  const runtimeBlock = sourceRuntimeBlock(component);
+  if (runtimeBlock) container.append(runtimeBlock);
   container.append(sourceIssueBlock(component.id));
+}
+
+function sourceRuntimeBlock(component) {
+  const latestInputs = state.latestResult?.component_inputs?.[component.id] || {};
+  const latestOutputs = state.latestResult?.component_outputs?.[component.id] || {};
+  const rows = [
+    ...Object.entries(latestInputs).map(([name, value]) => [`in ${name}`, formatValue(value)]),
+    ...Object.entries(latestOutputs).map(([name, value]) => [`out ${name}`, formatValue(value)]),
+  ];
+  if (!rows.length) return null;
+  return contractBlock("Last Run", rows);
 }
 
 function contractBlock(title, rows) {
