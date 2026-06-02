@@ -58,11 +58,7 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 }
 
 func TestCreateProjectEndpointCreatesWorkspaceProject(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	root, server := newIsolatedTestServer(t)
 	payload := []byte(`{"name":"My First Project"}`)
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader(payload))
@@ -90,11 +86,7 @@ func TestCreateProjectEndpointCreatesWorkspaceProject(t *testing.T) {
 }
 
 func TestCopyProjectEndpointCreatesEditableWorkspaceCopy(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	root, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Seed Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -162,11 +154,7 @@ func TestCopyProjectEndpointCreatesEditableWorkspaceCopy(t *testing.T) {
 }
 
 func TestCreateComponentEndpointCreatesWorkspaceComponent(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	root, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Component Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -229,11 +217,7 @@ func TestCreateComponentEndpointCreatesWorkspaceComponent(t *testing.T) {
 }
 
 func TestDuplicateComponentEndpointCopiesGraphAndSource(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	root, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Duplicate Component Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -293,11 +277,7 @@ func TestDuplicateComponentEndpointCopiesGraphAndSource(t *testing.T) {
 }
 
 func TestUpdateComponentEndpointRenamesWorkspaceComponent(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Rename Component Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -386,11 +366,7 @@ func TestUpdateComponentEndpointRejectsExamples(t *testing.T) {
 }
 
 func TestDeleteComponentEndpointRemovesUnusedWorkspaceComponent(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	root, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Delete Component Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -449,11 +425,7 @@ func TestDeleteComponentEndpointRemovesUnusedWorkspaceComponent(t *testing.T) {
 }
 
 func TestDeleteComponentEndpointRejectsSystemComponent(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Reject Delete Component Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -499,11 +471,7 @@ func TestDeleteComponentEndpointRejectsExamples(t *testing.T) {
 }
 
 func TestCreateNodeEndpointAddsPublicIOAndDefaultInput(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Node Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -593,11 +561,7 @@ func TestCreateNodeEndpointAddsPublicIOAndDefaultInput(t *testing.T) {
 }
 
 func TestDeleteNodeEndpointCleansPublicIOAndConnections(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Delete Node Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -776,11 +740,7 @@ func TestDeleteNodeEndpointRejectsExamples(t *testing.T) {
 }
 
 func TestIncludeComponentEndpointAddsPublicIOAndDefaultInput(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"System Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -876,11 +836,7 @@ func TestIncludeComponentEndpointRejectsExamples(t *testing.T) {
 }
 
 func TestCreateConnectionEndpointConnectsComponents(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Connection Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -1031,11 +987,7 @@ func TestCreateConnectionEndpointConnectsComponents(t *testing.T) {
 }
 
 func TestRemoveComponentFromSystemEndpointCleansRuntimeSurface(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Removal Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -1188,11 +1140,7 @@ func TestDeleteConnectionEndpointRejectsExamples(t *testing.T) {
 }
 
 func TestUpdateParametersEndpointWritesWorkspaceGraph(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, server := newIsolatedTestServer(t)
 
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Editable Project"}`)))
@@ -1329,11 +1277,7 @@ func TestProjectEndpointIncludesDefaultRunInput(t *testing.T) {
 }
 
 func TestUpdateInputEndpointWritesWorkspaceDefaultInput(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, server := newIsolatedTestServer(t)
 
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Input Project"}`)))
@@ -1424,11 +1368,7 @@ func TestRunEndpointRunsFeedForwardExample(t *testing.T) {
 }
 
 func TestValidateEndpointReturnsLinkedProblem(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Invalid Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -1473,11 +1413,7 @@ func TestValidateEndpointReturnsLinkedProblem(t *testing.T) {
 }
 
 func TestRunRecordEndpointReturnsSavedRecord(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Run Record Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -1567,11 +1503,7 @@ func TestSourceEndpointReadsExampleSource(t *testing.T) {
 }
 
 func TestUpdateSourceEndpointWritesWorkspaceSource(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	root, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Source Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -1610,11 +1542,7 @@ func TestUpdateSourceEndpointWritesWorkspaceSource(t *testing.T) {
 }
 
 func TestCheckSourceEndpointReportsContractProblems(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Source Check Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -1660,11 +1588,7 @@ func TestCheckSourceEndpointReportsContractProblems(t *testing.T) {
 }
 
 func TestCheckSourceEndpointAcceptsWorkspaceSource(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	root, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Source Check Valid Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -1724,11 +1648,7 @@ func TestUpdateSourceEndpointRejectsExamples(t *testing.T) {
 }
 
 func TestCreateScenarioEndpointWritesWorkspaceScenario(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	root, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Scenario Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -1772,11 +1692,7 @@ func TestCreateScenarioEndpointWritesWorkspaceScenario(t *testing.T) {
 }
 
 func TestScenarioEndpointReturnsSavedScenario(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Scenario Read Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -1827,11 +1743,7 @@ func TestScenarioEndpointReturnsSavedScenario(t *testing.T) {
 }
 
 func TestBatchEndpointRunsSavedScenarios(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	root, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Batch Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -1945,11 +1857,7 @@ func TestBatchEndpointRejectsExamples(t *testing.T) {
 }
 
 func TestExportEndpointWritesRuntimeManifest(t *testing.T) {
-	root := t.TempDir()
-	server, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	root, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Export Project"}`)))
 	server.Handler().ServeHTTP(createResponse, createRequest)
@@ -2052,6 +1960,28 @@ func newTestServer(t *testing.T) *Server {
 		t.Fatal(err)
 	}
 	return server
+}
+
+func newIsolatedTestServer(t *testing.T) (string, *Server) {
+	t.Helper()
+	root := t.TempDir()
+	seedTestTemplates(t, root)
+	server, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return root, server
+}
+
+func seedTestTemplates(t *testing.T, root string) {
+	t.Helper()
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := copyProjectTree(filepath.Join(repoRoot, "templates"), filepath.Join(root, "templates")); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func findRepoRoot() (string, error) {

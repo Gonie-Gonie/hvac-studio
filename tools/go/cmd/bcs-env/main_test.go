@@ -19,6 +19,7 @@ func TestCollectStatusForRepositoryRoot(t *testing.T) {
 	mkdirAll(t, filepath.Join(root, "python", "bcs_sdk"))
 	mkdirAll(t, filepath.Join(root, "schema"))
 	mkdirAll(t, filepath.Join(root, "examples"))
+	mkdirAll(t, filepath.Join(root, "templates"))
 	writeFile(t, filepath.Join(root, ".venv", "Scripts", "python.exe"), "fake python\n")
 
 	status := collectStatus(root)
@@ -48,6 +49,7 @@ func TestCollectStatusForPortableRoot(t *testing.T) {
 	mkdirAll(t, filepath.Join(root, "python", "bcs_sdk"))
 	mkdirAll(t, filepath.Join(root, "schema"))
 	mkdirAll(t, filepath.Join(root, "examples"))
+	mkdirAll(t, filepath.Join(root, "templates"))
 
 	status := collectStatus(root)
 	if !status.OK {
@@ -68,6 +70,7 @@ func TestCollectStatusReportsMissingPython(t *testing.T) {
 	mkdirAll(t, filepath.Join(root, "python", "bcs_sdk"))
 	mkdirAll(t, filepath.Join(root, "schema"))
 	mkdirAll(t, filepath.Join(root, "examples"))
+	mkdirAll(t, filepath.Join(root, "templates"))
 
 	status := collectStatus(root)
 	if status.OK {
@@ -90,6 +93,7 @@ func TestRunCheckWritesJSON(t *testing.T) {
 	mkdirAll(t, filepath.Join(root, "python", "bcs_sdk"))
 	mkdirAll(t, filepath.Join(root, "schema"))
 	mkdirAll(t, filepath.Join(root, "examples"))
+	mkdirAll(t, filepath.Join(root, "templates"))
 
 	var output bytes.Buffer
 	err := run([]string{"bcs-env", "check", "--root", root, "--json"}, &output)

@@ -1206,87 +1206,37 @@ func (s *Server) createProject(req createProjectRequest) (ProjectSummary, error)
 	if _, err := os.Stat(projectRoot); err == nil {
 		return ProjectSummary{}, apperror.Errorf(apperror.CodeValidation, "project already exists: projects/%s", slug)
 	}
-	if err := os.MkdirAll(filepath.Join(projectRoot, "components"), 0o755); err != nil {
-		return ProjectSummary{}, err
+
+	templateRoot := filepath.Join(s.repoRoot, "templates", "projects", template)
+	if _, err := os.Stat(templateRoot); err != nil {
+		return ProjectSummary{}, apperror.Errorf(apperror.CodeValidation, "project template is missing: templates/projects/%s", template)
 	}
-	if err := os.MkdirAll(filepath.Join(projectRoot, "inputs"), 0o755); err != nil {
+	if err := copyProjectTree(templateRoot, projectRoot); err != nil {
 		return ProjectSummary{}, err
 	}
 	if err := os.MkdirAll(filepath.Join(projectRoot, "runs"), 0o755); err != nil {
 		return ProjectSummary{}, err
 	}
-
-	proj := model.Project{
-		ProjectName:   projectName,
-		SchemaVersion: "0.1.0",
-		EngineVersion: "0.1.0",
-		EntrySystem:   "MainSystem",
-		Graph:         "graph.json",
-		Environment: model.EnvironmentConfig{
-			Mode:   "project",
-			Python: "python",
-		},
-		DefaultInput:  "inputs/case01.json",
-		DefaultOutput: "runs/latest.json",
-	}
-	required := true
-	graph := model.Graph{
-		SchemaVersion: "0.1.0",
-		Systems: []model.System{
-			{
-				ID:          "MainSystem",
-				Name:        "Main System",
-				Components:  []string{"scalar"},
-				Connections: []string{},
-				PublicInputs: []model.PublicNodeRef{
-					{ID: "value", Name: "Value", Component: "scalar", Node: "value", Medium: "signal", ValueType: "float", Unit: "", Required: &required},
-				},
-				PublicOutputs: []model.PublicNodeRef{
-					{ID: "result", Name: "Result", Component: "scalar", Node: "result", Medium: "signal", ValueType: "float", Unit: ""},
-				},
-			},
-		},
-		Components: []model.Component{
-			{
-				ID:    "scalar",
-				Name:  "Scalar Component",
-				Kind:  "user_python",
-				Class: "components.scalar.ScalarComponent",
-				Nodes: model.NodeSet{
-					Inputs: []model.Node{
-						{ID: "value", Name: "Value", Direction: "inlet", Medium: "signal", ValueType: "float", Unit: "", Required: &required},
-					},
-					Outputs: []model.Node{
-						{ID: "result", Name: "Result", Direction: "outlet", Medium: "signal", ValueType: "float", Unit: ""},
-					},
-				},
-				Parameters: map[string]any{"gain": 2.0},
-			},
-		},
-		Connections: []model.Connection{},
-	}
-	input := runtimecore.RunInput{
-		Inputs:  map[string]any{"value": 4.0},
-		Context: map[string]any{"time": 0.0, "dt": 60.0},
-	}
-
-	if err := writeJSONFile(filepath.Join(projectRoot, "project.bcsproj"), proj); err != nil {
+	if err := os.MkdirAll(filepath.Join(projectRoot, "scenarios"), 0o755); err != nil {
 		return ProjectSummary{}, err
 	}
-	if err := writeJSONFile(filepath.Join(projectRoot, "graph.json"), graph); err != nil {
+	if err := os.MkdirAll(filepath.Join(projectRoot, "exports"), 0o755); err != nil {
 		return ProjectSummary{}, err
 	}
-	if err := writeJSONFile(filepath.Join(projectRoot, "inputs", "case01.json"), input); err != nil {
-		return ProjectSummary{}, err
-	}
-	if err := os.WriteFile(filepath.Join(projectRoot, "components", "__init__.py"), []byte(""), 0o644); err != nil {
-		return ProjectSummary{}, err
-	}
-	if err := os.WriteFile(filepath.Join(projectRoot, "components", "scalar.py"), []byte(scalarComponentSource), 0o644); err != nil {
-		return ProjectSummary{}, err
-	}
-
 	projectPath := filepath.Join(projectRoot, "project.bcsproj")
+	projBytes, err := os.ReadFile(projectPath)
+	if err != nil {
+		return ProjectSummary{}, err
+	}
+	var proj model.Project
+	if err := json.Unmarshal(projBytes, &proj); err != nil {
+		return ProjectSummary{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	proj.ProjectName = projectName
+	if err := writeJSONFile(projectPath, proj); err != nil {
+		return ProjectSummary{}, err
+	}
+
 	rel, _ := filepath.Rel(s.repoRoot, projectPath)
 	return ProjectSummary{
 		Name:         projectName,
@@ -3349,18 +3299,3 @@ func componentSource(className string) string {
         return {"result": value * gain}, state
 `, className)
 }
-
-const scalarComponentSource = `class ScalarComponent:
-    input_nodes = {}
-    output_nodes = {}
-    parameter_schema = {}
-    state_schema = {}
-
-    def initialize(self, params, context):
-        return {}
-
-    def evaluate(self, inputs, state, params, context):
-        value = float(inputs["value"])
-        gain = float(params.get("gain", 2.0))
-        return {"result": value * gain}, state
-`

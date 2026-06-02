@@ -155,6 +155,7 @@ func requiredChecks(root string, mode string) []checkStatus {
 	switch mode {
 	case "portable-studio":
 		checks = append(checks,
+			check("templates", "templates", filepath.Join(root, "templates"), true),
 			check("runner", "runner executable", filepath.Join(root, "bin", executableName("bcs-runner")), true),
 			check("studio_server", "Studio server executable", filepath.Join(root, "bin", executableName("studio")), true),
 			check("studio_desktop", "Studio desktop executable", filepath.Join(root, "HVAC Studio.exe"), true),
@@ -162,7 +163,10 @@ func requiredChecks(root string, mode string) []checkStatus {
 	case "runtime-package":
 		checks = append(checks, check("runner", "runner executable", filepath.Join(root, "bin", executableName("bcs-runner")), true))
 	case "repository":
-		checks = append(checks, check("go_module", "Go module", filepath.Join(root, "tools", "go", "go.mod"), true))
+		checks = append(checks,
+			check("templates", "templates", filepath.Join(root, "templates"), true),
+			check("go_module", "Go module", filepath.Join(root, "tools", "go", "go.mod"), true),
+		)
 	}
 	return checks
 }

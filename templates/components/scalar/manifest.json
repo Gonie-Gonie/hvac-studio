@@ -1,0 +1,25 @@
+{
+  "id": "scalar",
+  "name": "Scalar Component",
+  "kind": "user_python",
+  "class_name": "ScalarComponent",
+  "source": "scalar.py",
+  "inputs": [
+    {
+      "id": "value",
+      "medium": "signal",
+      "value_type": "float",
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "id": "result",
+      "medium": "signal",
+      "value_type": "float"
+    }
+  ],
+  "parameters": {
+    "gain": 2.0
+  }
+}

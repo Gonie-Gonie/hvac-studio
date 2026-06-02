@@ -38,16 +38,11 @@ Copy-Tree -Source (Join-Path $RepoRoot 'runtime') -Destination (Join-Path $Stage
 Copy-PackagedPythonRuntime -RepoRoot $RepoRoot -Destination (Join-Path $StageRoot 'runtime\python')
 Copy-Tree -Source (Join-Path $RepoRoot 'docs') -Destination (Join-Path $StageRoot 'docs')
 Copy-Tree -Source (Join-Path $RepoRoot 'examples') -Destination (Join-Path $StageRoot 'examples')
+Copy-Tree -Source (Join-Path $RepoRoot 'templates') -Destination (Join-Path $StageRoot 'templates')
 Copy-Tree -Source (Join-Path $RepoRoot 'README.md') -Destination (Join-Path $StageRoot 'README.md')
 Copy-Tree -Source (Join-Path $RepoRoot 'CHANGELOG.md') -Destination (Join-Path $StageRoot 'CHANGELOG.md')
 
-New-Item -ItemType Directory -Force -Path (Join-Path $StageRoot 'templates\components'), (Join-Path $StageRoot 'templates\systems') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $StageRoot 'projects') | Out-Null
-@"
-# Templates
-
-Component and system templates will be added as the authoring model stabilizes.
-"@ | Set-Content -LiteralPath (Join-Path $StageRoot 'templates\README.md') -Encoding UTF8
 @"
 # Projects
 

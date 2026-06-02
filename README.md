@@ -30,6 +30,7 @@ schema/              JSON schemas for project, graph, protocol, input, output
 examples/            Runnable model examples and future golden tests
 scripts/dev/         Local development and verification scripts
 runtime/             Runtime packaging manifest
+templates/           Source templates for Studio-created projects/components
 docs/                Architecture notes and ADRs
 ```
 

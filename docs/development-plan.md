@@ -54,6 +54,7 @@ Already present:
 - Minimal Windows runtime release package.
 - Go-hosted Studio shell and Windows portable package script.
 - Bundled Python runtime copied into Windows portable and runtime-only packages.
+- Source templates under `templates/` for Studio-created projects/components.
 
 Near-term additions:
 
@@ -68,6 +69,7 @@ Acceptance criteria:
 - `scripts/dev/test-fast.ps1` passes using repo-local tools.
 - `scripts/release/test-runtime-package.ps1` builds, expands, and smoke-tests a runtime zip.
 - `scripts/release/test-portable-package.ps1` builds, expands, and smoke-tests a portable Studio zip.
+- Portable packages include real project/component templates rather than placeholder directories.
 
 ## Milestone 1: Runtime Core Contract
 
@@ -537,6 +539,7 @@ Acceptance criteria:
 
 - Portable package launches Studio from `HVAC Studio.exe` as a Wails desktop app without launching a browser or binding a normal-use TCP port.
 - Portable package can create projects under `projects/`.
+- Studio-created projects are copied from source templates under `templates/projects/`.
 - CLI runner validates and runs included examples using bundled `runtime/python`.
 - `bcs-env.exe check` verifies packaged Python, worker, schemas, examples, and entrypoints.
 - Package smoke test exercises Studio API and runner CLI after zip expansion.

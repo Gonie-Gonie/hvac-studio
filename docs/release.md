@@ -54,7 +54,7 @@ The runtime-only package is for delivery/external-engine integration and does no
 
 Both MVP packages include `bin/bcs-env.exe` and a bundled Python runtime under `runtime/python`, copied from the repo-local setup toolchain. Included examples run without system Python on `PATH`. Project-specific third-party package locking and dependency freezing are still later milestones.
 
-`bcs-env.exe check` verifies the package root, bundled Python runtime, Python worker, SDK, schemas, examples, and required executables. Release smoke tests call it with `--json` before running examples or Studio API checks.
+`bcs-env.exe check` verifies the package root, bundled Python runtime, Python worker, SDK, schemas, examples, project/component templates, and required executables. Release smoke tests call it with `--json` before running examples or Studio API checks.
 
 Studio desktop binaries are built through `scripts/release/build-studio.ps1` with Wails production tags: `-tags desktop,production`. A plain `go build` can compile but show a Wails runtime error dialog instead of opening the app window.
 
