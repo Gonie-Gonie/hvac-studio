@@ -115,6 +115,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("saveRunSourceButton")) {
 		t.Fatalf("module entrypoint did not include source save-and-run action binding")
 	}
+	if !bytes.Contains(body, []byte("openComponentCode")) {
+		t.Fatalf("module entrypoint did not include component-to-code navigation")
+	}
 }
 
 func TestStaticExportWorkspaceModuleServes(t *testing.T) {

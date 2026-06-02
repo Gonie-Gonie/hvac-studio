@@ -451,13 +451,29 @@ function componentEditor(component) {
   duplicateButton.type = "button";
   duplicateButton.textContent = "Duplicate";
   duplicateButton.addEventListener("click", () => duplicateComponentFromInspector(component.id));
+  const codeButton = document.createElement("button");
+  codeButton.type = "button";
+  codeButton.textContent = "Code";
+  codeButton.addEventListener("click", () => openComponentCode(component.id));
   name.addEventListener("keydown", (event) => {
     if (event.key === "Enter") updateComponentFromInspector(component.id);
   });
 
-  form.append(name, button, duplicateButton);
+  form.append(name, button, duplicateButton, codeButton);
   block.append(form);
   return block;
+}
+
+function openComponentCode(componentID) {
+  if (!componentById(componentID)) return;
+  state.selectedComponentId = componentID;
+  state.selectedConnectionId = "";
+  setMode("code");
+  renderCanvas();
+  renderInspector();
+  renderPythonPanel();
+  renderProjectTree();
+  updateCommandState();
 }
 
 function nodeEditor(component) {

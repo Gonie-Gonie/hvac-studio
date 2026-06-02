@@ -77,4 +77,5 @@
 - Show latest run component input/output values on Studio canvas node endpoints.
 - Add canvas connection-line selection tied to Inspector connection removal.
 - Add a Code workspace save-and-run action for faster Python edit feedback.
+- Add Inspector navigation from selected components to the Code workspace.
 - Add Python editor keyboard handling for save, check, multi-line indent, and outdent.
