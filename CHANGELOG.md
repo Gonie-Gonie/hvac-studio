@@ -68,3 +68,4 @@
 - Make Studio Python evaluate snippets include all declared component input and output nodes.
 - Gate Studio run, batch, and export APIs on saved Python source contract errors.
 - Clear stale Studio Problems state on successful run, run-record open, save, and export actions.
+- Add `runtime-export` detection to `bcs-env check` and verify exported runtime folders in portable smoke tests.

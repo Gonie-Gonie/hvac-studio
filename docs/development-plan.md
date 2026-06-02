@@ -235,6 +235,7 @@ Acceptance criteria:
 - Parameter Manager can edit workspace component parameters and persist them to `graph.json`. Started.
 - Problems, results, schema, logs, inspector, parameters, run output, and runtime export workspaces are visible in the active shell. Started.
 - Export button can write a workspace `exports/runtime_package/` artifact with manifest, public IO schema, source-of-truth project files, a first-run script, and packaged runner/Python support when available. Started.
+- `bcs-env check` can diagnose exported runtime folders as `runtime-export` packages. Started.
 - Problems panel links validation, run, and batch-case messages to graph or source locations where possible. Started with inferred component links for runtime errors.
 - Source save returns source-check feedback and execution actions stop on saved source-check errors. Started.
 - Source checks warn when Python source does not visibly reference required graph inputs or declared outputs. Started.

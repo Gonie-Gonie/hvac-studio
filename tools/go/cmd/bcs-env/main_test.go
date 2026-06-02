@@ -60,6 +60,30 @@ func TestCollectStatusForPortableRoot(t *testing.T) {
 	}
 }
 
+func TestCollectStatusForRuntimeExportRoot(t *testing.T) {
+	restoreVersionCommand := stubVersionCommand()
+	defer restoreVersionCommand()
+
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "manifest.json"), "{}\n")
+	writeFile(t, filepath.Join(root, "README.md"), "# Runtime Export\n")
+	writeFile(t, filepath.Join(root, "run-default.ps1"), "Write-Host ok\n")
+	writeFile(t, filepath.Join(root, "project", "project.bcsproj"), "{}\n")
+	writeFile(t, filepath.Join(root, "project", "graph.json"), "{}\n")
+	writeFile(t, filepath.Join(root, "schema", "public-io.json"), "{}\n")
+	writeFile(t, filepath.Join(root, "bin", "bcs-runner.exe"), "runner\n")
+	writeFile(t, filepath.Join(root, "bin", "bcs-env.exe"), "env\n")
+	writeFile(t, filepath.Join(root, "runtime", "python", "python.exe"), "fake python\n")
+
+	status := collectStatus(root)
+	if !status.OK {
+		t.Fatalf("status should be ok: %#v", status.Problems)
+	}
+	if status.Mode != "runtime-export" {
+		t.Fatalf("mode = %s, want runtime-export", status.Mode)
+	}
+}
+
 func TestCollectStatusReportsMissingPython(t *testing.T) {
 	t.Setenv("HVAC_STUDIO_PYTHON", "")
 	t.Setenv("PATH", "")

@@ -138,6 +138,11 @@ func detectMode(root string) string {
 	if pathExists(filepath.Join(root, "HVAC Studio.exe")) && pathExists(filepath.Join(root, "bin", "studio.exe")) {
 		return "portable-studio"
 	}
+	if pathExists(filepath.Join(root, "manifest.json")) &&
+		pathExists(filepath.Join(root, "project", "project.bcsproj")) &&
+		pathExists(filepath.Join(root, "bin", executableName("bcs-runner"))) {
+		return "runtime-export"
+	}
 	if pathExists(filepath.Join(root, "bin", executableName("bcs-runner"))) {
 		return "runtime-package"
 	}
@@ -145,6 +150,19 @@ func detectMode(root string) string {
 }
 
 func requiredChecks(root string, mode string) []checkStatus {
+	if mode == "runtime-export" {
+		return []checkStatus{
+			check("export_manifest", "export manifest", filepath.Join(root, "manifest.json"), true),
+			check("readme", "export README", filepath.Join(root, "README.md"), true),
+			check("run_script", "default run script", filepath.Join(root, "run-default.ps1"), true),
+			check("project", "exported project", filepath.Join(root, "project", "project.bcsproj"), true),
+			check("graph", "exported graph", filepath.Join(root, "project", "graph.json"), true),
+			check("interface_schema", "public IO schema", filepath.Join(root, "schema", "public-io.json"), true),
+			check("runner", "runner executable", filepath.Join(root, "bin", executableName("bcs-runner")), true),
+			check("env", "environment checker", filepath.Join(root, "bin", executableName("bcs-env")), true),
+			check("runtime_python", "packaged Python runtime", filepath.Join(root, "runtime", "python", executableName("python")), true),
+		}
+	}
 	checks := []checkStatus{
 		check("runtime_manifest", "runtime manifest", filepath.Join(root, "runtime", "manifest.json"), true),
 		check("python_worker", "Python worker", filepath.Join(root, "python", "bcs_worker"), true),
@@ -288,6 +306,11 @@ func findRootFrom(dir string) (string, error) {
 
 func looksLikeRoot(dir string) bool {
 	if pathExists(filepath.Join(dir, "tools", "go", "go.mod")) {
+		return true
+	}
+	if pathExists(filepath.Join(dir, "manifest.json")) &&
+		pathExists(filepath.Join(dir, "project", "project.bcsproj")) &&
+		pathExists(filepath.Join(dir, "bin", executableName("bcs-runner"))) {
 		return true
 	}
 	if pathExists(filepath.Join(dir, "runtime", "manifest.json")) && pathExists(filepath.Join(dir, "python", "bcs_worker")) {

@@ -452,6 +452,15 @@ try {
     throw "workspace export schema missing public inputs or outputs"
   }
   $ExportRunnerPath = Join-Path (Split-Path -Parent $ExportManifestPath) 'bin\bcs-runner.exe'
+  $ExportEnvToolPath = Join-Path (Split-Path -Parent $ExportManifestPath) 'bin\bcs-env.exe'
+  $ExportEnvStatusRaw = & $ExportEnvToolPath check --root (Split-Path -Parent $ExportManifestPath) --json
+  $ExportEnvStatus = $ExportEnvStatusRaw | ConvertFrom-Json
+  if (-not $ExportEnvStatus.ok) {
+    throw "exported runtime env check failed: $($ExportEnvStatus.problems -join '; ')"
+  }
+  if ($ExportEnvStatus.mode -ne 'runtime-export') {
+    throw "exported runtime env mode mismatch: $($ExportEnvStatus.mode)"
+  }
   $ExportProjectPath = Join-Path (Split-Path -Parent $ExportManifestPath) 'project\project.bcsproj'
   $ExportInputPath = Join-Path (Split-Path -Parent $ExportManifestPath) 'project\inputs\case01.json'
   $ExportOutputPath = Join-Path $TestRoot 'exported-runtime-output.json'
