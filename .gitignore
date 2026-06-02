@@ -37,4 +37,6 @@ runtime/python/
 runtime/packages/
 logs/
 projects/
+!templates/projects/
+!templates/projects/**
 examples/**/runs/

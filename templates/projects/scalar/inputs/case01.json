@@ -1,0 +1,9 @@
+{
+  "inputs": {
+    "value": 4.0
+  },
+  "context": {
+    "time": 0.0,
+    "dt": 60.0
+  }
+}

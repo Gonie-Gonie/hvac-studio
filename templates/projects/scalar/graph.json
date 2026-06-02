@@ -1,0 +1,69 @@
+{
+  "schema_version": "0.1.0",
+  "systems": [
+    {
+      "id": "MainSystem",
+      "name": "Main System",
+      "components": ["scalar"],
+      "connections": [],
+      "public_inputs": [
+        {
+          "id": "value",
+          "name": "Value",
+          "component": "scalar",
+          "node": "value",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "",
+          "required": true
+        }
+      ],
+      "public_outputs": [
+        {
+          "id": "result",
+          "name": "Result",
+          "component": "scalar",
+          "node": "result",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": ""
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "scalar",
+      "name": "Scalar Component",
+      "kind": "user_python",
+      "class": "components.scalar.ScalarComponent",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "value",
+            "name": "Value",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "result",
+            "name": "Result",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": ""
+          }
+        ]
+      },
+      "parameters": {
+        "gain": 2.0
+      }
+    }
+  ],
+  "connections": []
+}
