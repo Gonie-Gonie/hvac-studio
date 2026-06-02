@@ -916,12 +916,15 @@ async function runBatch() {
     state.latestBatchRecord = body.batch;
     state.latestRunRecord = null;
     state.latestResult = null;
+    const batchProblems = collectBatchProblems(body.batch);
+    state.latestValidation = { problems: batchProblems };
     state.detail.batches = [body.summary, ...(state.detail.batches || [])];
     renderProjectTree();
     renderResults();
     renderRunWorkspace();
+    renderProblems();
     setMode("run");
-    setBottomTab("results");
+    setBottomTab(batchProblems.length ? "problems" : "results");
     log(`Batch saved: ${body.summary.relative_path}`);
   } catch (error) {
     log(`Batch failed: ${error.message}`);
@@ -929,6 +932,23 @@ async function runBatch() {
     renderProblems();
     setBottomTab("problems");
   }
+}
+
+function collectBatchProblems(record) {
+  const problems = [];
+  for (const item of record?.cases || []) {
+    if (item.ok) continue;
+    const caseName = item.scenario_name || item.scenario_id || "batch case";
+    const caseProblems = item.problems || [];
+    if (caseProblems.length) {
+      for (const problem of caseProblems) {
+        problems.push({ ...problem, message: `${caseName}: ${problem.message}` });
+      }
+    } else if (item.error) {
+      problems.push({ severity: "error", message: `${caseName}: ${item.error}` });
+    }
+  }
+  return problems;
 }
 
 async function saveModelEditsBeforeExecution() {
@@ -987,10 +1007,13 @@ async function loadBatchRecord(batchID) {
     state.latestBatchRecord = body.batch_record;
     state.latestRunRecord = null;
     state.latestResult = null;
+    const batchProblems = collectBatchProblems(body.batch_record);
+    state.latestValidation = { problems: batchProblems };
     renderResults();
     renderRunWorkspace();
+    renderProblems();
     setMode("run");
-    setBottomTab("results");
+    setBottomTab(batchProblems.length ? "problems" : "results");
     log(`Batch opened: ${batchID}`);
   } catch (error) {
     log(`Open batch failed: ${error.message}`);

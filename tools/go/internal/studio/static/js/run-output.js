@@ -89,12 +89,21 @@ function runRecordSummaryRows(record) {
 function batchSummaryRows(record) {
   const cases = record.cases || [];
   const okCount = cases.filter((item) => item.ok).length;
-  return [
+  const firstFailure = cases.find((item) => !item.ok);
+  const rows = [
     { name: "Record", value: record.id || "batch", source: "batch" },
     { name: "Created", value: record.created_at_utc || "", source: "batch" },
     { name: "Cases", value: `${okCount}/${cases.length} ok`, source: "batch" },
-    ...resultSummaryRows(firstBatchResult({ latestBatchRecord: record }), "first ok case"),
   ];
+  if (firstFailure) {
+    rows.push({
+      name: "First failure",
+      value: `${firstFailure.scenario_name || firstFailure.scenario_id || "case"}: ${firstFailure.error || "failed"}`,
+      source: "batch",
+    });
+  }
+  rows.push(...resultSummaryRows(firstBatchResult({ latestBatchRecord: record }), "first ok case"));
+  return rows;
 }
 
 function resultSummaryRows(result, source) {

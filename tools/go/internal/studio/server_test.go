@@ -2059,6 +2059,110 @@ func TestBatchEndpointRunsSavedScenarios(t *testing.T) {
 	}
 }
 
+func TestBatchEndpointRecordsProblemsForFailedCases(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Batch Failure Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	scenarioPayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"name":         "Broken",
+		"inputs":       map[string]any{"value": 2},
+		"context":      map[string]any{"time": 0, "dt": 60},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	scenarioResponse := httptest.NewRecorder()
+	scenarioRequest := httptest.NewRequest(http.MethodPost, "/api/project/scenarios", bytes.NewReader(scenarioPayload))
+	server.Handler().ServeHTTP(scenarioResponse, scenarioRequest)
+	if scenarioResponse.Code != http.StatusCreated {
+		t.Fatalf("scenario status = %d body=%s", scenarioResponse.Code, scenarioResponse.Body.String())
+	}
+
+	sourcePayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "scalar",
+		"content":      "class ScalarComponent:\n    def evaluate(self, inputs, state, params, context):\n        return {\"result\": float(inputs[\"value\"]), \"debug\": 1}, state\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceResponse := httptest.NewRecorder()
+	sourceRequest := httptest.NewRequest(http.MethodPost, "/api/project/source", bytes.NewReader(sourcePayload))
+	server.Handler().ServeHTTP(sourceResponse, sourceRequest)
+	if sourceResponse.Code != http.StatusOK {
+		t.Fatalf("source status = %d body=%s", sourceResponse.Code, sourceResponse.Body.String())
+	}
+
+	batchPayload, err := json.Marshal(map[string]any{"project_path": createBody.Project.ProjectPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	batchResponse := httptest.NewRecorder()
+	batchRequest := httptest.NewRequest(http.MethodPost, "/api/batch", bytes.NewReader(batchPayload))
+	server.Handler().ServeHTTP(batchResponse, batchRequest)
+	if batchResponse.Code != http.StatusOK {
+		t.Fatalf("batch status = %d body=%s", batchResponse.Code, batchResponse.Body.String())
+	}
+	var batchBody struct {
+		Summary BatchSummary `json:"summary"`
+		Batch   BatchRecord  `json:"batch"`
+	}
+	if err := json.Unmarshal(batchResponse.Body.Bytes(), &batchBody); err != nil {
+		t.Fatal(err)
+	}
+	if batchBody.Summary.CaseCount != 1 || batchBody.Summary.OKCount != 0 {
+		t.Fatalf("batch counts = %d/%d, want 0/1", batchBody.Summary.OKCount, batchBody.Summary.CaseCount)
+	}
+	if len(batchBody.Batch.Cases) != 1 {
+		t.Fatalf("case count = %d, want 1", len(batchBody.Batch.Cases))
+	}
+	failed := batchBody.Batch.Cases[0]
+	if failed.OK {
+		t.Fatal("failed case was marked ok")
+	}
+	if !strings.Contains(failed.Error, "returned undeclared output node: debug") {
+		t.Fatalf("case error = %s", failed.Error)
+	}
+	if len(failed.Problems) != 1 || failed.Problems[0].ComponentID != "scalar" {
+		t.Fatalf("case problems = %#v", failed.Problems)
+	}
+
+	recordResponse := httptest.NewRecorder()
+	recordRequest := httptest.NewRequest(
+		http.MethodGet,
+		"/api/project/batch?project_path="+url.QueryEscape(createBody.Project.ProjectPath)+"&batch_id="+url.QueryEscape(batchBody.Summary.ID),
+		nil,
+	)
+	server.Handler().ServeHTTP(recordResponse, recordRequest)
+	if recordResponse.Code != http.StatusOK {
+		t.Fatalf("batch record status = %d body=%s", recordResponse.Code, recordResponse.Body.String())
+	}
+	var recordBody struct {
+		BatchRecord BatchRecord `json:"batch_record"`
+	}
+	if err := json.Unmarshal(recordResponse.Body.Bytes(), &recordBody); err != nil {
+		t.Fatal(err)
+	}
+	if len(recordBody.BatchRecord.Cases) != 1 || len(recordBody.BatchRecord.Cases[0].Problems) != 1 {
+		t.Fatalf("record problems = %#v", recordBody.BatchRecord.Cases)
+	}
+	if recordBody.BatchRecord.Cases[0].Problems[0].ComponentID != "scalar" {
+		t.Fatalf("record problem component = %s", recordBody.BatchRecord.Cases[0].Problems[0].ComponentID)
+	}
+}
+
 func TestCreateScenarioEndpointRejectsExamples(t *testing.T) {
 	server := newTestServer(t)
 	payload := []byte(`{

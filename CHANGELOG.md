@@ -59,3 +59,4 @@
 - Include component-linked Problems metadata in Studio run API responses for runtime contract errors.
 - Make Studio Problems rows navigate to the component canvas or source line when component and line metadata are available.
 - Include the public IO schema in Studio runtime export artifacts.
+- Store component-linked Problems metadata for failed Studio batch cases and surface those problems when batch records are opened.

@@ -35,4 +35,4 @@ Current run inputs can be saved as scenario artifacts under `scenarios/`.
 
 Saved scenarios can be reopened from the Project tree to populate the Run Inputs panel for repeatable one-case runs.
 
-Batch runs execute saved scenarios and write `runs/batch-*.json` records. Batch records can be reopened from the Project tree.
+Batch runs execute saved scenarios and write `runs/batch-*.json` records. Batch records can be reopened from the Project tree. Failed cases keep their error and component-linked Problems metadata so the Problems panel can still guide editing after the record is reopened.

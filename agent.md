@@ -89,6 +89,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Source checks should catch obvious authoring errors before execution: expected class name, `evaluate`/`initialize` signatures, return-shape hints, and Python syntax when a runtime is available.
 - Studio project validation should combine graph compilation with Python source contract checks for all `user_python` components, so Validate reflects the actual component-node-system authoring contract.
 - Batch execution should start with saved scenarios and write explicit `runs/batch-*.json` artifacts before adding dataset-scale orchestration.
+- Failed batch cases should retain structured Problems metadata so reopening a batch record can still guide the user back to the component/source surface.
 - Component management should separate stable component IDs/classes from editable display labels until full refactoring/rename support exists.
 - Portable smoke coverage should keep exercising the connected Studio workflow, not just server startup. The current smoke path covers project copy/creation, node creation/deletion, source editing/checking, component creation/duplication/inclusion/removal/deletion, connection creation/removal, parameter creation/deletion, input/scenario/batch/run/export artifacts, and bundled Python execution.
 - Release packaging must work from untagged development checkouts by falling back to a dev version with the current short SHA.

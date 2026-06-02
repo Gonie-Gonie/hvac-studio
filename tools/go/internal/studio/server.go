@@ -212,6 +212,7 @@ type BatchCaseRecord struct {
 	Context      map[string]any         `json:"context"`
 	Result       *runtimecore.RunResult `json:"result,omitempty"`
 	Error        string                 `json:"error,omitempty"`
+	Problems     []Problem              `json:"problems,omitempty"`
 }
 
 type BatchRecord struct {
@@ -1084,6 +1085,7 @@ func (s *Server) handleBatch(w http.ResponseWriter, r *http.Request) {
 		result, err := runtimecore.Run(ctx, loaded, input)
 		if err != nil {
 			caseRecord.Error = err.Error()
+			caseRecord.Problems = inferProblems(loaded.Graph, err)
 		} else {
 			caseRecord.OK = true
 			caseRecord.Result = result
