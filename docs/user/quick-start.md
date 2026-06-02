@@ -16,6 +16,12 @@ The launcher opens the Wails Studio desktop app. In a portable package, double-c
 HVAC Studio.exe
 ```
 
+To check a portable package before using it:
+
+```powershell
+.\bin\bcs-env.exe check --root . --json
+```
+
 ## 2. Open An Example
 
 Select an example project from the Project dropdown. The system canvas shows the entry system, its components, and visible node endpoints.
@@ -43,3 +49,22 @@ Open the Results panel. For workspace projects, runs are saved as `runs/run-*.js
 Use New to create a workspace project under `projects/`. Workspace projects can be edited; bundled examples are read-only through Studio write APIs.
 
 Use Copy to turn an example or existing project into an editable workspace project under `projects/`.
+
+## 7. Edit Python Logic
+
+Open the Code workspace, select a component, edit its Python source, and save it. Studio checks the source contract after save. Run, batch, and export actions stop if saved source files have source-check errors.
+
+## 8. Export Runtime
+
+Use Export on a workspace project. Studio writes:
+
+```text
+projects/<name>/exports/runtime_package/
+```
+
+From that export folder, run:
+
+```powershell
+.\bin\bcs-env.exe check --root . --json
+powershell -ExecutionPolicy Bypass -File .\run-default.ps1
+```
