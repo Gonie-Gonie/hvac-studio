@@ -60,9 +60,24 @@ try {
     '--repo',
     $PackageDir.FullName
   )
-  Start-Sleep -Seconds 3
-  if ($DesktopProcess.HasExited) {
-    throw "Studio desktop app exited during launch smoke"
+  $DesktopReady = $false
+  $DesktopTitle = ''
+  for ($Index = 0; $Index -lt 20; $Index++) {
+    Start-Sleep -Milliseconds 500
+    if ($DesktopProcess.HasExited) {
+      throw "Studio desktop app exited during launch smoke"
+    }
+    $DesktopTitle = (Get-Process -Id $DesktopProcess.Id -ErrorAction Stop).MainWindowTitle
+    if ($DesktopTitle -eq 'Error') {
+      throw "Studio desktop app opened an error dialog instead of the Wails window"
+    }
+    if ($DesktopTitle -match 'HVAC Studio') {
+      $DesktopReady = $true
+      break
+    }
+  }
+  if (-not $DesktopReady) {
+    throw "Studio desktop app did not open the expected Wails window; title='$DesktopTitle'"
   }
   Stop-Process -Id $DesktopProcess.Id -Force -ErrorAction SilentlyContinue
   $DesktopProcess = $null

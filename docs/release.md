@@ -54,6 +54,8 @@ The runtime-only package is for delivery/external-engine integration and does no
 
 Both MVP packages include a bundled Python runtime under `runtime/python`, copied from the repo-local setup toolchain. Included examples run without system Python on `PATH`. Project-specific third-party package locking and dependency freezing are still later milestones.
 
+Studio desktop binaries are built through `scripts/release/build-studio.ps1` with Wails production tags: `-tags desktop,production`. A plain `go build` can compile but show a Wails runtime error dialog instead of opening the app window.
+
 User documentation source lives under `docs/user/`. The planned documentation release flow is Markdown source to MkDocs HTML, offline/in-app help, PDF manual, and GitHub Release assets. The source scaffold exists now; automated HTML/PDF packaging is still a later release task.
 
 ## Local Release Test

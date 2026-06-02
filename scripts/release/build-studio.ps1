@@ -24,7 +24,7 @@ New-Item -ItemType Directory -Force -Path $BinRoot | Out-Null
 
 Push-Location (Join-Path $RepoRoot 'tools\go')
 try {
-  Invoke-Checked $env:HVAC_STUDIO_GO @('build', '-ldflags', '-H=windowsgui', '-o', $StudioExe, '.\cmd\studio')
+  Invoke-Checked $env:HVAC_STUDIO_GO @('build', '-tags', 'desktop,production', '-ldflags', '-w -s -H=windowsgui', '-o', $StudioExe, '.\cmd\studio')
 } finally {
   Pop-Location
 }

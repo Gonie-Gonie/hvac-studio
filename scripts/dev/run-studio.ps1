@@ -18,6 +18,8 @@ Push-Location (Join-Path $RepoRoot 'tools\go')
 try {
   $StudioArgs = @(
     'run',
+    '-tags',
+    'desktop,production',
     '.\cmd\studio',
     '--repo',
     $RepoRoot

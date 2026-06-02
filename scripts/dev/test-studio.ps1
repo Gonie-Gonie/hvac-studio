@@ -15,7 +15,7 @@ New-Item -ItemType Directory -Force -Path $SmokeRoot | Out-Null
 Push-Location (Join-Path $RepoRoot 'tools\go')
 try {
   Invoke-Checked $env:HVAC_STUDIO_GO @('test', '.\internal\studio', '.\cmd\studio')
-  Invoke-Checked $env:HVAC_STUDIO_GO @('build', '-o', $StudioExe, '.\cmd\studio')
+  Invoke-Checked $env:HVAC_STUDIO_GO @('build', '-tags', 'desktop,production', '-ldflags', '-w -s -H=windowsgui', '-o', $StudioExe, '.\cmd\studio')
 } finally {
   Pop-Location
 }
