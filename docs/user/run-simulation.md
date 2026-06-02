@@ -27,7 +27,7 @@ Run results include:
 - context
 - execution order
 
-Selecting a component after a run shows its latest inputs and outputs in the Inspector.
+After a run, the system canvas shows the latest values on component input and output node endpoints. Selecting a component also shows its latest inputs and outputs in the Inspector.
 
 ## Scenarios
 

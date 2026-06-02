@@ -106,6 +106,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("pendingConnection")) {
 		t.Fatalf("module entrypoint did not include pending canvas connection state")
 	}
+	if !bytes.Contains(body, []byte("latestCanvasNodeValue")) {
+		t.Fatalf("module entrypoint did not include canvas node result rendering")
+	}
 }
 
 func TestStaticExportWorkspaceModuleServes(t *testing.T) {

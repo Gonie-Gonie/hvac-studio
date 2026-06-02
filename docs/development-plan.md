@@ -245,6 +245,7 @@ Acceptance criteria:
 - Code workspace shows source-check issue rows in the contract panel and can focus line-specific problems. Started.
 - Source checks load draft Python source to catch import and class-load errors before run/export. Started.
 - Python editor supports save/check shortcuts and line-based indent/outdent. Started.
+- System canvas shows latest run input/output values on component node endpoints. Started.
 
 ## Milestone 5: Component-Aware Python Editor
 

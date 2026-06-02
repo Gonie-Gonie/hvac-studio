@@ -235,15 +235,30 @@ function renderCanvas() {
 
 function canvasNodePill(componentID, node, direction) {
   const pending = state.pendingConnection;
+  const latest = latestCanvasNodeValue(componentID, node.id, direction);
   const selected = direction === "output" && pending?.component === componentID && pending?.node === node.id;
   const targetable = direction === "input" && pending && pending.component !== componentID;
   const classes = [
     "node-pill",
     direction === "output" ? "output" : "",
+    latest.hasValue ? "has-value" : "",
     selected ? "pending-source" : "",
     targetable ? "targetable" : "",
   ].filter(Boolean).join(" ");
-  return `<span class="${classes}" data-node-endpoint="true" data-component-id="${escapeAttr(componentID)}" data-node-id="${escapeAttr(node.id)}" data-direction="${escapeAttr(direction)}">${escapeHTML(node.id)}</span>`;
+  const formattedValue = latest.hasValue ? formatValue(latest.value) : "";
+  const valueMarkup = latest.hasValue ? `<span class="node-value">${escapeHTML(formattedValue)}</span>` : "";
+  const title = latest.hasValue ? `${node.id}: ${formattedValue}` : node.id;
+  return `<span class="${classes}" data-node-endpoint="true" data-component-id="${escapeAttr(componentID)}" data-node-id="${escapeAttr(node.id)}" data-direction="${escapeAttr(direction)}" title="${escapeAttr(title)}"><span class="node-label">${escapeHTML(node.id)}</span>${valueMarkup}</span>`;
+}
+
+function latestCanvasNodeValue(componentID, nodeID, direction) {
+  const componentValues = direction === "output"
+    ? state.latestResult?.component_outputs?.[componentID]
+    : state.latestResult?.component_inputs?.[componentID];
+  if (!componentValues || !Object.prototype.hasOwnProperty.call(componentValues, nodeID)) {
+    return { hasValue: false, value: null };
+  }
+  return { hasValue: true, value: componentValues[nodeID] };
 }
 
 function handleCanvasEndpointClick(componentID, nodeID, direction) {
@@ -1007,9 +1022,13 @@ async function runProject() {
     setBottomTab("results");
   } catch (error) {
     log(`Run failed: ${error.message}`);
+    state.latestResult = null;
+    state.latestRunRecord = null;
+    state.latestBatchRecord = null;
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     setBottomTab("problems");
   }
+  renderCanvas();
   renderInspector();
   renderProblems();
   renderResults();
@@ -1030,6 +1049,7 @@ async function runBatch() {
     state.latestValidation = { problems: batchProblems };
     state.detail.batches = [body.summary, ...(state.detail.batches || [])];
     renderProjectTree();
+    renderCanvas();
     renderResults();
     renderRunWorkspace();
     renderProblems();
@@ -1106,6 +1126,7 @@ async function loadRunRecord(runID) {
     state.latestBatchRecord = null;
     state.latestResult = body.run_record.result;
     setProblems();
+    renderCanvas();
     renderInspector();
     renderResults();
     renderRunWorkspace();
@@ -1128,6 +1149,7 @@ async function loadBatchRecord(batchID) {
     state.latestResult = null;
     const batchProblems = collectBatchProblems(body.batch_record);
     state.latestValidation = { problems: batchProblems };
+    renderCanvas();
     renderResults();
     renderRunWorkspace();
     renderProblems();
