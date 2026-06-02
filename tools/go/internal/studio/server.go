@@ -29,6 +29,10 @@ import (
 //go:embed static
 var staticFS embed.FS
 
+func StaticAssets() (fs.FS, error) {
+	return fs.Sub(staticFS, "static")
+}
+
 type Server struct {
 	repoRoot string
 	mux      *http.ServeMux
@@ -292,7 +296,7 @@ func New(repoRoot string) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	assets, err := fs.Sub(staticFS, "static")
+	assets, err := StaticAssets()
 	if err != nil {
 		return nil, err
 	}

@@ -7,23 +7,22 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
-	"time"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/studio"
+	"github.com/wailsapp/wails/v2"
+	"github.com/wailsapp/wails/v2/pkg/options"
+	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 )
 
 func main() {
-	addr := flag.String("addr", "127.0.0.1:5174", "address for the Studio web UI")
+	addr := flag.String("addr", "127.0.0.1:5174", "address for the Studio server mode")
 	repoRoot := flag.String("repo", "", "repository root")
-	window := flag.Bool("window", true, "open Studio in an app-style desktop window")
-	noWindow := flag.Bool("no-window", false, "run only the local Studio server")
+	serverMode := flag.Bool("server", false, "run the Studio HTTP server for automation")
+	noWindow := flag.Bool("no-window", false, "deprecated alias for --server")
+	window := flag.Bool("window", false, "deprecated; the Wails desktop window is the default")
 	flag.Parse()
-	if *noWindow {
-		*window = false
-	}
+	_ = window
 
 	root := *repoRoot
 	if root == "" {
@@ -34,104 +33,57 @@ func main() {
 		}
 	}
 
+	if shouldRunServer(*serverMode, *noWindow) {
+		if err := runServer(root, *addr); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+
+	if err := runDesktop(root); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func shouldRunServer(serverMode bool, noWindow bool) bool {
+	return serverMode || noWindow
+}
+
+func runServer(root string, addr string) error {
 	server, err := studio.New(root)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	listener, err := net.Listen("tcp", *addr)
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-	url := "http://" + listener.Addr().String()
-	fmt.Printf("HVAC Studio listening at %s\n", url)
-	if *window {
-		go func() {
-			time.Sleep(300 * time.Millisecond)
-			if err := openStudioWindow(url); err != nil {
-				log.Printf("open Studio window: %v", err)
-			}
-		}()
-	}
-	log.Fatal(http.Serve(listener, server.Handler()))
+	fmt.Printf("HVAC Studio server listening at http://%s\n", listener.Addr().String())
+	return http.Serve(listener, server.Handler())
 }
 
-func openStudioWindow(url string) error {
-	commands := browserWindowCommands(url)
-	var lastErr error
-	for _, command := range commands {
-		if err := command.Start(); err != nil {
-			lastErr = err
-			continue
-		}
-		return nil
+func runDesktop(root string) error {
+	server, err := studio.New(root)
+	if err != nil {
+		return err
 	}
-	if lastErr != nil {
-		return lastErr
+	assets, err := studio.StaticAssets()
+	if err != nil {
+		return err
 	}
-	return fmt.Errorf("no browser command available")
-}
 
-func browserWindowCommands(url string) []*exec.Cmd {
-	switch runtime.GOOS {
-	case "windows":
-		commands := []*exec.Cmd{}
-		for _, browser := range windowsBrowserCandidates() {
-			commands = append(commands, exec.Command(browser, "--app="+url, "--new-window"))
-		}
-		commands = append(commands, exec.Command("rundll32.exe", "url.dll,FileProtocolHandler", url))
-		return commands
-	case "darwin":
-		return []*exec.Cmd{exec.Command("open", url)}
-	default:
-		return []*exec.Cmd{exec.Command("xdg-open", url)}
-	}
-}
-
-func windowsBrowserCandidates() []string {
-	candidates := []string{}
-	for _, name := range []string{"msedge.exe", "chrome.exe"} {
-		if path, err := exec.LookPath(name); err == nil {
-			candidates = append(candidates, path)
-		}
-	}
-	for _, path := range []string{
-		joinEnvPath("ProgramFiles", "Microsoft", "Edge", "Application", "msedge.exe"),
-		joinEnvPath("ProgramFiles(x86)", "Microsoft", "Edge", "Application", "msedge.exe"),
-		joinEnvPath("LocalAppData", "Microsoft", "Edge", "Application", "msedge.exe"),
-		joinEnvPath("ProgramFiles", "Google", "Chrome", "Application", "chrome.exe"),
-		joinEnvPath("ProgramFiles(x86)", "Google", "Chrome", "Application", "chrome.exe"),
-		joinEnvPath("LocalAppData", "Google", "Chrome", "Application", "chrome.exe"),
-	} {
-		if path == "" {
-			continue
-		}
-		if _, err := os.Stat(path); err == nil {
-			candidates = append(candidates, path)
-		}
-	}
-	return uniqueStrings(candidates)
-}
-
-func joinEnvPath(name string, parts ...string) string {
-	root := os.Getenv(name)
-	if root == "" {
-		return ""
-	}
-	return filepath.Join(append([]string{root}, parts...)...)
-}
-
-func uniqueStrings(values []string) []string {
-	seen := map[string]bool{}
-	result := []string{}
-	for _, value := range values {
-		if value == "" || seen[value] {
-			continue
-		}
-		seen[value] = true
-		result = append(result, value)
-	}
-	return result
+	return wails.Run(&options.App{
+		Title:     "HVAC Studio",
+		Width:     1440,
+		Height:    920,
+		MinWidth:  1180,
+		MinHeight: 760,
+		AssetServer: &assetserver.Options{
+			Assets:  assets,
+			Handler: server.Handler(),
+		},
+	})
 }
 
 func findRepoRoot() (string, error) {
