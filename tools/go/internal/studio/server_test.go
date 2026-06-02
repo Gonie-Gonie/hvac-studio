@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
 	runtimecore "github.com/goniegonie/hvac-studio/tools/go/internal/runtime"
@@ -1954,6 +1955,14 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(exportRoot, "manifest.json")); err != nil {
 		t.Fatalf("manifest: %v", err)
+	}
+	exportedProjectPath := filepath.Join(exportRoot, "project", "project.bcsproj")
+	exportedLoaded, err := project.Load(exportedProjectPath)
+	if err != nil {
+		t.Fatalf("load exported project: %v", err)
+	}
+	if _, err := compiler.Compile(exportedLoaded); err != nil {
+		t.Fatalf("compile exported project: %v", err)
 	}
 }
 

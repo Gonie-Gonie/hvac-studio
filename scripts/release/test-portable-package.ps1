@@ -430,6 +430,19 @@ try {
       throw "workspace export artifact was not written: $ExportArtifactPath"
     }
   }
+  $ExportProjectPath = Join-Path (Split-Path -Parent $ExportManifestPath) 'project\project.bcsproj'
+  $ExportInputPath = Join-Path (Split-Path -Parent $ExportManifestPath) 'project\inputs\case01.json'
+  $ExportOutputPath = Join-Path $TestRoot 'exported-runtime-output.json'
+  Invoke-Checked $Runner @('validate', '--project', $ExportProjectPath)
+  Invoke-Checked $Runner @('run', '--project', $ExportProjectPath, '--input', $ExportInputPath, '--output', $ExportOutputPath)
+  $ExportRunJson = Get-Content -Raw -LiteralPath $ExportOutputPath | ConvertFrom-Json
+  if ($ExportRunJson.outputs.result -ne 21) {
+    throw "exported runtime run result mismatch: result=$($ExportRunJson.outputs.result)"
+  }
+  $ExportExtraOutput = $ExportRunJson.outputs.PSObject.Properties[$ExtraOutputId].Value
+  if ($ExportExtraOutput -ne 21) {
+    throw "exported runtime included component result mismatch: $ExtraOutputId=$ExportExtraOutput"
+  }
 
   $DeleteConnectionBody = @{
     project_path = $CreatedProject.project_path

@@ -50,3 +50,4 @@
 - Split Studio static JavaScript into ES modules and replace the validation plot placeholder with a runtime output preview.
 - Remove unimplemented Studio future workspaces from the active UI and promote actual run output state into a focused Run workspace.
 - Expand Studio runtime export from a manifest-only artifact to a project artifact containing source-of-truth project files.
+- Verify exported Studio runtime project artifacts can be loaded, compiled, and run by packaged release smoke tests.
