@@ -81,6 +81,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte(`from "./export-workspace.js"`)) {
 		t.Fatalf("module entrypoint did not import export workspace renderer")
 	}
+	if !bytes.Contains(body, []byte("openProblem")) {
+		t.Fatalf("module entrypoint did not include problem navigation")
+	}
 }
 
 func TestStaticExportWorkspaceModuleServes(t *testing.T) {

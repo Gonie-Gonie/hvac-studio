@@ -14,5 +14,6 @@ export const state = {
   sourceDraftByComponent: {},
   sourceCheckByComponent: {},
   loadingSource: {},
+  pendingSourceFocus: null,
   logs: [],
 };

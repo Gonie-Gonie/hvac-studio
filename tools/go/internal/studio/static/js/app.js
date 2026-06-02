@@ -638,9 +638,30 @@ function problemRow(problem) {
   row.innerHTML = `<span class="status-dot ${problem.severity === "error" ? "error" : ""}"></span><span>${escapeHTML(problem.message)}${escapeHTML(location)}</span>`;
   if (problem.component_id) {
     row.classList.add("linked");
-    row.addEventListener("click", () => selectComponent(problem.component_id));
+    row.addEventListener("click", () => openProblem(problem));
   }
   return row;
+}
+
+function openProblem(problem) {
+  if (!problem.component_id || !componentById(problem.component_id)) return;
+  state.selectedComponentId = problem.component_id;
+  if (problem.line) {
+    state.pendingSourceFocus = {
+      component_id: problem.component_id,
+      line: problem.line,
+      column: problem.column || 1,
+    };
+    setMode("code");
+  } else {
+    setMode("canvas");
+    state.pendingSourceFocus = null;
+  }
+  renderCanvas();
+  renderInspector();
+  renderPythonPanel();
+  renderProjectTree();
+  updateCommandState();
 }
 
 function renderLogs() {
@@ -682,6 +703,7 @@ function renderPythonPanel() {
   updateSourceChrome(component, source, draft);
   updateLineNumbers(draft);
   renderSourceCheck(component.id);
+  focusPendingSourceLine(component.id);
 }
 
 function sourceEditors() {
@@ -804,6 +826,31 @@ function updateLineNumbers(value) {
   if (!gutter) return;
   const lines = Math.max(1, (value.match(/\n/g) || []).length + 1);
   gutter.textContent = Array.from({ length: lines }, (_, index) => String(index + 1)).join("\n");
+}
+
+function focusPendingSourceLine(componentID) {
+  const pending = state.pendingSourceFocus;
+  if (!pending || pending.component_id !== componentID) return;
+  const editor = el("sourceEditor");
+  if (!editor) return;
+  const line = Math.max(1, Number(pending.line) || 1);
+  const column = Math.max(1, Number(pending.column) || 1);
+  const position = sourceOffsetForLineColumn(editor.value, line, column);
+  editor.focus();
+  editor.setSelectionRange(position, position);
+  const lineCount = Math.max(1, (editor.value.match(/\n/g) || []).length + 1);
+  editor.scrollTop = ((line - 1) / lineCount) * editor.scrollHeight;
+  state.pendingSourceFocus = null;
+}
+
+function sourceOffsetForLineColumn(value, line, column) {
+  let offset = 0;
+  for (let currentLine = 1; currentLine < line; currentLine++) {
+    const next = value.indexOf("\n", offset);
+    if (next < 0) return value.length;
+    offset = next + 1;
+  }
+  return Math.min(value.length, offset + column - 1);
 }
 
 function renderExportWorkspaceView() {
