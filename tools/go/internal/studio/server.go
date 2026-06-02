@@ -2154,6 +2154,7 @@ func checkComponentSource(ctx context.Context, loaded *project.LoadedProject, re
 	if !strings.Contains(req.Content, "return") {
 		check.Problems = append(check.Problems, Problem{Severity: "warning", Message: "source has no return statement", ComponentID: componentID})
 	}
+	check.Problems = append(check.Problems, sourceContractReferenceProblems(component, req.Content)...)
 	check.Problems = append(check.Problems, pythonSyntaxProblems(ctx, loaded, componentID, filepath.ToSlash(rel), req.Content)...)
 	check.OK = !hasErrorProblems(check.Problems)
 	return check, nil
@@ -2269,6 +2270,42 @@ func pythonMethodSignatureMatches(actual []string, expected []string) bool {
 		}
 	}
 	return true
+}
+
+func sourceContractReferenceProblems(component model.Component, content string) []Problem {
+	problems := []Problem{}
+	for _, node := range component.Nodes.Inputs {
+		if node.IsRequired() && !sourceReferencesInput(content, node.ID) {
+			problems = append(problems, Problem{
+				Severity:    "warning",
+				Message:     fmt.Sprintf("required input node is not referenced in source: %s", node.ID),
+				ComponentID: component.ID,
+			})
+		}
+	}
+	for _, node := range component.Nodes.Outputs {
+		if !sourceReferencesQuotedName(content, node.ID) {
+			problems = append(problems, Problem{
+				Severity:    "warning",
+				Message:     fmt.Sprintf("output node is not obviously returned by source: %s", node.ID),
+				ComponentID: component.ID,
+			})
+		}
+	}
+	return problems
+}
+
+func sourceReferencesInput(content string, id string) bool {
+	doubleQuoted := fmt.Sprintf(`"%s"`, id)
+	singleQuoted := fmt.Sprintf(`'%s'`, id)
+	return strings.Contains(content, "inputs["+doubleQuoted+"]") ||
+		strings.Contains(content, "inputs["+singleQuoted+"]") ||
+		strings.Contains(content, "inputs.get("+doubleQuoted) ||
+		strings.Contains(content, "inputs.get("+singleQuoted)
+}
+
+func sourceReferencesQuotedName(content string, id string) bool {
+	return strings.Contains(content, fmt.Sprintf(`"%s"`, id)) || strings.Contains(content, fmt.Sprintf(`'%s'`, id))
 }
 
 func regexpLine(content string, match []int) int {

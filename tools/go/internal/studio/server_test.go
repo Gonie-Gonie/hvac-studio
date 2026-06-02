@@ -1828,14 +1828,18 @@ func TestCheckSourceEndpointReportsEvaluateSignatureProblem(t *testing.T) {
 	if body.Check.OK {
 		t.Fatal("source check should fail when evaluate signature is wrong")
 	}
-	if len(body.Check.Problems) != 1 {
-		t.Fatalf("problems = %#v", body.Check.Problems)
+	var signatureProblem *Problem
+	for index := range body.Check.Problems {
+		if strings.Contains(body.Check.Problems[index].Message, "evaluate signature") {
+			signatureProblem = &body.Check.Problems[index]
+			break
+		}
 	}
-	if !strings.Contains(body.Check.Problems[0].Message, "evaluate signature") {
-		t.Fatalf("problem = %#v", body.Check.Problems[0])
+	if signatureProblem == nil {
+		t.Fatalf("signature problem missing from %#v", body.Check.Problems)
 	}
-	if body.Check.Problems[0].Line != 2 {
-		t.Fatalf("line = %d, want 2", body.Check.Problems[0].Line)
+	if signatureProblem.Line != 2 {
+		t.Fatalf("line = %d, want 2", signatureProblem.Line)
 	}
 }
 
@@ -1879,6 +1883,51 @@ func TestCheckSourceEndpointAcceptsWorkspaceSource(t *testing.T) {
 	}
 	if !body.Check.OK {
 		t.Fatalf("source check problems = %#v", body.Check.Problems)
+	}
+}
+
+func TestCheckSourceEndpointWarnsAboutUnreferencedContractNodes(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Source Contract Warning Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+	payload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "scalar",
+		"content":      "class ScalarComponent:\n    def evaluate(self, inputs, state, params, context):\n        return {\"other\": 1}, state\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/source/check", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Check SourceCheck `json:"check"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !body.Check.OK {
+		t.Fatalf("warnings should not fail source check = %#v", body.Check.Problems)
+	}
+	if !hasProblemMessage(body.Check.Problems, "required input node is not referenced in source: value") {
+		t.Fatalf("input warning missing from %#v", body.Check.Problems)
+	}
+	if !hasProblemMessage(body.Check.Problems, "output node is not obviously returned by source: result") {
+		t.Fatalf("output warning missing from %#v", body.Check.Problems)
 	}
 }
 
@@ -2359,6 +2408,15 @@ func TestRunRecordsRoundTrip(t *testing.T) {
 	if summaries[0].ID != summary.ID {
 		t.Fatalf("run id = %s, want %s", summaries[0].ID, summary.ID)
 	}
+}
+
+func hasProblemMessage(problems []Problem, message string) bool {
+	for _, problem := range problems {
+		if problem.Message == message {
+			return true
+		}
+	}
+	return false
 }
 
 func newTestServer(t *testing.T) *Server {
