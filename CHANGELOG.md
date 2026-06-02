@@ -53,3 +53,4 @@
 - Verify exported Studio runtime project artifacts can be loaded, compiled, and run by packaged release smoke tests.
 - Add a detailed Studio export workspace view for runtime export summary, file list, and manifest JSON.
 - Add a public output table to the Studio Run workspace alongside run summary and output chart.
+- Extend Studio project validation to check user Python component source contracts and surface component-linked source problems.

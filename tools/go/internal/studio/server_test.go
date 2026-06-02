@@ -1457,6 +1457,92 @@ func TestValidateEndpointReturnsLinkedProblem(t *testing.T) {
 	}
 }
 
+func TestValidateEndpointIncludesSourceChecks(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Validate Source Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{"project_path": createBody.Project.ProjectPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/validate", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Validation struct {
+			SourceChecks int       `json:"source_checks"`
+			Problems     []Problem `json:"problems"`
+		} `json:"validation"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Validation.SourceChecks != 1 {
+		t.Fatalf("source checks = %d, want 1", body.Validation.SourceChecks)
+	}
+	if hasErrorProblems(body.Validation.Problems) {
+		t.Fatalf("unexpected source validation errors = %#v", body.Validation.Problems)
+	}
+}
+
+func TestValidateEndpointReportsSourceContractProblems(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Validate Broken Source Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+	sourcePath := filepath.Join(root, "projects", "validate-broken-source-project", "components", "scalar.py")
+	if err := os.WriteFile(sourcePath, []byte("class WrongName:\n    pass\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{"project_path": createBody.Project.ProjectPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/validate", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body apiError
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Problems) < 2 {
+		t.Fatalf("problems = %#v", body.Problems)
+	}
+	if body.Problems[0].ComponentID != "scalar" {
+		t.Fatalf("component id = %s, want scalar", body.Problems[0].ComponentID)
+	}
+	if !strings.Contains(body.Message, "project source validation failed") {
+		t.Fatalf("message = %s", body.Message)
+	}
+}
+
 func TestRunRecordEndpointReturnsSavedRecord(t *testing.T) {
 	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()

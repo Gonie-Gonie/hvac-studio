@@ -336,6 +336,19 @@ try {
     throw "workspace input update mismatch: scalar_bias=$($InputJson.project.default_run_input.inputs.scalar_bias)"
   }
 
+  $ValidateBody = @{
+    project_path = $CreatedProject.project_path
+  } | ConvertTo-Json -Depth 4
+  $ValidateResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/validate" -Method POST -ContentType 'application/json' -Body $ValidateBody -TimeoutSec 20
+  $ValidateJson = $ValidateResponse.Content | ConvertFrom-Json
+  if ($ValidateJson.validation.source_checks -lt 2) {
+    throw "workspace validation source check count too small: $($ValidateJson.validation.source_checks)"
+  }
+  $ValidateErrors = @($ValidateJson.validation.problems | Where-Object { $_.severity -eq 'error' })
+  if ($ValidateErrors.Count -gt 0) {
+    throw "workspace validation reported source errors: $($ValidateErrors | ConvertTo-Json -Compress)"
+  }
+
   $ScenarioBody = @{
     project_path = $CreatedProject.project_path
     name = 'Portable Scenario'

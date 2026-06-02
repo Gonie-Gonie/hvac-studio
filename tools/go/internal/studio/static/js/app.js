@@ -811,6 +811,7 @@ function renderExportWorkspaceView() {
 }
 
 async function validateProject() {
+  if (!(await saveModelEditsBeforeExecution())) return;
   try {
     const body = await api("/api/validate", {
       method: "POST",
@@ -823,6 +824,7 @@ async function validateProject() {
     log(`Validation failed: ${error.message}`);
   }
   renderProblems();
+  setBottomTab("problems");
 }
 
 async function runProject() {

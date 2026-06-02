@@ -978,6 +978,11 @@ func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
 		writeErrorWithProblems(w, apperror.Wrap(apperror.CodeValidation, err), inferProblems(loaded.Graph, err))
 		return
 	}
+	sourceCheckCount, sourceProblems := checkProjectSources(r.Context(), loaded)
+	if hasErrorProblems(sourceProblems) {
+		writeErrorWithProblems(w, apperror.Errorf(apperror.CodeValidation, "project source validation failed"), sourceProblems)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok": true,
 		"validation": map[string]any{
@@ -986,6 +991,8 @@ func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
 			"component_count":  len(plan.System.Components),
 			"connection_count": len(plan.System.Connections),
 			"execution_order":  plan.Order,
+			"source_checks":    sourceCheckCount,
+			"problems":         sourceProblems,
 		},
 	})
 }
@@ -2123,6 +2130,40 @@ func checkComponentSource(ctx context.Context, loaded *project.LoadedProject, re
 	check.Problems = append(check.Problems, pythonSyntaxProblems(ctx, loaded, componentID, filepath.ToSlash(rel), req.Content)...)
 	check.OK = !hasErrorProblems(check.Problems)
 	return check, nil
+}
+
+func checkProjectSources(ctx context.Context, loaded *project.LoadedProject) (int, []Problem) {
+	problems := []Problem{}
+	count := 0
+	for _, component := range loaded.Graph.Components {
+		if component.Kind != "user_python" {
+			continue
+		}
+		count++
+		source, err := loadComponentSource(loaded, component.ID, false)
+		if err != nil {
+			problems = append(problems, Problem{
+				Severity:    "error",
+				Message:     fmt.Sprintf("source check failed: %s", err),
+				ComponentID: component.ID,
+			})
+			continue
+		}
+		check, err := checkComponentSource(ctx, loaded, sourceCheckRequest{
+			ComponentID: component.ID,
+			Content:     source.Content,
+		})
+		if err != nil {
+			problems = append(problems, Problem{
+				Severity:    "error",
+				Message:     fmt.Sprintf("source check failed: %s", err),
+				ComponentID: component.ID,
+			})
+			continue
+		}
+		problems = append(problems, check.Problems...)
+	}
+	return count, problems
 }
 
 func componentSourcePath(loaded *project.LoadedProject, componentID string) (string, error) {
