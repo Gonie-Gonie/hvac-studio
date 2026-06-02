@@ -3,6 +3,7 @@ package runtime
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
@@ -44,5 +45,42 @@ func TestResolvePythonFindsPackagedRuntime(t *testing.T) {
 
 	if got != packagedPython {
 		t.Fatalf("python = %s, want %s", got, packagedPython)
+	}
+}
+
+func TestValidateOutputsRejectsMissingDeclaredOutput(t *testing.T) {
+	component := contractComponent()
+
+	err := validateOutputs(component, map[string]any{})
+
+	if err == nil || !strings.Contains(err.Error(), "did not return declared output node: result") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestValidateOutputsRejectsUndeclaredOutput(t *testing.T) {
+	component := contractComponent()
+
+	err := validateOutputs(component, map[string]any{"result": 1, "debug": 2})
+
+	if err == nil || !strings.Contains(err.Error(), "returned undeclared output node: debug") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestValidateOutputsAcceptsDeclaredOutputs(t *testing.T) {
+	component := contractComponent()
+
+	if err := validateOutputs(component, map[string]any{"result": 1}); err != nil {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func contractComponent() model.Component {
+	return model.Component{
+		ID: "scalar",
+		Nodes: model.NodeSet{
+			Outputs: []model.Node{{ID: "result"}},
+		},
 	}
 }

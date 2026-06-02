@@ -208,9 +208,16 @@ func collectInputs(component model.Component, plan *compiler.Plan, publicInputs 
 }
 
 func validateOutputs(component model.Component, outputs map[string]any) error {
+	declared := map[string]bool{}
 	for _, node := range component.Nodes.Outputs {
+		declared[node.ID] = true
 		if _, ok := outputs[node.ID]; !ok {
 			return apperror.Errorf(apperror.CodePythonWorker, "component %s did not return declared output node: %s", component.ID, node.ID)
+		}
+	}
+	for name := range outputs {
+		if !declared[name] {
+			return apperror.Errorf(apperror.CodePythonWorker, "component %s returned undeclared output node: %s", component.ID, name)
 		}
 	}
 	return nil

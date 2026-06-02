@@ -47,6 +47,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - The Python worker uses JSONL over stdio for the MVP.
 - During development, the Go runner finds `python/bcs_worker` from the repo tree and adds it plus the project root to `PYTHONPATH`.
 - Python user components may use arbitrary internal logic, but inputs/outputs/states must be JSON-serializable across the worker boundary.
+- Python component returned output keys must match declared component output nodes exactly; missing and undeclared output keys are runtime contract errors.
 - Fresh clones should be bootstrappable into a repo-local development environment. `scripts/dev/setup.ps1` installs Go, uv, uv-managed Python, and `.venv` inside the clone so normal development does not depend on user-profile toolchains.
 - Dev/test/build scripts should load `scripts/dev/env.ps1` and prefer `.repo_tools` / `.venv` before falling back to system tools.
 - Work should be committed and pushed at sensible milestones, especially after a test pass. Treat "test green -> commit -> push" as an operating rule unless the user says to hold changes locally.

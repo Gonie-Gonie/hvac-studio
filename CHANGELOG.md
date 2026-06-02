@@ -55,3 +55,4 @@
 - Add a public output table to the Studio Run workspace alongside run summary and output chart.
 - Extend Studio project validation to check user Python component source contracts and surface component-linked source problems.
 - Add Studio source contract checks for `evaluate` and `initialize` Python method signatures before runtime execution.
+- Reject undeclared Python component output keys at runtime so returned outputs must match graph output nodes exactly.
