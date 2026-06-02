@@ -1412,6 +1412,55 @@ func TestRunEndpointRunsFeedForwardExample(t *testing.T) {
 	}
 }
 
+func TestRunEndpointReturnsComponentLinkedRuntimeProblem(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Run Problem Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+	sourcePath := filepath.Join(root, "projects", "run-problem-project", "components", "scalar.py")
+	source := "class ScalarComponent:\n    def evaluate(self, inputs, state, params, context):\n        return {\"result\": 1, \"debug\": 2}, state\n"
+	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"inputs":       map[string]any{"value": 5},
+		"context":      map[string]any{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/run", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body apiError
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Problems) != 1 {
+		t.Fatalf("problems = %#v", body.Problems)
+	}
+	if body.Problems[0].ComponentID != "scalar" {
+		t.Fatalf("component id = %s, want scalar", body.Problems[0].ComponentID)
+	}
+	if !strings.Contains(body.Problems[0].Message, "returned undeclared output node: debug") {
+		t.Fatalf("problem = %#v", body.Problems[0])
+	}
+}
+
 func TestValidateEndpointReturnsLinkedProblem(t *testing.T) {
 	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()

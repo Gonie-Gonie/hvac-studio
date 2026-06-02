@@ -1025,7 +1025,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	result, err := runtimecore.Run(ctx, loaded, input)
 	if err != nil {
-		writeError(w, err)
+		writeErrorWithProblems(w, err, inferProblems(loaded.Graph, err))
 		return
 	}
 	response := map[string]any{"ok": true, "result": result}
