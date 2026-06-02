@@ -1031,6 +1031,10 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	if input.Context == nil {
 		input.Context = map[string]any{}
 	}
+	if problems := projectSourceErrorProblems(r.Context(), loaded); len(problems) > 0 {
+		writeErrorWithProblems(w, apperror.Errorf(apperror.CodeValidation, "project source validation failed"), problems)
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
@@ -1069,6 +1073,10 @@ func (s *Server) handleBatch(w http.ResponseWriter, r *http.Request) {
 	scenarios := loadScenarioSummaries(loaded.Root)
 	if len(scenarios) == 0 {
 		writeError(w, apperror.Errorf(apperror.CodeValidation, "batch requires at least one saved scenario"))
+		return
+	}
+	if problems := projectSourceErrorProblems(r.Context(), loaded); len(problems) > 0 {
+		writeErrorWithProblems(w, apperror.Errorf(apperror.CodeValidation, "project source validation failed"), problems)
 		return
 	}
 
@@ -1141,6 +1149,10 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
 		writeError(w, err)
+		return
+	}
+	if problems := projectSourceErrorProblems(r.Context(), loaded); len(problems) > 0 {
+		writeErrorWithProblems(w, apperror.Errorf(apperror.CodeValidation, "project source validation failed"), problems)
 		return
 	}
 	summary, manifest, err := writeExportManifest(loaded, req.Profile)
@@ -2192,6 +2204,14 @@ func checkProjectSources(ctx context.Context, loaded *project.LoadedProject) (in
 		problems = append(problems, check.Problems...)
 	}
 	return count, problems
+}
+
+func projectSourceErrorProblems(ctx context.Context, loaded *project.LoadedProject) []Problem {
+	_, problems := checkProjectSources(ctx, loaded)
+	if hasErrorProblems(problems) {
+		return problems
+	}
+	return []Problem{}
 }
 
 func componentSourcePath(loaded *project.LoadedProject, componentID string) (string, error) {

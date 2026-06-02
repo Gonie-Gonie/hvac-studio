@@ -93,6 +93,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Source checks should catch obvious authoring errors before execution: expected class name, `evaluate`/`initialize` signatures, return-shape hints, and Python syntax when a runtime is available.
 - Saving a Python source file should return the current source check result; execution actions should stop on saved source-check errors instead of letting users discover obvious contract breaks through later runtime failures.
 - Source checks may warn when graph input/output node names are not visibly referenced in Python source, but dynamic Python patterns should remain possible, so these contract-reference hints must stay warnings unless runtime validation proves an error.
+- Run, batch, and export APIs must gate on saved source-check errors server-side, not only through GUI dirty-draft handling, because API automation and reopened projects can bypass frontend state.
 - Studio project validation should combine graph compilation with Python source contract checks for all `user_python` components, so Validate reflects the actual component-node-system authoring contract.
 - Batch execution should start with saved scenarios and write explicit `runs/batch-*.json` artifacts before adding dataset-scale orchestration.
 - Failed batch cases should retain structured Problems metadata so reopening a batch record can still guide the user back to the component/source surface.

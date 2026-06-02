@@ -66,3 +66,4 @@
 - Copy packaged runner tools and Python runtime into Studio runtime exports when package support files are available.
 - Add a generated `run-default.ps1` and README to Studio runtime exports and verify the script in portable smoke tests.
 - Make Studio Python evaluate snippets include all declared component input and output nodes.
+- Gate Studio run, batch, and export APIs on saved Python source contract errors.

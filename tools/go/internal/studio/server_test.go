@@ -1474,6 +1474,33 @@ func TestRunEndpointReturnsComponentLinkedRuntimeProblem(t *testing.T) {
 	}
 }
 
+func TestRunEndpointRejectsSavedSourceContractErrors(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	project := createWorkspaceProject(t, server, "Run Source Gate Project")
+	writeBrokenScalarSource(t, project)
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path": project.ProjectPath,
+		"inputs":       map[string]any{"value": 4},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/run", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body apiError
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !hasProblemMessage(body.Problems, "evaluate method is missing") {
+		t.Fatalf("source problem missing from %#v", body.Problems)
+	}
+}
+
 func TestValidateEndpointReturnsLinkedProblem(t *testing.T) {
 	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
@@ -2237,6 +2264,44 @@ func TestBatchEndpointRecordsProblemsForFailedCases(t *testing.T) {
 	}
 }
 
+func TestBatchEndpointRejectsSavedSourceContractErrors(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	project := createWorkspaceProject(t, server, "Batch Source Gate Project")
+	scenarioPayload, err := json.Marshal(map[string]any{
+		"project_path": project.ProjectPath,
+		"name":         "Gate",
+		"inputs":       map[string]any{"value": 2},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	scenarioResponse := httptest.NewRecorder()
+	scenarioRequest := httptest.NewRequest(http.MethodPost, "/api/project/scenarios", bytes.NewReader(scenarioPayload))
+	server.Handler().ServeHTTP(scenarioResponse, scenarioRequest)
+	if scenarioResponse.Code != http.StatusCreated {
+		t.Fatalf("scenario status = %d body=%s", scenarioResponse.Code, scenarioResponse.Body.String())
+	}
+	writeBrokenScalarSource(t, project)
+
+	batchPayload, err := json.Marshal(map[string]any{"project_path": project.ProjectPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/batch", bytes.NewReader(batchPayload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body apiError
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !hasProblemMessage(body.Problems, "evaluate method is missing") {
+		t.Fatalf("source problem missing from %#v", body.Problems)
+	}
+}
+
 func TestCreateScenarioEndpointRejectsExamples(t *testing.T) {
 	server := newTestServer(t)
 	payload := []byte(`{
@@ -2376,6 +2441,33 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	}
 }
 
+func TestExportEndpointRejectsSavedSourceContractErrors(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	project := createWorkspaceProject(t, server, "Export Source Gate Project")
+	writeBrokenScalarSource(t, project)
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path": project.ProjectPath,
+		"profile":      "runtime_package",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/export", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body apiError
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !hasProblemMessage(body.Problems, "evaluate method is missing") {
+		t.Fatalf("source problem missing from %#v", body.Problems)
+	}
+}
+
 func TestExportEndpointRejectsExamples(t *testing.T) {
 	server := newTestServer(t)
 	payload := []byte(`{
@@ -2430,6 +2522,35 @@ func hasProblemMessage(problems []Problem, message string) bool {
 		}
 	}
 	return false
+}
+
+func createWorkspaceProject(t *testing.T, server *Server, name string) ProjectSummary {
+	t.Helper()
+	payload, err := json.Marshal(map[string]any{"name": name})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	return body.Project
+}
+
+func writeBrokenScalarSource(t *testing.T, project ProjectSummary) {
+	t.Helper()
+	sourcePath := filepath.Join(filepath.Dir(project.ProjectPath), "components", "scalar.py")
+	if err := os.WriteFile(sourcePath, []byte("class ScalarComponent:\n    pass\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func newTestServer(t *testing.T) *Server {
