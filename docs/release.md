@@ -28,6 +28,7 @@ The portable Studio package is the first user-facing distribution:
 
 ```text
 hvac-studio-<version>-windows-amd64-portable/
+  HVAC Studio.exe
   bin/
     studio.exe
     bcs-runner.exe
@@ -66,7 +67,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-porta
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-runtime-package.ps1 -Version 0.1.0-dev
 ```
 
-The portable package smoke test expands the zip, verifies `studio.exe`, `bcs-runner.exe`, `bcs-env.exe`, and `runtime/python/python.exe`, constrains `PATH` so system Python is not used, runs the feed-forward example through the CLI, starts Studio locally, and exercises the Studio API workflow.
+The portable package smoke test expands the zip, verifies `HVAC Studio.exe`, `bin/studio.exe`, `bcs-runner.exe`, `bcs-env.exe`, and `runtime/python/python.exe`, constrains `PATH` so system Python is not used, runs the feed-forward example through the CLI, starts Studio locally with `--no-window`, and exercises the Studio API workflow.
 
 Current portable Studio smoke coverage:
 
@@ -82,7 +83,7 @@ Current portable Studio smoke coverage:
 - Reopens the saved run record through `/api/project/run`.
 - Writes `exports/runtime_package/manifest.json`.
 
-The included `Start-Studio.ps1` waits for the local server before opening the browser.
+The root-level `HVAC Studio.exe` starts the local server and opens an app-style Studio window. The included `Start-Studio.ps1` remains available for scripted launches and can pass `-NoBrowser` for server-only automation.
 
 Studio-created projects are written under `projects/` by default. Workspace project runs are saved as `runs/run-*.json` inside each project.
 
@@ -153,7 +154,8 @@ permissions:
 ```text
 v0.1
 - Windows portable zip
-- studio.exe
+- HVAC Studio.exe
+- bin/studio.exe
 - bcs-runner.exe
 - bcs-env.exe
 - bundled Python runtime

@@ -42,11 +42,12 @@ try {
     throw "package did not expand to a directory: $PackagePath"
   }
 
-  $Studio = Join-Path $PackageDir.FullName 'bin\studio.exe'
+  $Studio = Join-Path $PackageDir.FullName 'HVAC Studio.exe'
+  $StudioServer = Join-Path $PackageDir.FullName 'bin\studio.exe'
   $Runner = Join-Path $PackageDir.FullName 'bin\bcs-runner.exe'
   $EnvTool = Join-Path $PackageDir.FullName 'bin\bcs-env.exe'
   $PackagedPython = Join-Path $PackageDir.FullName 'runtime\python\python.exe'
-  foreach ($RequiredPath in @($Studio, $Runner, $EnvTool, $PackagedPython)) {
+  foreach ($RequiredPath in @($Studio, $StudioServer, $Runner, $EnvTool, $PackagedPython)) {
     if (-not (Test-Path -LiteralPath $RequiredPath)) {
       throw "portable package is missing $RequiredPath"
     }
@@ -75,7 +76,8 @@ try {
     '--repo',
     $PackageDir.FullName,
     '--addr',
-    "127.0.0.1:$Port"
+    "127.0.0.1:$Port",
+    '--no-window'
   )
 
   $ProjectsUrl = "http://127.0.0.1:$Port/api/projects"

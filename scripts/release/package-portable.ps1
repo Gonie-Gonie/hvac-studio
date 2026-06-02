@@ -28,6 +28,7 @@ New-Item -ItemType Directory -Force -Path $StageRoot | Out-Null
 $BuiltStudio = Join-Path $DistRoot "hvac-studio-$ResolvedVersion\bin\hvac-studio.exe"
 
 Copy-Tree -Source $BuiltStudio -Destination (Join-Path $StageRoot 'bin\studio.exe')
+Copy-Tree -Source $BuiltStudio -Destination (Join-Path $StageRoot 'HVAC Studio.exe')
 Copy-Tree -Source (Join-Path $RepoRoot 'bin\bcs-runner.exe') -Destination (Join-Path $StageRoot 'bin\bcs-runner.exe')
 Copy-Tree -Source (Join-Path $RepoRoot 'bin\bcs-env.exe') -Destination (Join-Path $StageRoot 'bin\bcs-env.exe')
 Copy-Tree -Source (Join-Path $RepoRoot 'python\bcs_worker') -Destination (Join-Path $StageRoot 'python\bcs_worker')
@@ -69,7 +70,7 @@ param(
   `$env:PYTHONPATH
 ) | Where-Object { `$_ }) -join [IO.Path]::PathSeparator
 
-`$Studio = Join-Path `$Root 'bin\studio.exe'
+`$Studio = Join-Path `$Root 'HVAC Studio.exe'
 `$Url = "http://`$Addr"
 `$LogRoot = Join-Path `$Root 'logs'
 New-Item -ItemType Directory -Force -Path `$LogRoot | Out-Null
@@ -77,12 +78,16 @@ New-Item -ItemType Directory -Force -Path `$LogRoot | Out-Null
 `$ErrLog = Join-Path `$LogRoot 'studio.err.log'
 
 Write-Host "Starting HVAC Studio at `$Url"
-`$StudioProcess = Start-Process -FilePath `$Studio -WindowStyle Hidden -PassThru -RedirectStandardOutput `$OutLog -RedirectStandardError `$ErrLog -ArgumentList @(
+`$StudioArgs = @(
   '--repo',
   `$Root,
   '--addr',
   `$Addr
 )
+if (`$NoBrowser) {
+  `$StudioArgs += '--no-window'
+}
+`$StudioProcess = Start-Process -FilePath `$Studio -WindowStyle Hidden -PassThru -RedirectStandardOutput `$OutLog -RedirectStandardError `$ErrLog -ArgumentList `$StudioArgs
 
 `$Ready = `$false
 for (`$Index = 0; `$Index -lt 40; `$Index++) {
@@ -103,10 +108,6 @@ if (-not `$Ready) {
     Get-Content -LiteralPath `$ErrLog -Tail 40
   }
   throw "Studio did not respond at `$Url"
-}
-
-if (-not `$NoBrowser) {
-  Start-Process `$Url
 }
 
 Write-Host "HVAC Studio is running. Close this window or press Ctrl+C to stop it."
@@ -161,7 +162,8 @@ $ReleaseManifest = [ordered]@{
   commit = $Commit
   built_at_utc = (Get-Date).ToUniversalTime().ToString('o')
   entrypoints = [ordered]@{
-    studio = 'bin/studio.exe'
+    studio = 'HVAC Studio.exe'
+    server = 'bin/studio.exe'
     runner = 'bin/bcs-runner.exe'
     env = 'bin/bcs-env.exe'
     start_script = 'Start-Studio.ps1'
@@ -188,10 +190,10 @@ Runtime: $RuntimeId
 Launch Studio:
 
 ```powershell
-.\Start-Studio.ps1
+& '.\HVAC Studio.exe'
 ```
 
-The launch script starts the local Studio server, waits until it is ready, and opens the browser.
+The Studio executable starts the local Studio server and opens an app-style desktop window. `Start-Studio.ps1` remains available for scripted launches.
 
 Run the CLI smoke example:
 

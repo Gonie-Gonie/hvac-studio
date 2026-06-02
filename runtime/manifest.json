@@ -7,7 +7,8 @@
     {
       "id": "windows-amd64-studio-portable",
       "artifact": "hvac-studio-<version>-windows-amd64-portable.zip",
-      "entrypoint": "bin/studio.exe",
+      "entrypoint": "HVAC Studio.exe",
+      "server_entrypoint": "bin/studio.exe",
       "includes_embedded_python": true
     },
     {

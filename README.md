@@ -71,11 +71,7 @@ Launch the Studio workspace:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\run-studio.ps1
 ```
 
-Then open:
-
-```text
-http://127.0.0.1:5174
-```
+The development launcher starts the local Studio server and opens an app-style Studio window. Use `-NoWindow` when you only want the local server for automation.
 
 If PowerShell script execution is disabled on your machine, run:
 
@@ -103,7 +99,8 @@ Build and smoke-test the portable Studio release package:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-portable-package.ps1 -Version 0.1.0-dev
 ```
 
-The portable package includes `studio.exe`, `bcs-runner.exe`, `bcs-env.exe`, examples, and a bundled `runtime/python` for included example and workspace project runs.
+The portable package includes root-level `HVAC Studio.exe`, `bin/studio.exe`, `bcs-runner.exe`, `bcs-env.exe`, examples, and a bundled `runtime/python` for included example and workspace project runs.
+Users launch the app by double-clicking `HVAC Studio.exe`; automation can run `bin/studio.exe --no-window`.
 Studio-created projects live under `projects/`; workspace edits persist to project artifacts such as `graph.json`, `inputs/`, `components/`, `scenarios/`, `runs/`, and `exports/`.
 
 Build and smoke-test the runtime-only release package:

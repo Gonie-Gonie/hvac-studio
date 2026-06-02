@@ -42,6 +42,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\run-runner.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\run-studio.ps1
 ```
 
+`run-studio.ps1` opens an app-style Studio window by default. Add `-NoWindow` to run only the local server for automation.
+
 ## Notes
 
 - `setup.ps1` is currently Windows AMD64 focused.

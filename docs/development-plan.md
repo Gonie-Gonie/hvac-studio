@@ -514,6 +514,7 @@ Portable package target:
 
 ```text
 hvac-studio-<version>-windows-amd64-portable/
+  HVAC Studio.exe
   bin/
     studio.exe
     bcs-runner.exe
@@ -531,7 +532,7 @@ hvac-studio-<version>-windows-amd64-portable/
 
 Acceptance criteria:
 
-- Portable package launches Studio and opens included examples.
+- Portable package launches Studio from `HVAC Studio.exe` and opens an app-style desktop window.
 - Portable package can create projects under `projects/`.
 - CLI runner validates and runs included examples using bundled `runtime/python`.
 - Package smoke test exercises Studio API and runner CLI after zip expansion.

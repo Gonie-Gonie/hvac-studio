@@ -10,10 +10,10 @@ From the repository:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\run-studio.ps1
 ```
 
-Open the printed local URL, usually:
+The launcher starts the local Studio server and opens an app-style Studio window. In a portable package, double-click:
 
 ```text
-http://127.0.0.1:5174
+HVAC Studio.exe
 ```
 
 ## 2. Open An Example

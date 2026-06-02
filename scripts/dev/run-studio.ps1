@@ -1,5 +1,6 @@
 param(
-  [string]$Addr = '127.0.0.1:5174'
+  [string]$Addr = '127.0.0.1:5174',
+  [switch]$NoWindow
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,7 +15,7 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 
 Push-Location (Join-Path $RepoRoot 'tools\go')
 try {
-  Invoke-Checked $env:HVAC_STUDIO_GO @(
+  $StudioArgs = @(
     'run',
     '.\cmd\studio',
     '--repo',
@@ -22,6 +23,10 @@ try {
     '--addr',
     $Addr
   )
+  if ($NoWindow) {
+    $StudioArgs += '--no-window'
+  }
+  Invoke-Checked $env:HVAC_STUDIO_GO $StudioArgs
 } finally {
   Pop-Location
 }

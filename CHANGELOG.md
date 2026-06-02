@@ -43,3 +43,4 @@
 - Add Studio unused component deletion with source-file cleanup.
 - Add Studio component duplication with graph contract and source-file copy.
 - Add a dedicated Studio Code workspace for direct Python source editing, snippets, contract context, and source checks.
+- Add a double-clickable portable Studio app entrypoint that opens an app-style desktop window.
