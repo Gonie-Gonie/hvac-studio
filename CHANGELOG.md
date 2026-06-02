@@ -71,3 +71,4 @@
 - Add `runtime-export` detection to `bcs-env check` and verify exported runtime folders in portable smoke tests.
 - Add a local `test-release-candidate.ps1` release gate that runs fast checks plus portable and runtime package smoke tests.
 - Document first-use package checks, Python source editing, runtime export, and export troubleshooting in the user guide.
+- Show source-check issues in the Studio Code workspace contract panel with clickable source-line navigation.

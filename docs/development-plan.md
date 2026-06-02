@@ -242,6 +242,7 @@ Acceptance criteria:
 - Source checks warn when Python source does not visibly reference required graph inputs or declared outputs. Started.
 - Run, batch, and export APIs reject saved source-check errors server-side. Started.
 - Code workspace snippets generate evaluate skeletons from all selected component input/output nodes. Started.
+- Code workspace shows source-check issue rows in the contract panel and can focus line-specific problems. Started.
 
 ## Milestone 5: Component-Aware Python Editor
 

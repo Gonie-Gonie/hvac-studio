@@ -94,6 +94,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("setProblems")) {
 		t.Fatalf("module entrypoint did not include explicit problem state handling")
 	}
+	if !bytes.Contains(body, []byte("sourceIssueBlock")) {
+		t.Fatalf("module entrypoint did not include source issue panel rendering")
+	}
 }
 
 func TestStaticExportWorkspaceModuleServes(t *testing.T) {

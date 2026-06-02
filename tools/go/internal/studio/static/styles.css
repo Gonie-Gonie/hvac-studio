@@ -399,6 +399,22 @@ h2,
   border-bottom: 1px solid #eef2f6;
 }
 
+.source-issue {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.source-issue.error {
+  color: var(--danger);
+}
+
+.source-issue.linked {
+  cursor: pointer;
+}
+
+.source-issue.linked:hover {
+  background: #f8fafc;
+}
+
 .contract-row:last-child {
   border-bottom: 0;
 }

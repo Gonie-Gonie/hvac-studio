@@ -785,6 +785,7 @@ function renderSourceContract(component) {
   container.append(contractBlock("Inputs", (component.nodes.inputs || []).map((node) => [node.id, nodeTypeLabel(node)])));
   container.append(contractBlock("Outputs", (component.nodes.outputs || []).map((node) => [node.id, nodeTypeLabel(node)])));
   container.append(contractBlock("Parameters", Object.entries(component.parameters || {}).map(([name, value]) => [name, parameterInputValue(value)])));
+  container.append(sourceIssueBlock(component.id));
 }
 
 function contractBlock(title, rows) {
@@ -816,13 +817,61 @@ function renderSourceCheck(componentID) {
   const check = state.sourceCheckByComponent[componentID];
   if (!status || !check) return;
   status.className = "source-status";
-  if (check.ok) {
+  const problems = check.problems || [];
+  const errorCount = problems.filter((problem) => problem.severity === "error").length;
+  if (!problems.length) {
     status.textContent = "checked";
     status.classList.add("ok");
-  } else {
-    status.textContent = "issues";
+  } else if (errorCount) {
+    status.textContent = `${errorCount} error${errorCount === 1 ? "" : "s"}`;
     status.classList.add("error");
+  } else {
+    status.textContent = `${problems.length} warning${problems.length === 1 ? "" : "s"}`;
   }
+}
+
+function sourceIssueBlock(componentID) {
+  const block = document.createElement("div");
+  block.className = "contract-block source-issues";
+  block.innerHTML = `<div class="contract-title">Source Check</div>`;
+  const check = state.sourceCheckByComponent[componentID];
+  if (!check) {
+    block.append(sourceIssueRow({ severity: "info", message: "No source check yet" }));
+    return block;
+  }
+  const problems = check.problems || [];
+  if (!problems.length) {
+    block.append(sourceIssueRow({ severity: "ok", message: "No source issues" }));
+    return block;
+  }
+  for (const problem of problems) block.append(sourceIssueRow(problem));
+  return block;
+}
+
+function sourceIssueRow(problem) {
+  const row = document.createElement("div");
+  const line = problem.line ? `:${problem.line}${problem.column ? `:${problem.column}` : ""}` : "";
+  row.className = `contract-row source-issue ${problem.severity === "error" ? "error" : ""}`;
+  row.innerHTML = `
+    <span>${escapeHTML(problem.message)}${escapeHTML(line)}</span>
+    <span class="contract-meta">${escapeHTML(problem.severity || "")}</span>
+  `;
+  if (problem.line) {
+    row.classList.add("linked");
+    row.addEventListener("click", () => focusSourceIssue(problem));
+  }
+  return row;
+}
+
+function focusSourceIssue(problem) {
+  const componentID = problem.component_id || state.selectedComponentId;
+  if (!componentID || !problem.line) return;
+  state.pendingSourceFocus = {
+    component_id: componentID,
+    line: problem.line,
+    column: problem.column || 1,
+  };
+  focusPendingSourceLine(componentID);
 }
 
 function updateLineNumbers(value) {
@@ -1114,6 +1163,7 @@ async function checkCurrentSource() {
     state.sourceCheckByComponent[component.id] = body.check;
     state.latestValidation = { problems: body.check.problems || [] };
     renderSourceCheck(component.id);
+    renderSourceContract(component);
     renderProblems();
     if (!body.check.ok) setBottomTab("problems");
     log(`Source checked: ${component.id}`);
