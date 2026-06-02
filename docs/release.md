@@ -65,8 +65,18 @@ User documentation source lives under `docs/user/`. The planned documentation re
 From a clean checkout:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\setup.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-fast.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1 -Version 0.1.0-dev
+```
+
+For repeated local runs after setup has already completed:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1 -Version 0.1.0-dev -SkipSetup
+```
+
+For debugging one package path at a time:
+
+```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-portable-package.ps1 -Version 0.1.0-dev
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-runtime-package.ps1 -Version 0.1.0-dev
 ```
@@ -83,9 +93,13 @@ Current portable Studio smoke coverage:
 - Saves component parameters to `graph.json`.
 - Saves default run inputs to the project `default_input` file.
 - Saves a scenario under `scenarios/`.
+- Runs saved scenarios as a batch and reopens the saved `runs/batch-*.json` record.
 - Runs the workspace project and writes `runs/run-*.json`.
 - Reopens the saved run record through `/api/project/run`.
-- Writes `exports/runtime_package/manifest.json`.
+- Writes `exports/runtime_package/manifest.json`, copied project files, public IO schema, runner tools, packaged Python runtime, README, and `run-default.ps1`.
+- Runs the exported project through the exported `bin/bcs-runner.exe`.
+- Runs the exported `run-default.ps1`.
+- Runs exported `bin/bcs-env.exe check --root <export>` and verifies `runtime-export` mode.
 
 The root-level `HVAC Studio.exe` opens the Wails desktop app without launching a browser or binding a normal-use TCP port. The included `Start-Studio.ps1` remains available for scripted launches, and server/API automation should use `bin\studio.exe --server` or `Start-Studio.ps1 -Server`.
 
@@ -207,9 +221,7 @@ The runner uses stable exit code categories for external engines:
 ## Release Checklist
 
 - Update `CHANGELOG.md`.
-- Run `scripts/dev/test-fast.ps1`.
-- Run `scripts/release/test-portable-package.ps1`.
-- Run `scripts/release/test-runtime-package.ps1`.
+- Run `scripts/release/test-release-candidate.ps1 -Version <version>`.
 - Commit and push all changes.
 - Create and push a version tag.
 - Confirm the GitHub Release contains both Windows zips.

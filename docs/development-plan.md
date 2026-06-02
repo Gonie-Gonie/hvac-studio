@@ -69,6 +69,7 @@ Acceptance criteria:
 - `scripts/dev/test-fast.ps1` passes using repo-local tools.
 - `scripts/release/test-runtime-package.ps1` builds, expands, and smoke-tests a runtime zip.
 - `scripts/release/test-portable-package.ps1` builds, expands, and smoke-tests a portable Studio zip.
+- `scripts/release/test-release-candidate.ps1` is the local release gate for fast checks plus both package smoke tests.
 - Portable packages include real project/component templates rather than placeholder directories.
 
 ## Milestone 1: Runtime Core Contract

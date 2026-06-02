@@ -205,12 +205,20 @@ Launch Studio:
 
 The Studio executable opens a native Wails desktop window without launching a browser. `Start-Studio.ps1` remains available for scripted launches, and `.\bin\studio.exe --server` is the server/API automation entrypoint.
 
+Check the portable package:
+
+```powershell
+.\bin\bcs-env.exe check --root . --json
+```
+
 Run the CLI smoke example:
 
 ```powershell
 .\bin\bcs-runner.exe validate --project .\examples\001_scalar_component\project.bcsproj
 .\bin\bcs-runner.exe run --project .\examples\001_scalar_component\project.bcsproj --input .\examples\001_scalar_component\inputs\case01.json --output .\outputs\001_scalar_component.json
 ```
+
+Studio runtime exports are written under `projects\<name>\exports\runtime_package\`. From an export folder, run `.\run-default.ps1` or `.\bin\bcs-env.exe check --root . --json`.
 
 This MVP portable package is Windows-first and includes a bundled Python runtime for included examples. Project-specific third-party Python package locking is still a later milestone.
 "@ | Set-Content -LiteralPath (Join-Path $StageRoot 'PACKAGE_README.md') -Encoding UTF8

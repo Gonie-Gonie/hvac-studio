@@ -94,7 +94,13 @@ Read the user guide draft:
 docs/user/index.md
 ```
 
-Build and smoke-test the portable Studio release package:
+Build and smoke-test a full local release candidate:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1 -Version 0.1.0-dev
+```
+
+Build and smoke-test only the portable Studio release package:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-portable-package.ps1 -Version 0.1.0-dev
@@ -104,8 +110,9 @@ The portable package includes root-level `HVAC Studio.exe`, `bin/studio.exe`, `b
 Users launch the app by double-clicking `HVAC Studio.exe`; automation can run `bin\studio.exe --server`.
 Use `bin\bcs-env.exe check` inside a package to verify the bundled Python runtime, worker, schemas, examples, and executables.
 Studio-created projects live under `projects/`; workspace edits persist to project artifacts such as `graph.json`, `inputs/`, `components/`, `scenarios/`, `runs/`, and `exports/`.
+Runtime exports under `projects/<name>/exports/runtime_package/` include `run-default.ps1` and can be checked with `bin\bcs-env.exe check --root .`.
 
-Build and smoke-test the runtime-only release package:
+Build and smoke-test only the runtime-only release package:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-runtime-package.ps1 -Version 0.1.0-dev
