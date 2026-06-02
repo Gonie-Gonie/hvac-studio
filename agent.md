@@ -108,6 +108,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Failed batch cases should retain structured Problems metadata so reopening a batch record can still guide the user back to the component/source surface.
 - Component management should separate stable component IDs/classes from editable display labels until full refactoring/rename support exists.
 - Portable smoke coverage should keep exercising the connected Studio workflow, not just server startup. The current smoke path covers project copy/creation, node creation/deletion, source editing/checking, component creation/duplication/inclusion/removal/deletion, connection creation/removal, parameter creation/deletion, input/scenario/batch/run/export artifacts, and bundled Python execution.
+- Core workflow tests should assert value propagation through actual edited Python source, graph connections, and runner `component_inputs`/`component_outputs`, not only that API calls return success.
 - Release packaging must work from untagged development checkouts by falling back to a dev version with the current short SHA.
 - Local release readiness should have one canonical gate: `scripts/release/test-release-candidate.ps1`, which runs fast verification plus portable and runtime package smoke tests and reports the two zips.
 - The portable Studio package should have a user-facing root `HVAC Studio.exe` that opens a native Wails desktop window without launching a browser or binding a normal-use TCP port; `bin/studio.exe --server` remains the automation/server-only entrypoint.

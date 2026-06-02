@@ -1071,6 +1071,118 @@ func TestCreateConnectionEndpointConnectsComponents(t *testing.T) {
 	}
 }
 
+func TestWorkspaceWorkflowEditsSourceConnectsAndRuns(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	project := createWorkspaceProject(t, server, "Workflow Project")
+	source := strings.TrimLeft(`
+class ScalarComponent:
+    def initialize(self, params, context):
+        return {}
+
+    def evaluate(self, inputs, state, params, context):
+        value = float(inputs["value"])
+        return {"result": value * 3.0}, state
+`, "\n")
+
+	sourcePayload, err := json.Marshal(map[string]any{
+		"project_path": project.ProjectPath,
+		"component_id": "scalar",
+		"content":      source,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceResponse := httptest.NewRecorder()
+	sourceRequest := httptest.NewRequest(http.MethodPost, "/api/project/source", bytes.NewReader(sourcePayload))
+	server.Handler().ServeHTTP(sourceResponse, sourceRequest)
+	if sourceResponse.Code != http.StatusOK {
+		t.Fatalf("source status = %d body=%s", sourceResponse.Code, sourceResponse.Body.String())
+	}
+	var sourceBody struct {
+		Check SourceCheck `json:"check"`
+	}
+	if err := json.Unmarshal(sourceResponse.Body.Bytes(), &sourceBody); err != nil {
+		t.Fatal(err)
+	}
+	if hasErrorProblems(sourceBody.Check.Problems) {
+		t.Fatalf("source check errors = %#v", sourceBody.Check.Problems)
+	}
+
+	componentPayload, err := json.Marshal(map[string]any{
+		"project_path": project.ProjectPath,
+		"name":         "Second Gain",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	componentResponse := httptest.NewRecorder()
+	componentRequest := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(componentPayload))
+	server.Handler().ServeHTTP(componentResponse, componentRequest)
+	if componentResponse.Code != http.StatusCreated {
+		t.Fatalf("component status = %d body=%s", componentResponse.Code, componentResponse.Body.String())
+	}
+
+	includePayload, err := json.Marshal(map[string]any{
+		"project_path": project.ProjectPath,
+		"component_id": "second_gain",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	includeResponse := httptest.NewRecorder()
+	includeRequest := httptest.NewRequest(http.MethodPost, "/api/project/system/components", bytes.NewReader(includePayload))
+	server.Handler().ServeHTTP(includeResponse, includeRequest)
+	if includeResponse.Code != http.StatusOK {
+		t.Fatalf("include status = %d body=%s", includeResponse.Code, includeResponse.Body.String())
+	}
+
+	connectionPayload, err := json.Marshal(map[string]any{
+		"project_path":   project.ProjectPath,
+		"from_component": "scalar",
+		"from_node":      "result",
+		"to_component":   "second_gain",
+		"to_node":        "value",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	connectionResponse := httptest.NewRecorder()
+	connectionRequest := httptest.NewRequest(http.MethodPost, "/api/project/connections", bytes.NewReader(connectionPayload))
+	server.Handler().ServeHTTP(connectionResponse, connectionRequest)
+	if connectionResponse.Code != http.StatusCreated {
+		t.Fatalf("connection status = %d body=%s", connectionResponse.Code, connectionResponse.Body.String())
+	}
+
+	runPayload, err := json.Marshal(map[string]any{
+		"project_path": project.ProjectPath,
+		"inputs":       map[string]any{"value": 4},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runResponse := httptest.NewRecorder()
+	runRequest := httptest.NewRequest(http.MethodPost, "/api/run", bytes.NewReader(runPayload))
+	server.Handler().ServeHTTP(runResponse, runRequest)
+	if runResponse.Code != http.StatusOK {
+		t.Fatalf("run status = %d body=%s", runResponse.Code, runResponse.Body.String())
+	}
+	var runBody struct {
+		Result runtimecore.RunResult `json:"result"`
+	}
+	if err := json.Unmarshal(runResponse.Body.Bytes(), &runBody); err != nil {
+		t.Fatal(err)
+	}
+	if got := runBody.Result.Outputs["second_gain_result"]; got != 12.0 {
+		t.Fatalf("second_gain_result = %v, want 12", got)
+	}
+	if got := runBody.Result.ComponentOutputs["scalar"]["result"]; got != 12.0 {
+		t.Fatalf("scalar result = %v, want 12", got)
+	}
+	if got := runBody.Result.ComponentInputs["second_gain"]["value"]; got != 12.0 {
+		t.Fatalf("second_gain value input = %v, want 12", got)
+	}
+}
+
 func TestRemoveComponentFromSystemEndpointCleansRuntimeSurface(t *testing.T) {
 	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
