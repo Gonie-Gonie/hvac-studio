@@ -115,3 +115,4 @@
 - Show the active scenario in Run Inputs with a clear control.
 - Clear the active scenario badge when run inputs are manually edited or reset.
 - Expand the Studio canvas surface to cover saved, auto-laid-out, and dragged component positions.
+- Clear draft source-check state and refresh the Project tree when Code workspace source is reverted.

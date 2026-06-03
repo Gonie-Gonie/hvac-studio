@@ -1997,7 +1997,9 @@ function revertCurrentSource() {
   const source = component ? state.sourceByComponent[component.id] : null;
   if (!component || !source || source.read_only || !isWorkspaceProject()) return;
   state.sourceDraftByComponent[component.id] = source.content;
+  delete state.sourceCheckByComponent[component.id];
   renderPythonPanel();
+  renderProjectTree();
   log(`Source reverted: ${component.id}`);
 }
 
