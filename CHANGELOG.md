@@ -82,4 +82,5 @@
 - Show selected component last-run input/output values in the Code workspace contract panel.
 - Mark Studio last-run values stale after runtime-affecting edits.
 - Create Studio workspace components from the component template manifest/source instead of a hard-coded scaffold.
+- Extend `bcs-env check` to validate scalar project/component template files and component template source consistency.
 - Add Python editor keyboard handling for save, check, multi-line indent, and outdent.

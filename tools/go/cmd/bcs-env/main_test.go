@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -19,7 +20,7 @@ func TestCollectStatusForRepositoryRoot(t *testing.T) {
 	mkdirAll(t, filepath.Join(root, "python", "bcs_sdk"))
 	mkdirAll(t, filepath.Join(root, "schema"))
 	mkdirAll(t, filepath.Join(root, "examples"))
-	mkdirAll(t, filepath.Join(root, "templates"))
+	seedTemplates(t, root)
 	writeFile(t, filepath.Join(root, ".venv", "Scripts", "python.exe"), "fake python\n")
 
 	status := collectStatus(root)
@@ -49,7 +50,7 @@ func TestCollectStatusForPortableRoot(t *testing.T) {
 	mkdirAll(t, filepath.Join(root, "python", "bcs_sdk"))
 	mkdirAll(t, filepath.Join(root, "schema"))
 	mkdirAll(t, filepath.Join(root, "examples"))
-	mkdirAll(t, filepath.Join(root, "templates"))
+	seedTemplates(t, root)
 
 	status := collectStatus(root)
 	if !status.OK {
@@ -94,7 +95,7 @@ func TestCollectStatusReportsMissingPython(t *testing.T) {
 	mkdirAll(t, filepath.Join(root, "python", "bcs_sdk"))
 	mkdirAll(t, filepath.Join(root, "schema"))
 	mkdirAll(t, filepath.Join(root, "examples"))
-	mkdirAll(t, filepath.Join(root, "templates"))
+	seedTemplates(t, root)
 
 	status := collectStatus(root)
 	if status.OK {
@@ -117,7 +118,7 @@ func TestRunCheckWritesJSON(t *testing.T) {
 	mkdirAll(t, filepath.Join(root, "python", "bcs_sdk"))
 	mkdirAll(t, filepath.Join(root, "schema"))
 	mkdirAll(t, filepath.Join(root, "examples"))
-	mkdirAll(t, filepath.Join(root, "templates"))
+	seedTemplates(t, root)
 
 	var output bytes.Buffer
 	err := run([]string{"bcs-env", "check", "--root", root, "--json"}, &output)
@@ -131,6 +132,46 @@ func TestRunCheckWritesJSON(t *testing.T) {
 	if !status.OK || status.Root == "" {
 		t.Fatalf("unexpected status: %#v", status)
 	}
+}
+
+func TestCollectStatusReportsInvalidComponentTemplate(t *testing.T) {
+	restoreVersionCommand := stubVersionCommand()
+	defer restoreVersionCommand()
+
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "tools", "go", "go.mod"), "module test\n")
+	writeFile(t, filepath.Join(root, "runtime", "manifest.json"), "{}\n")
+	writeFile(t, filepath.Join(root, ".venv", "Scripts", "python.exe"), "fake python\n")
+	mkdirAll(t, filepath.Join(root, "python", "bcs_worker"))
+	mkdirAll(t, filepath.Join(root, "python", "bcs_sdk"))
+	mkdirAll(t, filepath.Join(root, "schema"))
+	mkdirAll(t, filepath.Join(root, "examples"))
+	seedTemplates(t, root)
+	writeFile(t, filepath.Join(root, "templates", "components", "scalar", "manifest.json"), `{"class_name":"MissingClass","source":"scalar.py"}`)
+
+	status := collectStatus(root)
+	if status.OK {
+		t.Fatal("status should fail for invalid component template")
+	}
+	if !containsProblem(status.Problems, "does not declare MissingClass") {
+		t.Fatalf("template problem missing from %#v", status.Problems)
+	}
+}
+
+func seedTemplates(t *testing.T, root string) {
+	t.Helper()
+	writeFile(t, filepath.Join(root, "templates", "projects", "scalar", "project.bcsproj"), "{}\n")
+	writeFile(t, filepath.Join(root, "templates", "components", "scalar", "manifest.json"), `{"class_name":"ScalarComponent","source":"scalar.py"}`)
+	writeFile(t, filepath.Join(root, "templates", "components", "scalar", "scalar.py"), "class ScalarComponent:\n    pass\n")
+}
+
+func containsProblem(problems []string, want string) bool {
+	for _, problem := range problems {
+		if strings.Contains(problem, want) {
+			return true
+		}
+	}
+	return false
 }
 
 func mkdirAll(t *testing.T, path string) {
