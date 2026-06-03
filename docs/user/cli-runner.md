@@ -80,6 +80,10 @@ bcs-runner.exe optimize `
 
 The result reports candidate objectives, best inputs, best outputs, and the saved scenario path. `--save-record` also writes the optimization result under `optimization/results/`.
 
+## Saved Records
+
+Saved validation, calibration, and optimization records include a `provenance` object. It records the workflow provenance schema, runner version, package version when available, project and graph schema versions, SHA-256 checksums for `project.bcsproj` and `graph.json`, component source checksums, and checksums for the workflow artifacts used by that record such as mappings, datasets, parameter sets, setups, saved parameter sets, and saved scenarios.
+
 ## Serve
 
 Serve mode keeps the graph compiled and Python components loaded for repeated evaluations:

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/artifactmeta"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
 	runtimecore "github.com/goniegonie/hvac-studio/tools/go/internal/runtime"
 )
@@ -18,6 +19,7 @@ import (
 type Setup struct {
 	ID                string             `json:"id"`
 	Name              string             `json:"name"`
+	Path              string             `json:"-"`
 	Algorithm         string             `json:"algorithm"`
 	BaseInputs        map[string]any     `json:"base_inputs"`
 	Context           map[string]any     `json:"context"`
@@ -46,6 +48,7 @@ type Result struct {
 	OK            bool               `json:"ok"`
 	SetupID       string             `json:"setup_id"`
 	SetupName     string             `json:"setup_name,omitempty"`
+	Setup         string             `json:"setup,omitempty"`
 	Algorithm     string             `json:"algorithm"`
 	Objective     Objective          `json:"objective"`
 	SavedRecord   string             `json:"saved_record,omitempty"`
@@ -71,13 +74,14 @@ type RecordSummary struct {
 }
 
 type Record struct {
-	ID           string  `json:"id"`
-	ProjectName  string  `json:"project_name"`
-	CreatedAtUTC string  `json:"created_at_utc"`
-	SetupID      string  `json:"setup_id"`
-	SetupName    string  `json:"setup_name,omitempty"`
-	Algorithm    string  `json:"algorithm"`
-	Result       *Result `json:"result"`
+	ID           string                  `json:"id"`
+	ProjectName  string                  `json:"project_name"`
+	CreatedAtUTC string                  `json:"created_at_utc"`
+	SetupID      string                  `json:"setup_id"`
+	SetupName    string                  `json:"setup_name,omitempty"`
+	Algorithm    string                  `json:"algorithm"`
+	Provenance   artifactmeta.Provenance `json:"provenance,omitempty"`
+	Result       *Result                 `json:"result"`
 }
 
 type CandidateSummary struct {
@@ -87,29 +91,37 @@ type CandidateSummary struct {
 	Outputs   map[string]any `json:"outputs"`
 }
 
-func WriteRecord(projectRoot string, projectName string, result *Result) (RecordSummary, error) {
+func WriteRecord(loaded *project.LoadedProject, result *Result) (RecordSummary, error) {
 	if result == nil {
 		return RecordSummary{}, apperror.Errorf(apperror.CodeRuntime, "optimization result is required")
 	}
+	provenance, err := artifactmeta.Build(loaded, []artifactmeta.Reference{
+		{Role: "optimization_setup", Path: result.Setup},
+		{Role: "saved_scenario", Path: result.SavedScenario},
+	})
+	if err != nil {
+		return RecordSummary{}, apperror.Wrap(apperror.CodeRuntime, err)
+	}
 	now := time.Now().UTC()
 	recordID := "optimization-" + now.Format("20060102-150405.000000000")
-	recordPath := filepath.Join(projectRoot, "optimization", "results", recordID+".json")
+	recordPath := filepath.Join(loaded.Root, "optimization", "results", recordID+".json")
 	record := Record{
 		ID:           recordID,
-		ProjectName:  projectName,
+		ProjectName:  loaded.Project.ProjectName,
 		CreatedAtUTC: now.Format(time.RFC3339Nano),
 		SetupID:      result.SetupID,
 		SetupName:    result.SetupName,
 		Algorithm:    result.Algorithm,
+		Provenance:   provenance,
 		Result:       result,
 	}
-	rel, _ := filepath.Rel(projectRoot, recordPath)
+	rel, _ := filepath.Rel(loaded.Root, recordPath)
 	result.SavedRecord = filepath.ToSlash(rel)
 	if err := writeJSONFile(recordPath, record); err != nil {
 		result.SavedRecord = ""
 		return RecordSummary{}, err
 	}
-	return summarizeRecord(projectRoot, recordPath, record), nil
+	return summarizeRecord(loaded.Root, recordPath, record), nil
 }
 
 func LoadRecord(projectRoot string, recordID string) (Record, error) {
@@ -202,6 +214,9 @@ func LoadSetup(projectRoot string, relativePath string) (Setup, error) {
 	if setup.ID == "" {
 		setup.ID = strings.TrimSuffix(filepath.Base(resolved), filepath.Ext(resolved))
 	}
+	if rel, err := filepath.Rel(projectRoot, resolved); err == nil {
+		setup.Path = filepath.ToSlash(rel)
+	}
 	if setup.Algorithm == "" {
 		setup.Algorithm = "grid"
 	}
@@ -274,6 +289,7 @@ func Run(ctx context.Context, projectPath string, setup Setup, options Options) 
 		OK:            true,
 		SetupID:       setup.ID,
 		SetupName:     setup.Name,
+		Setup:         setup.Path,
 		Algorithm:     setup.Algorithm,
 		Objective:     setup.Objective,
 		BestObjective: best.Objective,

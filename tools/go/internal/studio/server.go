@@ -1464,7 +1464,7 @@ func (s *Server) handleDataValidation(w http.ResponseWriter, r *http.Request) {
 	}
 	response := map[string]any{"ok": true, "validation_result": result}
 	if req.Save {
-		summary, err := modelvalidation.WriteRecord(loaded.Root, loaded.Project.ProjectName, result)
+		summary, err := modelvalidation.WriteRecord(loaded, result)
 		if err != nil {
 			writeError(w, err)
 			return

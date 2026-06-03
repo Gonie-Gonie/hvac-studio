@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/artifactmeta"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
 	runtimecore "github.com/goniegonie/hvac-studio/tools/go/internal/runtime"
 )
@@ -22,6 +23,7 @@ type Mapping struct {
 	ID                    string            `json:"id"`
 	Name                  string            `json:"name"`
 	Dataset               string            `json:"dataset"`
+	Path                  string            `json:"-"`
 	TimeColumn            string            `json:"time_column,omitempty"`
 	InputColumns          map[string]string `json:"input_columns"`
 	ObservedOutputColumns map[string]string `json:"observed_output_columns"`
@@ -35,6 +37,7 @@ type Result struct {
 	OK                    bool                     `json:"ok"`
 	MappingID             string                   `json:"mapping_id"`
 	MappingName           string                   `json:"mapping_name,omitempty"`
+	Mapping               string                   `json:"mapping,omitempty"`
 	ParameterSet          string                   `json:"parameter_set,omitempty"`
 	SavedRecord           string                   `json:"saved_record,omitempty"`
 	Dataset               string                   `json:"dataset"`
@@ -58,14 +61,15 @@ type RecordSummary struct {
 }
 
 type Record struct {
-	ID           string  `json:"id"`
-	ProjectName  string  `json:"project_name"`
-	CreatedAtUTC string  `json:"created_at_utc"`
-	MappingID    string  `json:"mapping_id"`
-	MappingName  string  `json:"mapping_name,omitempty"`
-	ParameterSet string  `json:"parameter_set,omitempty"`
-	Dataset      string  `json:"dataset"`
-	Result       *Result `json:"result"`
+	ID           string                  `json:"id"`
+	ProjectName  string                  `json:"project_name"`
+	CreatedAtUTC string                  `json:"created_at_utc"`
+	MappingID    string                  `json:"mapping_id"`
+	MappingName  string                  `json:"mapping_name,omitempty"`
+	ParameterSet string                  `json:"parameter_set,omitempty"`
+	Dataset      string                  `json:"dataset"`
+	Provenance   artifactmeta.Provenance `json:"provenance,omitempty"`
+	Result       *Result                 `json:"result"`
 }
 
 type RowSummary struct {
@@ -107,30 +111,39 @@ type Inspection struct {
 	States           map[string]map[string]any          `json:"states"`
 }
 
-func WriteRecord(projectRoot string, projectName string, result *Result) (RecordSummary, error) {
+func WriteRecord(loaded *project.LoadedProject, result *Result) (RecordSummary, error) {
 	if result == nil {
 		return RecordSummary{}, apperror.Errorf(apperror.CodeRuntime, "validation result is required")
 	}
+	provenance, err := artifactmeta.Build(loaded, []artifactmeta.Reference{
+		{Role: "validation_mapping", Path: result.Mapping},
+		{Role: "dataset", Path: result.Dataset},
+		{Role: "parameter_set", Path: result.ParameterSet},
+	})
+	if err != nil {
+		return RecordSummary{}, apperror.Wrap(apperror.CodeRuntime, err)
+	}
 	now := time.Now().UTC()
 	recordID := "validation-" + now.Format("20060102-150405.000000000")
-	recordPath := filepath.Join(projectRoot, "validation", "runs", recordID+".json")
+	recordPath := filepath.Join(loaded.Root, "validation", "runs", recordID+".json")
 	record := Record{
 		ID:           recordID,
-		ProjectName:  projectName,
+		ProjectName:  loaded.Project.ProjectName,
 		CreatedAtUTC: now.Format(time.RFC3339Nano),
 		MappingID:    result.MappingID,
 		MappingName:  result.MappingName,
 		ParameterSet: result.ParameterSet,
 		Dataset:      result.Dataset,
+		Provenance:   provenance,
 		Result:       result,
 	}
-	rel, _ := filepath.Rel(projectRoot, recordPath)
+	rel, _ := filepath.Rel(loaded.Root, recordPath)
 	result.SavedRecord = filepath.ToSlash(rel)
 	if err := writeJSONFile(recordPath, record); err != nil {
 		result.SavedRecord = ""
 		return RecordSummary{}, err
 	}
-	return summarizeRecord(projectRoot, recordPath, record), nil
+	return summarizeRecord(loaded.Root, recordPath, record), nil
 }
 
 func LoadRecord(projectRoot string, recordID string) (Record, error) {
@@ -227,6 +240,9 @@ func LoadMapping(projectRoot string, mappingPath string) (Mapping, error) {
 	if mapping.ID == "" {
 		mapping.ID = strings.TrimSuffix(filepath.Base(resolved), filepath.Ext(resolved))
 	}
+	if rel, err := filepath.Rel(projectRoot, resolved); err == nil {
+		mapping.Path = filepath.ToSlash(rel)
+	}
 	if mapping.Dataset == "" {
 		return Mapping{}, apperror.Errorf(apperror.CodeInput, "validation mapping dataset is required")
 	}
@@ -270,6 +286,7 @@ func Run(ctx context.Context, loaded *project.LoadedProject, mapping Mapping, op
 		OK:                    true,
 		MappingID:             mapping.ID,
 		MappingName:           mapping.Name,
+		Mapping:               mapping.Path,
 		Dataset:               filepath.ToSlash(mapping.Dataset),
 		RowCount:              len(rows),
 		InputColumns:          mapping.InputColumns,

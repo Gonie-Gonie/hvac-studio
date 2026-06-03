@@ -259,6 +259,12 @@ func TestValidateDataCommandWritesMetrics(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(projectRoot, filepath.FromSlash(result.SavedRecord))); err != nil {
 		t.Fatal(err)
 	}
+	provenance := readWorkflowProvenance(t, projectRoot, result.SavedRecord)
+	requireArtifact(t, provenance, "validation_mapping", "validation/mappings/plant_validation.json")
+	requireArtifact(t, provenance, "dataset", "datasets/plant_validation.csv")
+	if provenance.Project.SHA256 == "" || provenance.Graph.SHA256 == "" || provenance.RunnerVersion == "" {
+		t.Fatalf("validation provenance = %#v", provenance)
+	}
 	if result.Metrics["total_power_kw"].Count != 3 || len(result.Metrics["total_power_kw"].HighErrorRows) != 1 {
 		t.Fatalf("metrics = %#v", result.Metrics)
 	}
@@ -312,6 +318,10 @@ func TestCalibrateCommandWritesResultAndParameterSet(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(projectRoot, filepath.FromSlash(result.SavedRecord))); err != nil {
 		t.Fatal(err)
 	}
+	provenance := readWorkflowProvenance(t, projectRoot, result.SavedRecord)
+	requireArtifact(t, provenance, "calibration_setup", "calibration/setups/chiller_cop_grid.json")
+	requireArtifact(t, provenance, "validation_mapping", "validation/mappings/plant_validation.json")
+	requireArtifact(t, provenance, "saved_parameter_set", "parameter_sets/calibrated_cli.json")
 }
 
 func TestOptimizeCommandWritesResultAndScenario(t *testing.T) {
@@ -363,6 +373,9 @@ func TestOptimizeCommandWritesResultAndScenario(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(projectRoot, filepath.FromSlash(result.SavedRecord))); err != nil {
 		t.Fatal(err)
 	}
+	provenance := readWorkflowProvenance(t, projectRoot, result.SavedRecord)
+	requireArtifact(t, provenance, "optimization_setup", "optimization/setups/chw_setpoint_grid.json")
+	requireArtifact(t, provenance, "saved_scenario", "scenarios/optimized_cli.json")
 }
 
 func TestServeCommandReusesLoadedSessionState(t *testing.T) {
@@ -433,6 +446,55 @@ func TestServeCommandReusesLoadedSessionState(t *testing.T) {
 
 func examplePath(name string) string {
 	return filepath.Join("..", "..", "..", "..", "examples", name)
+}
+
+type workflowProvenance struct {
+	Schema        string `json:"schema"`
+	RunnerVersion string `json:"runner_version"`
+	Project       struct {
+		Path   string `json:"path"`
+		SHA256 string `json:"sha256"`
+	} `json:"project"`
+	Graph struct {
+		Path   string `json:"path"`
+		SHA256 string `json:"sha256"`
+	} `json:"graph"`
+	Artifacts []struct {
+		Role   string `json:"role"`
+		Path   string `json:"path"`
+		SHA256 string `json:"sha256"`
+	} `json:"artifacts"`
+}
+
+func readWorkflowProvenance(t *testing.T, projectRoot string, recordPath string) workflowProvenance {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(projectRoot, filepath.FromSlash(recordPath)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var record struct {
+		Provenance workflowProvenance `json:"provenance"`
+	}
+	if err := json.Unmarshal(data, &record); err != nil {
+		t.Fatal(err)
+	}
+	if record.Provenance.Schema != "hvac-studio.workflow-provenance.v1" {
+		t.Fatalf("provenance schema = %q", record.Provenance.Schema)
+	}
+	if len(record.Provenance.Project.SHA256) != 64 || len(record.Provenance.Graph.SHA256) != 64 {
+		t.Fatalf("provenance checksums = %#v", record.Provenance)
+	}
+	return record.Provenance
+}
+
+func requireArtifact(t *testing.T, provenance workflowProvenance, role string, path string) {
+	t.Helper()
+	for _, artifact := range provenance.Artifacts {
+		if artifact.Role == role && artifact.Path == path && len(artifact.SHA256) == 64 {
+			return
+		}
+	}
+	t.Fatalf("provenance missing artifact role=%s path=%s: %#v", role, path, provenance.Artifacts)
 }
 
 func copyTree(t *testing.T, sourceRoot string, targetRoot string) {

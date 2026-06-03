@@ -287,7 +287,7 @@ func validateData(args []string) error {
 		result.ParameterSet = filepath.ToSlash(*parameterSetPath)
 	}
 	if *saveRecord {
-		if _, err := modelvalidation.WriteRecord(loaded.Root, loaded.Project.ProjectName, result); err != nil {
+		if _, err := modelvalidation.WriteRecord(loaded, result); err != nil {
 			return err
 		}
 	}
@@ -322,7 +322,7 @@ func calibrate(args []string) error {
 		return err
 	}
 	if *saveRecord {
-		if _, err := calibration.WriteRecord(loaded.Root, loaded.Project.ProjectName, result); err != nil {
+		if _, err := calibration.WriteRecord(loaded, result); err != nil {
 			return err
 		}
 	}
@@ -357,7 +357,7 @@ func optimize(args []string) error {
 		return err
 	}
 	if *saveRecord {
-		if _, err := optimization.WriteRecord(loaded.Root, loaded.Project.ProjectName, result); err != nil {
+		if _, err := optimization.WriteRecord(loaded, result); err != nil {
 			return err
 		}
 	}
