@@ -147,9 +147,10 @@ function renderProjectTree() {
   root.innerHTML = "";
   if (!state.detail) return;
   const graph = state.detail.graph;
+  const system = currentSystem();
   const sections = [
     ["Systems", graph.systems.map((item) => treeItem(item.id, item.name || item.id, "system"))],
-    ["Components", graph.components.map((item) => treeItem(item.id, item.name || item.id, item.kind))],
+    ["Components", graph.components.map((item) => componentTreeItem(item, system))],
     ["Python Source", graph.components.map((item) => treeItem(item.id, item.class || "", "class"))],
     ["Runs", (state.detail.runs || []).map((item) => runTreeItem(item))],
     ["Batches", (state.detail.batches || []).map((item) => batchTreeItem(item))],
@@ -186,6 +187,23 @@ function treeItem(id, label, meta) {
       updateCommandState();
     }
   });
+  return row;
+}
+
+function componentTreeItem(component, system) {
+  const inSystem = Boolean(system?.components?.includes(component.id));
+  const row = treeItem(component.id, component.name || component.id, inSystem ? component.kind : "unused");
+  if (!inSystem && isWorkspaceProject()) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "tree-action";
+    button.textContent = "Use";
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      includeComponentInSystem(component.id);
+    });
+    row.append(button);
+  }
   return row;
 }
 
@@ -2046,6 +2064,12 @@ async function duplicateComponentFromInspector(componentID) {
 
 async function includeSelectedComponent() {
   const component = componentById(state.selectedComponentId);
+  if (!component || !isWorkspaceProject()) return;
+  await includeComponentInSystem(component.id);
+}
+
+async function includeComponentInSystem(componentID) {
+  const component = componentById(componentID);
   if (!component || !isWorkspaceProject()) return;
   try {
     const body = await api("/api/project/system/components", {

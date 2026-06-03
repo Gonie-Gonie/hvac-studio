@@ -136,6 +136,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("openComponentCode")) {
 		t.Fatalf("module entrypoint did not include component-to-code navigation")
 	}
+	if !bytes.Contains(body, []byte("componentTreeItem")) {
+		t.Fatalf("module entrypoint did not include component tree state rendering")
+	}
+	if !bytes.Contains(body, []byte("includeComponentInSystem")) {
+		t.Fatalf("module entrypoint did not include tree component system inclusion")
+	}
 	if !bytes.Contains(body, []byte("sourceRuntimeBlock")) {
 		t.Fatalf("module entrypoint did not include code workspace runtime feedback")
 	}

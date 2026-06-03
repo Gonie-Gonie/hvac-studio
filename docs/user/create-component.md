@@ -11,7 +11,7 @@ graph.json
 components/<component_id>.py
 ```
 
-New components are not silently added to the runnable system. Adding a component to a system is an explicit action.
+New components are not silently added to the runnable system. Adding a component to a system is an explicit action. Components that are not currently in the entry system are marked as unused in the Project tree and can be added with Use.
 
 Workspace component input and output nodes can be added, edited, or deleted from the Inspector. New nodes can be created with display names, media, value types, units, required flags, and input defaults. Node IDs remain stable after creation, but the Inspector can edit the same metadata later. If the component is already in the runnable system, new input nodes are exposed as public inputs and added to the default input file; new output nodes are exposed as public outputs. Editing node metadata updates related public IO, and editing an input default updates the default input file. Deleting a node removes related public IO and connection references.
 

@@ -218,13 +218,18 @@ h2,
 
 .tree-item {
   display: flex;
-  justify-content: space-between;
   gap: 8px;
   align-items: center;
   min-height: 28px;
   padding: 4px 8px;
   border-radius: 6px;
   cursor: pointer;
+}
+
+.tree-item > span:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .tree-item:hover,
@@ -234,7 +239,15 @@ h2,
 }
 
 .tree-meta {
+  flex: 0 0 auto;
   color: var(--muted);
+  font-size: 11px;
+}
+
+.tree-action {
+  flex: 0 0 auto;
+  height: 24px;
+  padding: 0 7px;
   font-size: 11px;
 }
 

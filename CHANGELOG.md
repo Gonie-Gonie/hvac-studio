@@ -96,3 +96,4 @@
 - Keep release package staging folders out of `dist/` by default and write the latest Studio smoke build under `dist/build/latest/`.
 - Show public input names, metadata, and default reset controls in the Studio Run Inputs toolbar.
 - Replace prompt-based scenario creation with an in-app scenario name field in the Run Inputs toolbar.
+- Mark components that are not in the runnable system as unused in the Project tree and allow adding them to the system from that row.
