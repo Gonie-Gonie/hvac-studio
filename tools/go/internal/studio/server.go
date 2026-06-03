@@ -82,6 +82,17 @@ type createComponentRequest struct {
 	Template    string `json:"template"`
 }
 
+type componentTemplateManifest struct {
+	ID         string         `json:"id"`
+	Name       string         `json:"name"`
+	Kind       string         `json:"kind"`
+	ClassName  string         `json:"class_name"`
+	Source     string         `json:"source"`
+	Inputs     []model.Node   `json:"inputs"`
+	Outputs    []model.Node   `json:"outputs"`
+	Parameters map[string]any `json:"parameters"`
+}
+
 type duplicateComponentRequest struct {
 	ProjectPath       string `json:"project_path"`
 	SourceComponentID string `json:"source_component_id"`
@@ -501,7 +512,7 @@ func (s *Server) handleCreateComponent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	component, err := createComponent(loaded, req)
+	component, err := createComponent(loaded, req, s.repoRoot)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -1332,7 +1343,7 @@ func (s *Server) copyProject(req copyProjectRequest) (ProjectSummary, error) {
 	}, nil
 }
 
-func createComponent(loaded *project.LoadedProject, req createComponentRequest) (model.Component, error) {
+func createComponent(loaded *project.LoadedProject, req createComponentRequest, repoRoot string) (model.Component, error) {
 	componentName := strings.TrimSpace(req.Name)
 	if componentName == "" {
 		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "component name is required")
@@ -1344,27 +1355,30 @@ func createComponent(loaded *project.LoadedProject, req createComponentRequest) 
 	if template != "scalar" {
 		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "unsupported component template: %s", template)
 	}
+	templateManifest, sourceContent, err := loadComponentTemplate(repoRoot, template)
+	if err != nil {
+		return model.Component{}, err
+	}
 
 	componentID := uniqueComponentID(loaded.Graph, strings.ReplaceAll(slugify(componentName), "-", "_"))
 	if componentID == "" {
 		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "component name must contain letters or numbers")
 	}
 	className := pythonClassName(componentID)
-	required := true
+	sourceContent, err = rewriteTemplateClassName(sourceContent, templateManifest.ClassName, className)
+	if err != nil {
+		return model.Component{}, err
+	}
 	component := model.Component{
 		ID:    componentID,
 		Name:  componentName,
-		Kind:  "user_python",
+		Kind:  defaultString(templateManifest.Kind, "user_python"),
 		Class: "components." + componentID + "." + className,
 		Nodes: model.NodeSet{
-			Inputs: []model.Node{
-				{ID: "value", Name: "Value", Direction: "inlet", Medium: "signal", ValueType: "float", Unit: "", Required: &required},
-			},
-			Outputs: []model.Node{
-				{ID: "result", Name: "Result", Direction: "outlet", Medium: "signal", ValueType: "float", Unit: ""},
-			},
+			Inputs:  componentTemplateNodes(templateManifest.Inputs, "inlet"),
+			Outputs: componentTemplateNodes(templateManifest.Outputs, "outlet"),
 		},
-		Parameters: map[string]any{"gain": 1.0},
+		Parameters: cloneMap(templateManifest.Parameters),
 	}
 
 	componentsRoot := filepath.Join(loaded.Root, "components")
@@ -1381,7 +1395,7 @@ func createComponent(loaded *project.LoadedProject, req createComponentRequest) 
 	if _, err := os.Stat(sourcePath); err == nil {
 		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "component source already exists: components/%s.py", componentID)
 	}
-	if err := os.WriteFile(sourcePath, []byte(componentSource(className)), 0o644); err != nil {
+	if err := os.WriteFile(sourcePath, []byte(sourceContent), 0o644); err != nil {
 		return model.Component{}, err
 	}
 	loaded.Graph.Components = append(loaded.Graph.Components, component)
@@ -3876,19 +3890,93 @@ func pythonClassName(componentID string) string {
 	return b.String()
 }
 
-func componentSource(className string) string {
-	return fmt.Sprintf(`class %s:
-    input_nodes = {}
-    output_nodes = {}
-    parameter_schema = {}
-    state_schema = {}
+func loadComponentTemplate(repoRoot, template string) (componentTemplateManifest, string, error) {
+	templateRoot := filepath.Join(repoRoot, "templates", "components", template)
+	manifestPath := filepath.Join(templateRoot, "manifest.json")
+	manifestBytes, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return componentTemplateManifest{}, "", apperror.Errorf(apperror.CodeValidation, "component template manifest is missing: templates/components/%s/manifest.json", template)
+	}
+	var manifest componentTemplateManifest
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		return componentTemplateManifest{}, "", apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if strings.TrimSpace(manifest.ClassName) == "" {
+		return componentTemplateManifest{}, "", apperror.Errorf(apperror.CodeValidation, "component template %s class_name is required", template)
+	}
+	if strings.TrimSpace(manifest.Source) == "" {
+		return componentTemplateManifest{}, "", apperror.Errorf(apperror.CodeValidation, "component template %s source is required", template)
+	}
+	cleanSource := filepath.Clean(manifest.Source)
+	if filepath.IsAbs(cleanSource) || strings.HasPrefix(cleanSource, "..") {
+		return componentTemplateManifest{}, "", apperror.Errorf(apperror.CodeValidation, "component template %s source path is invalid: %s", template, manifest.Source)
+	}
+	sourcePath := filepath.Join(templateRoot, cleanSource)
+	sourceBytes, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return componentTemplateManifest{}, "", apperror.Errorf(apperror.CodeValidation, "component template source is missing: templates/components/%s/%s", template, manifest.Source)
+	}
+	return manifest, string(sourceBytes), nil
+}
 
-    def initialize(self, params, context):
-        return {}
+func rewriteTemplateClassName(source, oldClass, newClass string) (string, error) {
+	oldDeclaration := "class " + strings.TrimSpace(oldClass) + ":"
+	if !strings.Contains(source, oldDeclaration) {
+		return "", apperror.Errorf(apperror.CodeValidation, "component template source does not declare %s", oldClass)
+	}
+	return strings.Replace(source, oldDeclaration, "class "+newClass+":", 1), nil
+}
 
-    def evaluate(self, inputs, state, params, context):
-        value = float(inputs["value"])
-        gain = float(params.get("gain", 1.0))
-        return {"result": value * gain}, state
-`, className)
+func componentTemplateNodes(nodes []model.Node, direction string) []model.Node {
+	out := make([]model.Node, 0, len(nodes))
+	for _, node := range nodes {
+		if node.Name == "" {
+			node.Name = displayNameFromID(node.ID)
+		}
+		if node.Direction == "" {
+			node.Direction = direction
+		}
+		if node.Medium == "" {
+			node.Medium = "signal"
+		}
+		if node.ValueType == "" {
+			node.ValueType = "float"
+		}
+		out = append(out, node)
+	}
+	return out
+}
+
+func displayNameFromID(id string) string {
+	parts := strings.FieldsFunc(id, func(r rune) bool {
+		return r == '_' || r == '-' || r == ' '
+	})
+	for index, part := range parts {
+		if part == "" {
+			continue
+		}
+		runes := []rune(part)
+		runes[0] = unicode.ToUpper(runes[0])
+		parts[index] = string(runes)
+	}
+	name := strings.Join(parts, " ")
+	if name == "" {
+		return id
+	}
+	return name
+}
+
+func cloneMap(values map[string]any) map[string]any {
+	out := map[string]any{}
+	for key, value := range values {
+		out[key] = value
+	}
+	return out
+}
+
+func defaultString(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
 }

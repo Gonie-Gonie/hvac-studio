@@ -226,7 +226,7 @@ Acceptance criteria:
 - GUI can open scalar and feed-forward examples and display systems/components/nodes. Started.
 - Validate, Run, and Schema buttons use the same runtime/compiler path as the CLI runner. Validate also checks Python component source contracts. Started.
 - GUI can create a workspace project from the scalar Python component template. Started.
-- GUI can add a workspace Python component template to `graph.json` and `components/` without changing the runnable system yet. Started.
+- GUI can add a workspace Python component template from `templates/components/` to `graph.json` and `components/` without changing the runnable system yet. Started.
 - GUI can explicitly add a workspace component to the entry system with generated public IO and default input values. Started.
 - Inspector can jump from a selected workspace component to its Code workspace source editor. Started.
 - GUI can create a node-to-node connection between workspace system components from the canvas or Inspector and persist it to `graph.json`. Started.

@@ -81,4 +81,5 @@
 - Add an API workflow test for editing Python source, connecting components, and observing propagated run results.
 - Show selected component last-run input/output values in the Code workspace contract panel.
 - Mark Studio last-run values stale after runtime-affecting edits.
+- Create Studio workspace components from the component template manifest/source instead of a hard-coded scaffold.
 - Add Python editor keyboard handling for save, check, multi-line indent, and outdent.

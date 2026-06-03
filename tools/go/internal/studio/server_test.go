@@ -284,8 +284,16 @@ func TestCreateComponentEndpointCreatesWorkspaceComponent(t *testing.T) {
 	if componentBody.Component.ID != "second_gain" {
 		t.Fatalf("component id = %s, want second_gain", componentBody.Component.ID)
 	}
-	if _, err := os.Stat(filepath.Join(root, "projects", "component-project", "components", "second_gain.py")); err != nil {
+	sourcePath := filepath.Join(root, "projects", "component-project", "components", "second_gain.py")
+	sourceBytes, err := os.ReadFile(sourcePath)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if !strings.Contains(string(sourceBytes), "class SecondGainComponent:") {
+		t.Fatalf("component source did not use generated class name:\n%s", string(sourceBytes))
+	}
+	if !strings.Contains(string(sourceBytes), `params.get("gain", 2.0)`) {
+		t.Fatalf("component source did not come from scalar template:\n%s", string(sourceBytes))
 	}
 	loaded, err := project.Load(createBody.Project.ProjectPath)
 	if err != nil {
@@ -299,6 +307,9 @@ func TestCreateComponentEndpointCreatesWorkspaceComponent(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("created component was not written to graph")
+	}
+	if got := componentBody.Component.Parameters["gain"]; got != 2.0 {
+		t.Fatalf("created gain = %v, want 2", got)
 	}
 	for _, componentID := range loaded.Graph.Systems[0].Components {
 		if componentID == "second_gain" {
@@ -1031,8 +1042,8 @@ func TestCreateConnectionEndpointConnectsComponents(t *testing.T) {
 	if err := json.Unmarshal(runResponse.Body.Bytes(), &runBody); err != nil {
 		t.Fatal(err)
 	}
-	if runBody.Result.Outputs["second_gain_result"] != 8 {
-		t.Fatalf("second_gain_result = %v, want 8", runBody.Result.Outputs["second_gain_result"])
+	if runBody.Result.Outputs["second_gain_result"] != 16 {
+		t.Fatalf("second_gain_result = %v, want 16", runBody.Result.Outputs["second_gain_result"])
 	}
 
 	deletePayload, err := json.Marshal(map[string]any{
@@ -1178,8 +1189,8 @@ class ScalarComponent:
 	if err := json.Unmarshal(runResponse.Body.Bytes(), &runBody); err != nil {
 		t.Fatal(err)
 	}
-	if got := runBody.Result.Outputs["second_gain_result"]; got != 12.0 {
-		t.Fatalf("second_gain_result = %v, want 12", got)
+	if got := runBody.Result.Outputs["second_gain_result"]; got != 24.0 {
+		t.Fatalf("second_gain_result = %v, want 24", got)
 	}
 	if got := runBody.Result.ComponentOutputs["scalar"]["result"]; got != 12.0 {
 		t.Fatalf("scalar result = %v, want 12", got)
