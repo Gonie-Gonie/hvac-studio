@@ -223,8 +223,9 @@ type updateLayoutRequest struct {
 }
 
 type exportRequest struct {
-	ProjectPath string `json:"project_path"`
-	Profile     string `json:"profile"`
+	ProjectPath    string `json:"project_path"`
+	Profile        string `json:"profile"`
+	IncludeRecords bool   `json:"include_records"`
 }
 
 type sourceRequest struct {
@@ -468,6 +469,13 @@ type ExportManifest struct {
 	ValidationMappings  []string              `json:"validation_mappings,omitempty"`
 	CalibrationSetups   []string              `json:"calibration_setups,omitempty"`
 	OptimizationSetups  []string              `json:"optimization_setups,omitempty"`
+	RunRecords          []string              `json:"run_records,omitempty"`
+	BatchRecords        []string              `json:"batch_records,omitempty"`
+	ValidationRecords   []string              `json:"validation_records,omitempty"`
+	CalibrationRecords  []string              `json:"calibration_records,omitempty"`
+	OptimizationRecords []string              `json:"optimization_records,omitempty"`
+	Commands            []string              `json:"commands,omitempty"`
+	IncludeRecords      bool                  `json:"include_records"`
 }
 
 type SourceDetail struct {
@@ -1801,7 +1809,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		writeErrorWithProblems(w, apperror.Errorf(apperror.CodeValidation, "project source validation failed"), problems)
 		return
 	}
-	summary, manifest, err := writeExportManifest(loaded, req.Profile)
+	summary, manifest, err := writeExportManifest(loaded, req.Profile, req.IncludeRecords)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -4587,7 +4595,7 @@ func parameterSetDifferences(graph *model.Graph, set parameterset.Set) []Paramet
 	return diffs
 }
 
-func writeExportManifest(loaded *project.LoadedProject, profile string) (ExportSummary, ExportManifest, error) {
+func writeExportManifest(loaded *project.LoadedProject, profile string, includeRecords bool) (ExportSummary, ExportManifest, error) {
 	if profile == "" {
 		profile = "runtime_package"
 	}
@@ -4625,7 +4633,7 @@ func writeExportManifest(loaded *project.LoadedProject, profile string) (ExportS
 	if err := resetGeneratedDir(filepath.Join(loaded.Root, "exports"), exportRoot); err != nil {
 		return ExportSummary{}, ExportManifest{}, err
 	}
-	files, err := writeRuntimeExportProject(loaded, filepath.Join(exportRoot, "project"))
+	files, err := writeRuntimeExportProject(loaded, filepath.Join(exportRoot, "project"), includeRecords)
 	if err != nil {
 		return ExportSummary{}, ExportManifest{}, err
 	}
@@ -4643,12 +4651,19 @@ func writeExportManifest(loaded *project.LoadedProject, profile string) (ExportS
 		return ExportSummary{}, ExportManifest{}, err
 	}
 	files = append(files, interfaceSchemaPath)
-	entrypointFiles, err := writeRuntimeExportEntrypoints(exportRoot, exportArtifactPath(projectPath), exportArtifactPath(defaultInputPath), exportArtifactPath(environmentLockfilePath))
+	entrypoints := runtimeExportEntrypoints(files, exportArtifactPath(projectPath), exportArtifactPath(defaultInputPath), exportArtifactPath(environmentLockfilePath))
+	entrypointFiles, err := writeRuntimeExportEntrypoints(exportRoot, entrypoints)
 	if err != nil {
 		return ExportSummary{}, ExportManifest{}, err
 	}
 	files = append(files, entrypointFiles...)
 	sort.Strings(files)
+	commands := []string{}
+	for _, entrypoint := range entrypoints {
+		if strings.HasSuffix(entrypoint.Rel, ".ps1") {
+			commands = append(commands, entrypoint.Rel)
+		}
+	}
 	manifest := ExportManifest{
 		Profile:             profile,
 		CreatedAtUTC:        now.Format(time.RFC3339Nano),
@@ -4671,6 +4686,13 @@ func writeExportManifest(loaded *project.LoadedProject, profile string) (ExportS
 		ValidationMappings:  exportFilesWithPrefix(files, "project/validation/mappings/"),
 		CalibrationSetups:   exportFilesWithPrefix(files, "project/calibration/setups/"),
 		OptimizationSetups:  exportFilesWithPrefix(files, "project/optimization/setups/"),
+		RunRecords:          exportFilesWithPrefix(files, "project/runs/"),
+		BatchRecords:        exportFilesWithPrefix(files, "project/batches/"),
+		ValidationRecords:   exportFilesWithPrefix(files, "project/validation/runs/"),
+		CalibrationRecords:  exportFilesWithPrefix(files, "project/calibration/results/"),
+		OptimizationRecords: exportFilesWithPrefix(files, "project/optimization/results/"),
+		Commands:            commands,
+		IncludeRecords:      includeRecords,
 	}
 	exportPath := filepath.Join(exportRoot, "manifest.json")
 	if err := os.MkdirAll(filepath.Dir(exportPath), 0o755); err != nil {
@@ -4694,7 +4716,7 @@ func exportArtifactPath(path string) string {
 	return filepath.ToSlash(filepath.Join("project", path))
 }
 
-func writeRuntimeExportProject(loaded *project.LoadedProject, targetRoot string) ([]string, error) {
+func writeRuntimeExportProject(loaded *project.LoadedProject, targetRoot string, includeRecords bool) ([]string, error) {
 	if err := resetGeneratedDir(filepath.Dir(targetRoot), targetRoot); err != nil {
 		return nil, err
 	}
@@ -4717,9 +4739,25 @@ func writeRuntimeExportProject(loaded *project.LoadedProject, targetRoot string)
 			return nil, err
 		}
 	}
-	for _, rel := range []string{"components", "inputs", "scenarios", "datasets", "parameter_sets", "validation", "calibration", "optimization"} {
+	for _, rel := range []string{
+		"components",
+		"inputs",
+		"scenarios",
+		"datasets",
+		"parameter_sets",
+		"validation/mappings",
+		"calibration/setups",
+		"optimization/setups",
+	} {
 		if err := copyRuntimeExportDir(loaded.Root, targetRoot, rel, &files, seen); err != nil {
 			return nil, err
+		}
+	}
+	if includeRecords {
+		for _, rel := range []string{"runs", "batches", "validation/runs", "calibration/results", "optimization/results"} {
+			if err := copyRuntimeExportDir(loaded.Root, targetRoot, rel, &files, seen); err != nil {
+				return nil, err
+			}
 		}
 	}
 	sort.Strings(files)
@@ -4745,24 +4783,45 @@ func writeRuntimeExportSupportFiles(projectRoot string, exportRoot string) ([]st
 	return files, nil
 }
 
-func writeRuntimeExportEntrypoints(exportRoot string, projectPath string, defaultInput string, lockfile string) ([]string, error) {
-	files := []struct {
-		rel     string
-		content string
-	}{
-		{rel: "README.md", content: runtimeExportReadme(projectPath, defaultInput, lockfile)},
-		{rel: "run-default.ps1", content: runtimeExportRunScript(projectPath, defaultInput)},
+type runtimeExportEntrypoint struct {
+	Rel     string
+	Content string
+}
+
+func runtimeExportEntrypoints(files []string, projectPath string, defaultInput string, lockfile string) []runtimeExportEntrypoint {
+	mapping := firstProjectRelativeExport(files, "project/validation/mappings/")
+	calibrationSetup := firstProjectRelativeExport(files, "project/calibration/setups/")
+	optimizationSetup := firstProjectRelativeExport(files, "project/optimization/setups/")
+	entrypoints := []runtimeExportEntrypoint{
+		{Rel: "run-default.ps1", Content: runtimeExportRunScript(projectPath, defaultInput)},
 	}
+	if firstProjectRelativeExport(files, "project/scenarios/") != "" {
+		entrypoints = append(entrypoints, runtimeExportEntrypoint{Rel: "run-batch.ps1", Content: runtimeExportBatchScript(projectPath)})
+	}
+	if mapping != "" {
+		entrypoints = append(entrypoints, runtimeExportEntrypoint{Rel: "validate-data.ps1", Content: runtimeExportValidationScript(projectPath, mapping)})
+	}
+	if calibrationSetup != "" {
+		entrypoints = append(entrypoints, runtimeExportEntrypoint{Rel: "calibrate.ps1", Content: runtimeExportCalibrationScript(projectPath, calibrationSetup)})
+	}
+	if optimizationSetup != "" {
+		entrypoints = append(entrypoints, runtimeExportEntrypoint{Rel: "optimize.ps1", Content: runtimeExportOptimizationScript(projectPath, optimizationSetup)})
+	}
+	entrypoints = append([]runtimeExportEntrypoint{{Rel: "README.md", Content: runtimeExportReadme(projectPath, defaultInput, lockfile, entrypoints)}}, entrypoints...)
+	return entrypoints
+}
+
+func writeRuntimeExportEntrypoints(exportRoot string, files []runtimeExportEntrypoint) ([]string, error) {
 	written := []string{}
 	for _, file := range files {
-		path := filepath.Join(exportRoot, filepath.FromSlash(file.rel))
+		path := filepath.Join(exportRoot, filepath.FromSlash(file.Rel))
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			return nil, err
 		}
-		if err := os.WriteFile(path, []byte(file.content), 0o644); err != nil {
+		if err := os.WriteFile(path, []byte(file.Content), 0o644); err != nil {
 			return nil, err
 		}
-		written = append(written, file.rel)
+		written = append(written, file.Rel)
 	}
 	return written, nil
 }
@@ -4804,7 +4863,150 @@ Write-Host "wrote $Output"
 `, projectLiteral, inputLiteral), "\r\n")
 }
 
-func runtimeExportReadme(projectPath string, defaultInput string, lockfile string) string {
+func runtimeExportBatchScript(projectPath string) string {
+	return strings.TrimLeft(fmt.Sprintf(`
+param(
+  [string]$ScenarioDir = "",
+  [string]$OutputDir = "",
+  [string]$ParameterSet = ""
+)
+
+%s
+if (-not $ScenarioDir) {
+  $ScenarioDir = Join-Path $Root 'project\scenarios'
+} elseif (-not [IO.Path]::IsPathRooted($ScenarioDir)) {
+  $ScenarioDir = Join-Path $Root $ScenarioDir
+}
+if (-not $OutputDir) {
+  $OutputDir = Join-Path $Root 'outputs\batch'
+} elseif (-not [IO.Path]::IsPathRooted($OutputDir)) {
+  $OutputDir = Join-Path $Root $OutputDir
+}
+New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
+$RunArgs = @('run', '--project', $Project)
+if ($ParameterSet) {
+  $RunArgs += @('--parameter-set', $ParameterSet)
+}
+Get-ChildItem -LiteralPath $ScenarioDir -Filter '*.json' | Sort-Object Name | ForEach-Object {
+  $Output = Join-Path $OutputDir ($_.BaseName + '.json')
+  & $Runner @RunArgs --input $_.FullName --output $Output
+  Write-Host "wrote $Output"
+}
+`, runtimeExportScriptPreamble(projectPath)), "\r\n")
+}
+
+func runtimeExportValidationScript(projectPath string, mapping string) string {
+	return strings.TrimLeft(fmt.Sprintf(`
+param(
+  [string]$Mapping = '%s',
+  [string]$Output = "",
+  [string]$ParameterSet = "",
+  [int]$HighErrorRows = 3,
+  [switch]$SaveRecord
+)
+
+%s
+if (-not $Output) {
+  $Output = Join-Path $Root 'outputs\validation-result.json'
+} elseif (-not [IO.Path]::IsPathRooted($Output)) {
+  $Output = Join-Path $Root $Output
+}
+$OutputDir = Split-Path -Parent $Output
+if ($OutputDir) {
+  New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
+}
+$WorkflowArgs = @('validate-data', '--project', $Project, '--mapping', $Mapping, '--high-error-rows', [string]$HighErrorRows, '--output', $Output)
+if ($ParameterSet) {
+  $WorkflowArgs += @('--parameter-set', $ParameterSet)
+}
+if ($SaveRecord) {
+  $WorkflowArgs += '--save-record'
+}
+& $Runner @WorkflowArgs
+Write-Host "wrote $Output"
+`, powerShellSingleQuotedPath(mapping), runtimeExportScriptPreamble(projectPath)), "\r\n")
+}
+
+func runtimeExportCalibrationScript(projectPath string, setup string) string {
+	return strings.TrimLeft(fmt.Sprintf(`
+param(
+  [string]$Setup = '%s',
+  [string]$Output = "",
+  [string]$SaveParameterSet = "",
+  [switch]$SaveRecord
+)
+
+%s
+if (-not $Output) {
+  $Output = Join-Path $Root 'outputs\calibration-result.json'
+} elseif (-not [IO.Path]::IsPathRooted($Output)) {
+  $Output = Join-Path $Root $Output
+}
+$OutputDir = Split-Path -Parent $Output
+if ($OutputDir) {
+  New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
+}
+$WorkflowArgs = @('calibrate', '--project', $Project, '--setup', $Setup, '--output', $Output)
+if ($SaveParameterSet) {
+  $WorkflowArgs += @('--save-parameter-set', $SaveParameterSet)
+}
+if ($SaveRecord) {
+  $WorkflowArgs += '--save-record'
+}
+& $Runner @WorkflowArgs
+Write-Host "wrote $Output"
+`, powerShellSingleQuotedPath(setup), runtimeExportScriptPreamble(projectPath)), "\r\n")
+}
+
+func runtimeExportOptimizationScript(projectPath string, setup string) string {
+	return strings.TrimLeft(fmt.Sprintf(`
+param(
+  [string]$Setup = '%s',
+  [string]$Output = "",
+  [string]$SaveScenario = "",
+  [switch]$SaveRecord
+)
+
+%s
+if (-not $Output) {
+  $Output = Join-Path $Root 'outputs\optimization-result.json'
+} elseif (-not [IO.Path]::IsPathRooted($Output)) {
+  $Output = Join-Path $Root $Output
+}
+$OutputDir = Split-Path -Parent $Output
+if ($OutputDir) {
+  New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
+}
+$WorkflowArgs = @('optimize', '--project', $Project, '--setup', $Setup, '--output', $Output)
+if ($SaveScenario) {
+  $WorkflowArgs += @('--save-scenario', $SaveScenario)
+}
+if ($SaveRecord) {
+  $WorkflowArgs += '--save-record'
+}
+& $Runner @WorkflowArgs
+Write-Host "wrote $Output"
+`, powerShellSingleQuotedPath(setup), runtimeExportScriptPreamble(projectPath)), "\r\n")
+}
+
+func runtimeExportScriptPreamble(projectPath string) string {
+	projectLiteral := powerShellSingleQuotedPath(projectPath)
+	return strings.TrimLeft(fmt.Sprintf(`
+$ErrorActionPreference = 'Stop'
+$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Runner = Join-Path $Root 'bin\bcs-runner.exe'
+if (-not (Test-Path -LiteralPath $Runner)) {
+  $Runner = 'bcs-runner.exe'
+}
+$PythonRoot = Join-Path $Root 'runtime\python'
+if (Test-Path -LiteralPath $PythonRoot) {
+  $env:PATH = (@($PythonRoot, (Join-Path $Root 'bin'), $env:PATH) | Where-Object { $_ }) -join [IO.Path]::PathSeparator
+}
+$Project = Join-Path $Root '%s'
+`, projectLiteral), "\r\n")
+}
+
+func runtimeExportReadme(projectPath string, defaultInput string, lockfile string, entrypoints []runtimeExportEntrypoint) string {
 	inputLine := ""
 	if defaultInput != "" {
 		inputLine = fmt.Sprintf("- Default input: `%s`\n", defaultInput)
@@ -4813,6 +5015,12 @@ func runtimeExportReadme(projectPath string, defaultInput string, lockfile strin
 	if lockfile != "" {
 		lockfileLine = fmt.Sprintf("- Python lockfile: `%s`\n", lockfile)
 	}
+	commandLines := []string{}
+	for _, entrypoint := range entrypoints {
+		if strings.HasSuffix(entrypoint.Rel, ".ps1") {
+			commandLines = append(commandLines, fmt.Sprintf("- `powershell -ExecutionPolicy Bypass -File .\\%s`", entrypoint.Rel))
+		}
+	}
 	return "# Runtime Export\n\n" +
 		"This folder contains a runnable Studio runtime export.\n\n" +
 		fmt.Sprintf("- Project: `%s`\n", projectPath) +
@@ -4820,8 +5028,9 @@ func runtimeExportReadme(projectPath string, defaultInput string, lockfile strin
 		lockfileLine +
 		"- Public IO schema: `schema/public-io.json`\n" +
 		"- Runner: `bin/bcs-runner.exe`\n\n" +
-		"Run the default case on Windows:\n\n" +
-		"`powershell -ExecutionPolicy Bypass -File .\\run-default.ps1`\n"
+		"Available Windows commands:\n\n" +
+		strings.Join(commandLines, "\n") +
+		"\n"
 }
 
 func powerShellSingleQuotedPath(path string) string {
@@ -5296,6 +5505,14 @@ func exportFilesWithPrefix(files []string, prefix string) []string {
 	}
 	sort.Strings(matches)
 	return matches
+}
+
+func firstProjectRelativeExport(files []string, prefix string) string {
+	matches := exportFilesWithPrefix(files, prefix)
+	if len(matches) == 0 {
+		return ""
+	}
+	return strings.TrimPrefix(matches[0], "project/")
 }
 
 func removeString(values []string, target string) []string {

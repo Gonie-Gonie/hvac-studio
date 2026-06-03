@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from bcs_sdk import RunnerClient, RunnerError
-from bcs_sdk.model import load_parameter_set, load_project, load_scenario
+from bcs_sdk.model import load_export_manifest, load_parameter_set, load_project, load_scenario
 
 
 class ModelTests(unittest.TestCase):
@@ -26,11 +26,17 @@ class ModelTests(unittest.TestCase):
             project.write_text(json.dumps({"project_name": "case"}), encoding="utf-8")
             (root / "parameter_sets").mkdir()
             (root / "scenarios").mkdir()
+            (root / "exports" / "runtime_package").mkdir(parents=True)
             (root / "parameter_sets" / "baseline.json").write_text(json.dumps({"id": "baseline"}), encoding="utf-8")
             (root / "scenarios" / "case01.json").write_text(json.dumps({"id": "case01"}), encoding="utf-8")
+            (root / "exports" / "runtime_package" / "manifest.json").write_text(
+                json.dumps({"profile": "runtime_package", "commands": ["run-default.ps1"]}),
+                encoding="utf-8",
+            )
 
             self.assertEqual(load_parameter_set(project, "parameter_sets/baseline.json")["id"], "baseline")
             self.assertEqual(load_scenario(project, "scenarios/case01.json")["id"], "case01")
+            self.assertEqual(load_export_manifest(project)["commands"], ["run-default.ps1"])
 
 
 class RunnerClientTests(unittest.TestCase):

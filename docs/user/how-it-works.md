@@ -59,7 +59,7 @@ with RunnerClient.start("project.bcsproj", runner="bcs-runner.exe") as client:
     result = client.evaluate({"value": 4}, {"time": 0, "dt": 60})
 ```
 
-This keeps SDK workflows aligned with CLI, Studio, and external-engine integrations.
+For file-backed workflows, `RunnerClient` also provides helpers such as `run_validation`, `run_calibration`, `run_optimization`, `run_batch`, and `export_schema`. Model helpers can load parameter sets, scenarios, and runtime export manifests without hand-writing project-relative JSON path plumbing. These helpers still shell out to `bcs-runner`; the SDK is not a second execution engine.
 
 ## Public IO Is The Contract
 

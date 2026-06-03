@@ -3270,7 +3270,7 @@ async function exportProject() {
   try {
     const body = await api("/api/export", {
       method: "POST",
-      body: JSON.stringify({ project_path: state.currentProjectPath, profile: "runtime_package" }),
+      body: JSON.stringify({ project_path: state.currentProjectPath, profile: "runtime_package", include_records: true }),
     });
     state.latestExport = body.export;
     state.latestExportSummary = body.summary;

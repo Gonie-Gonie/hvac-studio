@@ -35,11 +35,22 @@ function renderSummaryRows(state, manifest, tbody) {
     ["Default input", manifest.default_input || ""],
     ["Interface schema", manifest.interface_schema || ""],
     ["Self check", "bin/bcs-env.exe check --root ."],
-    ["Run command", "powershell -ExecutionPolicy Bypass -File .\\run-default.ps1"],
+    ["Commands", (manifest.commands || ["run-default.ps1"]).join(", ")],
+    ["Records", recordCount(manifest).toString()],
     ["Files", String((manifest.files || []).length)],
   ];
   if (manifest.created_at_utc) rows.splice(2, 0, ["Created", manifest.created_at_utc]);
   for (const [name, value] of rows) tbody.append(row([name, value]));
+}
+
+function recordCount(manifest) {
+  return [
+    ...(manifest.run_records || []),
+    ...(manifest.batch_records || []),
+    ...(manifest.validation_records || []),
+    ...(manifest.calibration_records || []),
+    ...(manifest.optimization_records || []),
+  ].length;
 }
 
 function exportFolderFor(summary, manifest) {

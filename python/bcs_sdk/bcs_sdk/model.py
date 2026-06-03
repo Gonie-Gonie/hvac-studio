@@ -28,3 +28,7 @@ def load_parameter_set(project: str | Path, relative_path: str | Path) -> dict[s
 
 def load_scenario(project: str | Path, relative_path: str | Path) -> dict[str, Any]:
     return load_project_artifact(project, relative_path)
+
+
+def load_export_manifest(project: str | Path, profile: str = "runtime_package") -> dict[str, Any]:
+    return load_project_artifact(project, Path("exports") / profile / "manifest.json")

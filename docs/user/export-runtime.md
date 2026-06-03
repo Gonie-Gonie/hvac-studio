@@ -10,6 +10,10 @@ The Export button can write:
 exports/runtime_package/manifest.json
 exports/runtime_package/README.md
 exports/runtime_package/run-default.ps1
+exports/runtime_package/run-batch.ps1
+exports/runtime_package/validate-data.ps1
+exports/runtime_package/calibrate.ps1
+exports/runtime_package/optimize.ps1
 exports/runtime_package/bin/bcs-runner.exe
 exports/runtime_package/bin/bcs-env.exe
 exports/runtime_package/project/project.bcsproj
@@ -26,16 +30,22 @@ exports/runtime_package/runtime/python/
 exports/runtime_package/schema/public-io.json
 ```
 
-This is the first connected runtime export artifact. It copies the source-of-truth project files needed by the runner, including datasets, parameter sets, validation mappings, calibration setups, and optimization setups. It also writes a public input/output schema for consumers, adds a default Windows run script, and records the exported files plus public IO, execution order, and workflow artifact lists in the manifest. When Studio is running from a portable/runtime package, export also copies the packaged runner tools and Python runtime into the export folder so the exported project can run without a system Python install.
+Runtime export copies the source-of-truth project files needed by the runner, including datasets, parameter sets, validation mappings, calibration setups, and optimization setups. It writes a public input/output schema for consumers, generates Windows scripts for the workflows present in the exported project, and records the exported files plus public IO, execution order, command list, and workflow artifact lists in the manifest. When Studio is running from a portable/runtime package, export also copies the packaged runner tools and Python runtime into the export folder so the exported project can run without a system Python install.
 
-Export profiles appear in the Project tree. Before export, selecting the ready runtime package profile opens the Export workspace preview. After export, selecting the saved profile reopens the saved manifest so the exported folder, file list, public IO, first-run command, self-check command, and paths can be inspected after the original export action has completed.
+Export profiles appear in the Project tree. Before export, selecting the ready runtime package profile opens the Export workspace preview. After export, selecting the saved profile reopens the saved manifest so the exported folder, file list, public IO, command list, self-check command, record count, and paths can be inspected after the original export action has completed.
 
 From the export folder:
 
 ```text
 powershell -ExecutionPolicy Bypass -File .\run-default.ps1
+powershell -ExecutionPolicy Bypass -File .\run-batch.ps1
+powershell -ExecutionPolicy Bypass -File .\validate-data.ps1
+powershell -ExecutionPolicy Bypass -File .\calibrate.ps1
+powershell -ExecutionPolicy Bypass -File .\optimize.ps1
 .\bin\bcs-env.exe check --root . --json
 ```
+
+Studio exports include generated run, batch, validation, calibration, and optimization records when `include_records` is selected by the caller. Source artifacts are always copied; generated records are listed separately in `manifest.json` under `run_records`, `batch_records`, `validation_records`, `calibration_records`, and `optimization_records`.
 
 ## Target Runtime Package Shape
 

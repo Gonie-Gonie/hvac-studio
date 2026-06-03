@@ -423,8 +423,11 @@ func TestStaticExportWorkspaceModuleServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("Export folder")) {
 		t.Fatalf("export workspace module did not render export folder")
 	}
-	if !bytes.Contains(body, []byte("Run command")) {
-		t.Fatalf("export workspace module did not render run command")
+	if !bytes.Contains(body, []byte("Commands")) {
+		t.Fatalf("export workspace module did not render commands")
+	}
+	if !bytes.Contains(body, []byte("Records")) {
+		t.Fatalf("export workspace module did not render record count")
 	}
 }
 
@@ -3820,12 +3823,15 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 		"README.md",
 		"bin/bcs-env.exe",
 		"bin/bcs-runner.exe",
+		"calibrate.ps1",
+		"optimize.ps1",
 		"project/project.bcsproj",
 		"project/graph.json",
 		"project/components/__init__.py",
 		"project/components/scalar.py",
 		"project/datasets/scalar_validation.csv",
 		"project/parameter_sets/baseline.json",
+		"project/scenarios/case01.json",
 		"project/validation/mappings/scalar_validation.json",
 		"project/calibration/setups/scalar_gain.json",
 		"project/optimization/setups/scalar_grid.json",
@@ -3833,8 +3839,10 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 		"project/requirements.lock.txt",
 		"runtime/manifest.json",
 		"runtime/python/python.exe",
+		"run-batch.ps1",
 		"run-default.ps1",
 		"schema/public-io.json",
+		"validate-data.ps1",
 	}
 	exportRoot := filepath.Join(root, "projects", "export-project", "exports", "runtime_package")
 	for _, rel := range expectedFiles {
@@ -3861,8 +3869,16 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 		t.Fatalf("export optimization setups = %v", body.Export.OptimizationSetups)
 	}
 	for _, rel := range body.Export.Files {
-		if strings.HasPrefix(rel, "project/runs/") || strings.HasPrefix(rel, "project/exports/") {
+		if strings.HasPrefix(rel, "project/runs/") || strings.HasPrefix(rel, "project/batches/") || strings.HasPrefix(rel, "project/validation/runs/") || strings.HasPrefix(rel, "project/calibration/results/") || strings.HasPrefix(rel, "project/optimization/results/") || strings.HasPrefix(rel, "project/exports/") {
 			t.Fatalf("export should not include generated project artifact %s", rel)
+		}
+	}
+	if body.Export.IncludeRecords {
+		t.Fatal("default API export should not include generated records")
+	}
+	for _, command := range []string{"run-default.ps1", "run-batch.ps1", "validate-data.ps1", "calibrate.ps1", "optimize.ps1"} {
+		if !containsString(body.Export.Commands, command) {
+			t.Fatalf("export commands missing %s in %v", command, body.Export.Commands)
 		}
 	}
 	if _, err := os.Stat(filepath.Join(exportRoot, "manifest.json")); err != nil {
@@ -3906,6 +3922,42 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	}
 	if len(openBody.Export.Files) != len(body.Export.Files) {
 		t.Fatalf("opened export file count = %d, want %d", len(openBody.Export.Files), len(body.Export.Files))
+	}
+
+	recordPayload, err := json.Marshal(map[string]any{
+		"project_path":    createBody.Project.ProjectPath,
+		"profile":         "runtime_package",
+		"include_records": true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	recordResponse := httptest.NewRecorder()
+	recordRequest := httptest.NewRequest(http.MethodPost, "/api/export", bytes.NewReader(recordPayload))
+	server.Handler().ServeHTTP(recordResponse, recordRequest)
+	if recordResponse.Code != http.StatusOK {
+		t.Fatalf("record export status = %d body=%s", recordResponse.Code, recordResponse.Body.String())
+	}
+	var recordBody struct {
+		Export ExportManifest `json:"export"`
+	}
+	if err := json.Unmarshal(recordResponse.Body.Bytes(), &recordBody); err != nil {
+		t.Fatal(err)
+	}
+	expectedRecords := []string{
+		"project/runs/run-test.json",
+		"project/batches/batch-test.json",
+		"project/validation/runs/validation-test.json",
+		"project/calibration/results/calibration-test.json",
+		"project/optimization/results/optimization-test.json",
+	}
+	for _, rel := range expectedRecords {
+		if !containsString(recordBody.Export.Files, rel) {
+			t.Fatalf("record export files missing %s in %v", rel, recordBody.Export.Files)
+		}
+	}
+	if !recordBody.Export.IncludeRecords || !containsString(recordBody.Export.RunRecords, "project/runs/run-test.json") {
+		t.Fatalf("record manifest = %#v", recordBody.Export)
 	}
 }
 
@@ -4191,6 +4243,17 @@ func seedExportWorkflowArtifacts(t *testing.T, projectRoot string) {
 }
 `)
 	writeTestFile(t, filepath.Join(projectRoot, "datasets", "scalar_validation.csv"), "value,observed_result\n4,8\n")
+	writeTestFile(t, filepath.Join(projectRoot, "scenarios", "case01.json"), `{
+  "id": "case01",
+  "name": "Case 01",
+  "inputs": {
+    "value": 4
+  },
+  "context": {
+    "time": 0
+  }
+}
+`)
 	writeTestFile(t, filepath.Join(projectRoot, "validation", "mappings", "scalar_validation.json"), `{
   "id": "scalar_validation",
   "dataset": "datasets/scalar_validation.csv",
@@ -4241,4 +4304,9 @@ func seedExportWorkflowArtifacts(t *testing.T, projectRoot string) {
   ]
 }
 `)
+	writeTestFile(t, filepath.Join(projectRoot, "runs", "run-test.json"), `{"id":"run-test","result":{"outputs":{"result":8}}}`)
+	writeTestFile(t, filepath.Join(projectRoot, "batches", "batch-test.json"), `{"id":"batch-test","cases":[]}`)
+	writeTestFile(t, filepath.Join(projectRoot, "validation", "runs", "validation-test.json"), `{"id":"validation-test","result":{"row_count":1}}`)
+	writeTestFile(t, filepath.Join(projectRoot, "calibration", "results", "calibration-test.json"), `{"id":"calibration-test","result":{"best_objective":0}}`)
+	writeTestFile(t, filepath.Join(projectRoot, "optimization", "results", "optimization-test.json"), `{"id":"optimization-test","result":{"best_objective":0}}`)
 }
