@@ -6,6 +6,7 @@ Run one case:
 
 ```powershell
 go run ./tools/go/cmd/bcs-runner run --project examples/006_optimization_case/project.bcsproj --input examples/006_optimization_case/inputs/case01.json
+go run ./tools/go/cmd/bcs-runner optimize --project examples/006_optimization_case/project.bcsproj --setup optimization/setups/chw_setpoint_grid.json --save-scenario scenarios/optimized_setpoint.json
 ```
 
 The `scripts/grid_search.py` file shows the intended SDK workflow: keep the model interface stable and let external research code search candidate inputs.

@@ -15,6 +15,7 @@ import (
 	"github.com/goniegonie/hvac-studio/tools/go/internal/calibration"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/modelvalidation"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/optimization"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/parameterset"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
 	runtimecore "github.com/goniegonie/hvac-studio/tools/go/internal/runtime"
@@ -47,6 +48,8 @@ func run(args []string) error {
 		return validateData(args[2:])
 	case "calibrate":
 		return calibrate(args[2:])
+	case "optimize":
+		return optimize(args[2:])
 	default:
 		return usage()
 	}
@@ -314,6 +317,35 @@ func calibrate(args []string) error {
 	return writeJSONOutput(resolveProjectPath(loaded.Root, *outputPath), result)
 }
 
+func optimize(args []string) error {
+	flags := flag.NewFlagSet("optimize", flag.ContinueOnError)
+	projectPath := flags.String("project", "", "path to project.bcsproj")
+	setupPath := flags.String("setup", "", "project-relative optimization setup JSON")
+	outputPath := flags.String("output", "", "path to output JSON")
+	saveScenario := flags.String("save-scenario", "", "project-relative scenario output JSON")
+	if err := flags.Parse(args); err != nil {
+		return apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if *projectPath == "" {
+		return apperror.Errorf(apperror.CodeValidation, "--project is required")
+	}
+	loaded, err := project.Load(*projectPath)
+	if err != nil {
+		return apperror.Wrap(apperror.CodeValidation, err)
+	}
+	setup, err := optimization.LoadSetup(loaded.Root, *setupPath)
+	if err != nil {
+		return err
+	}
+	result, err := optimization.Run(context.Background(), loaded.Path, setup, optimization.Options{
+		SaveScenario: *saveScenario,
+	})
+	if err != nil {
+		return err
+	}
+	return writeJSONOutput(resolveProjectPath(loaded.Root, *outputPath), result)
+}
+
 func writeJSONOutput(outputPath string, value any) error {
 	output, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
@@ -340,5 +372,5 @@ func resolveProjectPath(projectRoot string, path string) string {
 }
 
 func usage() error {
-	return apperror.Errorf(apperror.CodeValidation, "usage: bcs-runner <validate|run|serve|schema|validate-data|calibrate> --project project.bcsproj")
+	return apperror.Errorf(apperror.CodeValidation, "usage: bcs-runner <validate|run|serve|schema|validate-data|calibrate|optimize> --project project.bcsproj")
 }

@@ -1,0 +1,25 @@
+{
+  "id": "chw_setpoint_grid",
+  "name": "Chilled Water Setpoint Grid Optimization",
+  "algorithm": "grid",
+  "base_inputs": {
+    "building_load_kw": 500.0
+  },
+  "context": {
+    "time": 0,
+    "dt": 60
+  },
+  "objective": {
+    "output": "objective_kw",
+    "sense": "min"
+  },
+  "decision_variables": [
+    {
+      "kind": "public_input",
+      "name": "chw_setpoint_c",
+      "min": 6.0,
+      "max": 8.0,
+      "step": 0.25
+    }
+  ]
+}

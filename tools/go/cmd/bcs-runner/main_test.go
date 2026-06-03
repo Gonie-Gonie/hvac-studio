@@ -297,6 +297,49 @@ func TestCalibrateCommandWritesResultAndParameterSet(t *testing.T) {
 	}
 }
 
+func TestOptimizeCommandWritesResultAndScenario(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectRoot := filepath.Join(tmpDir, "project")
+	copyTree(t, examplePath("006_optimization_case"), projectRoot)
+	outputPath := filepath.Join(tmpDir, "optimization.json")
+
+	err := run([]string{
+		"bcs-runner",
+		"optimize",
+		"--project",
+		filepath.Join(projectRoot, "project.bcsproj"),
+		"--setup",
+		filepath.Join("optimization", "setups", "chw_setpoint_grid.json"),
+		"--save-scenario",
+		filepath.Join("scenarios", "optimized_cli.json"),
+		"--output",
+		outputPath,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result struct {
+		OK            bool               `json:"ok"`
+		BestObjective float64            `json:"best_objective"`
+		BestInputs    map[string]float64 `json:"best_inputs"`
+		SavedScenario string             `json:"saved_scenario"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatal(err)
+	}
+	if !result.OK || result.BestObjective != 92 || result.BestInputs["chw_setpoint_c"] != 7 || result.SavedScenario != "scenarios/optimized_cli.json" {
+		t.Fatalf("optimization result = %#v", result)
+	}
+	if _, err := os.Stat(filepath.Join(projectRoot, "scenarios", "optimized_cli.json")); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestServeCommandReusesLoadedSessionState(t *testing.T) {
 	tmpDir := t.TempDir()
 	projectRoot := filepath.Join(tmpDir, "project")

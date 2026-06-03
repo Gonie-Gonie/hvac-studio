@@ -517,6 +517,16 @@ Acceptance criteria:
 
 ## Milestone 10: Optimization
 
+Status: complete for public-input grid-search CLI/runtime MVP. Verified on 2026-06-03 with `go test ./cmd/bcs-runner ./internal/optimization`.
+
+Implemented:
+
+- Saved optimization setup artifact under `optimization/setups/*.json`.
+- `bcs-runner optimize --setup` runs grid search over public input decision variables.
+- Optimization setup supports base inputs, context, objective output, min/max/step bounds, and min/max sense.
+- Optimization result reports candidate objectives, best inputs, best outputs, and saved scenario path.
+- `--save-scenario` writes an optimized scenario artifact for later runs.
+
 Goal: optimize control inputs or design parameters against objectives and constraints.
 
 Optimization differs from calibration:

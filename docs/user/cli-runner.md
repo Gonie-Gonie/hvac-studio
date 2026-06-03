@@ -63,6 +63,20 @@ bcs-runner.exe calibrate `
 
 The setup points to a validation mapping, an optional base parameter set, an objective, and parameter bounds. Saving the result writes a new parameter set without changing baseline `graph.json`.
 
+## Optimization
+
+`optimize` runs a saved optimization setup. The current implemented path supports grid search over public inputs:
+
+```powershell
+bcs-runner.exe optimize `
+  --project examples/006_optimization_case/project.bcsproj `
+  --setup optimization/setups/chw_setpoint_grid.json `
+  --save-scenario scenarios/optimized_setpoint.json `
+  --output optimization-result.json
+```
+
+The result reports candidate objectives, best inputs, best outputs, and the saved scenario path.
+
 ## Serve
 
 Serve mode keeps the graph compiled and Python components loaded for repeated evaluations:
