@@ -224,9 +224,56 @@
                 </table>
               </div>
             </div>
-            <div class="chart-panel">
-              <div class="table-title">Run Output Preview</div>
-              <div id="runOutputChart" class="bar-chart"></div>
+            <div class="stacked-workspace run-inspect-workspace">
+              <div class="chart-panel">
+                <div class="table-title">Run Output Preview</div>
+                <div id="runOutputChart" class="bar-chart"></div>
+              </div>
+              <div class="table-shell">
+                <div class="table-title">Execution Trace</div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Component</th>
+                      <th>Stage</th>
+                      <th>Duration</th>
+                    </tr>
+                  </thead>
+                  <tbody id="executionTraceRows">
+                    <tr><td colspan="3" class="empty-cell">No execution trace yet</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="table-shell">
+                <div class="table-title">Connection Values</div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Connection</th>
+                      <th>Value</th>
+                      <th>Meta</th>
+                    </tr>
+                  </thead>
+                  <tbody id="connectionTraceRows">
+                    <tr><td colspan="3" class="empty-cell">No connection values yet</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="table-shell">
+                <div class="table-title">Node Values</div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Node</th>
+                      <th>Value</th>
+                      <th>Meta</th>
+                    </tr>
+                  </thead>
+                  <tbody id="nodeTraceRows">
+                    <tr><td colspan="3" class="empty-cell">No node values yet</td></tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </section>
 

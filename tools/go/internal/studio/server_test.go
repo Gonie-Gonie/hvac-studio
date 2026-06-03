@@ -96,6 +96,15 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("batchCaseRows")) {
 		t.Fatalf("index did not include batch case rows")
 	}
+	if !bytes.Contains(body, []byte("executionTraceRows")) {
+		t.Fatalf("index did not include execution trace rows")
+	}
+	if !bytes.Contains(body, []byte("connectionTraceRows")) {
+		t.Fatalf("index did not include connection trace rows")
+	}
+	if !bytes.Contains(body, []byte("nodeTraceRows")) {
+		t.Fatalf("index did not include node trace rows")
+	}
 	if !bytes.Contains(body, []byte("autoLayoutButton")) {
 		t.Fatalf("index did not include canvas auto layout control")
 	}
@@ -363,6 +372,15 @@ func TestStaticRunOutputModuleServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("renderBatchCases")) {
 		t.Fatalf("run output module did not render batch cases")
+	}
+	if !bytes.Contains(body, []byte("renderExecutionTrace")) {
+		t.Fatalf("run output module did not render execution traces")
+	}
+	if !bytes.Contains(body, []byte("renderConnectionTrace")) {
+		t.Fatalf("run output module did not render connection traces")
+	}
+	if !bytes.Contains(body, []byte("renderNodeTrace")) {
+		t.Fatalf("run output module did not render node traces")
 	}
 	if !bytes.Contains(body, []byte("case-status")) {
 		t.Fatalf("run output module did not render batch case status badges")

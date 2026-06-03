@@ -1500,7 +1500,17 @@ function latestRuntimeResult() {
 }
 
 function renderRunWorkspace() {
-  renderRunOutputWorkspace(state, el("runSummaryRows"), el("runOutputRows"), el("runOutputChart"), el("componentRunRows"), el("batchCaseRows"));
+  renderRunOutputWorkspace(
+    state,
+    el("runSummaryRows"),
+    el("runOutputRows"),
+    el("runOutputChart"),
+    el("componentRunRows"),
+    el("batchCaseRows"),
+    el("executionTraceRows"),
+    el("connectionTraceRows"),
+    el("nodeTraceRows"),
+  );
 }
 
 function renderSchema() {

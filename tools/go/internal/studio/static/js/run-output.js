@@ -1,13 +1,16 @@
 import { escapeHTML } from "./dom.js";
 import { formatValue } from "./format.js";
 
-export function renderRunOutputWorkspace(state, summary, outputRows, chart, componentRows, batchRows) {
+export function renderRunOutputWorkspace(state, summary, outputRows, chart, componentRows, batchRows, executionRows, connectionRows, nodeRows) {
   if (!summary || !outputRows || !chart) return;
   renderRunSummary(state, summary);
   renderPublicOutputs(state, outputRows);
   renderOutputChart(state, chart);
   renderSelectedComponentValues(state, componentRows);
   renderBatchCases(state, batchRows);
+  renderExecutionTrace(state, executionRows);
+  renderConnectionTrace(state, connectionRows);
+  renderNodeTrace(state, nodeRows);
 }
 
 function renderRunSummary(state, summary) {
@@ -115,6 +118,77 @@ function renderBatchCases(state, tbody) {
   });
 }
 
+function renderExecutionTrace(state, tbody) {
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  const context = latestResultContext(state);
+  const timings = context.result?.component_timings || [];
+  const rows = timings.length
+    ? timings.map((item) => ({
+      component: item.component || "",
+      stage: item.stage || "evaluate",
+      duration: formatDuration(item.duration_ms),
+    }))
+    : (context.result?.execution_order || []).map((component) => ({
+      component,
+      stage: "evaluate",
+      duration: "",
+    }));
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="3" class="empty-cell">No execution trace yet</td></tr>`;
+    return;
+  }
+  for (const item of rows) {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${escapeHTML(item.component)}</td>
+      <td>${escapeHTML(item.stage)}</td>
+      <td>${escapeHTML(item.duration)}</td>
+    `;
+    tbody.append(row);
+  }
+}
+
+function renderConnectionTrace(state, tbody) {
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  const context = latestResultContext(state);
+  const traces = context.result?.connection_values || [];
+  if (!traces.length) {
+    tbody.innerHTML = `<tr><td colspan="3" class="empty-cell">No connection values yet</td></tr>`;
+    return;
+  }
+  for (const trace of traces) {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${escapeHTML(connectionLabel(trace))}</td>
+      <td>${escapeHTML(formatValue(trace.value))}</td>
+      <td>${escapeHTML(traceMeta(trace))}</td>
+    `;
+    tbody.append(row);
+  }
+}
+
+function renderNodeTrace(state, tbody) {
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  const context = latestResultContext(state);
+  const traces = context.result?.node_values || [];
+  if (!traces.length) {
+    tbody.innerHTML = `<tr><td colspan="3" class="empty-cell">No node values yet</td></tr>`;
+    return;
+  }
+  for (const trace of traces) {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${escapeHTML(`${trace.component}.${trace.node} ${trace.direction || ""}`.trim())}</td>
+      <td>${escapeHTML(formatValue(trace.value))}</td>
+      <td>${escapeHTML(traceMeta(trace))}</td>
+    `;
+    tbody.append(row);
+  }
+}
+
 function publicOutputSummary(outputs) {
   const entries = Object.entries(outputs);
   if (!entries.length) return "";
@@ -186,11 +260,36 @@ function resultSummaryRows(result, source) {
   const outputs = Object.keys(result.outputs || {}).length;
   const components = Object.keys(result.component_outputs || {}).length;
   const executionOrder = (result.execution_order || []).join(" -> ");
-  return [
+  const rows = [
     { name: "Public outputs", value: String(outputs), source },
     { name: "Components", value: String(components), source },
-    { name: "Execution order", value: executionOrder || "n/a", source },
   ];
+  if (typeof result.duration_ms === "number") {
+    rows.push({ name: "Duration", value: formatDuration(result.duration_ms), source });
+  }
+  rows.push({ name: "Execution order", value: executionOrder || "n/a", source });
+  return rows;
+}
+
+function connectionLabel(trace) {
+  const from = trace.from ? `${trace.from.component}.${trace.from.node}` : "";
+  const to = trace.to ? `${trace.to.component}.${trace.to.node}` : "";
+  return `${trace.id || "connection"} ${from && to ? `${from} -> ${to}` : ""}`.trim();
+}
+
+function traceMeta(trace) {
+  return [
+    trace.source_medium && trace.target_medium ? `${trace.source_medium}->${trace.target_medium}` : trace.medium || "",
+    trace.value_type || "",
+    trace.unit || "",
+  ].filter(Boolean).join(" / ");
+}
+
+function formatDuration(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "";
+  if (value < 1) return `${value.toFixed(3)} ms`;
+  if (value < 100) return `${value.toFixed(2)} ms`;
+  return `${value.toFixed(0)} ms`;
 }
 
 function latestNumericOutputs(state) {
