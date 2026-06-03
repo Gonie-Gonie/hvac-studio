@@ -1,11 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
@@ -32,6 +36,8 @@ func run(args []string) error {
 		return validate(args[2:])
 	case "run":
 		return runProject(args[2:])
+	case "serve":
+		return serveProject(args[2:], os.Stdin, os.Stdout)
 	case "schema":
 		return exportSchema(args[2:])
 	default:
@@ -114,6 +120,94 @@ func runProject(args []string) error {
 	return apperror.Wrap(apperror.CodeRuntime, runtimecore.WriteResult(resolvedOutput, result))
 }
 
+type serveRequest struct {
+	ID      string         `json:"id"`
+	Type    string         `json:"type"`
+	Inputs  map[string]any `json:"inputs"`
+	Context map[string]any `json:"context"`
+}
+
+type serveResponse struct {
+	ID      string                 `json:"id,omitempty"`
+	OK      bool                   `json:"ok"`
+	Message string                 `json:"message,omitempty"`
+	Result  *runtimecore.RunResult `json:"result,omitempty"`
+	Error   *serveError            `json:"error,omitempty"`
+}
+
+type serveError struct {
+	Kind    string `json:"kind"`
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+func serveProject(args []string, input io.Reader, output io.Writer) error {
+	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
+	projectPath := flags.String("project", "", "path to project.bcsproj")
+	if err := flags.Parse(args); err != nil {
+		return apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if *projectPath == "" {
+		return apperror.Errorf(apperror.CodeValidation, "--project is required")
+	}
+
+	loaded, err := project.Load(*projectPath)
+	if err != nil {
+		return apperror.Wrap(apperror.CodeValidation, err)
+	}
+	session, err := runtimecore.NewSession(context.Background(), loaded)
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	scanner := bufio.NewScanner(input)
+	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
+	encoder := json.NewEncoder(output)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var req serveRequest
+		if err := json.Unmarshal([]byte(line), &req); err != nil {
+			if err := encoder.Encode(serveResponse{OK: false, Error: responseError(apperror.Wrap(apperror.CodeInput, fmt.Errorf("invalid JSON request: %w", err)))}); err != nil {
+				return apperror.Wrap(apperror.CodeRuntime, err)
+			}
+			continue
+		}
+		if req.Type == "shutdown" {
+			if err := encoder.Encode(serveResponse{ID: req.ID, OK: true, Message: "shutdown"}); err != nil {
+				return apperror.Wrap(apperror.CodeRuntime, err)
+			}
+			return nil
+		}
+		result, err := session.Evaluate(runtimecore.RunInput{Inputs: req.Inputs, Context: req.Context})
+		if err != nil {
+			if err := encoder.Encode(serveResponse{ID: req.ID, OK: false, Error: responseError(err)}); err != nil {
+				return apperror.Wrap(apperror.CodeRuntime, err)
+			}
+			continue
+		}
+		if err := encoder.Encode(serveResponse{ID: req.ID, OK: true, Result: result}); err != nil {
+			return apperror.Wrap(apperror.CodeRuntime, err)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return apperror.Wrap(apperror.CodeInput, err)
+	}
+	return nil
+}
+
+func responseError(err error) *serveError {
+	code := apperror.ErrorCode(err)
+	return &serveError{
+		Kind:    apperror.CodeName(code),
+		Code:    int(code),
+		Message: err.Error(),
+	}
+}
+
 func exportSchema(args []string) error {
 	flags := flag.NewFlagSet("schema", flag.ContinueOnError)
 	projectPath := flags.String("project", "", "path to project.bcsproj")
@@ -147,5 +241,5 @@ func resolveProjectPath(projectRoot string, path string) string {
 }
 
 func usage() error {
-	return apperror.Errorf(apperror.CodeValidation, "usage: bcs-runner <validate|run|schema> --project project.bcsproj")
+	return apperror.Errorf(apperror.CodeValidation, "usage: bcs-runner <validate|run|serve|schema> --project project.bcsproj")
 }

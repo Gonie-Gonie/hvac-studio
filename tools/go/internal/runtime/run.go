@@ -12,7 +12,6 @@ import (
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/platform"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
-	"github.com/goniegonie/hvac-studio/tools/go/internal/pythonworker"
 )
 
 type RunInput struct {
@@ -30,6 +29,8 @@ type RunResult struct {
 	States           map[string]map[string]any `json:"states"`
 	Context          map[string]any            `json:"context"`
 	ExecutionOrder   []string                  `json:"execution_order"`
+	ComponentTimings []ComponentTiming         `json:"component_timings,omitempty"`
+	DurationMS       float64                   `json:"duration_ms,omitempty"`
 }
 
 type NodeValueTrace struct {
@@ -53,102 +54,22 @@ type ConnectionValueTrace struct {
 	Value        any            `json:"value"`
 }
 
+type ComponentTiming struct {
+	Component  string  `json:"component"`
+	Stage      string  `json:"stage"`
+	DurationMS float64 `json:"duration_ms"`
+}
+
 func Run(ctx context.Context, loaded *project.LoadedProject, input RunInput) (*RunResult, error) {
-	plan, err := compiler.Compile(loaded)
+	if input.Context == nil {
+		input.Context = map[string]any{}
+	}
+	session, err := newSession(ctx, loaded, input.Context)
 	if err != nil {
-		return nil, apperror.Wrap(apperror.CodeValidation, err)
+		return nil, err
 	}
-
-	pythonExe := resolvePython(loaded.Root, loaded.Project.Environment)
-	client, err := pythonworker.Start(ctx, pythonExe, loaded.Root)
-	if err != nil {
-		return nil, apperror.Wrap(apperror.CodePythonWorker, err)
-	}
-	defer client.Close()
-
-	states := map[string]map[string]any{}
-	componentInputsByID := map[string]map[string]any{}
-	componentOutputs := map[string]map[string]any{}
-	nodeValues := []NodeValueTrace{}
-
-	for _, componentID := range plan.Order {
-		component := plan.Index.Components[componentID]
-		if component.Parameters == nil {
-			component.Parameters = map[string]any{}
-		}
-		if component.Kind != "user_python" {
-			return nil, apperror.Errorf(apperror.CodeValidation, "component %s kind %q is not supported by the MVP runner", component.ID, component.Kind)
-		}
-		if component.Class == "" {
-			return nil, apperror.Errorf(apperror.CodeValidation, "component %s kind user_python requires class", component.ID)
-		}
-		if err := client.LoadComponent(component.ID, component.Class, loaded.Root); err != nil {
-			return nil, apperror.Wrap(apperror.CodePythonWorker, fmt.Errorf("load component %s: %w", component.ID, err))
-		}
-		state, err := client.InitializeComponent(component.ID, component.Parameters, input.Context)
-		if err != nil {
-			return nil, apperror.Wrap(apperror.CodePythonWorker, fmt.Errorf("initialize component %s: %w", component.ID, err))
-		}
-		if state == nil {
-			state = map[string]any{}
-		}
-		states[component.ID] = state
-	}
-
-	for _, componentID := range plan.Order {
-		component := plan.Index.Components[componentID]
-		componentInputs, err := collectInputs(component, plan, input.Inputs, componentOutputs)
-		if err != nil {
-			return nil, err
-		}
-		componentInputsByID[component.ID] = componentInputs
-		nodeValues = append(nodeValues, nodeValueTraces(component.ID, "input", component.Nodes.Inputs, componentInputs)...)
-
-		outputs, nextState, err := client.EvaluateComponent(
-			component.ID,
-			componentInputs,
-			states[component.ID],
-			component.Parameters,
-			input.Context,
-		)
-		if err != nil {
-			return nil, apperror.Wrap(apperror.CodePythonWorker, fmt.Errorf("evaluate component %s: %w", component.ID, err))
-		}
-		if outputs == nil {
-			outputs = map[string]any{}
-		}
-		if nextState == nil {
-			nextState = map[string]any{}
-		}
-		if err := validateOutputs(component, outputs); err != nil {
-			return nil, err
-		}
-		componentOutputs[component.ID] = outputs
-		nodeValues = append(nodeValues, nodeValueTraces(component.ID, "output", component.Nodes.Outputs, outputs)...)
-		states[component.ID] = nextState
-	}
-
-	publicOutputs := map[string]any{}
-	for _, output := range plan.System.PublicOutputs {
-		componentValues := componentOutputs[output.Component]
-		value, ok := componentValues[output.Node]
-		if !ok {
-			return nil, apperror.Errorf(apperror.CodeRuntime, "public output %s could not read %s.%s", output.ID, output.Component, output.Node)
-		}
-		publicOutputs[output.ID] = value
-	}
-
-	return &RunResult{
-		OK:               true,
-		Outputs:          publicOutputs,
-		ComponentInputs:  componentInputsByID,
-		ComponentOutputs: componentOutputs,
-		NodeValues:       nodeValues,
-		ConnectionValues: connectionValueTraces(plan, componentOutputs),
-		States:           states,
-		Context:          input.Context,
-		ExecutionOrder:   plan.Order,
-	}, nil
+	defer session.Close()
+	return session.Evaluate(input)
 }
 
 func nodeValueTraces(componentID string, direction string, nodes []model.Node, values map[string]any) []NodeValueTrace {

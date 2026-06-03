@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -152,6 +153,72 @@ func TestSchemaCommandWritesPublicInterface(t *testing.T) {
 	}
 	if schema.Outputs[0].ID != "total_power_kw" || schema.Outputs[0].Component != "aggregator" {
 		t.Fatalf("unexpected first output: %+v", schema.Outputs[0])
+	}
+}
+
+func TestServeCommandReusesLoadedSessionState(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectRoot := filepath.Join(tmpDir, "project")
+	copyTree(t, examplePath("001_scalar_component"), projectRoot)
+	writeFile(t, filepath.Join(projectRoot, "components", "scalar.py"), `class Gain:
+    def initialize(self, params, context):
+        return {"calls": 0}
+
+    def evaluate(self, inputs, state, params, context):
+        calls = state.get("calls", 0) + 1
+        return {"result": calls}, {"calls": calls}
+`)
+
+	requests := strings.Join([]string{
+		`{"id":"a","inputs":{"value":1},"context":{"time":0}}`,
+		`{"id":"b","inputs":{"value":1},"context":{"time":60}}`,
+		`{"id":"stop","type":"shutdown"}`,
+		"",
+	}, "\n")
+	var output bytes.Buffer
+	err := serveProject([]string{"--project", filepath.Join(projectRoot, "project.bcsproj")}, strings.NewReader(requests), &output)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("response lines = %d output=%s", len(lines), output.String())
+	}
+	responses := make([]struct {
+		ID     string `json:"id"`
+		OK     bool   `json:"ok"`
+		Result struct {
+			Outputs          map[string]float64            `json:"outputs"`
+			States           map[string]map[string]float64 `json:"states"`
+			ComponentTimings []struct {
+				Component  string  `json:"component"`
+				Stage      string  `json:"stage"`
+				DurationMS float64 `json:"duration_ms"`
+			} `json:"component_timings"`
+			DurationMS float64 `json:"duration_ms"`
+		} `json:"result"`
+		Message string `json:"message"`
+	}, len(lines))
+	for index, line := range lines {
+		if err := json.Unmarshal([]byte(line), &responses[index]); err != nil {
+			t.Fatalf("decode response %d: %v\n%s", index, err, line)
+		}
+	}
+	if !responses[0].OK || responses[0].ID != "a" || responses[0].Result.Outputs["result"] != 1 {
+		t.Fatalf("first response = %#v", responses[0])
+	}
+	if !responses[1].OK || responses[1].ID != "b" || responses[1].Result.Outputs["result"] != 2 {
+		t.Fatalf("second response = %#v", responses[1])
+	}
+	if responses[1].Result.States["gain"]["calls"] != 2 {
+		t.Fatalf("second state = %#v", responses[1].Result.States)
+	}
+	if len(responses[1].Result.ComponentTimings) != 1 || responses[1].Result.ComponentTimings[0].Component != "gain" || responses[1].Result.ComponentTimings[0].Stage != "evaluate" {
+		t.Fatalf("component timings = %#v", responses[1].Result.ComponentTimings)
+	}
+	if !responses[2].OK || responses[2].Message != "shutdown" {
+		t.Fatalf("shutdown response = %#v", responses[2])
 	}
 }
 
