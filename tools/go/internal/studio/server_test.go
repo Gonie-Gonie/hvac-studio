@@ -124,6 +124,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("latestCanvasNodeValue")) {
 		t.Fatalf("module entrypoint did not include canvas node result rendering")
 	}
+	if !bytes.Contains(body, []byte("latestConnectionValue")) {
+		t.Fatalf("module entrypoint did not include connection result rendering")
+	}
 	if !bytes.Contains(body, []byte("runInputMeta")) {
 		t.Fatalf("module entrypoint did not include run input metadata rendering")
 	}

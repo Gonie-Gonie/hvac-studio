@@ -1069,6 +1069,27 @@ th {
   background: var(--accent-soft);
 }
 
+.connection-flow {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-height: 22px;
+  max-width: 112px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #e7f8ef;
+  color: #12733d;
+  font-size: 11px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.connection-flow.stale {
+  background: #fff4d6;
+  color: #936400;
+}
+
 .connection-value {
   display: flex;
   gap: 8px;

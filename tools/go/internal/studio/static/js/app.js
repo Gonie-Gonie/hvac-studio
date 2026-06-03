@@ -1067,12 +1067,17 @@ function connectionEditor(targetComponent) {
   const canEditConnections = isWorkspaceProject() && selectedComponentInSystem();
   if (existingRows.length) {
     for (const connectionRow of existingRows) {
+      const latest = latestConnectionValue(connectionRow.connection);
+      const flowValue = latest.hasValue
+        ? `<span class="connection-flow ${state.latestResultStale ? "stale" : ""}">${escapeHTML(formatValue(latest.value))}</span>`
+        : "";
       const rowEl = document.createElement("div");
       rowEl.className = `kv connection-row ${connectionRow.id === state.selectedConnectionId ? "selected" : ""}`;
       rowEl.innerHTML = `
         <span class="kv-key">${escapeHTML(connectionRow.key)}</span>
         <span class="connection-value">
           <span>${escapeHTML(connectionRow.value)}</span>
+          ${flowValue}
         </span>
       `;
       rowEl.addEventListener("click", () => selectConnection(connectionRow.id));
@@ -1141,13 +1146,26 @@ function connectionRowsFor(component) {
     const connection = graph.connections.find((item) => item.id === connectionId);
     if (!connection) continue;
     if (connection.to.component === component.id) {
-      rows.push({ id: connection.id, key: `input ${connection.to.node}`, value: `${connection.from.component}.${connection.from.node}` });
+      rows.push({ id: connection.id, key: `input ${connection.to.node}`, value: `${connection.from.component}.${connection.from.node}`, connection });
     }
     if (connection.from.component === component.id) {
-      rows.push({ id: connection.id, key: `output ${connection.from.node}`, value: `${connection.to.component}.${connection.to.node}` });
+      rows.push({ id: connection.id, key: `output ${connection.from.node}`, value: `${connection.to.component}.${connection.to.node}`, connection });
     }
   }
   return rows;
+}
+
+function latestConnectionValue(connection) {
+  if (!connection) return { hasValue: false, value: null };
+  const outputs = state.latestResult?.component_outputs?.[connection.from.component] || {};
+  if (Object.prototype.hasOwnProperty.call(outputs, connection.from.node)) {
+    return { hasValue: true, value: outputs[connection.from.node] };
+  }
+  const inputs = state.latestResult?.component_inputs?.[connection.to.component] || {};
+  if (Object.prototype.hasOwnProperty.call(inputs, connection.to.node)) {
+    return { hasValue: true, value: inputs[connection.to.node] };
+  }
+  return { hasValue: false, value: null };
 }
 
 function systemOutputEndpoints(excludeComponentId) {
