@@ -133,6 +133,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("canvasParameterSummary")) {
 		t.Fatalf("module entrypoint did not include readable canvas parameter rendering")
 	}
+	if !bytes.Contains(body, []byte("canvasNodeMeta")) {
+		t.Fatalf("module entrypoint did not include readable canvas node metadata")
+	}
 	if !bytes.Contains(body, []byte("parameterInspectorBlock")) {
 		t.Fatalf("module entrypoint did not include inspector parameter editing")
 	}

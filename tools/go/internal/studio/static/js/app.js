@@ -11,9 +11,9 @@ import { renderExportWorkspace } from "./export-workspace.js";
 import { renderRunOutputWorkspace } from "./run-output.js";
 import { state } from "./state.js";
 
-const CANVAS_NODE_WIDTH = 260;
+const CANVAS_NODE_WIDTH = 300;
 const CANVAS_NODE_ANCHOR_Y = 92;
-const CANVAS_COLUMN_GAP = 320;
+const CANVAS_COLUMN_GAP = 370;
 
 function log(message) {
   const time = new Date().toLocaleTimeString();
@@ -366,8 +366,19 @@ function canvasNodePill(componentID, node, direction) {
   ].filter(Boolean).join(" ");
   const formattedValue = latest.hasValue ? formatValue(latest.value) : "";
   const valueMarkup = latest.hasValue ? `<span class="node-value">${escapeHTML(formattedValue)}</span>` : "";
-  const title = latest.hasValue ? `${state.latestResultStale ? "stale " : ""}${node.id}: ${formattedValue}` : node.id;
-  return `<span class="${classes}" data-node-endpoint="true" data-component-id="${escapeAttr(componentID)}" data-node-id="${escapeAttr(node.id)}" data-direction="${escapeAttr(direction)}" title="${escapeAttr(title)}"><span class="node-label">${escapeHTML(node.id)}</span>${valueMarkup}</span>`;
+  const displayName = node.name || node.id;
+  const meta = canvasNodeMeta(node, displayName);
+  const metaMarkup = meta ? `<span class="node-meta">${escapeHTML(meta)}</span>` : "";
+  const title = latest.hasValue ? `${state.latestResultStale ? "stale " : ""}${displayName}: ${formattedValue}` : `${displayName}${meta ? ` / ${meta}` : ""}`;
+  return `<span class="${classes}" data-node-endpoint="true" data-component-id="${escapeAttr(componentID)}" data-node-id="${escapeAttr(node.id)}" data-direction="${escapeAttr(direction)}" title="${escapeAttr(title)}"><span class="node-label">${escapeHTML(displayName)}</span>${metaMarkup}${valueMarkup}</span>`;
+}
+
+function canvasNodeMeta(node, displayName) {
+  return [
+    node.id && node.id !== displayName ? node.id : "",
+    node.value_type || "",
+    node.unit || "",
+  ].filter(Boolean).join(" / ");
 }
 
 function canvasParameterSummary(component) {
@@ -385,7 +396,7 @@ function canvasParameterSummary(component) {
     `;
   }).join("");
   const extraPill = extra > 0 ? `<span class="canvas-param extra">+${extra}</span>` : "";
-  return `<div class="canvas-params">${pills}${extraPill}</div>`;
+  return `<div class="canvas-params"><span class="canvas-param-title">Params</span>${pills}${extraPill}</div>`;
 }
 
 function latestCanvasNodeValue(componentID, nodeID, direction) {

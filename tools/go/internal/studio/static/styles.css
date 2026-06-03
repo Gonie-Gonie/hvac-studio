@@ -488,13 +488,13 @@ h2,
 
 .system-canvas {
   position: relative;
-  min-width: 1120px;
+  min-width: 1240px;
   min-height: 430px;
 }
 
 .component-node {
   position: absolute;
-  width: 260px;
+  width: 300px;
   min-height: 166px;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
@@ -577,7 +577,6 @@ h2,
   font-size: 11px;
   line-height: 1.25;
   white-space: normal;
-  overflow: hidden;
   cursor: pointer;
   text-align: left;
 }
@@ -607,9 +606,19 @@ h2,
 }
 
 .node-label,
+.node-meta,
 .node-value {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.node-label {
+  font-weight: 700;
+}
+
+.node-meta {
+  color: var(--muted);
+  font-size: 10px;
 }
 
 .node-value {
@@ -636,8 +645,17 @@ h2,
   padding: 0 10px 10px;
 }
 
+.canvas-param-title {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 19px;
+}
+
 .canvas-param {
   display: inline-flex;
+  flex-wrap: wrap;
   min-width: 0;
   max-width: 100%;
   gap: 4px;
