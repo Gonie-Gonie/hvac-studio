@@ -503,6 +503,10 @@ h2,
   overflow: hidden;
 }
 
+.component-node.dragging {
+  z-index: 4;
+}
+
 .component-node.selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
@@ -517,6 +521,11 @@ h2,
   border-bottom: 1px solid var(--line);
   background: var(--surface-2);
   font-weight: 700;
+  cursor: grab;
+}
+
+.component-node.dragging .component-head {
+  cursor: grabbing;
 }
 
 .component-kind {

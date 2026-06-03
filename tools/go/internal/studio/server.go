@@ -52,11 +52,21 @@ type ProjectDetail struct {
 	GraphPath        string                `json:"graph_path"`
 	DefaultInputPath string                `json:"default_input_path"`
 	DefaultRunInput  *runtimecore.RunInput `json:"default_run_input"`
+	Layout           StudioLayout          `json:"layout"`
 	Root             string                `json:"root"`
 	Runs             []RunSummary          `json:"runs"`
 	Batches          []BatchSummary        `json:"batches"`
 	Exports          []ExportSummary       `json:"exports"`
 	Scenarios        []ScenarioSummary     `json:"scenarios"`
+}
+
+type StudioLayout struct {
+	Components map[string]CanvasPosition `json:"components"`
+}
+
+type CanvasPosition struct {
+	X int `json:"x"`
+	Y int `json:"y"`
 }
 
 type apiRequest struct {
@@ -148,6 +158,11 @@ type deleteConnectionRequest struct {
 	ProjectPath  string `json:"project_path"`
 	SystemID     string `json:"system_id"`
 	ConnectionID string `json:"connection_id"`
+}
+
+type updateLayoutRequest struct {
+	ProjectPath string                    `json:"project_path"`
+	Components  map[string]CanvasPosition `json:"components"`
 }
 
 type exportRequest struct {
@@ -348,6 +363,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/project/nodes/delete", s.handleDeleteNode)
 	s.mux.HandleFunc("POST /api/project/connections", s.handleCreateConnection)
 	s.mux.HandleFunc("POST /api/project/connections/delete", s.handleDeleteConnection)
+	s.mux.HandleFunc("POST /api/project/layout", s.handleUpdateLayout)
 	s.mux.HandleFunc("POST /api/project/input", s.handleUpdateInput)
 	s.mux.HandleFunc("POST /api/project/parameters", s.handleUpdateParameters)
 	s.mux.HandleFunc("POST /api/project/parameters/delete", s.handleDeleteParameter)
@@ -774,6 +790,33 @@ func (s *Server) handleDeleteConnection(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "connection": connection, "project": projectDetail(reloaded)})
 }
 
+func (s *Server) handleUpdateLayout(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeUpdateLayoutRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := writeStudioLayout(loaded, req.Components); err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "project": projectDetail(reloaded)})
+}
+
 func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
 	projectPath, err := s.resolveProjectPath(r.URL.Query().Get("project_path"))
 	if err != nil {
@@ -1192,6 +1235,7 @@ func projectDetail(loaded *project.LoadedProject) ProjectDetail {
 		Graph:       loaded.Graph,
 		ProjectPath: loaded.Path,
 		GraphPath:   loaded.GraphPath,
+		Layout:      loadStudioLayout(loaded.Root),
 		Root:        loaded.Root,
 		Runs:        loadRunSummaries(loaded.Root),
 		Batches:     loadBatchSummaries(loaded.Root),
@@ -1205,6 +1249,50 @@ func projectDetail(loaded *project.LoadedProject) ProjectDetail {
 		}
 	}
 	return detail
+}
+
+func loadStudioLayout(projectRoot string) StudioLayout {
+	layout := StudioLayout{Components: map[string]CanvasPosition{}}
+	path := filepath.Join(projectRoot, "studio", "layout.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return layout
+	}
+	if err := json.Unmarshal(data, &layout); err != nil {
+		return StudioLayout{Components: map[string]CanvasPosition{}}
+	}
+	if layout.Components == nil {
+		layout.Components = map[string]CanvasPosition{}
+	}
+	return layout
+}
+
+func writeStudioLayout(loaded *project.LoadedProject, positions map[string]CanvasPosition) error {
+	componentIDs := map[string]bool{}
+	for _, component := range loaded.Graph.Components {
+		componentIDs[component.ID] = true
+	}
+	layout := StudioLayout{Components: map[string]CanvasPosition{}}
+	for componentID, position := range positions {
+		if !componentIDs[componentID] {
+			continue
+		}
+		if position.X < 0 {
+			position.X = 0
+		}
+		if position.Y < 0 {
+			position.Y = 0
+		}
+		layout.Components[componentID] = position
+	}
+	path := filepath.Join(loaded.Root, "studio", "layout.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	if err := writeJSONFile(path, layout); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *Server) findProjectSummaries(root string, source string) []ProjectSummary {
@@ -2617,6 +2705,15 @@ func decodeCreateConnectionRequest(r *http.Request) (createConnectionRequest, er
 func decodeDeleteConnectionRequest(r *http.Request) (deleteConnectionRequest, error) {
 	defer r.Body.Close()
 	var req deleteConnectionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeUpdateLayoutRequest(r *http.Request) (updateLayoutRequest, error) {
+	defer r.Body.Close()
+	var req updateLayoutRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}

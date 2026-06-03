@@ -81,6 +81,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Direct Python authoring belongs in a first-class Code workspace with component contract context, source drafts, explicit save/revert/check actions, and snippets; source files remain the source of truth.
 - Python edit feedback should be short without creating a second execution path: Code workspace save-and-run controls must call the same save/check/run flow used by normal Run actions.
 - Component authoring navigation should preserve selected component context between Canvas, Inspector, and Code workspace instead of making users reselect the same component.
+- The first Studio screen must be editable in a fresh app/package. If no workspace project exists, create/open a starter workspace instead of dropping users into a read-only example where Add, Save, connection, and source editing are disabled.
 - Code snippets should be generated from the selected component's graph contract, especially all declared input/output nodes, so they teach the actual component shape rather than a one-node toy shape.
 - Source-check feedback should be visible inside the Code workspace itself, not only in the global Problems panel, and line-specific issues should focus the editor line.
 - Code workspace runtime feedback should show selected-component values from actual runner results, keeping source edits, graph contract, and observed behavior in one place.
@@ -92,6 +93,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Removing a Studio connection should restore the target input as editable public IO and reinsert its default input value when no other incoming connection owns that target.
 - Canvas manipulation should use the same persisted graph APIs as Inspector forms. A visual pending connection state is useful only when the next click writes a real `graph.json` connection and immediately refreshes validation/run surfaces.
 - Canvas connection selection should stay tied to real connection IDs and reuse the same delete API as Inspector forms.
+- Canvas view layout is authoring metadata, not runtime graph data. Persist component positions in a Studio-owned project artifact such as `studio/layout.json`, and keep it out of compiler/runtime semantics.
 - Canvas run feedback should come from actual runner `component_inputs` and `component_outputs`, so users can see Python edits and graph connections changing values without hunting through raw JSON.
 - Deleting a component node must clean related public IO, default inputs, and connections; if deleting an output removes an upstream connection, restore the still-existing target input as public IO.
 - Parameter Manager should let workspace users create Python-friendly parameter keys, not only edit template-created keys, so source edits and graph parameters can evolve together.

@@ -20,6 +20,7 @@ function log(message) {
 async function loadProjects(preferredProjectPath = "") {
   const body = await api("/api/projects");
   state.projects = body.projects || [];
+  preferredProjectPath = await ensureEditableProject(preferredProjectPath);
   const select = el("projectSelect");
   select.innerHTML = "";
   for (const project of state.projects) {
@@ -34,6 +35,24 @@ async function loadProjects(preferredProjectPath = "") {
   if (first) {
     select.value = first.project_path;
     await loadProject(first.project_path);
+  }
+}
+
+async function ensureEditableProject(preferredProjectPath) {
+  if (preferredProjectPath || state.projects.some((project) => project.source === "workspace")) {
+    return preferredProjectPath;
+  }
+  try {
+    const body = await api("/api/projects", {
+      method: "POST",
+      body: JSON.stringify({ name: "Starter Workspace", template: "scalar" }),
+    });
+    state.projects = [body.project, ...state.projects];
+    log(`Created editable workspace: ${body.project.relative_path}`);
+    return body.project.project_path;
+  } catch (error) {
+    log(`Editable workspace unavailable: ${error.message}`);
+    return preferredProjectPath;
   }
 }
 
@@ -204,9 +223,7 @@ function renderCanvas() {
   const components = system.components.map(componentById).filter(Boolean);
   const positions = {};
   components.forEach((component, index) => {
-    const column = index;
-    const x = 48 + column * 220;
-    const y = 78 + (index % 2) * 62;
+    const { x, y } = canvasPositionFor(component.id, index);
     positions[component.id] = { x, y };
 
     const node = document.createElement("button");
@@ -240,10 +257,86 @@ function renderCanvas() {
         handleCanvasEndpointClick(endpoint.dataset.componentId, endpoint.dataset.nodeId, endpoint.dataset.direction);
       });
     });
+    node.querySelector(".component-head")?.addEventListener("pointerdown", (event) => {
+      startCanvasNodeDrag(event, node, component.id, positions);
+    });
     canvas.append(node);
   });
 
   requestAnimationFrame(() => drawConnections(positions));
+}
+
+function canvasPositionFor(componentID, index) {
+  const saved = state.detail?.layout?.components?.[componentID];
+  if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+    return { x: saved.x, y: saved.y };
+  }
+  return {
+    x: 48 + index * 220,
+    y: 78 + (index % 2) * 62,
+  };
+}
+
+function startCanvasNodeDrag(event, node, componentID, positions) {
+  if (!isWorkspaceProject() || event.button !== 0) return;
+  event.preventDefault();
+  state.selectedComponentId = componentID;
+  state.selectedConnectionId = "";
+  renderInspector();
+  renderPythonPanel();
+  renderProjectTree();
+  updateCommandState();
+  const startX = event.clientX;
+  const startY = event.clientY;
+  const startLeft = Number.parseFloat(node.style.left) || 0;
+  const startTop = Number.parseFloat(node.style.top) || 0;
+  let last = { x: startLeft, y: startTop };
+  node.classList.add("dragging");
+  node.setPointerCapture?.(event.pointerId);
+
+  const onMove = (moveEvent) => {
+    last = {
+      x: Math.max(16, startLeft + moveEvent.clientX - startX),
+      y: Math.max(16, startTop + moveEvent.clientY - startY),
+    };
+    node.style.left = `${last.x}px`;
+    node.style.top = `${last.y}px`;
+    positions[componentID] = last;
+    drawConnections(positions);
+  };
+
+  const onUp = () => {
+    node.classList.remove("dragging");
+    node.removeEventListener("pointermove", onMove);
+    node.removeEventListener("pointerup", onUp);
+    node.removeEventListener("pointercancel", onUp);
+    saveCanvasLayout(componentID, last.x, last.y);
+  };
+
+  node.addEventListener("pointermove", onMove);
+  node.addEventListener("pointerup", onUp);
+  node.addEventListener("pointercancel", onUp);
+}
+
+async function saveCanvasLayout(componentID, x, y) {
+  if (!isWorkspaceProject()) return;
+  const components = { ...(state.detail?.layout?.components || {}) };
+  components[componentID] = { x: Math.round(x), y: Math.round(y) };
+  state.detail.layout = { components };
+  try {
+    const body = await api("/api/project/layout", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath, components }),
+    });
+    state.detail = body.project;
+    renderCanvas();
+    log(`Canvas layout saved: ${componentID}`);
+  } catch (error) {
+    log(`Canvas layout save failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
 }
 
 function canvasNodePill(componentID, node, direction) {

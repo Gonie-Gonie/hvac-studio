@@ -124,6 +124,15 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("latestResultStale")) {
 		t.Fatalf("module entrypoint did not include stale run result state")
 	}
+	if !bytes.Contains(body, []byte("startCanvasNodeDrag")) {
+		t.Fatalf("module entrypoint did not include canvas node dragging")
+	}
+	if !bytes.Contains(body, []byte("saveCanvasLayout")) {
+		t.Fatalf("module entrypoint did not include canvas layout persistence")
+	}
+	if !bytes.Contains(body, []byte("ensureEditableProject")) {
+		t.Fatalf("module entrypoint did not create an editable first-run workspace")
+	}
 }
 
 func TestStaticExportWorkspaceModuleServes(t *testing.T) {
@@ -1487,6 +1496,44 @@ func TestProjectEndpointIncludesDefaultRunInput(t *testing.T) {
 	}
 	if got := body.Project.DefaultRunInput.Inputs["value"]; got != 4.0 {
 		t.Fatalf("default value = %v, want 4", got)
+	}
+}
+
+func TestUpdateLayoutEndpointWritesWorkspaceLayout(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	project := createWorkspaceProject(t, server, "Layout Project")
+	payload, err := json.Marshal(map[string]any{
+		"project_path": project.ProjectPath,
+		"components": map[string]CanvasPosition{
+			"scalar":  {X: 132, Y: 96},
+			"missing": {X: 10, Y: 20},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/layout", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Project ProjectDetail `json:"project"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if got := body.Project.Layout.Components["scalar"]; got.X != 132 || got.Y != 96 {
+		t.Fatalf("layout position = %#v, want 132,96", got)
+	}
+	if _, exists := body.Project.Layout.Components["missing"]; exists {
+		t.Fatal("layout should ignore unknown components")
+	}
+	if _, err := os.Stat(filepath.Join(root, "projects", "layout-project", "studio", "layout.json")); err != nil {
+		t.Fatal(err)
 	}
 }
 
