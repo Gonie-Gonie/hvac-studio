@@ -2226,7 +2226,7 @@ function sourceCompletionItems(component) {
     const value = component.parameters?.[name] ?? definition.current ?? definition.default ?? 0.0;
     items.push({
       name: `params[${pythonStringLiteral(name)}]`,
-      meta: [definition.unit || "", definition.role || "parameter"].filter(Boolean).join(" / "),
+      meta: [definition.unit || "", roleLabel(definition.role || "parameter")].filter(Boolean).join(" / "),
       snippet: `params.get(${pythonStringLiteral(name)}, ${pythonLiteral(value)})`,
     });
   }
@@ -2245,6 +2245,12 @@ function sourceCompletionItems(component) {
     });
   }
   return items;
+}
+
+function roleLabel(role) {
+  return String(role || "")
+    .replace(/_target$/, "")
+    .replace(/_/g, " ");
 }
 
 function showSourceCompletionPanel() {

@@ -36,6 +36,7 @@ outputs/generated/
 runtime/python/
 runtime/packages/
 logs/
+artifacts/
 projects/
 !templates/projects/
 !templates/projects/**

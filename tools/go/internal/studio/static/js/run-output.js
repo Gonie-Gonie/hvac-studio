@@ -274,7 +274,7 @@ function resultSummaryRows(result, source) {
 function connectionLabel(trace) {
   const from = trace.from ? `${trace.from.component}.${trace.from.node}` : "";
   const to = trace.to ? `${trace.to.component}.${trace.to.node}` : "";
-  return `${trace.id || "connection"} ${from && to ? `${from} -> ${to}` : ""}`.trim();
+  return from && to ? `${from} -> ${to}` : trace.id || "connection";
 }
 
 function traceMeta(trace) {
@@ -287,6 +287,7 @@ function traceMeta(trace) {
 
 function formatDuration(value) {
   if (typeof value !== "number" || !Number.isFinite(value)) return "";
+  if (value <= 0.001) return "<0.001 ms";
   if (value < 1) return `${value.toFixed(3)} ms`;
   if (value < 100) return `${value.toFixed(2)} ms`;
   return `${value.toFixed(0)} ms`;
