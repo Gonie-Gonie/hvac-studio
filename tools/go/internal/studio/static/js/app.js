@@ -22,6 +22,7 @@ function log(message) {
 }
 
 async function loadProjects(preferredProjectPath = "") {
+  await loadComponentTemplates();
   const body = await api("/api/projects");
   state.projects = body.projects || [];
   preferredProjectPath = await ensureEditableProject(preferredProjectPath);
@@ -39,6 +40,30 @@ async function loadProjects(preferredProjectPath = "") {
   if (first) {
     select.value = first.project_path;
     await loadProject(first.project_path);
+  }
+}
+
+async function loadComponentTemplates() {
+  try {
+    const body = await api("/api/component-templates");
+    state.componentTemplates = body.templates || [];
+  } catch (error) {
+    state.componentTemplates = [];
+    log(`Component templates unavailable: ${error.message}`);
+  }
+  renderComponentTemplateSelect();
+}
+
+function renderComponentTemplateSelect() {
+  const select = el("componentTemplateSelect");
+  if (!select) return;
+  select.innerHTML = "";
+  for (const template of state.componentTemplates) {
+    const option = document.createElement("option");
+    option.value = template.id;
+    const contract = `${template.input_count || 0} in / ${template.output_count || 0} out`;
+    option.textContent = `${template.name || template.id} (${contract})`;
+    select.append(option);
   }
 }
 
@@ -1860,10 +1885,15 @@ async function createComponent() {
     nameInput?.focus();
     return;
   }
+  const template = el("componentTemplateSelect")?.value || state.componentTemplates[0]?.id || "";
+  if (!template) {
+    showInlineProblem("Component template is required");
+    return;
+  }
   try {
     const body = await api("/api/project/components", {
       method: "POST",
-      body: JSON.stringify({ project_path: state.currentProjectPath, name, template: "scalar" }),
+      body: JSON.stringify({ project_path: state.currentProjectPath, name, template }),
     });
     state.detail = body.project;
     state.selectedComponentId = body.component.id;
@@ -2371,8 +2401,9 @@ function updateCommandState() {
   el("exportButton").disabled = !hasProject || !isWorkspaceProject();
   el("saveProjectButton").disabled = !hasProject || !isWorkspaceProject();
   el("copyProjectButton").disabled = !hasProject;
-  el("addComponentButton").disabled = !hasProject || !isWorkspaceProject();
+  el("addComponentButton").disabled = !hasProject || !isWorkspaceProject() || state.componentTemplates.length === 0;
   el("newComponentName").disabled = !hasProject || !isWorkspaceProject();
+  el("componentTemplateSelect").disabled = !hasProject || !isWorkspaceProject() || state.componentTemplates.length === 0;
   el("includeComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || selectedComponentInSystem();
   el("removeComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || !selectedComponentInSystem();
   el("deleteComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || selectedComponentInSystem();

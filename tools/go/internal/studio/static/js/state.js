@@ -1,5 +1,6 @@
 export const state = {
   projects: [],
+  componentTemplates: [],
   currentProjectPath: "",
   detail: null,
   selectedComponentId: "",

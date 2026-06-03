@@ -103,6 +103,15 @@ type componentTemplateManifest struct {
 	Parameters map[string]any `json:"parameters"`
 }
 
+type ComponentTemplateSummary struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Kind           string `json:"kind"`
+	InputCount     int    `json:"input_count"`
+	OutputCount    int    `json:"output_count"`
+	ParameterCount int    `json:"parameter_count"`
+}
+
 type duplicateComponentRequest struct {
 	ProjectPath       string `json:"project_path"`
 	SourceComponentID string `json:"source_component_id"`
@@ -380,6 +389,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("GET /api/project/batch", s.handleBatchRecord)
 	s.mux.HandleFunc("GET /api/project/scenario", s.handleScenarioRecord)
 	s.mux.HandleFunc("GET /api/project/source", s.handleSource)
+	s.mux.HandleFunc("GET /api/component-templates", s.handleComponentTemplates)
 	s.mux.HandleFunc("POST /api/project/source/check", s.handleCheckSource)
 	s.mux.HandleFunc("POST /api/project/components", s.handleCreateComponent)
 	s.mux.HandleFunc("POST /api/project/components/duplicate", s.handleDuplicateComponent)
@@ -521,6 +531,15 @@ func (s *Server) handleSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "source": source})
+}
+
+func (s *Server) handleComponentTemplates(w http.ResponseWriter, r *http.Request) {
+	templates, err := listComponentTemplates(s.repoRoot)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "templates": templates})
 }
 
 func (s *Server) handleCheckSource(w http.ResponseWriter, r *http.Request) {
@@ -4186,6 +4205,45 @@ func pythonClassName(componentID string) string {
 	}
 	b.WriteString("Component")
 	return b.String()
+}
+
+func listComponentTemplates(repoRoot string) ([]ComponentTemplateSummary, error) {
+	componentsRoot := filepath.Join(repoRoot, "templates", "components")
+	entries, err := os.ReadDir(componentsRoot)
+	if err != nil {
+		return nil, apperror.Errorf(apperror.CodeValidation, "component templates directory is missing: templates/components")
+	}
+	templates := []ComponentTemplateSummary{}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		id := entry.Name()
+		manifest, _, err := loadComponentTemplate(repoRoot, id)
+		if err != nil {
+			return nil, err
+		}
+		displayID := strings.TrimSpace(manifest.ID)
+		if displayID == "" {
+			displayID = id
+		}
+		name := strings.TrimSpace(manifest.Name)
+		if name == "" {
+			name = displayNameFromID(displayID)
+		}
+		templates = append(templates, ComponentTemplateSummary{
+			ID:             id,
+			Name:           name,
+			Kind:           defaultString(manifest.Kind, "user_python"),
+			InputCount:     len(manifest.Inputs),
+			OutputCount:    len(manifest.Outputs),
+			ParameterCount: len(manifest.Parameters),
+		})
+	}
+	sort.Slice(templates, func(i, j int) bool {
+		return templates[i].ID < templates[j].ID
+	})
+	return templates, nil
 }
 
 func loadComponentTemplate(repoRoot, template string) (componentTemplateManifest, string, error) {

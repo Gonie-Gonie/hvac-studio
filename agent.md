@@ -123,6 +123,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Wails desktop binaries must be built with the Wails production tags (`-tags desktop,production`); plain `go build` can produce a runtime error dialog even when compilation succeeds.
 - User-facing package tools should not be placeholders. `bcs-env.exe check` is now the package self-diagnostic for Python runtime, worker, SDK, schema, examples, and entrypoints, and release smoke tests should keep using it.
 - Studio-created components should come from `templates/components/<template>/manifest.json` plus source files, with only generated IDs/classes rewritten. Avoid reintroducing hard-coded component scaffolds in Go code.
+- Studio component creation UI should discover available component templates from the same manifest-backed server API used by project creation, instead of hard-coding a template id in frontend code.
 - Package self-checks should validate template structure deeply enough to catch missing component manifests, missing component source, and manifest/source class mismatches before Studio users hit Add Component.
 - Exported runtime folders should also be self-diagnostic: `bin/bcs-env.exe check --root .` should detect `runtime-export` mode and verify manifest, project, schema, runner, run script, and packaged Python.
 - Studio static frontend should stay modular under `tools/go/internal/studio/static/js/`: shared state/API/DOM/format helpers and focused workspace renderers should be extracted instead of growing one monolithic `app.js`.

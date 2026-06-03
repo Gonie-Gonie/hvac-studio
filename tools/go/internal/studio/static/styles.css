@@ -171,14 +171,15 @@ input {
 
 .component-add-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) 92px auto;
   gap: 6px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--line);
   background: var(--surface);
 }
 
-.component-add-row input {
+.component-add-row input,
+.component-add-row select {
   min-width: 0;
 }
 

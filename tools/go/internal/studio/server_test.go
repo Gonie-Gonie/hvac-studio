@@ -63,6 +63,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("newComponentName")) {
 		t.Fatalf("index did not include the component creation form")
 	}
+	if !bytes.Contains(body, []byte("componentTemplateSelect")) {
+		t.Fatalf("index did not include the component template selector")
+	}
 }
 
 func TestStaticModuleEntrypointServes(t *testing.T) {
@@ -160,8 +163,39 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("ensureEditableProject")) {
 		t.Fatalf("module entrypoint did not create an editable first-run workspace")
 	}
+	if !bytes.Contains(body, []byte("/api/component-templates")) {
+		t.Fatalf("module entrypoint did not load component templates")
+	}
 	if bytes.Contains(body, []byte(`window.prompt("Component name"`)) {
 		t.Fatalf("module entrypoint should not use a prompt for component creation")
+	}
+}
+
+func TestComponentTemplatesEndpointListsManifests(t *testing.T) {
+	server := newTestServer(t)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/component-templates", nil)
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Templates []ComponentTemplateSummary `json:"templates"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Templates) == 0 {
+		t.Fatal("expected at least one component template")
+	}
+	template := body.Templates[0]
+	if template.ID != "scalar" || template.Name != "Scalar Component" || template.Kind != "user_python" {
+		t.Fatalf("template summary = %#v", template)
+	}
+	if template.InputCount != 1 || template.OutputCount != 1 || template.ParameterCount != 1 {
+		t.Fatalf("template counts = %#v", template)
 	}
 }
 
