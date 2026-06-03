@@ -2077,6 +2077,7 @@ async function includeComponentInSystem(componentID) {
       body: JSON.stringify({ project_path: state.currentProjectPath, component_id: component.id }),
     });
     state.detail = body.project;
+    state.selectedComponentId = component.id;
     markRunResultStale(false);
     renderAll();
     log(`Component added to system: ${component.id}`);
