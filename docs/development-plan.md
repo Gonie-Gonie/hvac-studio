@@ -42,7 +42,7 @@ New Project
 
 ## Milestone 0: Repository And Release Foundation
 
-Status: in progress.
+Status: complete. Verified on 2026-06-03 with `scripts/release/test-release-candidate.ps1 -Version 0.1.0-dev -SkipSetup`.
 
 Already present:
 
@@ -62,7 +62,7 @@ Already present:
 
 Near-term additions:
 
-- None remaining for Milestone 0; final release-gate verification is pending.
+- None remaining for Milestone 0.
 
 Acceptance criteria:
 
