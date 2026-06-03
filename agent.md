@@ -117,6 +117,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Portable smoke coverage should keep exercising the connected Studio workflow, not just server startup. The current smoke path covers project copy/creation, node creation/deletion, source editing/checking, component creation/duplication/inclusion/removal/deletion, connection creation/removal, parameter creation/deletion, input/scenario/batch/run/export artifacts, and bundled Python execution.
 - Core workflow tests should assert value propagation through actual edited Python source, graph connections, and runner `component_inputs`/`component_outputs`, not only that API calls return success.
 - Routine test cadence can be looser during rapid product-building. Use targeted tests for small UI/docs/static or local API changes, and reserve full fast/release gates for riskier runtime/API/package boundaries or after several related commits.
+- Functional-change commits should include a build check before commit/push, not only tests. Use the narrowest relevant build for the touched surface, and use the Wails/portable build path when desktop launch or release packaging behavior is affected.
 - Release packaging must work from untagged development checkouts by falling back to a dev version with the current short SHA.
 - Local release readiness should have one canonical gate: `scripts/release/test-release-candidate.ps1`, which runs fast verification plus portable and runtime package smoke tests and reports the two zips.
 - The portable Studio package should have a user-facing root `HVAC Studio.exe` that opens a native Wails desktop window without launching a browser or binding a normal-use TCP port; `bin/studio.exe --server` remains the automation/server-only entrypoint.
@@ -142,6 +143,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Can a future optimization loop keep the runner alive instead of starting Python repeatedly?
 - Are setup scripts keeping tool caches inside the repo-local ignored directories rather than leaking assumptions into the user's global environment?
 - After a coherent unit is tested, did we commit and push before starting the next unit?
+- For functional changes, did we run a relevant build before committing?
 - Does every release package get smoke-tested after expansion, not just built?
 - Do release smoke tests constrain `PATH` so they prove bundled Python is being used?
 - Are Windows portable, runtime-only, and future installer packages clearly separated?

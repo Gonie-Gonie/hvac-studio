@@ -93,3 +93,4 @@
 - Replace prompt-based Studio component creation with an in-app Project panel component name form.
 - Add a component template list API and drive Studio component creation from template manifests instead of a hard-coded template id.
 - Expand Studio node creation controls so new nodes can be created with display names, media, value types, units, required flags, and defaults in one pass.
+- Keep release package staging folders out of `dist/` by default and write the latest Studio smoke build under `dist/build/latest/`.

@@ -1,6 +1,7 @@
 param(
   [string]$Version = '',
-  [switch]$SkipBuild
+  [switch]$SkipBuild,
+  [switch]$KeepStage
 )
 
 $ErrorActionPreference = 'Stop'
@@ -90,6 +91,10 @@ $PackageReadme | Set-Content -LiteralPath (Join-Path $StageRoot 'PACKAGE_README.
 
 Remove-PythonCaches -Root $StageRoot
 Compress-Archive -LiteralPath $StageRoot -DestinationPath $ZipPath -Force
+
+if (-not $KeepStage) {
+  Remove-Item -LiteralPath $StageRoot -Recurse -Force -ErrorAction SilentlyContinue
+}
 
 Write-Host "runtime package: $ZipPath"
 Write-Output $ZipPath

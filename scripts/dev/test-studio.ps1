@@ -7,9 +7,10 @@ if (-not $env:HVAC_STUDIO_GO) {
 }
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$SmokeRoot = Join-Path $RepoRoot '.repo_tools\smoke\studio'
+$SmokeRoot = Join-Path $RepoRoot 'dist\build\latest\studio'
 $StudioExe = Join-Path $SmokeRoot 'hvac-studio.exe'
 
+Remove-Item -LiteralPath $SmokeRoot -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $SmokeRoot | Out-Null
 
 Push-Location (Join-Path $RepoRoot 'tools\go')

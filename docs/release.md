@@ -24,6 +24,16 @@ dist/hvac-studio-<version>-windows-amd64-portable.zip
 dist/hvac-studio-runtime-<version>-windows-amd64.zip
 ```
 
+Package scripts now keep `dist/` focused on final zip artifacts by default. The expanded staging folders are removed after compression; pass `-KeepStage` to `scripts/release/package-portable.ps1` or `scripts/release/package-runtime.ps1` when an expanded package folder is needed for manual inspection.
+
+Standalone Studio build checks write the latest smoke executable to:
+
+```text
+dist/build/latest/studio/hvac-studio.exe
+```
+
+That folder is cleaned before each `scripts/dev/test-studio.ps1` run, so it shows only the most recent build check.
+
 The portable Studio package is the first user-facing distribution:
 
 ```text

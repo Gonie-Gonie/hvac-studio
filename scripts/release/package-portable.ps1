@@ -1,6 +1,7 @@
 param(
   [string]$Version = '',
-  [switch]$SkipBuild
+  [switch]$SkipBuild,
+  [switch]$KeepStage
 )
 
 $ErrorActionPreference = 'Stop'
@@ -13,19 +14,22 @@ $ResolvedVersion = Resolve-Version -Version $Version
 $RuntimeId = 'windows-amd64'
 $PackageName = "hvac-studio-$ResolvedVersion-$RuntimeId-portable"
 $DistRoot = Join-Path $RepoRoot 'dist'
+$BuildRoot = Join-Path $RepoRoot '.repo_tools\release-build'
 $StageRoot = Join-Path $DistRoot $PackageName
 $ZipPath = Join-Path $DistRoot "$PackageName.zip"
 
 if (-not $SkipBuild) {
   & (Join-Path $RepoRoot 'scripts\release\build-runner.ps1')
-  & (Join-Path $RepoRoot 'scripts\release\build-studio.ps1') -Version $ResolvedVersion -OutputRoot $DistRoot
+  Remove-Item -LiteralPath $BuildRoot -Recurse -Force -ErrorAction SilentlyContinue
+  & (Join-Path $RepoRoot 'scripts\release\build-studio.ps1') -Version $ResolvedVersion -OutputRoot $BuildRoot
 }
 
 Remove-Item -LiteralPath $StageRoot -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath $ZipPath -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $StageRoot | Out-Null
 
-$BuiltStudio = Join-Path $DistRoot "hvac-studio-$ResolvedVersion\bin\hvac-studio.exe"
+$BuiltStudioRoot = if ($SkipBuild) { $DistRoot } else { $BuildRoot }
+$BuiltStudio = Join-Path $BuiltStudioRoot "hvac-studio-$ResolvedVersion\bin\hvac-studio.exe"
 
 Copy-Tree -Source $BuiltStudio -Destination (Join-Path $StageRoot 'bin\studio.exe')
 Copy-Tree -Source $BuiltStudio -Destination (Join-Path $StageRoot 'HVAC Studio.exe')
@@ -225,6 +229,14 @@ This MVP portable package is Windows-first and includes a bundled Python runtime
 
 Remove-PythonCaches -Root $StageRoot
 Compress-Archive -LiteralPath $StageRoot -DestinationPath $ZipPath -Force
+
+if (-not $KeepStage) {
+  Remove-Item -LiteralPath $StageRoot -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+if (-not $SkipBuild) {
+  Remove-Item -LiteralPath $BuildRoot -Recurse -Force -ErrorAction SilentlyContinue
+}
 
 Write-Host "portable package: $ZipPath"
 Write-Output $ZipPath
