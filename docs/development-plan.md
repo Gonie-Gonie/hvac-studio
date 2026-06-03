@@ -56,10 +56,10 @@ Already present:
 - Bundled Python runtime copied into Windows portable and runtime-only packages.
 - Source templates under `templates/` for Studio-created projects/components.
 - CI workflow for non-release test runs.
+- Release package smoke test in CI for main and manual runs.
 
 Near-term additions:
 
-- Add release package smoke test to CI.
 - Add project-specific Python package lock/freeze support on top of bundled `runtime/python`.
 - Add explicit platform abstraction for path, process, runtime, and executable naming boundaries.
 

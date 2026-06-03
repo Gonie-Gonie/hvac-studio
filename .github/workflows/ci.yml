@@ -32,3 +32,25 @@ jobs:
         shell: powershell
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-fast.ps1
+
+  windows-package-smoke:
+    name: Windows package smoke
+    runs-on: windows-latest
+    needs: windows-fast-checks
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bootstrap repo-local toolchain
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\setup.ps1
+
+      - name: Build and smoke-test release packages
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1 -Version 0.1.0-ci -SkipSetup -SkipFast
