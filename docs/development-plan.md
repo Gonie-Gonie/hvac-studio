@@ -634,6 +634,8 @@ Acceptance criteria:
 
 ## Milestone 13: Installed Studio Distribution
 
+Status: complete for Windows portable zip MVP. Verified on 2026-06-03 with local release candidate smoke tests and the `v0.1.0-alpha.1` release tag; the second alpha release is prepared after Milestones 7-14 MVP completion.
+
 Goal: release HVAC Studio as a Windows-first installed/portable engineering tool.
 
 Distribution order:
@@ -675,7 +677,14 @@ Acceptance criteria:
 
 ## Milestone 14: User Guide, In-App Help, And Documentation Release
 
-Status: started with Markdown source under `docs/user/` and an initial `mkdocs.yml`.
+Status: complete for Markdown user-guide MVP and MkDocs source configuration. Verified by source review on 2026-06-03; MkDocs HTML/PDF asset packaging remains a post-MVP release enhancement unless MkDocs is installed in the build environment.
+
+Implemented:
+
+- User guide Markdown covers quick start, concepts, internals, component authoring, Python editing, system building, parameter management, run/inspect, data validation, calibration, optimization, CLI, runtime export, troubleshooting, and glossary.
+- `mkdocs.yml` maps the user guide and project docs into an offline-buildable documentation site.
+- README links the user guide draft and release process.
+- Runtime-only example includes a concise CLI guide.
 
 Goal: give users enough conceptual and procedural guidance to build correct component-node-system models.
 

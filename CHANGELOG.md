@@ -129,3 +129,6 @@
 - Clear draft source-check state and refresh the Project tree when Code workspace source is reverted.
 - Add status badges to Run workspace batch case rows.
 - Let the ready runtime export profile in the Project tree open the Export workspace preview.
+- Add runnable stateful controller, plant validation, optimization, and runtime-only delivery examples.
+- Add dataset validation, parameter-set runtime overlays, grid calibration, grid optimization, and serve-backed Python SDK workflows.
+- Improve Studio readability for dataset/validation artifacts, Inspector wrapping, and mobile command controls after capture review.
