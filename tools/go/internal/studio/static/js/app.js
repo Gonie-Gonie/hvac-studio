@@ -315,6 +315,8 @@ function renderRunInputs() {
     container.append(field);
   }
   if (isWorkspaceProject()) {
+    const activeScenario = activeScenarioBadge();
+    if (activeScenario) container.append(activeScenario);
     container.append(scenarioNameField());
   }
 }
@@ -352,6 +354,26 @@ function scenarioNameField() {
     if (event.key === "Enter") createScenario();
   });
   field.append(input);
+  return field;
+}
+
+function activeScenarioBadge() {
+  if (!state.activeRunInput) return null;
+  const field = document.createElement("div");
+  field.className = "active-scenario";
+  const name = state.activeRunInput.name || state.activeRunInput.id || "scenario";
+  field.innerHTML = `<span>${escapeHTML(`Scenario: ${name}`)}</span>`;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "input-reset";
+  button.textContent = "Clear";
+  button.addEventListener("click", () => {
+    state.activeRunInput = null;
+    markRunResultStale();
+    renderRunInputs();
+    renderSystemHeader();
+  });
+  field.append(button);
   return field;
 }
 

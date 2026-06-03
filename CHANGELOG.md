@@ -112,3 +112,4 @@
 - Align portable smoke expectations with connected scalar component value propagation.
 - Return to the System workspace when a saved scenario is reopened from the Project tree.
 - Use the first successful batch case for canvas, Inspector, Code, and connection last-value feedback.
+- Show the active scenario in Run Inputs with a clear control.

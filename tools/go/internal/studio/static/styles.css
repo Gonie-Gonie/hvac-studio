@@ -534,6 +534,27 @@ h2,
   width: 100%;
 }
 
+.active-scenario {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f7fafc;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.active-scenario span {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .canvas-wrap {
   position: relative;
   min-height: 430px;
