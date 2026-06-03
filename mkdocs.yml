@@ -3,6 +3,7 @@ docs_dir: docs
 site_dir: dist/docs/site
 
 nav:
+  - Home: index.md
   - User Guide:
       - Overview: user/index.md
       - Quick Start: user/quick-start.md

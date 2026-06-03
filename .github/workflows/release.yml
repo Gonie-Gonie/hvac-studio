@@ -85,6 +85,23 @@ jobs:
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-runtime-package.ps1 -PackagePath "${{ steps.runtime.outputs.zip_path }}"
 
+      - name: Write release checksums
+        id: checksums
+        shell: powershell
+        run: |
+          $ChecksumPath = Join-Path (Resolve-Path .\dist).Path 'SHA256SUMS.txt'
+          $Artifacts = @(
+            "${{ steps.portable.outputs.zip_path }}",
+            "${{ steps.runtime.outputs.zip_path }}"
+          )
+          $Lines = foreach ($Artifact in $Artifacts) {
+            $Item = Get-Item -LiteralPath $Artifact
+            $Hash = (Get-FileHash -LiteralPath $Item.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$Hash  $($Item.Name)"
+          }
+          $Lines | Set-Content -LiteralPath $ChecksumPath -Encoding ASCII
+          "path=$ChecksumPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
       - name: Upload portable Studio artifact
         uses: actions/upload-artifact@v4
         with:
@@ -99,6 +116,13 @@ jobs:
           path: ${{ steps.runtime.outputs.zip_path }}
           if-no-files-found: error
 
+      - name: Upload checksum artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hvac-studio-${{ steps.version.outputs.version }}-SHA256SUMS
+          path: ${{ steps.checksums.outputs.path }}
+          if-no-files-found: error
+
       - name: Create GitHub Release
         if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.create_release)
         shell: powershell
@@ -110,10 +134,11 @@ jobs:
             "release", "create", $Tag,
             "${{ steps.portable.outputs.zip_path }}",
             "${{ steps.runtime.outputs.zip_path }}",
+            "${{ steps.checksums.outputs.path }}",
             "--title", $Tag,
             "--generate-notes"
           )
-          if ("${{ github.ref_type }}" -ne "tag") {
+          if ($Tag -match '-(alpha|beta|rc|dev)([.-]|$)' -or "${{ github.ref_type }}" -ne "tag") {
             $GhArgs += "--prerelease"
           }
           gh @GhArgs

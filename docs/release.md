@@ -69,9 +69,9 @@ Both MVP packages include `bin/bcs-env.exe` and a bundled Python runtime under `
 
 Studio desktop binaries are built through `scripts/release/build-studio.ps1` with Wails production tags: `-tags desktop,production`. A plain `go build` can compile but show a Wails runtime error dialog instead of opening the app window.
 
-User documentation source lives under `docs/user/`. Package scripts always include the Markdown docs under `docs/`. If `mkdocs` is available in the build environment, they also build offline HTML under `docs/site/`; otherwise they write `docs/HTML_BUILD_SKIPPED.md` so the package explains why only Markdown docs are present. PDF manual generation remains a later release task.
+User documentation source lives under `docs/user/`. Package scripts include Markdown docs under `docs/` and must build offline HTML under `docs/site/`. The CI fast gate runs the same MkDocs build through `scripts/dev/test-docs.ps1`; package smoke tests fail if `docs/site/index.html` is missing. PDF manual generation remains a later release task.
 
-Each package also includes `release-provenance.json`, which records the package name, version, runtime id, git metadata, tool versions, documentation packaging status, and package file list.
+Each package also includes `release-provenance.json`, which records the package name, version, runtime id, git metadata, tool versions, documentation packaging status, and package file list. `release-checksums.json` stores SHA-256 hashes for package contents and is verified by package smoke tests.
 
 ## Local Release Test
 
@@ -109,7 +109,7 @@ Current portable Studio smoke coverage:
 - Runs saved scenarios as a batch and reopens the saved `runs/batch-*.json` record.
 - Runs the workspace project and writes `runs/run-*.json`.
 - Reopens the saved run record through `/api/project/run`.
-- Writes `exports/runtime_package/manifest.json`, copied project files, public IO schema, runner tools, packaged Python runtime, README, and `run-default.ps1`.
+- Writes `exports/runtime_package/manifest.json`, copied project files, public IO schema, runner tools, packaged Python runtime, README, and workflow scripts such as `run-default.ps1`, `run-batch.ps1`, `validate-data.ps1`, `calibrate.ps1`, and `optimize.ps1` when matching artifacts exist.
 - Runs the exported project through the exported `bin/bcs-runner.exe`.
 - Runs the exported `run-default.ps1`.
 - Runs exported `bin/bcs-env.exe check --root <export>` and verifies `runtime-export` mode.
@@ -158,10 +158,13 @@ The workflow:
 3. Runs `test-fast`.
 4. Builds and smoke-tests the Windows portable Studio package.
 5. Builds and smoke-tests the Windows runtime-only package.
-6. Uploads both zips as workflow artifacts.
-7. Creates a GitHub Release for tag pushes.
+6. Writes `dist/SHA256SUMS.txt`.
+7. Uploads both zips and checksums as workflow artifacts.
+8. Creates a GitHub Release for tag pushes.
 
 Manual dry runs are available through GitHub Actions `workflow_dispatch`. Manual runs upload artifacts; they only create a GitHub Release when `create_release` is selected.
+
+Prerelease tags such as `v0.1.0-alpha.1`, `v0.1.0-beta.1`, `v0.1.0-rc.1`, and manual/dev releases are marked as GitHub prereleases. Stable tags such as `v1.0.0` are not marked prerelease.
 
 ## Required Permissions
 

@@ -240,6 +240,8 @@ Write-ReleaseProvenance `
   -RuntimeId $RuntimeId `
   -Documentation $Documentation
 
+Write-ReleaseChecksums -StageRoot $StageRoot
+
 Compress-Archive -LiteralPath $StageRoot -DestinationPath $ZipPath -Force
 
 if (-not $KeepStage) {

@@ -112,6 +112,34 @@ function Remove-PythonCaches {
     Remove-Item -Force -ErrorAction SilentlyContinue
 }
 
+function Invoke-MkDocsBuild {
+  param(
+    [Parameter(Mandatory = $true)][string]$RepoRoot,
+    [Parameter(Mandatory = $true)][string]$SiteRoot
+  )
+
+  $MkDocs = Get-Command mkdocs -ErrorAction SilentlyContinue
+  Push-Location $RepoRoot
+  try {
+    if ($null -ne $MkDocs) {
+      & $MkDocs.Source build --strict --site-dir $SiteRoot
+    } elseif ($env:HVAC_STUDIO_UV -and (Test-Path -LiteralPath $env:HVAC_STUDIO_UV)) {
+      & $env:HVAC_STUDIO_UV tool run mkdocs build --strict --site-dir $SiteRoot
+    } else {
+      throw 'mkdocs was not found and repo-local uv is unavailable; cannot build required HTML docs'
+    }
+    if ($LASTEXITCODE -ne 0) {
+      throw "mkdocs build failed with exit code $LASTEXITCODE"
+    }
+  } finally {
+    Pop-Location
+  }
+
+  if (-not (Test-Path -LiteralPath (Join-Path $SiteRoot 'index.html'))) {
+    throw "mkdocs build did not write index.html under $SiteRoot"
+  }
+}
+
 function Copy-DocumentationAssets {
   param(
     [Parameter(Mandatory = $true)][string]$RepoRoot,
@@ -121,32 +149,8 @@ function Copy-DocumentationAssets {
   $DocsRoot = Join-Path $StageRoot 'docs'
   Copy-Tree -Source (Join-Path $RepoRoot 'docs') -Destination $DocsRoot
 
-  $MkDocs = Get-Command mkdocs -ErrorAction SilentlyContinue
-  if ($null -eq $MkDocs) {
-    @(
-      '# Offline HTML Docs'
-      ''
-      'MkDocs was not available when this package was built, so this package includes Markdown documentation only.'
-      'Install MkDocs in the build environment to include `docs/site/` as offline HTML release assets.'
-    ) | Set-Content -LiteralPath (Join-Path $DocsRoot 'HTML_BUILD_SKIPPED.md') -Encoding UTF8
-    return [ordered]@{
-      source = 'docs'
-      html = ''
-      html_status = 'skipped'
-      html_reason = 'mkdocs command was not available'
-    }
-  }
-
   $SiteRoot = Join-Path $DocsRoot 'site'
-  Push-Location $RepoRoot
-  try {
-    & $MkDocs.Source build --site-dir $SiteRoot
-    if ($LASTEXITCODE -ne 0) {
-      throw "mkdocs build failed with exit code $LASTEXITCODE"
-    }
-  } finally {
-    Pop-Location
-  }
+  Invoke-MkDocsBuild -RepoRoot $RepoRoot -SiteRoot $SiteRoot
 
   return [ordered]@{
     source = 'docs'
@@ -302,6 +306,46 @@ function Write-ReleaseProvenance {
   $Provenance | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $StageRoot 'release-provenance.json') -Encoding UTF8
 }
 
+function Write-ReleaseChecksums {
+  param([Parameter(Mandatory = $true)][string]$StageRoot)
+
+  $ChecksumRel = 'release-checksums.json'
+  $ChecksumPath = Join-Path $StageRoot $ChecksumRel
+  Remove-Item -LiteralPath $ChecksumPath -Force -ErrorAction SilentlyContinue
+
+  $ProvenancePath = Join-Path $StageRoot 'release-provenance.json'
+  if (-not (Test-Path -LiteralPath $ProvenancePath)) {
+    throw 'release provenance must be written before release checksums'
+  }
+  $Provenance = Get-Content -Raw -LiteralPath $ProvenancePath | ConvertFrom-Json
+  $Files = @($Provenance.files)
+  if ($Files -notcontains $ChecksumRel) {
+    $Files += $ChecksumRel
+    $Provenance.files = @($Files | Sort-Object)
+    $Provenance | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ProvenancePath -Encoding UTF8
+  }
+
+  $Entries = @()
+  foreach ($Rel in (Get-PackageFileList -StageRoot $StageRoot)) {
+    if ($Rel -eq $ChecksumRel) {
+      continue
+    }
+    $Path = Join-Path $StageRoot ($Rel -replace '/', '\')
+    $Item = Get-Item -LiteralPath $Path
+    $Entries += [ordered]@{
+      path = $Rel
+      sha256 = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+      bytes = $Item.Length
+    }
+  }
+
+  [ordered]@{
+    schema = 'hvac-studio.release-checksums.v1'
+    generated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
+    files = @($Entries | Sort-Object path)
+  } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ChecksumPath -Encoding UTF8
+}
+
 function Assert-ReleaseProvenance {
   param(
     [Parameter(Mandatory = $true)][string]$PackageRoot,
@@ -311,7 +355,8 @@ function Assert-ReleaseProvenance {
 
   $ManifestPath = Join-Path $PackageRoot 'release-manifest.json'
   $ProvenancePath = Join-Path $PackageRoot 'release-provenance.json'
-  foreach ($RequiredPath in @($ManifestPath, $ProvenancePath)) {
+  $ChecksumsPath = Join-Path $PackageRoot 'release-checksums.json'
+  foreach ($RequiredPath in @($ManifestPath, $ProvenancePath, $ChecksumsPath)) {
     if (-not (Test-Path -LiteralPath $RequiredPath)) {
       throw "package provenance file is missing: $RequiredPath"
     }
@@ -319,6 +364,7 @@ function Assert-ReleaseProvenance {
 
   $Manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
   $Provenance = Get-Content -Raw -LiteralPath $ProvenancePath | ConvertFrom-Json
+  $Checksums = Get-Content -Raw -LiteralPath $ChecksumsPath | ConvertFrom-Json
   if ($Manifest.provenance -ne 'release-provenance.json') {
     throw "release manifest provenance path mismatch: $($Manifest.provenance)"
   }
@@ -340,12 +386,34 @@ function Assert-ReleaseProvenance {
   if (-not $Provenance.documentation.source) {
     throw 'release provenance is missing documentation.source'
   }
-  if ($Provenance.documentation.html_status -notin @('built', 'skipped')) {
+  if ($Provenance.documentation.html_status -ne 'built') {
     throw "release provenance documentation html_status mismatch: $($Provenance.documentation.html_status)"
   }
-  foreach ($RequiredFile in @('release-manifest.json', 'release-provenance.json', 'PACKAGE_README.md')) {
+  if (-not (Test-Path -LiteralPath (Join-Path $PackageRoot 'docs\site\index.html'))) {
+    throw 'release package is missing required docs/site/index.html'
+  }
+  foreach ($RequiredFile in @('release-manifest.json', 'release-provenance.json', 'release-checksums.json', 'PACKAGE_README.md')) {
     if ($Provenance.files -notcontains $RequiredFile) {
       throw "release provenance file list is missing $RequiredFile"
+    }
+  }
+  if ($Checksums.schema -ne 'hvac-studio.release-checksums.v1') {
+    throw "release checksums schema mismatch: $($Checksums.schema)"
+  }
+  $ChecksumPaths = @($Checksums.files | ForEach-Object { $_.path })
+  foreach ($RequiredFile in @('release-manifest.json', 'release-provenance.json', 'PACKAGE_README.md', 'docs/site/index.html')) {
+    if ($ChecksumPaths -notcontains $RequiredFile) {
+      throw "release checksums are missing $RequiredFile"
+    }
+  }
+  foreach ($Entry in @($Checksums.files)) {
+    $Path = Join-Path $PackageRoot (($Entry.path -as [string]) -replace '/', '\')
+    if (-not (Test-Path -LiteralPath $Path)) {
+      throw "release checksum path is missing: $($Entry.path)"
+    }
+    $Actual = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($Actual -ne $Entry.sha256) {
+      throw "release checksum mismatch for $($Entry.path)"
     }
   }
 }

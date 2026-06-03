@@ -581,9 +581,9 @@ Backlog IDs are the planning source for post-MVP work. Milestone numbers remain 
 
 ### P0: Alpha Hardening
 
-These items should happen before a beta usability push because they stabilize contracts, records, and repeated user workflows.
+Status: closed in the current post-MVP alpha hardening branch. These items stabilized contracts, records, and repeated user workflows enough to move the next workstream to P1 beta usability.
 
-| ID | Area | Unimplemented item | Done when |
+| ID | Area | Completed outcome | Done when |
 | --- | --- | --- | --- |
 | PM-001 | Runtime contract | Schema versioning and migration notes for project, graph, component, mapping, parameter-set, calibration, optimization, export, and result-record artifacts | Schemas carry versions, compatibility notes exist, and tests cover old/new fixture loading |
 | PM-002 | Runtime contract | Stable structured error schema across CLI, Studio, SDK, serve, validation, calibration, optimization, and export | Every command can emit machine-readable error kind, location, component/node/source metadata, and docs explain the shape |
@@ -598,6 +598,14 @@ These items should happen before a beta usability push because they stabilize co
 | PM-011 | SDK | SDK helpers for parameter sets, scenarios, batches, validation, calibration, optimization, runtime export, and typed exceptions | Python scripts can call the same workflows without manually assembling CLI JSON |
 | PM-012 | Runtime export | Generated export commands for run, batch, validation, calibration, and optimization plus optional inclusion of selected result records | Exported folders are self-describing for every workflow they include |
 | PM-013 | Release | Required docs HTML build in CI, alpha/beta GitHub prerelease marking, checksums, and stronger provenance validation | Release workflow fails if required docs/provenance/checksum artifacts are missing and prerelease tags are marked correctly |
+
+P0 closure notes:
+
+- Contract and reproducibility work is backed by schema compatibility checks, structured errors, and workflow provenance/checksums in saved records.
+- Studio now has a structured artifact workspace, dataset preview with public IO mapping suggestions, mapping creation from datasets, parameter-set diff/apply flows, calibration/optimization run actions, and structured result summaries with raw JSON retained.
+- Python SDK helpers cover repeated evaluation, one-shot runs with parameter sets, validation, calibration, optimization, batches, schema export, parameter/scenario loading, export manifest loading, and typed runner errors.
+- Runtime exports generate workflow scripts, list commands in the manifest, and can include selected generated records.
+- Release gates require MkDocs HTML, package provenance, package-internal checksums, CI checksum assets, and prerelease marking for alpha/beta/rc/dev tags.
 
 ### P1: Beta Usability
 
