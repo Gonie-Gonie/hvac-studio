@@ -19,9 +19,11 @@ import (
 	"unicode"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/calibration"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/modelvalidation"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/optimization"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/parameterset"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/platform"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
@@ -49,21 +51,24 @@ type ProjectSummary struct {
 }
 
 type ProjectDetail struct {
-	Project            *model.Project             `json:"project"`
-	Graph              *model.Graph               `json:"graph"`
-	ProjectPath        string                     `json:"project_path"`
-	GraphPath          string                     `json:"graph_path"`
-	DefaultInputPath   string                     `json:"default_input_path"`
-	DefaultRunInput    *runtimecore.RunInput      `json:"default_run_input"`
-	Layout             StudioLayout               `json:"layout"`
-	Root               string                     `json:"root"`
-	Runs               []RunSummary               `json:"runs"`
-	Batches            []BatchSummary             `json:"batches"`
-	Exports            []ExportSummary            `json:"exports"`
-	Scenarios          []ScenarioSummary          `json:"scenarios"`
-	Datasets           []DatasetSummary           `json:"datasets"`
-	ParameterSets      []ParameterSetSummary      `json:"parameter_sets"`
-	ValidationMappings []ValidationMappingSummary `json:"validation_mappings"`
+	Project             *model.Project                  `json:"project"`
+	Graph               *model.Graph                    `json:"graph"`
+	ProjectPath         string                          `json:"project_path"`
+	GraphPath           string                          `json:"graph_path"`
+	DefaultInputPath    string                          `json:"default_input_path"`
+	DefaultRunInput     *runtimecore.RunInput           `json:"default_run_input"`
+	Layout              StudioLayout                    `json:"layout"`
+	Root                string                          `json:"root"`
+	Runs                []RunSummary                    `json:"runs"`
+	Batches             []BatchSummary                  `json:"batches"`
+	Exports             []ExportSummary                 `json:"exports"`
+	Scenarios           []ScenarioSummary               `json:"scenarios"`
+	Datasets            []DatasetSummary                `json:"datasets"`
+	ParameterSets       []ParameterSetSummary           `json:"parameter_sets"`
+	ValidationMappings  []ValidationMappingSummary      `json:"validation_mappings"`
+	ValidationRuns      []modelvalidation.RecordSummary `json:"validation_runs"`
+	CalibrationResults  []calibration.RecordSummary     `json:"calibration_results"`
+	OptimizationResults []optimization.RecordSummary    `json:"optimization_results"`
 }
 
 type StudioLayout struct {
@@ -261,6 +266,7 @@ type validationRunRequest struct {
 	MappingPath      string `json:"mapping_path"`
 	ParameterSetPath string `json:"parameter_set_path"`
 	HighErrorRows    int    `json:"high_error_rows"`
+	Save             bool   `json:"save"`
 }
 
 type RunSummary struct {
@@ -440,6 +446,9 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("GET /api/project/batch", s.handleBatchRecord)
 	s.mux.HandleFunc("GET /api/project/scenario", s.handleScenarioRecord)
 	s.mux.HandleFunc("GET /api/project/export", s.handleExportRecord)
+	s.mux.HandleFunc("GET /api/project/validation-record", s.handleValidationRecord)
+	s.mux.HandleFunc("GET /api/project/calibration-record", s.handleCalibrationRecord)
+	s.mux.HandleFunc("GET /api/project/optimization-record", s.handleOptimizationRecord)
 	s.mux.HandleFunc("GET /api/project/source", s.handleSource)
 	s.mux.HandleFunc("GET /api/component-templates", s.handleComponentTemplates)
 	s.mux.HandleFunc("POST /api/project/source/check", s.handleCheckSource)
@@ -584,6 +593,63 @@ func (s *Server) handleExportRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "summary": summary, "export": manifest})
+}
+
+func (s *Server) handleValidationRecord(w http.ResponseWriter, r *http.Request) {
+	projectPath, err := s.resolveProjectPath(r.URL.Query().Get("project_path"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := project.Load(projectPath)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	record, err := modelvalidation.LoadRecord(loaded.Root, r.URL.Query().Get("record_id"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "validation_record": record})
+}
+
+func (s *Server) handleCalibrationRecord(w http.ResponseWriter, r *http.Request) {
+	projectPath, err := s.resolveProjectPath(r.URL.Query().Get("project_path"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := project.Load(projectPath)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	record, err := calibration.LoadRecord(loaded.Root, r.URL.Query().Get("record_id"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "calibration_record": record})
+}
+
+func (s *Server) handleOptimizationRecord(w http.ResponseWriter, r *http.Request) {
+	projectPath, err := s.resolveProjectPath(r.URL.Query().Get("project_path"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := project.Load(projectPath)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	record, err := optimization.LoadRecord(loaded.Root, r.URL.Query().Get("record_id"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "optimization_record": record})
 }
 
 func (s *Server) handleSource(w http.ResponseWriter, r *http.Request) {
@@ -1341,6 +1407,12 @@ func (s *Server) handleDataValidation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	if req.Save {
+		if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+			writeError(w, err)
+			return
+		}
+	}
 	if problems := projectSourceErrorProblems(r.Context(), loaded); len(problems) > 0 {
 		writeErrorWithProblems(w, apperror.Errorf(apperror.CodeValidation, "project source validation failed"), problems)
 		return
@@ -1374,7 +1446,16 @@ func (s *Server) handleDataValidation(w http.ResponseWriter, r *http.Request) {
 	if req.ParameterSetPath != "" {
 		result.ParameterSet = filepath.ToSlash(req.ParameterSetPath)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "validation_result": result})
+	response := map[string]any{"ok": true, "validation_result": result}
+	if req.Save {
+		summary, err := modelvalidation.WriteRecord(loaded.Root, loaded.Project.ProjectName, result)
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		response["validation_record"] = summary
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (s *Server) handleSchema(w http.ResponseWriter, r *http.Request) {
@@ -1437,19 +1518,22 @@ func (s *Server) loadProject(projectPath string) (*project.LoadedProject, error)
 
 func projectDetail(loaded *project.LoadedProject) ProjectDetail {
 	detail := ProjectDetail{
-		Project:            loaded.Project,
-		Graph:              loaded.Graph,
-		ProjectPath:        loaded.Path,
-		GraphPath:          loaded.GraphPath,
-		Layout:             loadStudioLayout(loaded.Root),
-		Root:               loaded.Root,
-		Runs:               loadRunSummaries(loaded.Root),
-		Batches:            loadBatchSummaries(loaded.Root),
-		Exports:            loadExportSummaries(loaded.Root),
-		Scenarios:          loadScenarioSummaries(loaded.Root),
-		Datasets:           loadDatasetSummaries(loaded.Root),
-		ParameterSets:      loadParameterSetSummaries(loaded.Root),
-		ValidationMappings: loadValidationMappingSummaries(loaded.Root),
+		Project:             loaded.Project,
+		Graph:               loaded.Graph,
+		ProjectPath:         loaded.Path,
+		GraphPath:           loaded.GraphPath,
+		Layout:              loadStudioLayout(loaded.Root),
+		Root:                loaded.Root,
+		Runs:                loadRunSummaries(loaded.Root),
+		Batches:             loadBatchSummaries(loaded.Root),
+		Exports:             loadExportSummaries(loaded.Root),
+		Scenarios:           loadScenarioSummaries(loaded.Root),
+		Datasets:            loadDatasetSummaries(loaded.Root),
+		ParameterSets:       loadParameterSetSummaries(loaded.Root),
+		ValidationMappings:  loadValidationMappingSummaries(loaded.Root),
+		ValidationRuns:      modelvalidation.LoadRecordSummaries(loaded.Root),
+		CalibrationResults:  calibration.LoadRecordSummaries(loaded.Root),
+		OptimizationResults: optimization.LoadRecordSummaries(loaded.Root),
 	}
 	if inputPath, err := resolveProjectOwnedFile(loaded.Root, loaded.Project.DefaultInput); err == nil {
 		detail.DefaultInputPath = inputPath

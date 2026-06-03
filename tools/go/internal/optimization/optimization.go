@@ -6,7 +6,9 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
@@ -46,6 +48,7 @@ type Result struct {
 	SetupName     string             `json:"setup_name,omitempty"`
 	Algorithm     string             `json:"algorithm"`
 	Objective     Objective          `json:"objective"`
+	SavedRecord   string             `json:"saved_record,omitempty"`
 	BestObjective float64            `json:"best_objective"`
 	BestInputs    map[string]any     `json:"best_inputs"`
 	BestOutputs   map[string]any     `json:"best_outputs"`
@@ -53,11 +56,134 @@ type Result struct {
 	Candidates    []CandidateSummary `json:"candidates"`
 }
 
+type RecordSummary struct {
+	ID             string    `json:"id"`
+	RelativePath   string    `json:"relative_path"`
+	CreatedAtUTC   string    `json:"created_at_utc"`
+	SetupID        string    `json:"setup_id"`
+	SetupName      string    `json:"setup_name,omitempty"`
+	Algorithm      string    `json:"algorithm"`
+	Objective      Objective `json:"objective"`
+	SavedScenario  string    `json:"saved_scenario,omitempty"`
+	BestObjective  float64   `json:"best_objective"`
+	CandidateCount int       `json:"candidate_count"`
+	OK             bool      `json:"ok"`
+}
+
+type Record struct {
+	ID           string  `json:"id"`
+	ProjectName  string  `json:"project_name"`
+	CreatedAtUTC string  `json:"created_at_utc"`
+	SetupID      string  `json:"setup_id"`
+	SetupName    string  `json:"setup_name,omitempty"`
+	Algorithm    string  `json:"algorithm"`
+	Result       *Result `json:"result"`
+}
+
 type CandidateSummary struct {
 	Index     int            `json:"index"`
 	Inputs    map[string]any `json:"inputs"`
 	Objective float64        `json:"objective"`
 	Outputs   map[string]any `json:"outputs"`
+}
+
+func WriteRecord(projectRoot string, projectName string, result *Result) (RecordSummary, error) {
+	if result == nil {
+		return RecordSummary{}, apperror.Errorf(apperror.CodeRuntime, "optimization result is required")
+	}
+	now := time.Now().UTC()
+	recordID := "optimization-" + now.Format("20060102-150405.000000000")
+	recordPath := filepath.Join(projectRoot, "optimization", "results", recordID+".json")
+	record := Record{
+		ID:           recordID,
+		ProjectName:  projectName,
+		CreatedAtUTC: now.Format(time.RFC3339Nano),
+		SetupID:      result.SetupID,
+		SetupName:    result.SetupName,
+		Algorithm:    result.Algorithm,
+		Result:       result,
+	}
+	rel, _ := filepath.Rel(projectRoot, recordPath)
+	result.SavedRecord = filepath.ToSlash(rel)
+	if err := writeJSONFile(recordPath, record); err != nil {
+		result.SavedRecord = ""
+		return RecordSummary{}, err
+	}
+	return summarizeRecord(projectRoot, recordPath, record), nil
+}
+
+func LoadRecord(projectRoot string, recordID string) (Record, error) {
+	if recordID == "" {
+		return Record{}, apperror.Errorf(apperror.CodeValidation, "optimization_record_id is required")
+	}
+	if filepath.Base(recordID) != recordID || strings.ContainsAny(recordID, `/\`) {
+		return Record{}, apperror.Errorf(apperror.CodeValidation, "optimization_record_id must be an optimization record id")
+	}
+	recordPath, err := resolveProjectOwnedFile(projectRoot, filepath.Join("optimization", "results", recordID+".json"))
+	if err != nil {
+		return Record{}, err
+	}
+	recordBytes, err := os.ReadFile(recordPath)
+	if err != nil {
+		return Record{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	var record Record
+	if err := json.Unmarshal(recordBytes, &record); err != nil {
+		return Record{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	return record, nil
+}
+
+func LoadRecordSummaries(projectRoot string) []RecordSummary {
+	recordFiles, err := filepath.Glob(filepath.Join(projectRoot, "optimization", "results", "optimization-*.json"))
+	if err != nil {
+		return []RecordSummary{}
+	}
+	summaries := []RecordSummary{}
+	for _, recordPath := range recordFiles {
+		recordBytes, err := os.ReadFile(recordPath)
+		if err != nil {
+			continue
+		}
+		var record Record
+		if err := json.Unmarshal(recordBytes, &record); err != nil {
+			continue
+		}
+		summaries = append(summaries, summarizeRecord(projectRoot, recordPath, record))
+	}
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i].CreatedAtUTC > summaries[j].CreatedAtUTC
+	})
+	return summaries
+}
+
+func summarizeRecord(projectRoot string, recordPath string, record Record) RecordSummary {
+	rel, _ := filepath.Rel(projectRoot, recordPath)
+	summary := RecordSummary{
+		ID:           record.ID,
+		RelativePath: filepath.ToSlash(rel),
+		CreatedAtUTC: record.CreatedAtUTC,
+		SetupID:      record.SetupID,
+		SetupName:    record.SetupName,
+		Algorithm:    record.Algorithm,
+	}
+	if record.Result != nil {
+		summary.OK = record.Result.OK
+		summary.Objective = record.Result.Objective
+		summary.BestObjective = record.Result.BestObjective
+		summary.SavedScenario = record.Result.SavedScenario
+		summary.CandidateCount = len(record.Result.Candidates)
+		if summary.SetupID == "" {
+			summary.SetupID = record.Result.SetupID
+		}
+		if summary.SetupName == "" {
+			summary.SetupName = record.Result.SetupName
+		}
+		if summary.Algorithm == "" {
+			summary.Algorithm = record.Result.Algorithm
+		}
+	}
+	return summary
 }
 
 func LoadSetup(projectRoot string, relativePath string) (Setup, error) {
@@ -305,4 +431,15 @@ func resolveProjectOutputFile(projectRoot string, relativePath string) (string, 
 		return "", apperror.Errorf(apperror.CodeInput, "project output path escapes project root: %s", relativePath)
 	}
 	return resolved, nil
+}
+
+func writeJSONFile(path string, value any) error {
+	output, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	return apperror.Wrap(apperror.CodeRuntime, os.WriteFile(path, append(output, '\n'), 0o644))
 }

@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
@@ -35,12 +36,36 @@ type Result struct {
 	MappingID             string                   `json:"mapping_id"`
 	MappingName           string                   `json:"mapping_name,omitempty"`
 	ParameterSet          string                   `json:"parameter_set,omitempty"`
+	SavedRecord           string                   `json:"saved_record,omitempty"`
 	Dataset               string                   `json:"dataset"`
 	RowCount              int                      `json:"row_count"`
 	InputColumns          map[string]string        `json:"input_columns"`
 	ObservedOutputColumns map[string]string        `json:"observed_output_columns"`
 	Metrics               map[string]MetricSummary `json:"metrics"`
 	Rows                  []RowSummary             `json:"rows"`
+}
+
+type RecordSummary struct {
+	ID           string `json:"id"`
+	RelativePath string `json:"relative_path"`
+	CreatedAtUTC string `json:"created_at_utc"`
+	MappingID    string `json:"mapping_id"`
+	MappingName  string `json:"mapping_name,omitempty"`
+	ParameterSet string `json:"parameter_set,omitempty"`
+	Dataset      string `json:"dataset"`
+	RowCount     int    `json:"row_count"`
+	OK           bool   `json:"ok"`
+}
+
+type Record struct {
+	ID           string  `json:"id"`
+	ProjectName  string  `json:"project_name"`
+	CreatedAtUTC string  `json:"created_at_utc"`
+	MappingID    string  `json:"mapping_id"`
+	MappingName  string  `json:"mapping_name,omitempty"`
+	ParameterSet string  `json:"parameter_set,omitempty"`
+	Dataset      string  `json:"dataset"`
+	Result       *Result `json:"result"`
 }
 
 type RowSummary struct {
@@ -80,6 +105,107 @@ type Inspection struct {
 	NodeValues       []runtimecore.NodeValueTrace       `json:"node_values"`
 	ConnectionValues []runtimecore.ConnectionValueTrace `json:"connection_values"`
 	States           map[string]map[string]any          `json:"states"`
+}
+
+func WriteRecord(projectRoot string, projectName string, result *Result) (RecordSummary, error) {
+	if result == nil {
+		return RecordSummary{}, apperror.Errorf(apperror.CodeRuntime, "validation result is required")
+	}
+	now := time.Now().UTC()
+	recordID := "validation-" + now.Format("20060102-150405.000000000")
+	recordPath := filepath.Join(projectRoot, "validation", "runs", recordID+".json")
+	record := Record{
+		ID:           recordID,
+		ProjectName:  projectName,
+		CreatedAtUTC: now.Format(time.RFC3339Nano),
+		MappingID:    result.MappingID,
+		MappingName:  result.MappingName,
+		ParameterSet: result.ParameterSet,
+		Dataset:      result.Dataset,
+		Result:       result,
+	}
+	rel, _ := filepath.Rel(projectRoot, recordPath)
+	result.SavedRecord = filepath.ToSlash(rel)
+	if err := writeJSONFile(recordPath, record); err != nil {
+		result.SavedRecord = ""
+		return RecordSummary{}, err
+	}
+	return summarizeRecord(projectRoot, recordPath, record), nil
+}
+
+func LoadRecord(projectRoot string, recordID string) (Record, error) {
+	if recordID == "" {
+		return Record{}, apperror.Errorf(apperror.CodeValidation, "validation_record_id is required")
+	}
+	if filepath.Base(recordID) != recordID || strings.ContainsAny(recordID, `/\`) {
+		return Record{}, apperror.Errorf(apperror.CodeValidation, "validation_record_id must be a validation record id")
+	}
+	recordPath, err := resolveProjectOwnedFile(projectRoot, filepath.Join("validation", "runs", recordID+".json"))
+	if err != nil {
+		return Record{}, err
+	}
+	recordBytes, err := os.ReadFile(recordPath)
+	if err != nil {
+		return Record{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	var record Record
+	if err := json.Unmarshal(recordBytes, &record); err != nil {
+		return Record{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	return record, nil
+}
+
+func LoadRecordSummaries(projectRoot string) []RecordSummary {
+	recordFiles, err := filepath.Glob(filepath.Join(projectRoot, "validation", "runs", "validation-*.json"))
+	if err != nil {
+		return []RecordSummary{}
+	}
+	summaries := []RecordSummary{}
+	for _, recordPath := range recordFiles {
+		recordBytes, err := os.ReadFile(recordPath)
+		if err != nil {
+			continue
+		}
+		var record Record
+		if err := json.Unmarshal(recordBytes, &record); err != nil {
+			continue
+		}
+		summaries = append(summaries, summarizeRecord(projectRoot, recordPath, record))
+	}
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i].CreatedAtUTC > summaries[j].CreatedAtUTC
+	})
+	return summaries
+}
+
+func summarizeRecord(projectRoot string, recordPath string, record Record) RecordSummary {
+	rel, _ := filepath.Rel(projectRoot, recordPath)
+	summary := RecordSummary{
+		ID:           record.ID,
+		RelativePath: filepath.ToSlash(rel),
+		CreatedAtUTC: record.CreatedAtUTC,
+		MappingID:    record.MappingID,
+		MappingName:  record.MappingName,
+		ParameterSet: record.ParameterSet,
+		Dataset:      record.Dataset,
+	}
+	if record.Result != nil {
+		summary.RowCount = record.Result.RowCount
+		summary.OK = record.Result.OK
+		if summary.MappingID == "" {
+			summary.MappingID = record.Result.MappingID
+		}
+		if summary.MappingName == "" {
+			summary.MappingName = record.Result.MappingName
+		}
+		if summary.ParameterSet == "" {
+			summary.ParameterSet = record.Result.ParameterSet
+		}
+		if summary.Dataset == "" {
+			summary.Dataset = record.Result.Dataset
+		}
+	}
+	return summary
 }
 
 func LoadMapping(projectRoot string, mappingPath string) (Mapping, error) {
@@ -328,6 +454,17 @@ func outputValue(outputs map[string]any, outputID string) (float64, error) {
 	default:
 		return 0, apperror.Errorf(apperror.CodeRuntime, "validation output %s must be numeric", outputID)
 	}
+}
+
+func writeJSONFile(path string, value any) error {
+	output, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	return apperror.Wrap(apperror.CodeRuntime, os.WriteFile(path, append(output, '\n'), 0o644))
 }
 
 type metricAccumulator struct {

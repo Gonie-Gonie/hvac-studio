@@ -2056,6 +2056,96 @@ func TestDataValidationEndpointRunsMapping(t *testing.T) {
 	}
 }
 
+func TestDataValidationEndpointSavesWorkspaceRecord(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectRoot := filepath.Join(root, "projects", "plant-validation")
+	if err := copyProjectTree(filepath.Join(repoRoot, "examples", "005_chiller_plant_like_system"), projectRoot); err != nil {
+		t.Fatal(err)
+	}
+	projectPath := filepath.Join(projectRoot, "project.bcsproj")
+	payload, err := json.Marshal(map[string]any{
+		"project_path":       projectPath,
+		"mapping_path":       filepath.Join("validation", "mappings", "plant_validation.json"),
+		"parameter_set_path": filepath.Join("parameter_sets", "high_efficiency.json"),
+		"high_error_rows":    1,
+		"save":               true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/validation/run", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		ValidationResult struct {
+			SavedRecord string `json:"saved_record"`
+		} `json:"validation_result"`
+		ValidationRecord struct {
+			ID           string `json:"id"`
+			RelativePath string `json:"relative_path"`
+			RowCount     int    `json:"row_count"`
+		} `json:"validation_record"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.ValidationRecord.ID == "" || body.ValidationRecord.RowCount != 3 {
+		t.Fatalf("validation record = %#v", body.ValidationRecord)
+	}
+	if body.ValidationResult.SavedRecord != body.ValidationRecord.RelativePath {
+		t.Fatalf("saved record = %q, summary path = %q", body.ValidationResult.SavedRecord, body.ValidationRecord.RelativePath)
+	}
+	if _, err := os.Stat(filepath.Join(projectRoot, filepath.FromSlash(body.ValidationRecord.RelativePath))); err != nil {
+		t.Fatal(err)
+	}
+
+	detailResponse := httptest.NewRecorder()
+	detailRequest := httptest.NewRequest(http.MethodGet, "/api/project?project_path="+url.QueryEscape(projectPath), nil)
+	server.Handler().ServeHTTP(detailResponse, detailRequest)
+	if detailResponse.Code != http.StatusOK {
+		t.Fatalf("detail status = %d body=%s", detailResponse.Code, detailResponse.Body.String())
+	}
+	var detailBody struct {
+		Project ProjectDetail `json:"project"`
+	}
+	if err := json.Unmarshal(detailResponse.Body.Bytes(), &detailBody); err != nil {
+		t.Fatal(err)
+	}
+	if len(detailBody.Project.ValidationRuns) != 1 || detailBody.Project.ValidationRuns[0].ID != body.ValidationRecord.ID {
+		t.Fatalf("validation run summaries = %#v", detailBody.Project.ValidationRuns)
+	}
+
+	openResponse := httptest.NewRecorder()
+	openRequest := httptest.NewRequest(http.MethodGet, "/api/project/validation-record?project_path="+url.QueryEscape(projectPath)+"&record_id="+url.QueryEscape(body.ValidationRecord.ID), nil)
+	server.Handler().ServeHTTP(openResponse, openRequest)
+	if openResponse.Code != http.StatusOK {
+		t.Fatalf("open status = %d body=%s", openResponse.Code, openResponse.Body.String())
+	}
+	var openBody struct {
+		ValidationRecord struct {
+			ID     string `json:"id"`
+			Result struct {
+				RowCount int `json:"row_count"`
+			} `json:"result"`
+		} `json:"validation_record"`
+	}
+	if err := json.Unmarshal(openResponse.Body.Bytes(), &openBody); err != nil {
+		t.Fatal(err)
+	}
+	if openBody.ValidationRecord.ID != body.ValidationRecord.ID || openBody.ValidationRecord.Result.RowCount != 3 {
+		t.Fatalf("opened record = %#v", openBody.ValidationRecord)
+	}
+}
+
 func TestUpdateLayoutEndpointWritesWorkspaceLayout(t *testing.T) {
 	root, server := newIsolatedTestServer(t)
 	project := createWorkspaceProject(t, server, "Layout Project")

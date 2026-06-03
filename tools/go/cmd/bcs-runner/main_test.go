@@ -211,20 +211,22 @@ func TestSchemaCommandWritesPublicInterface(t *testing.T) {
 
 func TestValidateDataCommandWritesMetrics(t *testing.T) {
 	tmpDir := t.TempDir()
+	projectRoot := filepath.Join(tmpDir, "project")
+	copyTree(t, examplePath("005_chiller_plant_like_system"), projectRoot)
 	outputPath := filepath.Join(tmpDir, "validation.json")
-	projectPath := filepath.Join("..", "..", "..", "..", "examples", "005_chiller_plant_like_system", "project.bcsproj")
 
 	err := run([]string{
 		"bcs-runner",
 		"validate-data",
 		"--project",
-		projectPath,
+		filepath.Join(projectRoot, "project.bcsproj"),
 		"--mapping",
 		filepath.Join("validation", "mappings", "plant_validation.json"),
 		"--output",
 		outputPath,
 		"--high-error-rows",
 		"1",
+		"--save-record",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -235,9 +237,10 @@ func TestValidateDataCommandWritesMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 	var result struct {
-		OK       bool `json:"ok"`
-		RowCount int  `json:"row_count"`
-		Metrics  map[string]struct {
+		OK          bool   `json:"ok"`
+		RowCount    int    `json:"row_count"`
+		SavedRecord string `json:"saved_record"`
+		Metrics     map[string]struct {
 			Count         int `json:"count"`
 			HighErrorRows []struct {
 				RowIndex int `json:"row_index"`
@@ -249,6 +252,12 @@ func TestValidateDataCommandWritesMetrics(t *testing.T) {
 	}
 	if !result.OK || result.RowCount != 3 {
 		t.Fatalf("validation result = %#v", result)
+	}
+	if !strings.HasPrefix(result.SavedRecord, "validation/runs/validation-") {
+		t.Fatalf("saved record = %q", result.SavedRecord)
+	}
+	if _, err := os.Stat(filepath.Join(projectRoot, filepath.FromSlash(result.SavedRecord))); err != nil {
+		t.Fatal(err)
 	}
 	if result.Metrics["total_power_kw"].Count != 3 || len(result.Metrics["total_power_kw"].HighErrorRows) != 1 {
 		t.Fatalf("metrics = %#v", result.Metrics)
@@ -270,6 +279,7 @@ func TestCalibrateCommandWritesResultAndParameterSet(t *testing.T) {
 		filepath.Join("calibration", "setups", "chiller_cop_grid.json"),
 		"--save-parameter-set",
 		filepath.Join("parameter_sets", "calibrated_cli.json"),
+		"--save-record",
 		"--output",
 		outputPath,
 	})
@@ -285,6 +295,7 @@ func TestCalibrateCommandWritesResultAndParameterSet(t *testing.T) {
 		OK                bool    `json:"ok"`
 		BestObjective     float64 `json:"best_objective"`
 		SavedParameterSet string  `json:"saved_parameter_set"`
+		SavedRecord       string  `json:"saved_record"`
 	}
 	if err := json.Unmarshal(data, &result); err != nil {
 		t.Fatal(err)
@@ -292,7 +303,13 @@ func TestCalibrateCommandWritesResultAndParameterSet(t *testing.T) {
 	if !result.OK || result.BestObjective <= 0 || result.SavedParameterSet != "parameter_sets/calibrated_cli.json" {
 		t.Fatalf("calibration result = %#v", result)
 	}
+	if !strings.HasPrefix(result.SavedRecord, "calibration/results/calibration-") {
+		t.Fatalf("saved record = %q", result.SavedRecord)
+	}
 	if _, err := os.Stat(filepath.Join(projectRoot, "parameter_sets", "calibrated_cli.json")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(projectRoot, filepath.FromSlash(result.SavedRecord))); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -312,6 +329,7 @@ func TestOptimizeCommandWritesResultAndScenario(t *testing.T) {
 		filepath.Join("optimization", "setups", "chw_setpoint_grid.json"),
 		"--save-scenario",
 		filepath.Join("scenarios", "optimized_cli.json"),
+		"--save-record",
 		"--output",
 		outputPath,
 	})
@@ -328,6 +346,7 @@ func TestOptimizeCommandWritesResultAndScenario(t *testing.T) {
 		BestObjective float64            `json:"best_objective"`
 		BestInputs    map[string]float64 `json:"best_inputs"`
 		SavedScenario string             `json:"saved_scenario"`
+		SavedRecord   string             `json:"saved_record"`
 	}
 	if err := json.Unmarshal(data, &result); err != nil {
 		t.Fatal(err)
@@ -335,7 +354,13 @@ func TestOptimizeCommandWritesResultAndScenario(t *testing.T) {
 	if !result.OK || result.BestObjective != 92 || result.BestInputs["chw_setpoint_c"] != 7 || result.SavedScenario != "scenarios/optimized_cli.json" {
 		t.Fatalf("optimization result = %#v", result)
 	}
+	if !strings.HasPrefix(result.SavedRecord, "optimization/results/optimization-") {
+		t.Fatalf("saved record = %q", result.SavedRecord)
+	}
 	if _, err := os.Stat(filepath.Join(projectRoot, "scenarios", "optimized_cli.json")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(projectRoot, filepath.FromSlash(result.SavedRecord))); err != nil {
 		t.Fatal(err)
 	}
 }

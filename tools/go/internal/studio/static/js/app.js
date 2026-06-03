@@ -100,6 +100,7 @@ async function loadProject(projectPath) {
   state.latestSchema = null;
   state.latestValidation = null;
   state.latestDataValidation = null;
+  state.latestWorkflowRecord = null;
   state.activeRunInput = null;
   state.sourceByComponent = {};
   state.sourceDraftByComponent = {};
@@ -160,7 +161,10 @@ function renderProjectTree() {
     ["Python Source", graph.components.map((item) => sourceTreeItem(item))],
     ["Datasets", datasetTreeItems()],
     ["Validation", validationMappingTreeItems()],
+    ["Validation Runs", validationRunTreeItems()],
     ["Parameter Sets", parameterSetTreeItems()],
+    ["Calibration Results", calibrationResultTreeItems()],
+    ["Optimization Results", optimizationResultTreeItems()],
     ["Runs", (state.detail.runs || []).map((item) => runTreeItem(item))],
     ["Batches", (state.detail.batches || []).map((item) => batchTreeItem(item))],
     ["Scenarios", (state.detail.scenarios || []).map((item) => scenarioTreeItem(item))],
@@ -262,6 +266,30 @@ function parameterSetTreeItems() {
 
 function validationMappingTreeItems() {
   return (state.detail?.validation_mappings || []).map((item) => treeStatic(item.name || item.id, `${item.relative_path || "mapping"} / ${item.input_count || 0} in / ${item.output_count || 0} out`));
+}
+
+function validationRunTreeItems() {
+  return (state.detail?.validation_runs || []).map((item) => workflowRecordTreeItem("validation", item, item.mapping_name || item.mapping_id || item.id, `${item.row_count || 0} rows`));
+}
+
+function calibrationResultTreeItems() {
+  return (state.detail?.calibration_results || []).map((item) => workflowRecordTreeItem("calibration", item, item.setup_name || item.setup_id || item.id, `best ${shortNumber(item.best_objective)}`));
+}
+
+function optimizationResultTreeItems() {
+  return (state.detail?.optimization_results || []).map((item) => workflowRecordTreeItem("optimization", item, item.setup_name || item.setup_id || item.id, `best ${shortNumber(item.best_objective)}`));
+}
+
+function workflowRecordTreeItem(kind, item, label, meta) {
+  const row = treeStatic(label, meta || item.relative_path || kind);
+  row.addEventListener("click", () => loadWorkflowRecord(kind, item.id));
+  return row;
+}
+
+function shortNumber(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "";
+  return Math.round(numeric * 1000) / 1000;
 }
 
 function treeItem(id, label, meta) {
@@ -1492,7 +1520,7 @@ function renderLogs() {
 }
 
 function renderResults() {
-  const value = state.latestDataValidation || state.latestBatchRecord || state.latestRunRecord || state.latestResult;
+  const value = state.latestWorkflowRecord || state.latestDataValidation || state.latestBatchRecord || state.latestRunRecord || state.latestResult;
   el("resultsPanel").textContent = value ? JSON.stringify(value, null, 2) : "";
 }
 
@@ -1858,6 +1886,7 @@ async function runProject() {
     state.latestRunRecord = null;
     state.latestBatchRecord = null;
     state.latestDataValidation = null;
+    state.latestWorkflowRecord = null;
     setProblems();
     if (body.run_record) {
       state.detail.runs = [body.run_record, ...(state.detail.runs || [])];
@@ -1874,6 +1903,8 @@ async function runProject() {
     state.latestResultStale = false;
     state.latestRunRecord = null;
     state.latestBatchRecord = null;
+    state.latestDataValidation = null;
+    state.latestWorkflowRecord = null;
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     setBottomTab("problems");
   }
@@ -1898,6 +1929,7 @@ async function runBatch() {
     state.latestResult = null;
     state.latestResultStale = false;
     state.latestDataValidation = null;
+    state.latestWorkflowRecord = null;
     const batchProblems = collectBatchProblems(body.batch);
     state.latestValidation = { problems: batchProblems };
     state.detail.batches = [body.summary, ...(state.detail.batches || [])];
@@ -1937,9 +1969,15 @@ async function runDataValidation() {
         project_path: state.currentProjectPath,
         mapping_path: mapping.relative_path,
         high_error_rows: 3,
+        save: isWorkspaceProject(),
       }),
     });
     state.latestDataValidation = body.validation_result;
+    state.latestWorkflowRecord = null;
+    if (body.validation_record) {
+      state.detail.validation_runs = [body.validation_record, ...(state.detail.validation_runs || [])];
+      renderProjectTree();
+    }
     setProblems();
     renderResults();
     renderProblems();
@@ -1947,6 +1985,7 @@ async function runDataValidation() {
     log(`Data validation complete: ${mapping.name || mapping.id}`);
   } catch (error) {
     state.latestDataValidation = null;
+    state.latestWorkflowRecord = null;
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderResults();
     renderProblems();
@@ -2015,6 +2054,8 @@ async function loadRunRecord(runID) {
     const body = await api(`/api/project/run?project_path=${encodeURIComponent(state.currentProjectPath)}&run_id=${encodeURIComponent(runID)}`);
     state.latestRunRecord = body.run_record;
     state.latestBatchRecord = null;
+    state.latestDataValidation = null;
+    state.latestWorkflowRecord = null;
     state.latestResult = body.run_record.result;
     state.latestResultStale = false;
     setProblems();
@@ -2040,6 +2081,8 @@ async function loadBatchRecord(batchID) {
     const body = await api(`/api/project/batch?project_path=${encodeURIComponent(state.currentProjectPath)}&batch_id=${encodeURIComponent(batchID)}`);
     state.latestBatchRecord = body.batch_record;
     state.latestRunRecord = null;
+    state.latestDataValidation = null;
+    state.latestWorkflowRecord = null;
     state.latestResult = null;
     state.latestResultStale = false;
     const batchProblems = collectBatchProblems(body.batch_record);
@@ -2056,6 +2099,46 @@ async function loadBatchRecord(batchID) {
     log(`Batch opened: ${batchID}`);
   } catch (error) {
     log(`Open batch failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
+async function loadWorkflowRecord(kind, recordID) {
+  const endpoints = {
+    validation: "validation-record",
+    calibration: "calibration-record",
+    optimization: "optimization-record",
+  };
+  const keys = {
+    validation: "validation_record",
+    calibration: "calibration_record",
+    optimization: "optimization_record",
+  };
+  const endpoint = endpoints[kind];
+  const responseKey = keys[kind];
+  if (!endpoint || !responseKey) return;
+  try {
+    const body = await api(`/api/project/${endpoint}?project_path=${encodeURIComponent(state.currentProjectPath)}&record_id=${encodeURIComponent(recordID)}`);
+    state.latestWorkflowRecord = body[responseKey];
+    state.latestDataValidation = null;
+    state.latestBatchRecord = null;
+    state.latestRunRecord = null;
+    state.latestResult = null;
+    state.latestResultStale = false;
+    setProblems();
+    renderSystemHeader();
+    renderCanvas();
+    renderInspector();
+    renderPythonPanel();
+    renderResults();
+    renderRunWorkspace();
+    renderProblems();
+    setBottomTab("results");
+    log(`${kind} record opened: ${recordID}`);
+  } catch (error) {
+    log(`Open ${kind} record failed: ${error.message}`);
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderProblems();
     setBottomTab("problems");

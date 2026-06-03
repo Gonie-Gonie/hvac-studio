@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/modelvalidation"
@@ -49,12 +50,37 @@ type Result struct {
 	Algorithm         string                       `json:"algorithm"`
 	Mapping           string                       `json:"mapping"`
 	BaseParameterSet  string                       `json:"base_parameter_set,omitempty"`
+	SavedRecord       string                       `json:"saved_record,omitempty"`
 	InitialObjective  float64                      `json:"initial_objective"`
 	BestObjective     float64                      `json:"best_objective"`
 	ChangedParameters map[string]map[string]Change `json:"changed_parameters"`
 	BestParameterSet  parameterset.Set             `json:"best_parameter_set"`
 	SavedParameterSet string                       `json:"saved_parameter_set,omitempty"`
 	Candidates        []CandidateSummary           `json:"candidates"`
+}
+
+type RecordSummary struct {
+	ID                string  `json:"id"`
+	RelativePath      string  `json:"relative_path"`
+	CreatedAtUTC      string  `json:"created_at_utc"`
+	SetupID           string  `json:"setup_id"`
+	SetupName         string  `json:"setup_name,omitempty"`
+	Algorithm         string  `json:"algorithm"`
+	BaseParameterSet  string  `json:"base_parameter_set,omitempty"`
+	SavedParameterSet string  `json:"saved_parameter_set,omitempty"`
+	BestObjective     float64 `json:"best_objective"`
+	CandidateCount    int     `json:"candidate_count"`
+	OK                bool    `json:"ok"`
+}
+
+type Record struct {
+	ID           string  `json:"id"`
+	ProjectName  string  `json:"project_name"`
+	CreatedAtUTC string  `json:"created_at_utc"`
+	SetupID      string  `json:"setup_id"`
+	SetupName    string  `json:"setup_name,omitempty"`
+	Algorithm    string  `json:"algorithm"`
+	Result       *Result `json:"result"`
 }
 
 type Change struct {
@@ -67,6 +93,105 @@ type CandidateSummary struct {
 	Parameters map[string]map[string]float64 `json:"parameters"`
 	Objective  float64                       `json:"objective"`
 	Metrics    map[string]float64            `json:"metrics"`
+}
+
+func WriteRecord(projectRoot string, projectName string, result *Result) (RecordSummary, error) {
+	if result == nil {
+		return RecordSummary{}, apperror.Errorf(apperror.CodeRuntime, "calibration result is required")
+	}
+	now := time.Now().UTC()
+	recordID := "calibration-" + now.Format("20060102-150405.000000000")
+	recordPath := filepath.Join(projectRoot, "calibration", "results", recordID+".json")
+	record := Record{
+		ID:           recordID,
+		ProjectName:  projectName,
+		CreatedAtUTC: now.Format(time.RFC3339Nano),
+		SetupID:      result.SetupID,
+		SetupName:    result.SetupName,
+		Algorithm:    result.Algorithm,
+		Result:       result,
+	}
+	rel, _ := filepath.Rel(projectRoot, recordPath)
+	result.SavedRecord = filepath.ToSlash(rel)
+	if err := writeJSONFile(recordPath, record); err != nil {
+		result.SavedRecord = ""
+		return RecordSummary{}, err
+	}
+	return summarizeRecord(projectRoot, recordPath, record), nil
+}
+
+func LoadRecord(projectRoot string, recordID string) (Record, error) {
+	if recordID == "" {
+		return Record{}, apperror.Errorf(apperror.CodeValidation, "calibration_record_id is required")
+	}
+	if filepath.Base(recordID) != recordID || strings.ContainsAny(recordID, `/\`) {
+		return Record{}, apperror.Errorf(apperror.CodeValidation, "calibration_record_id must be a calibration record id")
+	}
+	recordPath, err := resolveProjectOwnedFile(projectRoot, filepath.Join("calibration", "results", recordID+".json"))
+	if err != nil {
+		return Record{}, err
+	}
+	recordBytes, err := os.ReadFile(recordPath)
+	if err != nil {
+		return Record{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	var record Record
+	if err := json.Unmarshal(recordBytes, &record); err != nil {
+		return Record{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	return record, nil
+}
+
+func LoadRecordSummaries(projectRoot string) []RecordSummary {
+	recordFiles, err := filepath.Glob(filepath.Join(projectRoot, "calibration", "results", "calibration-*.json"))
+	if err != nil {
+		return []RecordSummary{}
+	}
+	summaries := []RecordSummary{}
+	for _, recordPath := range recordFiles {
+		recordBytes, err := os.ReadFile(recordPath)
+		if err != nil {
+			continue
+		}
+		var record Record
+		if err := json.Unmarshal(recordBytes, &record); err != nil {
+			continue
+		}
+		summaries = append(summaries, summarizeRecord(projectRoot, recordPath, record))
+	}
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i].CreatedAtUTC > summaries[j].CreatedAtUTC
+	})
+	return summaries
+}
+
+func summarizeRecord(projectRoot string, recordPath string, record Record) RecordSummary {
+	rel, _ := filepath.Rel(projectRoot, recordPath)
+	summary := RecordSummary{
+		ID:           record.ID,
+		RelativePath: filepath.ToSlash(rel),
+		CreatedAtUTC: record.CreatedAtUTC,
+		SetupID:      record.SetupID,
+		SetupName:    record.SetupName,
+		Algorithm:    record.Algorithm,
+	}
+	if record.Result != nil {
+		summary.OK = record.Result.OK
+		summary.BestObjective = record.Result.BestObjective
+		summary.BaseParameterSet = record.Result.BaseParameterSet
+		summary.SavedParameterSet = record.Result.SavedParameterSet
+		summary.CandidateCount = len(record.Result.Candidates)
+		if summary.SetupID == "" {
+			summary.SetupID = record.Result.SetupID
+		}
+		if summary.SetupName == "" {
+			summary.SetupName = record.Result.SetupName
+		}
+		if summary.Algorithm == "" {
+			summary.Algorithm = record.Result.Algorithm
+		}
+	}
+	return summary
 }
 
 func LoadSetup(projectRoot string, relativePath string) (Setup, error) {
@@ -374,6 +499,17 @@ func resolveProjectOwnedFile(projectRoot string, relativePath string) (string, e
 		return "", apperror.Wrap(apperror.CodeInput, err)
 	}
 	return resolved, nil
+}
+
+func writeJSONFile(path string, value any) error {
+	output, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	return apperror.Wrap(apperror.CodeRuntime, os.WriteFile(path, append(output, '\n'), 0o644))
 }
 
 func sortedCandidateSummaries(candidates []CandidateSummary) []CandidateSummary {

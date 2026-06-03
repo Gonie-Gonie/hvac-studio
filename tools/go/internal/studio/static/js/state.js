@@ -13,6 +13,7 @@ export const state = {
   latestSchema: null,
   latestValidation: null,
   latestDataValidation: null,
+  latestWorkflowRecord: null,
   activeRunInput: null,
   selectedConnectionId: "",
   sourceByComponent: {},

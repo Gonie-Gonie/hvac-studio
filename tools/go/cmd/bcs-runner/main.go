@@ -256,6 +256,7 @@ func validateData(args []string) error {
 	outputPath := flags.String("output", "", "path to output JSON")
 	parameterSetPath := flags.String("parameter-set", "", "project-relative parameter set JSON")
 	highErrorRows := flags.Int("high-error-rows", 3, "number of high-error rows to keep per output")
+	saveRecord := flags.Bool("save-record", false, "save a validation result record under validation/runs")
 	if err := flags.Parse(args); err != nil {
 		return apperror.Wrap(apperror.CodeValidation, err)
 	}
@@ -285,6 +286,11 @@ func validateData(args []string) error {
 	if *parameterSetPath != "" {
 		result.ParameterSet = filepath.ToSlash(*parameterSetPath)
 	}
+	if *saveRecord {
+		if _, err := modelvalidation.WriteRecord(loaded.Root, loaded.Project.ProjectName, result); err != nil {
+			return err
+		}
+	}
 	return writeJSONOutput(resolveProjectPath(loaded.Root, *outputPath), result)
 }
 
@@ -294,6 +300,7 @@ func calibrate(args []string) error {
 	setupPath := flags.String("setup", "", "project-relative calibration setup JSON")
 	outputPath := flags.String("output", "", "path to output JSON")
 	saveParameterSet := flags.String("save-parameter-set", "", "project-relative parameter set output JSON")
+	saveRecord := flags.Bool("save-record", false, "save a calibration result record under calibration/results")
 	if err := flags.Parse(args); err != nil {
 		return apperror.Wrap(apperror.CodeValidation, err)
 	}
@@ -314,6 +321,11 @@ func calibrate(args []string) error {
 	if err != nil {
 		return err
 	}
+	if *saveRecord {
+		if _, err := calibration.WriteRecord(loaded.Root, loaded.Project.ProjectName, result); err != nil {
+			return err
+		}
+	}
 	return writeJSONOutput(resolveProjectPath(loaded.Root, *outputPath), result)
 }
 
@@ -323,6 +335,7 @@ func optimize(args []string) error {
 	setupPath := flags.String("setup", "", "project-relative optimization setup JSON")
 	outputPath := flags.String("output", "", "path to output JSON")
 	saveScenario := flags.String("save-scenario", "", "project-relative scenario output JSON")
+	saveRecord := flags.Bool("save-record", false, "save an optimization result record under optimization/results")
 	if err := flags.Parse(args); err != nil {
 		return apperror.Wrap(apperror.CodeValidation, err)
 	}
@@ -342,6 +355,11 @@ func optimize(args []string) error {
 	})
 	if err != nil {
 		return err
+	}
+	if *saveRecord {
+		if _, err := optimization.WriteRecord(loaded.Root, loaded.Project.ProjectName, result); err != nil {
+			return err
+		}
 	}
 	return writeJSONOutput(resolveProjectPath(loaded.Root, *outputPath), result)
 }
