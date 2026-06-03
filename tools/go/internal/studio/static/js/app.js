@@ -305,7 +305,7 @@ function renderRunInputs() {
       </label>
       <input id="input-${escapeAttr(input.id)}" data-input-id="${escapeAttr(input.id)}" value="${escapeAttr(defaultValue)}" />
     `;
-    field.querySelector("input").addEventListener("input", markProjectDirty);
+    field.querySelector("input").addEventListener("input", markRunInputsEdited);
     const reset = document.createElement("button");
     reset.type = "button";
     reset.className = "input-reset";
@@ -336,6 +336,14 @@ function resetRunInput(input) {
   const defaultInputs = state.detail?.default_run_input?.inputs || {};
   const value = defaultInputs[input.id] ?? input.default ?? sampleValueFor(input.id);
   control.value = parameterInputValue(value);
+  markRunInputsEdited();
+}
+
+function markRunInputsEdited() {
+  if (state.activeRunInput) {
+    state.activeRunInput = null;
+    document.querySelector(".active-scenario")?.remove();
+  }
   markProjectDirty();
 }
 

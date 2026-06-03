@@ -145,6 +145,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("activeScenarioBadge")) {
 		t.Fatalf("module entrypoint did not include active scenario state")
 	}
+	if !bytes.Contains(body, []byte("markRunInputsEdited")) {
+		t.Fatalf("module entrypoint did not clear scenario state after input edits")
+	}
 	if bytes.Contains(body, []byte(`window.prompt("Scenario name"`)) {
 		t.Fatalf("module entrypoint should not use a prompt for scenario creation")
 	}
