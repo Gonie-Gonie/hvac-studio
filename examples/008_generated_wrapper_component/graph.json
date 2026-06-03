@@ -1,0 +1,136 @@
+{
+  "schema_version": "0.1.0",
+  "systems": [
+    {
+      "id": "MainSystem",
+      "name": "Main System",
+      "components": ["wrapped_gain"],
+      "connections": [],
+      "public_inputs": [
+        {
+          "id": "value",
+          "name": "Value",
+          "component": "wrapped_gain",
+          "node": "value",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "",
+          "required": true
+        }
+      ],
+      "public_outputs": [
+        {
+          "id": "result",
+          "name": "Result",
+          "component": "wrapped_gain",
+          "node": "result",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": ""
+        },
+        {
+          "id": "call_count",
+          "name": "Call Count",
+          "component": "wrapped_gain",
+          "node": "call_count",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "count"
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "wrapped_gain",
+      "name": "Wrapped Gain",
+      "kind": "user_python",
+      "category": "utility",
+      "execution_mode": "step",
+      "class": "components.custom_gain.wrapper.CustomGainWrapper",
+      "source": {
+        "layout": "generated_wrapper",
+        "metadata": "components/custom_gain/component.json",
+        "init": "components/custom_gain/user_init.py",
+        "step": "components/custom_gain/user_step.py",
+        "helpers": "components/custom_gain/helpers.py",
+        "wrapper": "components/custom_gain/wrapper.py"
+      },
+      "nodes": {
+        "inputs": [
+          {
+            "id": "value",
+            "name": "Value",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "result",
+            "name": "Result",
+            "preset": "scalar_output",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": ""
+          },
+          {
+            "id": "call_count",
+            "name": "Call Count",
+            "preset": "scalar_output",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "count"
+          }
+        ]
+      },
+      "parameters": {
+        "gain": 3.0,
+        "offset": 1.0
+      },
+      "parameter_defs": {
+        "gain": {
+          "display_name": "Gain",
+          "unit": "ratio",
+          "default": 3.0,
+          "current": 3.0,
+          "bounds": {
+            "min": 0.0,
+            "max": 100.0
+          },
+          "role": "calibration_target",
+          "group": "Model",
+          "description": "Multiplier applied to the input value."
+        },
+        "offset": {
+          "display_name": "Offset",
+          "unit": "",
+          "default": 1.0,
+          "current": 1.0,
+          "bounds": {
+            "min": -100.0,
+            "max": 100.0
+          },
+          "role": "fixed",
+          "group": "Model",
+          "description": "Value added after gain is applied."
+        }
+      },
+      "state_defs": {
+        "calls": {
+          "display_name": "Calls",
+          "unit": "count",
+          "initial": 0,
+          "description": "Number of completed evaluations."
+        }
+      }
+    }
+  ],
+  "connections": []
+}

@@ -2462,6 +2462,97 @@ func TestCheckSourceEndpointAcceptsWorkspaceSource(t *testing.T) {
 	}
 }
 
+func TestGeneratedWrapperComponentUsesUserStepSource(t *testing.T) {
+	server := newTestServer(t)
+	projectPath := filepath.Join("examples", "008_generated_wrapper_component", "project.bcsproj")
+
+	sourceResponse := httptest.NewRecorder()
+	sourceRequest := httptest.NewRequest(
+		http.MethodGet,
+		"/api/project/source?project_path="+url.QueryEscape(projectPath)+"&component_id=wrapped_gain",
+		nil,
+	)
+	server.Handler().ServeHTTP(sourceResponse, sourceRequest)
+	if sourceResponse.Code != http.StatusOK {
+		t.Fatalf("source status = %d body=%s", sourceResponse.Code, sourceResponse.Body.String())
+	}
+	var sourceBody struct {
+		Source SourceDetail `json:"source"`
+	}
+	if err := json.Unmarshal(sourceResponse.Body.Bytes(), &sourceBody); err != nil {
+		t.Fatal(err)
+	}
+	if sourceBody.Source.RelativePath != "components/custom_gain/user_step.py" {
+		t.Fatalf("source relative path = %s", sourceBody.Source.RelativePath)
+	}
+	if !sourceBody.Source.ReadOnly {
+		t.Fatal("example source should be read only")
+	}
+	if !strings.Contains(sourceBody.Source.Content, "def step(inputs, state, params, context):") {
+		t.Fatalf("source content = %s", sourceBody.Source.Content)
+	}
+
+	checkPayload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"component_id": "wrapped_gain",
+		"content":      sourceBody.Source.Content,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkResponse := httptest.NewRecorder()
+	checkRequest := httptest.NewRequest(http.MethodPost, "/api/project/source/check", bytes.NewReader(checkPayload))
+	server.Handler().ServeHTTP(checkResponse, checkRequest)
+	if checkResponse.Code != http.StatusOK {
+		t.Fatalf("check status = %d body=%s", checkResponse.Code, checkResponse.Body.String())
+	}
+	var checkBody struct {
+		Check SourceCheck `json:"check"`
+	}
+	if err := json.Unmarshal(checkResponse.Body.Bytes(), &checkBody); err != nil {
+		t.Fatal(err)
+	}
+	if !checkBody.Check.OK {
+		t.Fatalf("source check problems = %#v", checkBody.Check.Problems)
+	}
+	if checkBody.Check.ExpectedFunction != "step" {
+		t.Fatalf("expected function = %s", checkBody.Check.ExpectedFunction)
+	}
+
+	validatePayload, err := json.Marshal(map[string]any{"project_path": projectPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	validateResponse := httptest.NewRecorder()
+	validateRequest := httptest.NewRequest(http.MethodPost, "/api/validate", bytes.NewReader(validatePayload))
+	server.Handler().ServeHTTP(validateResponse, validateRequest)
+	if validateResponse.Code != http.StatusOK {
+		t.Fatalf("validate status = %d body=%s", validateResponse.Code, validateResponse.Body.String())
+	}
+
+	runResponse := httptest.NewRecorder()
+	runRequest := httptest.NewRequest(http.MethodPost, "/api/run", bytes.NewReader(validatePayload))
+	server.Handler().ServeHTTP(runResponse, runRequest)
+	if runResponse.Code != http.StatusOK {
+		t.Fatalf("run status = %d body=%s", runResponse.Code, runResponse.Body.String())
+	}
+	var runBody struct {
+		Result struct {
+			Outputs map[string]float64            `json:"outputs"`
+			States  map[string]map[string]float64 `json:"states"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(runResponse.Body.Bytes(), &runBody); err != nil {
+		t.Fatal(err)
+	}
+	if runBody.Result.Outputs["result"] != 13 {
+		t.Fatalf("result = %v, want 13", runBody.Result.Outputs["result"])
+	}
+	if runBody.Result.States["wrapped_gain"]["calls"] != 1 {
+		t.Fatalf("calls state = %#v, want 1", runBody.Result.States["wrapped_gain"])
+	}
+}
+
 func TestCheckSourceEndpointWarnsAboutUnreferencedContractNodes(t *testing.T) {
 	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()

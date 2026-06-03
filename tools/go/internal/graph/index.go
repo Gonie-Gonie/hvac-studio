@@ -113,6 +113,9 @@ func validateComponent(component model.Component) error {
 	); err != nil {
 		return err
 	}
+	if err := validateComponentSource(component.ID, component.Source); err != nil {
+		return err
+	}
 	if err := validateNodes(component.ID, "input", component.Nodes.Inputs); err != nil {
 		return err
 	}
@@ -124,6 +127,26 @@ func validateComponent(component model.Component) error {
 	}
 	if err := validateStateDefinitions(component.ID, component.StateDefinitions); err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateComponentSource(componentID string, source model.ComponentSource) error {
+	if err := validateOptionalEnum(
+		"component "+componentID+" source layout",
+		source.Layout,
+		"single_file_class",
+		"generated_wrapper",
+	); err != nil {
+		return err
+	}
+	if source.Layout == "generated_wrapper" {
+		if strings.TrimSpace(source.Step) == "" {
+			return fmt.Errorf("component %s generated_wrapper source step is required", componentID)
+		}
+		if strings.TrimSpace(source.Wrapper) == "" {
+			return fmt.Errorf("component %s generated_wrapper source wrapper is required", componentID)
+		}
 	}
 	return nil
 }

@@ -1,0 +1,26 @@
+{
+  "ok": true,
+  "outputs": {
+    "result": 13.0,
+    "call_count": 1.0
+  },
+  "component_inputs": {
+    "wrapped_gain": {
+      "value": 4.0
+    }
+  },
+  "component_outputs": {
+    "wrapped_gain": {
+      "result": 13.0,
+      "call_count": 1.0
+    }
+  },
+  "states": {
+    "wrapped_gain": {
+      "calls": 1.0
+    }
+  },
+  "execution_order": [
+    "wrapped_gain"
+  ]
+}

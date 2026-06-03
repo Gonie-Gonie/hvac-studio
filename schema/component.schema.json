@@ -110,7 +110,22 @@
         "wrapper": {
           "type": "string"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "layout": {
+                "const": "generated_wrapper"
+              }
+            },
+            "required": ["layout"]
+          },
+          "then": {
+            "required": ["step", "wrapper"]
+          }
+        }
+      ]
     },
     "node": {
       "type": "object",

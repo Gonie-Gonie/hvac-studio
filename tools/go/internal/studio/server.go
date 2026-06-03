@@ -340,12 +340,13 @@ type SourceDetail struct {
 }
 
 type SourceCheck struct {
-	OK            bool      `json:"ok"`
-	ComponentID   string    `json:"component_id"`
-	RelativePath  string    `json:"relative_path"`
-	ExpectedClass string    `json:"expected_class"`
-	LineCount     int       `json:"line_count"`
-	Problems      []Problem `json:"problems"`
+	OK               bool      `json:"ok"`
+	ComponentID      string    `json:"component_id"`
+	RelativePath     string    `json:"relative_path"`
+	ExpectedClass    string    `json:"expected_class"`
+	ExpectedFunction string    `json:"expected_function,omitempty"`
+	LineCount        int       `json:"line_count"`
+	Problems         []Problem `json:"problems"`
 }
 
 type Problem struct {
@@ -2475,39 +2476,26 @@ func checkComponentSource(ctx context.Context, loaded *project.LoadedProject, re
 	}
 	rel, _ := filepath.Rel(loaded.Root, sourcePath)
 	expectedClass := classNameFromPath(component.Class)
+	expectedFunction := ""
+	if component.Source.Layout == "generated_wrapper" {
+		expectedFunction = "step"
+	}
 	check := SourceCheck{
-		OK:            true,
-		ComponentID:   componentID,
-		RelativePath:  filepath.ToSlash(rel),
-		ExpectedClass: expectedClass,
-		LineCount:     countLines(req.Content),
-		Problems:      []Problem{},
+		OK:               true,
+		ComponentID:      componentID,
+		RelativePath:     filepath.ToSlash(rel),
+		ExpectedClass:    expectedClass,
+		ExpectedFunction: expectedFunction,
+		LineCount:        countLines(req.Content),
+		Problems:         []Problem{},
 	}
 	if strings.TrimSpace(req.Content) == "" {
 		check.Problems = append(check.Problems, Problem{Severity: "error", Message: "source is empty", ComponentID: componentID})
 	}
-	if expectedClass == "" {
-		check.Problems = append(check.Problems, Problem{Severity: "error", Message: "component class path is invalid", ComponentID: componentID})
-	} else if line := findPythonClassLine(req.Content, expectedClass); line == 0 {
-		check.Problems = append(check.Problems, Problem{Severity: "error", Message: fmt.Sprintf("expected class is missing: %s", expectedClass), ComponentID: componentID})
-	}
-	if line, params := findPythonMethodSignature(req.Content, "evaluate"); line == 0 {
-		check.Problems = append(check.Problems, Problem{Severity: "error", Message: "evaluate method is missing", ComponentID: componentID})
-	} else if !pythonMethodSignatureMatches(params, []string{"self", "inputs", "state", "params", "context"}) {
-		check.Problems = append(check.Problems, Problem{
-			Severity:    "error",
-			Message:     "evaluate signature must be (self, inputs, state, params, context)",
-			ComponentID: componentID,
-			Line:        line,
-		})
-	}
-	if line, params := findPythonMethodSignature(req.Content, "initialize"); line != 0 && !pythonMethodSignatureMatches(params, []string{"self", "params", "context"}) {
-		check.Problems = append(check.Problems, Problem{
-			Severity:    "error",
-			Message:     "initialize signature must be (self, params, context)",
-			ComponentID: componentID,
-			Line:        line,
-		})
+	if component.Source.Layout == "generated_wrapper" {
+		check.Problems = append(check.Problems, generatedWrapperStepProblems(componentID, req.Content)...)
+	} else {
+		check.Problems = append(check.Problems, singleFileClassProblems(componentID, req.Content, expectedClass)...)
 	}
 	if !strings.Contains(req.Content, "return") {
 		check.Problems = append(check.Problems, Problem{Severity: "warning", Message: "source has no return statement", ComponentID: componentID})
@@ -2515,7 +2503,7 @@ func checkComponentSource(ctx context.Context, loaded *project.LoadedProject, re
 	check.Problems = append(check.Problems, sourceContractReferenceProblems(component, req.Content)...)
 	syntaxProblems := pythonSyntaxProblems(ctx, loaded, componentID, filepath.ToSlash(rel), req.Content)
 	check.Problems = append(check.Problems, syntaxProblems...)
-	if !hasErrorProblems(syntaxProblems) && expectedClass != "" {
+	if component.Source.Layout != "generated_wrapper" && !hasErrorProblems(syntaxProblems) && expectedClass != "" {
 		check.Problems = append(check.Problems, pythonLoadProblems(ctx, loaded, componentID, filepath.ToSlash(rel), expectedClass, req.Content)...)
 	}
 	check.OK = !hasErrorProblems(check.Problems)
@@ -2612,6 +2600,59 @@ func countLines(content string) int {
 func findPythonClassLine(content string, className string) int {
 	pattern := regexp.MustCompile(`(?m)^class\s+` + regexp.QuoteMeta(className) + `\b`)
 	return regexpLine(content, pattern.FindStringIndex(content))
+}
+
+func singleFileClassProblems(componentID string, content string, expectedClass string) []Problem {
+	problems := []Problem{}
+	if expectedClass == "" {
+		problems = append(problems, Problem{Severity: "error", Message: "component class path is invalid", ComponentID: componentID})
+	} else if line := findPythonClassLine(content, expectedClass); line == 0 {
+		problems = append(problems, Problem{Severity: "error", Message: fmt.Sprintf("expected class is missing: %s", expectedClass), ComponentID: componentID})
+	}
+	if line, params := findPythonMethodSignature(content, "evaluate"); line == 0 {
+		problems = append(problems, Problem{Severity: "error", Message: "evaluate method is missing", ComponentID: componentID})
+	} else if !pythonMethodSignatureMatches(params, []string{"self", "inputs", "state", "params", "context"}) {
+		problems = append(problems, Problem{
+			Severity:    "error",
+			Message:     "evaluate signature must be (self, inputs, state, params, context)",
+			ComponentID: componentID,
+			Line:        line,
+		})
+	}
+	if line, params := findPythonMethodSignature(content, "initialize"); line != 0 && !pythonMethodSignatureMatches(params, []string{"self", "params", "context"}) {
+		problems = append(problems, Problem{
+			Severity:    "error",
+			Message:     "initialize signature must be (self, params, context)",
+			ComponentID: componentID,
+			Line:        line,
+		})
+	}
+	return problems
+}
+
+func generatedWrapperStepProblems(componentID string, content string) []Problem {
+	line, params := findPythonFunctionSignature(content, "step")
+	if line == 0 {
+		return []Problem{{Severity: "error", Message: "step function is missing", ComponentID: componentID}}
+	}
+	if pythonMethodSignatureMatches(params, []string{"inputs", "state", "params", "context"}) {
+		return []Problem{}
+	}
+	return []Problem{{
+		Severity:    "error",
+		Message:     "step signature must be (inputs, state, params, context)",
+		ComponentID: componentID,
+		Line:        line,
+	}}
+}
+
+func findPythonFunctionSignature(content string, functionName string) (int, []string) {
+	pattern := regexp.MustCompile(`(?m)^def\s+` + regexp.QuoteMeta(functionName) + `\s*\(([^)]*)\)`)
+	match := pattern.FindStringSubmatchIndex(content)
+	if len(match) < 4 {
+		return 0, nil
+	}
+	return regexpLine(content, match[:2]), pythonParameterNames(content[match[2]:match[3]])
 }
 
 func findPythonMethodSignature(content string, methodName string) (int, []string) {

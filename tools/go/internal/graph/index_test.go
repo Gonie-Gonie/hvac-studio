@@ -112,6 +112,31 @@ func TestNewIndexRejectsInvalidComponentCategory(t *testing.T) {
 	}
 }
 
+func TestNewIndexRejectsInvalidComponentSourceLayout(t *testing.T) {
+	graph := validGraph()
+	graph.Components[0].Source = model.ComponentSource{Layout: "managed_region"}
+
+	_, err := NewIndex(graph)
+
+	if err == nil || !strings.Contains(err.Error(), "component gain source layout is invalid: managed_region") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestNewIndexRejectsGeneratedWrapperWithoutStepSource(t *testing.T) {
+	graph := validGraph()
+	graph.Components[0].Source = model.ComponentSource{
+		Layout:  "generated_wrapper",
+		Wrapper: "components/gain/wrapper.py",
+	}
+
+	_, err := NewIndex(graph)
+
+	if err == nil || !strings.Contains(err.Error(), "component gain generated_wrapper source step is required") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestNewIndexRejectsInvalidNodePreset(t *testing.T) {
 	graph := validGraph()
 	graph.Components[0].Nodes.Inputs[0].Preset = "mystery_port"
