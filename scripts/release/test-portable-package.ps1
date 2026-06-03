@@ -405,7 +405,7 @@ try {
   }
   $ExtraOutputId = "$($CreatedComponent.id)_result"
   $ExtraOutput = $WorkspaceRunJson.result.outputs.PSObject.Properties[$ExtraOutputId].Value
-  if ($ExtraOutput -ne 21) {
+  if ($ExtraOutput -ne 42) {
     throw "workspace included component result mismatch: $ExtraOutputId=$ExtraOutput"
   }
   $RunRecordPath = Join-Path (Split-Path -Parent $CreatedProject.project_path) $WorkspaceRunJson.run_record.relative_path
@@ -471,7 +471,7 @@ try {
     throw "exported runtime run result mismatch: result=$($ExportRunJson.outputs.result)"
   }
   $ExportExtraOutput = $ExportRunJson.outputs.PSObject.Properties[$ExtraOutputId].Value
-  if ($ExportExtraOutput -ne 21) {
+  if ($ExportExtraOutput -ne 42) {
     throw "exported runtime included component result mismatch: $ExtraOutputId=$ExportExtraOutput"
   }
   $ExportRunScript = Join-Path (Split-Path -Parent $ExportManifestPath) 'run-default.ps1'
