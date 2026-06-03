@@ -14,6 +14,7 @@ import { state } from "./state.js";
 const CANVAS_NODE_WIDTH = 300;
 const CANVAS_NODE_ANCHOR_Y = 92;
 const CANVAS_COLUMN_GAP = 370;
+const CANVAS_ROW_GAP = 250;
 
 function log(message) {
   const time = new Date().toLocaleTimeString();
@@ -471,6 +472,11 @@ async function saveCanvasLayout(componentID, x, y) {
   if (!isWorkspaceProject()) return;
   const components = { ...(state.detail?.layout?.components || {}) };
   components[componentID] = { x: Math.round(x), y: Math.round(y) };
+  await saveCanvasLayoutPositions(components, componentID);
+}
+
+async function saveCanvasLayoutPositions(components, label) {
+  if (!isWorkspaceProject()) return;
   state.detail.layout = { components };
   try {
     const body = await api("/api/project/layout", {
@@ -479,13 +485,60 @@ async function saveCanvasLayout(componentID, x, y) {
     });
     state.detail = body.project;
     renderCanvas();
-    log(`Canvas layout saved: ${componentID}`);
+    log(`Canvas layout saved: ${label}`);
   } catch (error) {
     log(`Canvas layout save failed: ${error.message}`);
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderProblems();
     setBottomTab("problems");
   }
+}
+
+async function autoLayoutCanvas() {
+  if (!isWorkspaceProject()) return;
+  const system = currentSystem();
+  if (!system) return;
+  const positions = autoLayoutPositions(system);
+  const components = { ...(state.detail?.layout?.components || {}), ...positions };
+  await saveCanvasLayoutPositions(components, "auto layout");
+}
+
+function autoLayoutPositions(system) {
+  const ids = (system.components || []).filter((id) => componentById(id));
+  const idSet = new Set(ids);
+  const order = new Map(ids.map((id, index) => [id, index]));
+  const levels = Object.fromEntries(ids.map((id) => [id, 0]));
+  const connections = (state.detail?.graph?.connections || []).filter((connection) => (
+    idSet.has(connection.from.component) && idSet.has(connection.to.component)
+  ));
+
+  for (let pass = 0; pass < ids.length; pass += 1) {
+    let changed = false;
+    for (const connection of connections) {
+      const nextLevel = (levels[connection.from.component] || 0) + 1;
+      if (nextLevel > (levels[connection.to.component] || 0)) {
+        levels[connection.to.component] = nextLevel;
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+
+  const groups = new Map();
+  for (const id of ids) {
+    const level = levels[id] || 0;
+    if (!groups.has(level)) groups.set(level, []);
+    groups.get(level).push(id);
+  }
+
+  const positions = {};
+  for (const [level, group] of [...groups.entries()].sort(([a], [b]) => a - b)) {
+    group.sort((a, b) => (order.get(a) || 0) - (order.get(b) || 0));
+    group.forEach((id, row) => {
+      positions[id] = { x: 48 + level * CANVAS_COLUMN_GAP, y: 64 + row * CANVAS_ROW_GAP };
+    });
+  }
+  return positions;
 }
 
 function canvasNodePill(componentID, node, direction) {
@@ -2653,6 +2706,7 @@ function updateCommandState() {
   el("addComponentButton").disabled = !hasProject || !isWorkspaceProject() || state.componentTemplates.length === 0;
   el("newComponentName").disabled = !hasProject || !isWorkspaceProject();
   el("componentTemplateSelect").disabled = !hasProject || !isWorkspaceProject() || state.componentTemplates.length === 0;
+  el("autoLayoutButton").disabled = !hasProject || !isWorkspaceProject();
   el("includeComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || selectedComponentInSystem();
   el("removeComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || !selectedComponentInSystem();
   el("deleteComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || selectedComponentInSystem();
@@ -2758,6 +2812,7 @@ function bindEvents() {
   el("newProjectButton").addEventListener("click", createProject);
   el("copyProjectButton").addEventListener("click", copyProject);
   el("addComponentButton").addEventListener("click", createComponent);
+  el("autoLayoutButton").addEventListener("click", autoLayoutCanvas);
   el("newComponentName").addEventListener("keydown", (event) => {
     if (event.key === "Enter") createComponent();
   });

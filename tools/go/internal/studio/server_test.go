@@ -72,6 +72,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("componentRunRows")) {
 		t.Fatalf("index did not include selected component run values")
 	}
+	if !bytes.Contains(body, []byte("autoLayoutButton")) {
+		t.Fatalf("index did not include canvas auto layout control")
+	}
 }
 
 func TestStaticModuleEntrypointServes(t *testing.T) {
@@ -174,6 +177,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("saveCanvasLayout")) {
 		t.Fatalf("module entrypoint did not include canvas layout persistence")
+	}
+	if !bytes.Contains(body, []byte("autoLayoutPositions")) {
+		t.Fatalf("module entrypoint did not include canvas auto layout")
 	}
 	if !bytes.Contains(body, []byte("canvasParameterSummary")) {
 		t.Fatalf("module entrypoint did not include readable canvas parameter rendering")

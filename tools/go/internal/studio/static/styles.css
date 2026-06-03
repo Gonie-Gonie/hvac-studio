@@ -468,12 +468,25 @@ h2,
   margin-bottom: 12px;
 }
 
+.system-tools {
+  display: flex;
+  align-items: start;
+  justify-content: end;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.system-tools > button {
+  flex: 0 0 auto;
+}
+
 .run-inputs {
   display: flex;
   flex-wrap: wrap;
   justify-content: end;
   gap: 8px;
-  max-width: 68%;
+  max-width: 100%;
 }
 
 .input-field {
