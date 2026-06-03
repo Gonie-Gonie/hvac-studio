@@ -1,0 +1,17 @@
+{
+  "id": "high_efficiency",
+  "name": "High Efficiency Design",
+  "created_at_utc": "2026-06-03T00:00:00Z",
+  "components": {
+    "chiller": {
+      "cop": 6.8,
+      "lift_penalty_kw_per_k": 2.2
+    },
+    "pump": {
+      "pump_kw_per_cooling_kw": 0.014
+    },
+    "tower": {
+      "fan_kw_per_heat_kw": 0.008
+    }
+  }
+}

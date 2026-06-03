@@ -1,0 +1,4 @@
+time,building_load_kw,base_chw_setpoint_c,condenser_entering_temp_c,measured_total_power_kw,measured_chw_supply_temp_c
+0,450,7.0,29.0,91.2,7.12
+60,600,7.0,32.0,142.5,7.08
+120,700,6.8,34.0,172.4,6.98

@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "outputs": {
+    "objective_kw": 98.0,
+    "chiller_power_kw": 88.0,
+    "comfort_penalty_kw": 10.0
+  },
+  "execution_order": [
+    "tradeoff"
+  ]
+}

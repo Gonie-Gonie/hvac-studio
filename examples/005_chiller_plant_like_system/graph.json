@@ -1,0 +1,539 @@
+{
+  "schema_version": "0.1.0",
+  "systems": [
+    {
+      "id": "MainSystem",
+      "name": "Plant Loop Example",
+      "components": ["load", "controller", "chiller", "pump", "tower", "aggregator"],
+      "connections": [
+        "load_to_controller",
+        "load_to_chiller",
+        "load_to_pump",
+        "load_to_tower",
+        "controller_to_chiller",
+        "chiller_to_tower",
+        "chiller_to_aggregator",
+        "pump_to_aggregator",
+        "tower_to_aggregator"
+      ],
+      "public_inputs": [
+        {
+          "id": "building_load_kw",
+          "name": "Building Cooling Load",
+          "component": "load",
+          "node": "building_load_kw",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "kW",
+          "required": true
+        },
+        {
+          "id": "base_chw_setpoint_c",
+          "name": "Base Chilled Water Setpoint",
+          "component": "controller",
+          "node": "base_chw_setpoint_c",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "degC",
+          "required": true
+        },
+        {
+          "id": "condenser_entering_temp_c",
+          "name": "Condenser Entering Temperature",
+          "component": "chiller",
+          "node": "condenser_entering_temp_c",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "degC",
+          "required": true
+        }
+      ],
+      "public_outputs": [
+        {
+          "id": "total_power_kw",
+          "name": "Total Plant Power",
+          "component": "aggregator",
+          "node": "total_power_kw",
+          "medium": "electricity",
+          "value_type": "float",
+          "unit": "kW"
+        },
+        {
+          "id": "chiller_power_kw",
+          "name": "Chiller Power",
+          "component": "chiller",
+          "node": "chiller_power_kw",
+          "medium": "electricity",
+          "value_type": "float",
+          "unit": "kW"
+        },
+        {
+          "id": "pump_power_kw",
+          "name": "Pump Power",
+          "component": "pump",
+          "node": "pump_power_kw",
+          "medium": "electricity",
+          "value_type": "float",
+          "unit": "kW"
+        },
+        {
+          "id": "tower_fan_power_kw",
+          "name": "Tower Fan Power",
+          "component": "tower",
+          "node": "tower_fan_power_kw",
+          "medium": "electricity",
+          "value_type": "float",
+          "unit": "kW"
+        },
+        {
+          "id": "chw_supply_temp_c",
+          "name": "Chilled Water Supply Temperature",
+          "component": "chiller",
+          "node": "chw_supply_temp_c",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "degC"
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "load",
+      "name": "Load Model",
+      "kind": "user_python",
+      "category": "physical_component",
+      "execution_mode": "step",
+      "class": "components.load_model.PlantLoad",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "building_load_kw",
+            "name": "Building Cooling Load",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "plant_load_kw",
+            "name": "Plant Cooling Load",
+            "preset": "water_outlet",
+            "direction": "outlet",
+            "medium": "water",
+            "value_type": "float",
+            "unit": "kW"
+          }
+        ]
+      },
+      "parameters": {
+        "load_factor": 1.1
+      },
+      "parameter_defs": {
+        "load_factor": {
+          "display_name": "Load Factor",
+          "default": 1.1,
+          "current": 1.1,
+          "bounds": {"min": 0.8, "max": 1.3},
+          "role": "calibration_target",
+          "group": "Load"
+        }
+      }
+    },
+    {
+      "id": "controller",
+      "name": "Reset Controller",
+      "kind": "user_python",
+      "category": "controller",
+      "execution_mode": "step",
+      "class": "components.controller.ResetController",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "plant_load_kw",
+            "name": "Plant Cooling Load",
+            "preset": "water_inlet",
+            "direction": "inlet",
+            "medium": "water",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          },
+          {
+            "id": "base_chw_setpoint_c",
+            "name": "Base Chilled Water Setpoint",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "chw_setpoint_c",
+            "name": "Chilled Water Setpoint",
+            "preset": "control_signal_input",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC"
+          }
+        ]
+      },
+      "parameters": {
+        "reference_load_kw": 500.0,
+        "reset_per_100kw": 0.1
+      },
+      "parameter_defs": {
+        "reference_load_kw": {
+          "display_name": "Reference Load",
+          "unit": "kW",
+          "default": 500.0,
+          "current": 500.0,
+          "role": "fixed",
+          "group": "Control"
+        },
+        "reset_per_100kw": {
+          "display_name": "Reset Slope",
+          "unit": "K/100kW",
+          "default": 0.1,
+          "current": 0.1,
+          "bounds": {"min": 0.0, "max": 0.3},
+          "role": "optimization_variable",
+          "group": "Control"
+        }
+      }
+    },
+    {
+      "id": "chiller",
+      "name": "Electric Chiller",
+      "kind": "user_python",
+      "category": "physical_component",
+      "execution_mode": "step",
+      "class": "components.chiller.ElectricChiller",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "plant_load_kw",
+            "name": "Plant Cooling Load",
+            "preset": "water_inlet",
+            "direction": "inlet",
+            "medium": "water",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          },
+          {
+            "id": "chw_setpoint_c",
+            "name": "Chilled Water Setpoint",
+            "preset": "control_signal_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC",
+            "required": true
+          },
+          {
+            "id": "condenser_entering_temp_c",
+            "name": "Condenser Entering Temperature",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "chiller_power_kw",
+            "name": "Chiller Electric Power",
+            "preset": "electric_power_output",
+            "direction": "outlet",
+            "medium": "electricity",
+            "value_type": "float",
+            "unit": "kW"
+          },
+          {
+            "id": "chw_supply_temp_c",
+            "name": "Chilled Water Supply Temperature",
+            "preset": "water_outlet",
+            "direction": "outlet",
+            "medium": "water",
+            "value_type": "float",
+            "unit": "degC"
+          }
+        ]
+      },
+      "parameters": {
+        "cop": 6.0,
+        "reference_condenser_temp_c": 30.0,
+        "lift_penalty_kw_per_k": 3.0,
+        "approach_c": 0.2
+      },
+      "parameter_defs": {
+        "cop": {
+          "display_name": "Coefficient of Performance",
+          "default": 6.0,
+          "current": 6.0,
+          "bounds": {"min": 3.0, "max": 8.0},
+          "role": "calibration_target",
+          "group": "Chiller"
+        },
+        "reference_condenser_temp_c": {
+          "display_name": "Reference Condenser Temp",
+          "unit": "degC",
+          "default": 30.0,
+          "current": 30.0,
+          "role": "fixed",
+          "group": "Chiller"
+        },
+        "lift_penalty_kw_per_k": {
+          "display_name": "Lift Penalty",
+          "unit": "kW/K",
+          "default": 3.0,
+          "current": 3.0,
+          "bounds": {"min": 0.0, "max": 8.0},
+          "role": "calibration_target",
+          "group": "Chiller"
+        },
+        "approach_c": {
+          "display_name": "Supply Approach",
+          "unit": "K",
+          "default": 0.2,
+          "current": 0.2,
+          "bounds": {"min": 0.0, "max": 1.0},
+          "role": "fixed",
+          "group": "Chiller"
+        }
+      }
+    },
+    {
+      "id": "pump",
+      "name": "Constant Delta-T Pump",
+      "kind": "user_python",
+      "category": "physical_component",
+      "execution_mode": "step",
+      "class": "components.pump.ConstantDeltaTPump",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "plant_load_kw",
+            "name": "Plant Cooling Load",
+            "preset": "water_inlet",
+            "direction": "inlet",
+            "medium": "water",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "pump_power_kw",
+            "name": "Pump Electric Power",
+            "preset": "electric_power_output",
+            "direction": "outlet",
+            "medium": "electricity",
+            "value_type": "float",
+            "unit": "kW"
+          }
+        ]
+      },
+      "parameters": {
+        "pump_kw_per_cooling_kw": 0.02
+      },
+      "parameter_defs": {
+        "pump_kw_per_cooling_kw": {
+          "display_name": "Pump Power Ratio",
+          "unit": "kW/kW",
+          "default": 0.02,
+          "current": 0.02,
+          "bounds": {"min": 0.005, "max": 0.05},
+          "role": "calibration_target",
+          "group": "Pumps"
+        }
+      }
+    },
+    {
+      "id": "tower",
+      "name": "Cooling Tower",
+      "kind": "user_python",
+      "category": "physical_component",
+      "execution_mode": "step",
+      "class": "components.tower.CoolingTower",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "plant_load_kw",
+            "name": "Plant Cooling Load",
+            "preset": "water_inlet",
+            "direction": "inlet",
+            "medium": "water",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          },
+          {
+            "id": "chiller_power_kw",
+            "name": "Chiller Electric Power",
+            "preset": "electric_power_output",
+            "direction": "inlet",
+            "medium": "electricity",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "tower_fan_power_kw",
+            "name": "Tower Fan Power",
+            "preset": "electric_power_output",
+            "direction": "outlet",
+            "medium": "electricity",
+            "value_type": "float",
+            "unit": "kW"
+          }
+        ]
+      },
+      "parameters": {
+        "fan_kw_per_heat_kw": 0.01
+      },
+      "parameter_defs": {
+        "fan_kw_per_heat_kw": {
+          "display_name": "Fan Power Ratio",
+          "unit": "kW/kW",
+          "default": 0.01,
+          "current": 0.01,
+          "bounds": {"min": 0.002, "max": 0.03},
+          "role": "calibration_target",
+          "group": "Tower"
+        }
+      }
+    },
+    {
+      "id": "aggregator",
+      "name": "Plant Output Aggregator",
+      "kind": "user_python",
+      "category": "utility",
+      "execution_mode": "step",
+      "class": "components.aggregator.PlantAggregator",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "chiller_power_kw",
+            "name": "Chiller Electric Power",
+            "preset": "electric_power_output",
+            "direction": "inlet",
+            "medium": "electricity",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          },
+          {
+            "id": "pump_power_kw",
+            "name": "Pump Electric Power",
+            "preset": "electric_power_output",
+            "direction": "inlet",
+            "medium": "electricity",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          },
+          {
+            "id": "tower_fan_power_kw",
+            "name": "Tower Fan Power",
+            "preset": "electric_power_output",
+            "direction": "inlet",
+            "medium": "electricity",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "total_power_kw",
+            "name": "Total Plant Power",
+            "preset": "electric_power_output",
+            "direction": "outlet",
+            "medium": "electricity",
+            "value_type": "float",
+            "unit": "kW"
+          }
+        ]
+      },
+      "parameters": {
+        "aux_power_kw": 4.0
+      },
+      "parameter_defs": {
+        "aux_power_kw": {
+          "display_name": "Auxiliary Power",
+          "unit": "kW",
+          "default": 4.0,
+          "current": 4.0,
+          "role": "fixed",
+          "group": "Plant"
+        }
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "load_to_controller",
+      "from": {"component": "load", "node": "plant_load_kw"},
+      "to": {"component": "controller", "node": "plant_load_kw"}
+    },
+    {
+      "id": "load_to_chiller",
+      "from": {"component": "load", "node": "plant_load_kw"},
+      "to": {"component": "chiller", "node": "plant_load_kw"}
+    },
+    {
+      "id": "load_to_pump",
+      "from": {"component": "load", "node": "plant_load_kw"},
+      "to": {"component": "pump", "node": "plant_load_kw"}
+    },
+    {
+      "id": "load_to_tower",
+      "from": {"component": "load", "node": "plant_load_kw"},
+      "to": {"component": "tower", "node": "plant_load_kw"}
+    },
+    {
+      "id": "controller_to_chiller",
+      "from": {"component": "controller", "node": "chw_setpoint_c"},
+      "to": {"component": "chiller", "node": "chw_setpoint_c"},
+      "allow_medium_mismatch": true,
+      "medium_override_reason": "control signal drives chiller setpoint"
+    },
+    {
+      "id": "chiller_to_tower",
+      "from": {"component": "chiller", "node": "chiller_power_kw"},
+      "to": {"component": "tower", "node": "chiller_power_kw"},
+      "allow_medium_mismatch": true,
+      "medium_override_reason": "tower uses chiller electric power as a scalar heat-rejection proxy"
+    },
+    {
+      "id": "chiller_to_aggregator",
+      "from": {"component": "chiller", "node": "chiller_power_kw"},
+      "to": {"component": "aggregator", "node": "chiller_power_kw"}
+    },
+    {
+      "id": "pump_to_aggregator",
+      "from": {"component": "pump", "node": "pump_power_kw"},
+      "to": {"component": "aggregator", "node": "pump_power_kw"}
+    },
+    {
+      "id": "tower_to_aggregator",
+      "from": {"component": "tower", "node": "tower_fan_power_kw"},
+      "to": {"component": "aggregator", "node": "tower_fan_power_kw"}
+    }
+  ]
+}

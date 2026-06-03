@@ -1,0 +1,20 @@
+{
+  "id": "baseline",
+  "name": "Baseline Plant Parameters",
+  "created_at_utc": "2026-06-03T00:00:00Z",
+  "components": {
+    "load": {
+      "load_factor": 1.1
+    },
+    "chiller": {
+      "cop": 6.0,
+      "lift_penalty_kw_per_k": 3.0
+    },
+    "pump": {
+      "pump_kw_per_cooling_kw": 0.02
+    },
+    "tower": {
+      "fan_kw_per_heat_kw": 0.01
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "project_name": "005_chiller_plant_like_system",
+  "schema_version": "0.1.0",
+  "engine_version": "0.1.0",
+  "entry_system": "MainSystem",
+  "graph": "graph.json",
+  "environment": {
+    "mode": "project",
+    "python": "python",
+    "lockfile": "requirements.lock.txt"
+  },
+  "default_input": "inputs/case01.json",
+  "default_output": "outputs/result.json"
+}

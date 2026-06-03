@@ -1,0 +1,173 @@
+{
+  "schema_version": "0.1.0",
+  "systems": [
+    {
+      "id": "MainSystem",
+      "name": "Stateful Controller",
+      "components": ["controller"],
+      "connections": [],
+      "public_inputs": [
+        {
+          "id": "measured_supply_temp_c",
+          "name": "Measured Supply Temperature",
+          "component": "controller",
+          "node": "measured_supply_temp_c",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "degC",
+          "required": true
+        },
+        {
+          "id": "target_supply_temp_c",
+          "name": "Target Supply Temperature",
+          "component": "controller",
+          "node": "target_supply_temp_c",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "degC",
+          "required": true
+        }
+      ],
+      "public_outputs": [
+        {
+          "id": "chw_setpoint_c",
+          "name": "Chilled Water Setpoint",
+          "component": "controller",
+          "node": "chw_setpoint_c",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "degC"
+        },
+        {
+          "id": "control_effort_k",
+          "name": "Control Effort",
+          "component": "controller",
+          "node": "control_effort_k",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "K"
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "controller",
+      "name": "PI Reset Controller",
+      "kind": "user_python",
+      "category": "controller",
+      "execution_mode": "step",
+      "class": "components.controller.PIResetController",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "measured_supply_temp_c",
+            "name": "Measured Supply Temperature",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC",
+            "required": true
+          },
+          {
+            "id": "target_supply_temp_c",
+            "name": "Target Supply Temperature",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "chw_setpoint_c",
+            "name": "Chilled Water Setpoint",
+            "preset": "control_signal_input",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC"
+          },
+          {
+            "id": "control_effort_k",
+            "name": "Control Effort",
+            "preset": "scalar_output",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "K"
+          }
+        ]
+      },
+      "parameters": {
+        "base_setpoint_c": 7.0,
+        "kp": 0.4,
+        "ki": 0.1,
+        "min_setpoint_c": 5.5,
+        "max_setpoint_c": 9.0
+      },
+      "parameter_defs": {
+        "base_setpoint_c": {
+          "display_name": "Base Setpoint",
+          "unit": "degC",
+          "default": 7.0,
+          "current": 7.0,
+          "role": "scenario_input",
+          "group": "Control"
+        },
+        "kp": {
+          "display_name": "Proportional Gain",
+          "default": 0.4,
+          "current": 0.4,
+          "bounds": {"min": 0.0, "max": 2.0},
+          "role": "calibration_target",
+          "group": "Control"
+        },
+        "ki": {
+          "display_name": "Integral Gain",
+          "default": 0.1,
+          "current": 0.1,
+          "bounds": {"min": 0.0, "max": 1.0},
+          "role": "calibration_target",
+          "group": "Control"
+        },
+        "min_setpoint_c": {
+          "display_name": "Minimum Setpoint",
+          "unit": "degC",
+          "default": 5.5,
+          "current": 5.5,
+          "role": "fixed",
+          "group": "Limits"
+        },
+        "max_setpoint_c": {
+          "display_name": "Maximum Setpoint",
+          "unit": "degC",
+          "default": 9.0,
+          "current": 9.0,
+          "role": "fixed",
+          "group": "Limits"
+        }
+      },
+      "state_defs": {
+        "calls": {
+          "display_name": "Evaluation Count",
+          "initial": 0
+        },
+        "integral_error": {
+          "display_name": "Integrated Error",
+          "unit": "K-min",
+          "initial": 0.0
+        },
+        "last_error": {
+          "display_name": "Last Error",
+          "unit": "K",
+          "initial": 0.0
+        }
+      }
+    }
+  ],
+  "connections": []
+}

@@ -1,0 +1,175 @@
+{
+  "schema_version": "0.1.0",
+  "systems": [
+    {
+      "id": "MainSystem",
+      "name": "Optimization Tradeoff",
+      "components": ["tradeoff"],
+      "connections": [],
+      "public_inputs": [
+        {
+          "id": "building_load_kw",
+          "name": "Building Cooling Load",
+          "component": "tradeoff",
+          "node": "building_load_kw",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "kW",
+          "required": true
+        },
+        {
+          "id": "chw_setpoint_c",
+          "name": "Chilled Water Setpoint",
+          "component": "tradeoff",
+          "node": "chw_setpoint_c",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "degC",
+          "required": true
+        }
+      ],
+      "public_outputs": [
+        {
+          "id": "objective_kw",
+          "name": "Objective",
+          "component": "tradeoff",
+          "node": "objective_kw",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "kW"
+        },
+        {
+          "id": "chiller_power_kw",
+          "name": "Chiller Power",
+          "component": "tradeoff",
+          "node": "chiller_power_kw",
+          "medium": "electricity",
+          "value_type": "float",
+          "unit": "kW"
+        },
+        {
+          "id": "comfort_penalty_kw",
+          "name": "Comfort Penalty",
+          "component": "tradeoff",
+          "node": "comfort_penalty_kw",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "kW"
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "tradeoff",
+      "name": "Setpoint Tradeoff",
+      "kind": "user_python",
+      "category": "utility",
+      "execution_mode": "step",
+      "class": "components.tradeoff.SetpointTradeoff",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "building_load_kw",
+            "name": "Building Cooling Load",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          },
+          {
+            "id": "chw_setpoint_c",
+            "name": "Chilled Water Setpoint",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "objective_kw",
+            "name": "Objective",
+            "preset": "scalar_output",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "kW"
+          },
+          {
+            "id": "chiller_power_kw",
+            "name": "Chiller Power",
+            "preset": "electric_power_output",
+            "direction": "outlet",
+            "medium": "electricity",
+            "value_type": "float",
+            "unit": "kW"
+          },
+          {
+            "id": "comfort_penalty_kw",
+            "name": "Comfort Penalty",
+            "preset": "scalar_output",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "kW"
+          }
+        ]
+      },
+      "parameters": {
+        "cop": 5.0,
+        "reference_setpoint_c": 6.0,
+        "power_credit_kw_per_k": 8.0,
+        "comfort_limit_c": 7.0,
+        "comfort_penalty_kw_per_k2": 40.0
+      },
+      "parameter_defs": {
+        "cop": {
+          "display_name": "Coefficient of Performance",
+          "default": 5.0,
+          "current": 5.0,
+          "bounds": {"min": 3.0, "max": 8.0},
+          "role": "calibration_target",
+          "group": "Model"
+        },
+        "reference_setpoint_c": {
+          "display_name": "Reference Setpoint",
+          "unit": "degC",
+          "default": 6.0,
+          "current": 6.0,
+          "role": "fixed",
+          "group": "Model"
+        },
+        "power_credit_kw_per_k": {
+          "display_name": "Power Credit",
+          "unit": "kW/K",
+          "default": 8.0,
+          "current": 8.0,
+          "role": "optimization_variable",
+          "group": "Objective"
+        },
+        "comfort_limit_c": {
+          "display_name": "Comfort Limit",
+          "unit": "degC",
+          "default": 7.0,
+          "current": 7.0,
+          "role": "fixed",
+          "group": "Objective"
+        },
+        "comfort_penalty_kw_per_k2": {
+          "display_name": "Comfort Penalty",
+          "unit": "kW/K2",
+          "default": 40.0,
+          "current": 40.0,
+          "role": "optimization_variable",
+          "group": "Objective"
+        }
+      }
+    }
+  ],
+  "connections": []
+}

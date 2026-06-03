@@ -1966,6 +1966,37 @@ func TestProjectEndpointIncludesDefaultRunInput(t *testing.T) {
 	}
 }
 
+func TestProjectEndpointIncludesDatasetAndParameterSetSummaries(t *testing.T) {
+	server := newTestServer(t)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/project?project_path=examples/005_chiller_plant_like_system/project.bcsproj", nil)
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Project ProjectDetail `json:"project"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Project.Datasets) != 1 {
+		t.Fatalf("dataset count = %d", len(body.Project.Datasets))
+	}
+	dataset := body.Project.Datasets[0]
+	if dataset.ID != "plant_validation" || dataset.RowCount != 3 || dataset.ColumnCount != 6 {
+		t.Fatalf("dataset summary = %#v", dataset)
+	}
+	if len(body.Project.ParameterSets) != 2 {
+		t.Fatalf("parameter set count = %d", len(body.Project.ParameterSets))
+	}
+	if body.Project.ParameterSets[0].ParameterCount == 0 {
+		t.Fatalf("parameter set summary = %#v", body.Project.ParameterSets[0])
+	}
+}
+
 func TestUpdateLayoutEndpointWritesWorkspaceLayout(t *testing.T) {
 	root, server := newIsolatedTestServer(t)
 	project := createWorkspaceProject(t, server, "Layout Project")

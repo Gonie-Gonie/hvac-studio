@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -58,6 +59,8 @@ type ProjectDetail struct {
 	Batches          []BatchSummary        `json:"batches"`
 	Exports          []ExportSummary       `json:"exports"`
 	Scenarios        []ScenarioSummary     `json:"scenarios"`
+	Datasets         []DatasetSummary      `json:"datasets"`
+	ParameterSets    []ParameterSetSummary `json:"parameter_sets"`
 }
 
 type StudioLayout struct {
@@ -296,6 +299,24 @@ type ScenarioSummary struct {
 	Name         string `json:"name"`
 	RelativePath string `json:"relative_path"`
 	CreatedAtUTC string `json:"created_at_utc"`
+}
+
+type DatasetSummary struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	RelativePath string `json:"relative_path"`
+	Format       string `json:"format"`
+	RowCount     int    `json:"row_count"`
+	ColumnCount  int    `json:"column_count"`
+}
+
+type ParameterSetSummary struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	RelativePath   string `json:"relative_path"`
+	CreatedAtUTC   string `json:"created_at_utc"`
+	ComponentCount int    `json:"component_count"`
+	ParameterCount int    `json:"parameter_count"`
 }
 
 type ScenarioRecord struct {
@@ -1337,16 +1358,18 @@ func (s *Server) loadProject(projectPath string) (*project.LoadedProject, error)
 
 func projectDetail(loaded *project.LoadedProject) ProjectDetail {
 	detail := ProjectDetail{
-		Project:     loaded.Project,
-		Graph:       loaded.Graph,
-		ProjectPath: loaded.Path,
-		GraphPath:   loaded.GraphPath,
-		Layout:      loadStudioLayout(loaded.Root),
-		Root:        loaded.Root,
-		Runs:        loadRunSummaries(loaded.Root),
-		Batches:     loadBatchSummaries(loaded.Root),
-		Exports:     loadExportSummaries(loaded.Root),
-		Scenarios:   loadScenarioSummaries(loaded.Root),
+		Project:       loaded.Project,
+		Graph:         loaded.Graph,
+		ProjectPath:   loaded.Path,
+		GraphPath:     loaded.GraphPath,
+		Layout:        loadStudioLayout(loaded.Root),
+		Root:          loaded.Root,
+		Runs:          loadRunSummaries(loaded.Root),
+		Batches:       loadBatchSummaries(loaded.Root),
+		Exports:       loadExportSummaries(loaded.Root),
+		Scenarios:     loadScenarioSummaries(loaded.Root),
+		Datasets:      loadDatasetSummaries(loaded.Root),
+		ParameterSets: loadParameterSetSummaries(loaded.Root),
 	}
 	if inputPath, err := resolveProjectOwnedFile(loaded.Root, loaded.Project.DefaultInput); err == nil {
 		detail.DefaultInputPath = inputPath
@@ -3546,6 +3569,130 @@ func loadScenarioRecord(projectRoot string, scenarioID string) (ScenarioRecord, 
 		return ScenarioRecord{}, apperror.Wrap(apperror.CodeValidation, err)
 	}
 	return record, nil
+}
+
+func loadDatasetSummaries(projectRoot string) []DatasetSummary {
+	files := appendMatchingFiles(filepath.Join(projectRoot, "datasets"), []string{"*.csv", "*.json"})
+	summaries := []DatasetSummary{}
+	for _, path := range files {
+		rel, _ := filepath.Rel(projectRoot, path)
+		id := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+		rowCount, columnCount := datasetShape(path)
+		summaries = append(summaries, DatasetSummary{
+			ID:           id,
+			Name:         displayNameFromID(id),
+			RelativePath: filepath.ToSlash(rel),
+			Format:       strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), "."),
+			RowCount:     rowCount,
+			ColumnCount:  columnCount,
+		})
+	}
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i].RelativePath < summaries[j].RelativePath
+	})
+	return summaries
+}
+
+func loadParameterSetSummaries(projectRoot string) []ParameterSetSummary {
+	files := appendMatchingFiles(filepath.Join(projectRoot, "parameter_sets"), []string{"*.json"})
+	summaries := []ParameterSetSummary{}
+	for _, path := range files {
+		summary, ok := parameterSetSummary(projectRoot, path)
+		if ok {
+			summaries = append(summaries, summary)
+		}
+	}
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i].RelativePath < summaries[j].RelativePath
+	})
+	return summaries
+}
+
+func appendMatchingFiles(root string, patterns []string) []string {
+	files := []string{}
+	for _, pattern := range patterns {
+		matches, err := filepath.Glob(filepath.Join(root, pattern))
+		if err != nil {
+			continue
+		}
+		files = append(files, matches...)
+	}
+	sort.Strings(files)
+	return files
+}
+
+func datasetShape(path string) (int, int) {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".csv":
+		file, err := os.Open(path)
+		if err != nil {
+			return 0, 0
+		}
+		defer file.Close()
+		records, err := csv.NewReader(file).ReadAll()
+		if err != nil || len(records) == 0 {
+			return 0, 0
+		}
+		return len(records) - 1, len(records[0])
+	case ".json":
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return 0, 0
+		}
+		var rows []map[string]any
+		if err := json.Unmarshal(data, &rows); err == nil {
+			if len(rows) == 0 {
+				return 0, 0
+			}
+			return len(rows), len(rows[0])
+		}
+		var object map[string]any
+		if err := json.Unmarshal(data, &object); err == nil {
+			return 1, len(object)
+		}
+	}
+	return 0, 0
+}
+
+func parameterSetSummary(projectRoot string, path string) (ParameterSetSummary, bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ParameterSetSummary{}, false
+	}
+	var record struct {
+		ID           string                    `json:"id"`
+		Name         string                    `json:"name"`
+		CreatedAtUTC string                    `json:"created_at_utc"`
+		Components   map[string]map[string]any `json:"components"`
+		Parameters   map[string]any            `json:"parameters"`
+	}
+	if err := json.Unmarshal(data, &record); err != nil {
+		return ParameterSetSummary{}, false
+	}
+	id := record.ID
+	if id == "" {
+		id = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	}
+	name := record.Name
+	if name == "" {
+		name = displayNameFromID(id)
+	}
+	parameterCount := 0
+	for _, params := range record.Components {
+		parameterCount += len(params)
+	}
+	if parameterCount == 0 && record.Parameters != nil {
+		parameterCount = len(record.Parameters)
+	}
+	rel, _ := filepath.Rel(projectRoot, path)
+	return ParameterSetSummary{
+		ID:             id,
+		Name:           name,
+		RelativePath:   filepath.ToSlash(rel),
+		CreatedAtUTC:   record.CreatedAtUTC,
+		ComponentCount: len(record.Components),
+		ParameterCount: parameterCount,
+	}, true
 }
 
 func writeExportManifest(loaded *project.LoadedProject, profile string) (ExportSummary, ExportManifest, error) {

@@ -1,0 +1,39 @@
+{
+  "ok": true,
+  "outputs": {
+    "total_power_kw": 140.96,
+    "chiller_power_kw": 116.0,
+    "pump_power_kw": 13.2,
+    "tower_fan_power_kw": 7.76,
+    "chw_supply_temp_c": 7.04
+  },
+  "component_outputs": {
+    "load": {
+      "plant_load_kw": 660.0
+    },
+    "controller": {
+      "chw_setpoint_c": 6.84
+    },
+    "chiller": {
+      "chiller_power_kw": 116.0,
+      "chw_supply_temp_c": 7.04
+    },
+    "pump": {
+      "pump_power_kw": 13.2
+    },
+    "tower": {
+      "tower_fan_power_kw": 7.76
+    },
+    "aggregator": {
+      "total_power_kw": 140.96
+    }
+  },
+  "execution_order": [
+    "load",
+    "controller",
+    "pump",
+    "chiller",
+    "tower",
+    "aggregator"
+  ]
+}

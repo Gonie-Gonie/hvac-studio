@@ -1,0 +1,11 @@
+{
+  "inputs": {
+    "building_load_kw": 600.0,
+    "base_chw_setpoint_c": 7.0,
+    "condenser_entering_temp_c": 32.0
+  },
+  "context": {
+    "time": 0,
+    "dt": 60
+  }
+}
