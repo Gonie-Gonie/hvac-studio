@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-04
 
-This document is the planning spine for HVAC Studio. It should explain why the product is built this way, what the current alpha baseline can do, and what should happen next without mixing old implementation notes into future commitments.
+This document is the planning spine for HVAC Studio. It should explain why the product is built this way, what the closed MVP can do, and what should happen next without mixing old implementation notes into future commitments.
 
 HVAC Studio is not a fixed drag-and-drop HVAC component library. It is a Python-first component-node-system authoring and runtime tool for equipment modeling, controls research, validation, calibration, optimization, SDK use, and runtime-only delivery.
 
@@ -162,7 +162,7 @@ Runnable examples are not demos alone. They are contract tests for the runner, p
 
 ## Current Alpha Baseline
 
-Current release baseline:
+Current release baseline and MVP closure point:
 
 ```text
 v0.1.0-alpha.3
@@ -195,27 +195,37 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-relea
 
 ## Milestone Status Summary
 
-| Milestone | Status | Current MVP slice |
+MVP is closed as of `v0.1.0-alpha.3`. Do not add new scope to the MVP. New work belongs in the post-MVP backlog and should be scheduled through alpha hardening, beta usability, 1.0 readiness, or post-1.0 expansion.
+
+| Milestone | Status | Closure baseline |
 | --- | --- | --- |
-| 0. Repository and release foundation | Complete | Repo-local tools, CI, package scripts, release gate |
-| 1. Runtime core contract | Complete | Strict project/graph loading, validation, exit codes, schema export |
-| 2. Component authoring model | Complete | Component metadata, templates, generated-wrapper layout |
-| 3. Feed-forward systems | Complete | Multi-component DAG execution, connection traces, medium rules |
-| 4. Project Explorer and GUI shell | Complete | Studio workspace, project tree, canvas, inspector, APIs |
-| 5. Component-aware Python editor | Complete | Source loading, syntax highlight, source checks, snippets, completions |
-| 6. Run/debug/inspect UX | Complete | Run workspace, traces, batch cases, reusable runtime session, serve mode |
-| 7. Datasets and model validation | Complete MVP | CSV mappings, metrics, high-error inspection, Data command |
-| 8. Parameter manager and parameter sets | Complete MVP | Parameter editing, runtime overlays, parameter-set references |
-| 9. Calibration | Complete MVP | Grid search over parameter bounds, result parameter set |
-| 10. Optimization | Complete MVP | Grid search over public inputs, optimized scenario |
-| 11. SDK and external integration | Complete MVP | Python SDK backed by `bcs-runner serve` |
-| 12. Runtime-only delivery | Complete MVP | Runtime zip smoke tests, export artifacts, delivery-layout example |
-| 13. Installed Studio distribution | Complete MVP | Windows portable zip and desktop entrypoint |
-| 14. User guide and documentation release | Complete MVP | Markdown guide and MkDocs source config |
+| 0. Repository and release foundation | Closed | Repo-local tools, CI, package scripts, release gate, provenance |
+| 1. Runtime core contract | Closed | Strict project/graph loading, validation, exit codes, schema export |
+| 2. Component authoring model | Closed | Component metadata, templates, generated-wrapper layout |
+| 3. Feed-forward systems | Closed | Multi-component DAG execution, connection traces, medium rules |
+| 4. Project Explorer and GUI shell | Closed | Studio workspace, project tree, canvas, inspector, workflow records |
+| 5. Component-aware Python editor | Closed | Source loading, syntax highlight, source checks, snippets, completions |
+| 6. Run/debug/inspect UX | Closed | Run workspace, traces, batch cases, reusable runtime session, serve mode |
+| 7. Datasets and model validation | Closed | CSV mappings, metrics, high-error inspection, saved validation records |
+| 8. Parameter manager and parameter sets | Closed | Parameter editing, runtime overlays, shared Studio selector |
+| 9. Calibration | Closed | Grid search over parameter bounds, result parameter set, saved records |
+| 10. Optimization | Closed | Grid search over public inputs, optimized scenario, saved records |
+| 11. SDK and external integration | Closed | Python SDK backed by `bcs-runner serve` |
+| 12. Runtime-only delivery | Closed | Runtime zip smoke tests, workflow artifact export, delivery example |
+| 13. Installed Studio distribution | Closed | Windows portable zip, desktop entrypoint, alpha.3 release |
+| 14. User guide and documentation release | Closed | Markdown guide, MkDocs config, optional HTML packaging |
 
-## Remaining Work Model
+MVP closure criteria:
 
-All MVP milestones are complete in the sense that each workflow has at least one file-backed, runner-backed, releasable path. The remaining work is depth: making those paths comfortable for daily use, broader across runtime modes, easier to inspect, and stronger as release assets.
+- Every milestone has a file-backed artifact path that can be exercised without hidden Studio-only state.
+- Core workflows run through CLI/runner APIs, with Studio acting as an authoring and inspection layer.
+- Validation, calibration, optimization, parameter-set, SDK, and runtime-export workflows have saved or reproducible artifacts.
+- Windows portable and runtime packages pass the local release gate, and `v0.1.0-alpha.3` is the release baseline.
+- Remaining work changes depth, ergonomics, compatibility, or distribution maturity; it does not reopen MVP scope.
+
+## Post-MVP Work Model
+
+All MVP milestones are complete in the sense that each workflow has at least one file-backed, runner-backed, releasable path. The remaining work is post-MVP depth: making those paths comfortable for daily use, broader across runtime modes, easier to inspect, and stronger as release assets.
 
 | Horizon | Meaning | Planning rule |
 | --- | --- | --- |
@@ -226,7 +236,7 @@ All MVP milestones are complete in the sense that each workflow has at least one
 
 Before a remaining item is considered done, it should have a source artifact, a runner/API path when applicable, a Studio affordance when user-facing, and at least one example, guide section, or smoke/golden check proportional to the risk.
 
-## Completed MVP Milestones
+## MVP Closure Baseline
 
 ### Milestone 0: Foundation
 
@@ -241,10 +251,10 @@ Completed:
 - CI fast checks and package smoke checks.
 - `bcs-env check` for portable/runtime/export diagnostics.
 - Local release candidate gate.
+- Release provenance manifests with git metadata, tool versions, documentation status, and package file lists.
 
-Next depth:
+Post-MVP backlog:
 
-- Add a release provenance manifest that records git SHA, version, tool versions, bundled Python version, and package contents.
 - Keep local setup, CI, package smoke tests, and release gate behavior aligned so a clean machine can reproduce the same result.
 - Add clearer remediation messages for missing Go, uv, Wails, Python, WebView2, and bundled-runtime issues.
 - Periodically test bootstrap from an empty dependency cache and document the expected setup time.
@@ -264,7 +274,7 @@ Completed:
 - One-case run results with public outputs, component IO, states, context, and execution order.
 - `bcs-runner schema`.
 
-Next depth:
+Post-MVP backlog:
 
 - Version `project.bcsproj`, `graph.json`, component manifests, mappings, parameter sets, calibration setups, optimization setups, and export manifests with migration notes.
 - Publish a stable structured error schema for Studio, CLI, SDK, and external-engine consumers.
@@ -285,7 +295,7 @@ Completed:
 - Generated-wrapper example with user body files.
 - Runtime export of component metadata and source.
 
-Next depth:
+Post-MVP backlog:
 
 - Make the generated-wrapper layout the default new-component path while retaining migration support for existing single-file components.
 - Add Studio controls for source layout selection, state definitions, parameter roles, bounds, units, defaults, and visibility.
@@ -306,7 +316,7 @@ Completed:
 - Medium compatibility warnings/errors and explicit overrides.
 - Node and connection traces in run results.
 
-Next depth:
+Post-MVP backlog:
 
 - Visibly mark medium compatibility, warnings, and explicit overrides on the canvas and Inspector.
 - Improve fan-out, fan-in, and long-path readability with connection labels, hover values, and conflict markers.
@@ -330,11 +340,14 @@ Completed:
 - Parameter Manager.
 - Runtime export.
 - Source checks before run/batch/export.
+- Saved validation, calibration, and optimization result records.
+- Project tree summaries and reopen APIs for workflow result records.
+- Shared parameter-set selector for Run, Batch, and Data validation.
 
-Next depth:
+Post-MVP backlog:
 
 - Replace remaining raw JSON result surfaces with structured views for datasets, validation runs, parameter sets, calibration results, optimization results, exports, and logs.
-- Add first-class artifact openers and editors for mappings, scenarios, runs, batches, parameter sets, calibration setups, optimization setups, and export manifests.
+- Add first-class artifact editors for mappings, scenarios, runs, batches, parameter sets, calibration setups, optimization setups, and export manifests.
 - Add project tree search/filter, artifact grouping, empty states, rename/delete affordances, and safer dirty-state prompts.
 - Define undo/redo scope for canvas edits, Inspector edits, source edits, and artifact creation.
 - Continue screenshot-based readability passes for project tree density, command bars, canvas contrast, Inspector tables, bottom panels, and small-window behavior.
@@ -353,7 +366,7 @@ Completed:
 - Snippets and contract-derived completions.
 - Source checks for signatures, syntax, imports, class loading, visible IO references, and undefined-name hints.
 
-Next depth:
+Post-MVP backlog:
 
 - Add formatting support that preserves generated-wrapper boundaries and user-editable regions.
 - Add hover documentation for public IO, parameters, state, context, return shape, and common runtime helpers.
@@ -375,7 +388,7 @@ Completed:
 - Canvas/Inspector/Code integration for latest run values.
 - Stale result marking after runtime-affecting edits.
 
-Next depth:
+Post-MVP backlog:
 
 - Add a native time-series runner contract with explicit input series, timestep/context handling, state carryover, and result shape.
 - Add run comparison for baseline vs scenario vs parameter set vs calibration result vs optimization result.
@@ -396,12 +409,13 @@ Completed:
 - Metrics: RMSE, MAE, MBE, CVRMSE, R2.
 - Row summaries and high-error row inspection.
 - Studio Project tree dataset/validation sections and `Data` command.
+- Saved validation run records with Studio and CLI support.
 
-Next depth:
+Post-MVP backlog:
 
 - Build a dataset import and mapping workflow with column detection, preview, unit hints, missing-value policy, and public IO matching.
 - Support JSON/JSONL and weather-style time-series formats after CSV remains stable.
-- Persist validation run records with mapping, dataset checksum, parameter set, metrics, high-error rows, and runner version.
+- Enrich validation run records with dataset checksum, graph checksum, runner version, and source freshness.
 - Add measured-vs-simulated plots, scatter plots, residual plots, histograms, operating-range summaries, and row-level navigation.
 - Add validation comparison across parameter sets, calibration results, and scenarios.
 - Document data expectations, missing-data handling, row ordering, and reproducibility rules.
@@ -418,12 +432,13 @@ Completed:
 - `validate-data --parameter-set` runtime overlay.
 - Studio run/validation APIs accept `parameter_set_path`.
 - Run results and records preserve parameter-set path.
+- Studio Run, Batch, and Data validation workflows share one active parameter-set selector.
 
-Next depth:
+Post-MVP backlog:
 
 - Add a parameter-set editor with filters by component, role, unit, changed-only, calibratable, optimizable, and validation status.
 - Add diff/apply/revert views for baseline graph parameters, parameter sets, calibration outputs, and imported sets.
-- Add parameter-set selection to run, batch, validation, calibration, optimization, SDK, and export workflows consistently.
+- Add parameter-set selection to calibration, optimization, SDK, and generated export scripts consistently.
 - Define project/system/scenario/run-level parameter precedence and document replay behavior.
 - Support derived/read-only parameters only after the artifact format and validation rules are explicit.
 - Add import/export helpers for CSV and JSON parameter libraries.
@@ -441,13 +456,14 @@ Completed:
 - Base parameter set support.
 - Numeric parameter bounds.
 - Result parameter set saving without overwriting `graph.json`.
+- Saved calibration result records with Studio and CLI support.
 
-Next depth:
+Post-MVP backlog:
 
 - Build a Studio calibration setup editor for dataset mapping, target outputs, candidate parameters, bounds, weights, base parameter set, and stopping rules.
 - Add a candidate-grid preview with estimated run count, invalid-bound warnings, and parameter role filters.
 - Add non-grid algorithms such as differential evolution and least squares behind a stable algorithm contract.
-- Persist calibration result records with objective history, best parameters, failed candidates, runtime metadata, and source artifact checksums.
+- Enrich calibration result records with objective history, failed candidates, runtime metadata, and source artifact checksums.
 - Add calibration result comparison, apply-to-parameter-set, and report export workflows.
 - Provide a tutorial that starts from a noisy dataset and ends with a saved parameter set.
 
@@ -463,13 +479,14 @@ Completed:
 - Base inputs and context.
 - Objective output with min/max sense.
 - Optimized scenario saving.
+- Saved optimization result records with Studio and CLI support.
 
-Next depth:
+Post-MVP backlog:
 
 - Build a Studio optimization setup editor for decision variables, objective outputs, sense, constraints, base inputs, base scenario, and base parameter set.
 - Support component-parameter decision variables in addition to public input decision variables.
 - Add constraints for bounds, output limits, feasibility checks, and invalid-run penalties.
-- Persist optimization result records with objective history, best candidate, failed candidates, scenario output, and runtime metadata.
+- Enrich optimization result records with objective history, failed candidates, scenario output, and runtime metadata.
 - Add CSV export, scenario export, and SDK script export for repeatable optimization studies.
 - Add multi-objective and scenario/batch optimization only after single-objective artifacts are stable.
 
@@ -485,7 +502,7 @@ Completed:
 - SDK returns the same structured runner result.
 - Optimization example script uses the SDK.
 
-Next depth:
+Post-MVP backlog:
 
 - Add SDK helpers for parameter sets, scenarios, batches, validation mappings, calibration setups, optimization setups, and runtime exports.
 - Add typed SDK exceptions that preserve runner error code, command, source location, component, node, and raw diagnostic payload.
@@ -504,14 +521,15 @@ Completed:
 - Runtime package smoke tests.
 - Studio runtime export folder with project files, public IO schema, scripts, manifest, runner tools, and packaged runtime when available.
 - Runtime-only delivery-layout example.
+- Runtime exports include datasets, parameter sets, validation mappings, calibration setups, and optimization setups.
 
-Next depth:
+Post-MVP backlog:
 
 - Generate a model-specific CLI guide during export that lists public IO, available scenarios, parameter sets, mappings, calibration setups, optimization setups, and smoke commands.
-- Include validation, calibration, optimization, parameter-set, scenario, batch, and run-record artifacts in export manifests with checksums.
+- Include run-record, batch-record, validation-result, calibration-result, and optimization-result artifacts in export manifests when selected, with checksums.
 - Generate run, batch, validation, calibration, and optimization scripts appropriate to the exported model.
 - Add a runtime logging folder convention and diagnostic bundle command.
-- Add runtime package provenance, license notices, dependency notices, and environment compatibility checks.
+- Add license notices, dependency notices, stronger checksums, and environment compatibility notes.
 - Keep runtime-only folders runnable without Studio and without hidden references to the source checkout.
 
 ### Milestone 13: Studio Distribution
@@ -525,9 +543,9 @@ Completed:
 - `bin/studio.exe --server` for automation.
 - Package smoke coverage for Studio API and runner examples.
 - Runtime/export environment checks.
-- `v0.1.0-alpha.1` and `v0.1.0-alpha.2` release tags.
+- `v0.1.0-alpha.1`, `v0.1.0-alpha.2`, and `v0.1.0-alpha.3` release tags.
 
-Next depth:
+Post-MVP backlog:
 
 - Add installer packaging after portable zip behavior, environment checks, and release gates are stable.
 - Add WebView2/runtime detection with user-facing remediation and packaged fallback policy.
@@ -546,71 +564,89 @@ Completed:
 - Quick start, concepts, internals, authoring, Python editing, system building, parameters, run/inspect, validation, calibration, optimization, CLI, export, troubleshooting, glossary.
 - `mkdocs.yml` source configuration.
 - Runtime-only example CLI guide.
+- Package scripts include Markdown docs and optionally build MkDocs HTML when `mkdocs` is available.
 
-Next depth:
+Post-MVP backlog:
 
-- Build offline MkDocs HTML docs as release assets and include them in portable/runtime packages where appropriate.
+- Make offline MkDocs HTML docs a required release asset once `mkdocs` is installed in CI/release environments.
 - Add PDF manual generation once the Markdown guide structure is stable.
 - Add in-app help links from Start, Project tree, System canvas, Inspector, Code, Run, Data, Parameters, Calibration, Optimization, Export, and Settings.
 - Add screenshot-backed tutorials for component authoring, system building, validation, parameter sets, calibration, optimization, SDK use, and runtime-only delivery.
 - Add a "concept map" page that explains how project artifacts relate to Studio screens, CLI commands, SDK calls, and exported packages.
 - Keep docs versioned with releases and record behavior differences for alpha/beta/stable builds.
 
-## Near-Term Update Sequence
+## Post-MVP Backlog
 
-1. Alpha hardening release: finish schema/error compatibility notes, release provenance, artifact openers, parameter-set selector consistency, saved validation/calibration/optimization result records, and docs build packaging.
-2. Beta usability release: add dataset mapping UI, parameter-set diff editor, calibration setup editor, optimization setup editor, validation/result plots, and screenshot-backed tutorials.
-3. 1.0 candidate release: freeze public artifact schemas, package offline docs, add installer/signing/provenance flow, complete migration docs, and run clean-machine release rehearsals.
-4. Post-1.0 expansion: add native time-series execution, vectorized/external-executable component modes, loop solver boundaries, broader SDK helpers, and experimental non-Windows packages.
+Backlog IDs are the planning source for post-MVP work. Milestone numbers remain historical closure context; new work should reference a `PM-*` backlog item instead of reopening an MVP milestone. This section is the canonical list of known unimplemented work after MVP closure.
 
-## Post-MVP Roadmap
+### P0: Alpha Hardening
 
-### Track A: Runtime Contract Hardening
+These items should happen before a beta usability push because they stabilize contracts, records, and repeated user workflows.
 
-- Schema versioning and migrations.
-- First-class time-series execution.
-- Vectorized component execution mode.
-- External executable component mode.
-- Richer unit/value-type validation.
-- Solver-boundary design for loops.
-- Stable structured error schema for all commands.
+| ID | Area | Unimplemented item | Done when |
+| --- | --- | --- | --- |
+| PM-001 | Runtime contract | Schema versioning and migration notes for project, graph, component, mapping, parameter-set, calibration, optimization, export, and result-record artifacts | Schemas carry versions, compatibility notes exist, and tests cover old/new fixture loading |
+| PM-002 | Runtime contract | Stable structured error schema across CLI, Studio, SDK, serve, validation, calibration, optimization, and export | Every command can emit machine-readable error kind, location, component/node/source metadata, and docs explain the shape |
+| PM-003 | Reproducibility | Enriched result records with graph checksum, source freshness, dataset checksum, runner version, package version, and artifact references | Run, batch, validation, calibration, and optimization records can be replayed or rejected with clear mismatch diagnostics |
+| PM-004 | Studio artifacts | Structured artifact browser for datasets, mappings, parameter sets, validation records, calibration results, optimization results, scenarios, batches, runs, and exports | Project tree rows open structured views instead of raw JSON where user decisions are expected |
+| PM-005 | Studio artifacts | Artifact rename/delete/copy policy with dirty-state and undo/redo boundaries | User-facing artifact edits are reversible or clearly confirmed, and generated records remain protected |
+| PM-006 | Data validation | Dataset import and mapping UI with preview, column detection, unit hints, missing-value policy, and public IO matching | A user can create a dataset mapping in Studio without hand-editing JSON |
+| PM-007 | Data validation | Validation plots and comparison views | Measured-vs-simulated, scatter, residual, histogram, operating-range, and parameter-set comparison views exist |
+| PM-008 | Parameters | Parameter-set editor, filters, diff/apply/revert, import/export, and precedence rules | Users can inspect and apply parameter differences without editing JSON; docs define precedence |
+| PM-009 | Calibration | Studio calibration setup and result workspace | Users can select mapping, targets, candidate parameters, bounds, base parameter set, run calibration, compare results, and apply saved parameter sets |
+| PM-010 | Optimization | Studio optimization setup and result workspace | Users can define decision variables, objective, base inputs/scenario/parameter set, run optimization, inspect candidates, and save scenarios/scripts |
+| PM-011 | SDK | SDK helpers for parameter sets, scenarios, batches, validation, calibration, optimization, runtime export, and typed exceptions | Python scripts can call the same workflows without manually assembling CLI JSON |
+| PM-012 | Runtime export | Generated export commands for run, batch, validation, calibration, and optimization plus optional inclusion of selected result records | Exported folders are self-describing for every workflow they include |
+| PM-013 | Release | Required docs HTML build in CI, alpha/beta GitHub prerelease marking, checksums, and stronger provenance validation | Release workflow fails if required docs/provenance/checksum artifacts are missing and prerelease tags are marked correctly |
 
-### Track B: Studio Workflow Depth
+### P1: Beta Usability
 
-- Dataset import and mapping editor.
-- Validation results workspace with plots.
-- Parameter set diff/editor.
-- Calibration setup/result workspace.
-- Optimization setup/result workspace.
-- Better source editor diagnostics and quick fixes.
-- Serve/session status workspace.
+These items make the existing workflows feel like a product rather than a set of connected primitives.
 
-### Track C: Research And SDK
+| ID | Area | Unimplemented item | Done when |
+| --- | --- | --- | --- |
+| PM-101 | Component authoring | Generated-wrapper as default new-component path with migration support for single-file components | New components default to protected generated wrapper layout and existing projects still load |
+| PM-102 | Component authoring | Studio controls for state definitions, source layout, parameter roles, bounds, units, defaults, visibility, and templates | Component contracts can be authored in Studio without direct graph editing |
+| PM-103 | Component templates | Controller, stateful, data source, data sink, utility, external executable placeholder, and vectorized placeholder templates | Templates are selectable, documented, smoke-tested, and included in packages |
+| PM-104 | Canvas | Medium badges, override markers, connection annotations, fan-in/fan-out readability, and long-path conflict markers | Users can understand connection semantics at canvas scale |
+| PM-105 | Python editor | Formatting, hover docs, richer completions, quick fixes, stable problem markers, and traceback-to-line mapping | Common source problems can be diagnosed and fixed inside Studio |
+| PM-106 | Run/inspect | Run comparison, trace timelines, value charts, component timing bars, structured logs, cancellation, timeout, and failed-run recovery UX | Repeated run/debug sessions are inspectable without reading JSON |
+| PM-107 | Documentation | In-app help links and screenshot-backed tutorials for authoring, system building, validation, parameters, calibration, optimization, SDK, and delivery | Major workspaces link to local docs and tutorials match current UI |
+| PM-108 | Examples | Dataset validation, calibration, optimization, runtime-only delivery, controller, plant, and time-series tutorials | Examples double as smoke/regression assets and user learning paths |
 
-- SDK parameter-set support.
-- SDK batch and scenario helpers.
-- SDK validation/calibration/optimization wrappers.
-- Example notebooks/scripts for research loops.
-- External-engine integration examples with stable JSON contracts.
+### P2: 1.0 Readiness
 
-### Track D: Delivery And Release
+These items are about support promises, installation, and compatibility rather than new modeling power.
 
-- Runtime export docs generated per model.
-- MkDocs HTML site packaged with releases.
-- PDF manual.
-- Windows installer.
-- Signing and release provenance.
-- macOS experimental package after Windows portable/installer stability.
+| ID | Area | Unimplemented item | Done when |
+| --- | --- | --- | --- |
+| PM-201 | Compatibility | Artifact schema freeze, migration tooling, migration docs, and compatibility policy | Users can upgrade alpha/beta projects with documented behavior |
+| PM-202 | Distribution | Windows installer, WebView2/runtime checks, Start menu integration, optional PATH registration, `.bcsproj` association policy, and update channels | Installer behavior is tested separately from portable zip behavior |
+| PM-203 | Release trust | Code signing, checksums, license notices, dependency notices, support matrix, and release-note discipline | Release assets are verifiable and support boundaries are explicit |
+| PM-204 | Documentation | Required offline HTML docs, PDF manual, versioned docs, and concept map tying artifacts to Studio/CLI/SDK/export surfaces | Docs can be shipped and reviewed as release assets |
+| PM-205 | Rehearsal | Clean-machine setup, package smoke, installer smoke, runtime export smoke, and upgrade rehearsal | A release candidate can be reproduced from a clean Windows machine |
 
-### Track E: Examples And Templates
+### P3: Post-1.0 Expansion
 
-- HVAC plant template.
-- Controller template.
-- Stateful time-series example.
-- Dataset validation tutorial.
-- Calibration tutorial.
-- Optimization tutorial.
-- Runtime-only delivery tutorial.
+These items broaden the engine. They should not block beta or 1.0 unless a real user commitment requires them.
+
+| ID | Area | Unimplemented item | Done when |
+| --- | --- | --- | --- |
+| PM-301 | Time-series | Native time-series runner contract with timestep/context handling, state carryover, series result shape, and plots | Time-indexed runs do not depend on ad hoc CSV validation loops |
+| PM-302 | Execution modes | Vectorized component execution mode | Component contract, worker protocol, examples, and Studio metadata support vectorized calls |
+| PM-303 | Execution modes | External executable component mode | External process lifecycle, IO schema, errors, packaging, and examples are defined |
+| PM-304 | Solvers | Feedback-loop ADR and solver-boundary implementation | Loop behavior exists only behind explicit solver components/boundaries |
+| PM-305 | Units | Optional unit conversion and richer value-type validation | Compatibility checks remain helpful without interpreting user physics |
+| PM-306 | Composition | Composite systems and nested public IO boundaries | Composite projects preserve explicit public IO and runner/compiler contracts |
+| PM-307 | SDK scale | Async or pooled SDK evaluation for external optimization/co-simulation engines | High-volume evaluations reuse runner sessions safely |
+| PM-308 | Platforms | Experimental macOS package after Windows portable/installer stability | macOS packaging has its own platform checks, signing/notarization review, and support caveats |
+
+## Post-MVP Release Sequence
+
+1. `v0.1.x-alpha`: complete P0 alpha hardening and keep release gates green.
+2. `v0.2.0-beta`: ship P1 Studio usability workflows and screenshot-backed docs.
+3. `v1.0.0-rc`: finish P2 compatibility, installer, provenance, docs, and clean-machine rehearsals.
+4. `v1.x`: begin P3 engine/platform expansion behind explicit contracts.
 
 ## Release Gates
 
@@ -633,7 +669,7 @@ For GUI readability changes:
 - check Project tree, command bars, Inspector, canvas, tables, code editor, and results for overlap/truncation
 - keep captures under ignored `artifacts/`
 
-## Explicit Non-Goals For The Current MVP
+## Boundaries After MVP Closure
 
 - A fixed built-in HVAC component library as the main product.
 - GUI-only model semantics.
