@@ -117,3 +117,4 @@
 - Expand the Studio canvas surface to cover saved, auto-laid-out, and dragged component positions.
 - Clear draft source-check state and refresh the Project tree when Code workspace source is reverted.
 - Add status badges to Run workspace batch case rows.
+- Let the ready runtime export profile in the Project tree open the Export workspace preview.

@@ -184,6 +184,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("loadExportRecord")) {
 		t.Fatalf("module entrypoint did not include export record reopening")
 	}
+	if !bytes.Contains(body, []byte("exportReadyTreeItem")) {
+		t.Fatalf("module entrypoint did not include export preview navigation")
+	}
 	if !bytes.Contains(body, []byte("/api/project/export")) {
 		t.Fatalf("module entrypoint did not call export record endpoint")
 	}

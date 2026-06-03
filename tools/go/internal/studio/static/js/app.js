@@ -280,7 +280,18 @@ function exportTreeItems() {
   if (exports.length) {
     return exports.map((item) => exportTreeItem(item));
   }
-  return [treeStatic("runtime_package", "ready")];
+  return [exportReadyTreeItem()];
+}
+
+function exportReadyTreeItem() {
+  const row = treeStatic("runtime_package", "ready");
+  row.addEventListener("click", () => {
+    state.latestExport = null;
+    state.latestExportSummary = null;
+    renderExportWorkspaceView();
+    setMode("export");
+  });
+  return row;
 }
 
 function exportTreeItem(exportSummary) {
