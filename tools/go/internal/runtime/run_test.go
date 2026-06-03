@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
+	graphindex "github.com/goniegonie/hvac-studio/tools/go/internal/graph"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
 )
 
@@ -73,6 +75,79 @@ func TestValidateOutputsAcceptsDeclaredOutputs(t *testing.T) {
 
 	if err := validateOutputs(component, map[string]any{"result": 1}); err != nil {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestNodeValueTracesIncludeContractMetadata(t *testing.T) {
+	traces := nodeValueTraces("coil", "input", []model.Node{
+		{ID: "chw_in", Medium: "water", ValueType: "float", Unit: "degC"},
+		{ID: "unused", Medium: "water", ValueType: "float"},
+	}, map[string]any{"chw_in": 6.5})
+
+	if len(traces) != 1 {
+		t.Fatalf("traces = %#v", traces)
+	}
+	trace := traces[0]
+	if trace.Component != "coil" || trace.Node != "chw_in" || trace.Direction != "input" {
+		t.Fatalf("trace endpoint = %#v", trace)
+	}
+	if trace.Medium != "water" || trace.ValueType != "float" || trace.Unit != "degC" || trace.Value != 6.5 {
+		t.Fatalf("trace metadata = %#v", trace)
+	}
+}
+
+func TestConnectionValueTracesIncludeEndpointMetadata(t *testing.T) {
+	graph := &model.Graph{
+		SchemaVersion: "0.1.0",
+		Components: []model.Component{
+			{
+				ID:   "load",
+				Kind: "user_python",
+				Nodes: model.NodeSet{
+					Outputs: []model.Node{{ID: "out", Medium: "signal", ValueType: "float", Unit: "kW"}},
+				},
+			},
+			{
+				ID:   "controller",
+				Kind: "user_python",
+				Nodes: model.NodeSet{
+					Inputs: []model.Node{{ID: "in", Medium: "signal", ValueType: "float", Unit: "kW"}},
+				},
+			},
+		},
+		Connections: []model.Connection{
+			{
+				ID:   "load_to_controller",
+				From: model.Endpoint{Component: "load", Node: "out"},
+				To:   model.Endpoint{Component: "controller", Node: "in"},
+			},
+		},
+	}
+	index, err := graphindex.NewIndex(graph)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan := &compiler.Plan{
+		System: model.System{Connections: []string{"load_to_controller"}},
+		Index:  index,
+	}
+
+	traces := connectionValueTraces(plan, map[string]map[string]any{
+		"load": {"out": 550.0},
+	})
+
+	if len(traces) != 1 {
+		t.Fatalf("traces = %#v", traces)
+	}
+	trace := traces[0]
+	if trace.ID != "load_to_controller" || trace.From.Component != "load" || trace.To.Component != "controller" {
+		t.Fatalf("trace endpoint = %#v", trace)
+	}
+	if trace.SourceMedium != "signal" || trace.TargetMedium != "signal" || trace.ValueType != "float" || trace.Unit != "kW" {
+		t.Fatalf("trace metadata = %#v", trace)
+	}
+	if trace.Value != 550.0 {
+		t.Fatalf("trace value = %v, want 550", trace.Value)
 	}
 }
 

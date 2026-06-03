@@ -36,6 +36,124 @@
       "total_power_kw": 122.0
     }
   },
+  "node_values": [
+    {
+      "component": "load_model",
+      "node": "building_load_kw",
+      "direction": "input",
+      "value": 500.0
+    },
+    {
+      "component": "load_model",
+      "node": "adjusted_load_kw",
+      "direction": "output",
+      "value": 550.0
+    },
+    {
+      "component": "controller",
+      "node": "cooling_load_kw",
+      "direction": "input",
+      "value": 550.0
+    },
+    {
+      "component": "controller",
+      "node": "base_chw_setpoint_c",
+      "direction": "input",
+      "value": 7.0
+    },
+    {
+      "component": "controller",
+      "node": "chw_setpoint_c",
+      "direction": "output",
+      "value": 6.95
+    },
+    {
+      "component": "chiller",
+      "node": "cooling_load_kw",
+      "direction": "input",
+      "value": 550.0
+    },
+    {
+      "component": "chiller",
+      "node": "chw_setpoint_c",
+      "direction": "input",
+      "value": 6.95
+    },
+    {
+      "component": "chiller",
+      "node": "power_kw",
+      "direction": "output",
+      "value": 110.0
+    },
+    {
+      "component": "chiller",
+      "node": "chw_supply_temp_c",
+      "direction": "output",
+      "value": 7.15
+    },
+    {
+      "component": "aggregator",
+      "node": "chiller_power_kw",
+      "direction": "input",
+      "value": 110.0
+    },
+    {
+      "component": "aggregator",
+      "node": "total_power_kw",
+      "direction": "output",
+      "value": 122.0
+    }
+  ],
+  "connection_values": [
+    {
+      "id": "load_to_controller",
+      "from": {
+        "component": "load_model",
+        "node": "adjusted_load_kw"
+      },
+      "to": {
+        "component": "controller",
+        "node": "cooling_load_kw"
+      },
+      "value": 550.0
+    },
+    {
+      "id": "load_to_chiller",
+      "from": {
+        "component": "load_model",
+        "node": "adjusted_load_kw"
+      },
+      "to": {
+        "component": "chiller",
+        "node": "cooling_load_kw"
+      },
+      "value": 550.0
+    },
+    {
+      "id": "controller_to_chiller",
+      "from": {
+        "component": "controller",
+        "node": "chw_setpoint_c"
+      },
+      "to": {
+        "component": "chiller",
+        "node": "chw_setpoint_c"
+      },
+      "value": 6.95
+    },
+    {
+      "id": "chiller_power_to_aggregator",
+      "from": {
+        "component": "chiller",
+        "node": "power_kw"
+      },
+      "to": {
+        "component": "aggregator",
+        "node": "chiller_power_kw"
+      },
+      "value": 110.0
+    }
+  ],
   "states": {
     "load_model": {},
     "controller": {},

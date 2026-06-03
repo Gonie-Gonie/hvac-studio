@@ -1221,6 +1221,10 @@ function connectionRowsFor(component) {
 function latestConnectionValue(connection) {
   if (!connection) return { hasValue: false, value: null };
   const result = latestRuntimeResult();
+  const traced = (result?.connection_values || []).find((item) => item.id === connection.id);
+  if (traced && Object.prototype.hasOwnProperty.call(traced, "value")) {
+    return { hasValue: true, value: traced.value };
+  }
   const outputs = result?.component_outputs?.[connection.from.component] || {};
   if (Object.prototype.hasOwnProperty.call(outputs, connection.from.node)) {
     return { hasValue: true, value: outputs[connection.from.node] };

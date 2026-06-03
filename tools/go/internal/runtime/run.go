@@ -25,9 +25,32 @@ type RunResult struct {
 	Outputs          map[string]any            `json:"outputs"`
 	ComponentInputs  map[string]map[string]any `json:"component_inputs"`
 	ComponentOutputs map[string]map[string]any `json:"component_outputs"`
+	NodeValues       []NodeValueTrace          `json:"node_values"`
+	ConnectionValues []ConnectionValueTrace    `json:"connection_values"`
 	States           map[string]map[string]any `json:"states"`
 	Context          map[string]any            `json:"context"`
 	ExecutionOrder   []string                  `json:"execution_order"`
+}
+
+type NodeValueTrace struct {
+	Component string `json:"component"`
+	Node      string `json:"node"`
+	Direction string `json:"direction"`
+	Medium    string `json:"medium,omitempty"`
+	ValueType string `json:"value_type,omitempty"`
+	Unit      string `json:"unit,omitempty"`
+	Value     any    `json:"value"`
+}
+
+type ConnectionValueTrace struct {
+	ID           string         `json:"id"`
+	From         model.Endpoint `json:"from"`
+	To           model.Endpoint `json:"to"`
+	SourceMedium string         `json:"source_medium,omitempty"`
+	TargetMedium string         `json:"target_medium,omitempty"`
+	ValueType    string         `json:"value_type,omitempty"`
+	Unit         string         `json:"unit,omitempty"`
+	Value        any            `json:"value"`
 }
 
 func Run(ctx context.Context, loaded *project.LoadedProject, input RunInput) (*RunResult, error) {
@@ -46,6 +69,7 @@ func Run(ctx context.Context, loaded *project.LoadedProject, input RunInput) (*R
 	states := map[string]map[string]any{}
 	componentInputsByID := map[string]map[string]any{}
 	componentOutputs := map[string]map[string]any{}
+	nodeValues := []NodeValueTrace{}
 
 	for _, componentID := range plan.Order {
 		component := plan.Index.Components[componentID]
@@ -78,6 +102,7 @@ func Run(ctx context.Context, loaded *project.LoadedProject, input RunInput) (*R
 			return nil, err
 		}
 		componentInputsByID[component.ID] = componentInputs
+		nodeValues = append(nodeValues, nodeValueTraces(component.ID, "input", component.Nodes.Inputs, componentInputs)...)
 
 		outputs, nextState, err := client.EvaluateComponent(
 			component.ID,
@@ -99,6 +124,7 @@ func Run(ctx context.Context, loaded *project.LoadedProject, input RunInput) (*R
 			return nil, err
 		}
 		componentOutputs[component.ID] = outputs
+		nodeValues = append(nodeValues, nodeValueTraces(component.ID, "output", component.Nodes.Outputs, outputs)...)
 		states[component.ID] = nextState
 	}
 
@@ -117,10 +143,57 @@ func Run(ctx context.Context, loaded *project.LoadedProject, input RunInput) (*R
 		Outputs:          publicOutputs,
 		ComponentInputs:  componentInputsByID,
 		ComponentOutputs: componentOutputs,
+		NodeValues:       nodeValues,
+		ConnectionValues: connectionValueTraces(plan, componentOutputs),
 		States:           states,
 		Context:          input.Context,
 		ExecutionOrder:   plan.Order,
 	}, nil
+}
+
+func nodeValueTraces(componentID string, direction string, nodes []model.Node, values map[string]any) []NodeValueTrace {
+	traces := []NodeValueTrace{}
+	for _, node := range nodes {
+		value, exists := values[node.ID]
+		if !exists {
+			continue
+		}
+		traces = append(traces, NodeValueTrace{
+			Component: componentID,
+			Node:      node.ID,
+			Direction: direction,
+			Medium:    node.Medium,
+			ValueType: node.ValueType,
+			Unit:      node.Unit,
+			Value:     value,
+		})
+	}
+	return traces
+}
+
+func connectionValueTraces(plan *compiler.Plan, componentOutputs map[string]map[string]any) []ConnectionValueTrace {
+	traces := []ConnectionValueTrace{}
+	for _, connectionID := range plan.System.Connections {
+		connection := plan.Index.Connections[connectionID]
+		componentValues := componentOutputs[connection.From.Component]
+		value, exists := componentValues[connection.From.Node]
+		if !exists {
+			continue
+		}
+		sourceNode, _ := plan.Index.OutputNode(connection.From.Component, connection.From.Node)
+		targetNode, _ := plan.Index.InputNode(connection.To.Component, connection.To.Node)
+		traces = append(traces, ConnectionValueTrace{
+			ID:           connection.ID,
+			From:         connection.From,
+			To:           connection.To,
+			SourceMedium: sourceNode.Medium,
+			TargetMedium: targetNode.Medium,
+			ValueType:    sourceNode.ValueType,
+			Unit:         sourceNode.Unit,
+			Value:        value,
+		})
+	}
+	return traces
 }
 
 func LoadInput(inputPath string) (RunInput, error) {
