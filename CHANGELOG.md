@@ -135,4 +135,5 @@
 - Add saved validation, calibration, and optimization result records for CLI/Studio workflow reproducibility.
 - Add package release provenance manifests and optional MkDocs HTML documentation packaging.
 - Add a shared Studio parameter-set selector for Run, Batch, and Data validation workflows.
+- Include datasets, parameter sets, validation mappings, calibration setups, and optimization setups in Studio runtime exports.
 - Refresh the post-MVP development plan around alpha hardening, beta usability, 1.0 readiness, and later expansion.

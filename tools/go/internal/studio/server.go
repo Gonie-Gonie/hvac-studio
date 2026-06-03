@@ -381,6 +381,11 @@ type ExportManifest struct {
 	PublicInputs        []model.PublicNodeRef `json:"public_inputs"`
 	PublicOutputs       []model.PublicNodeRef `json:"public_outputs"`
 	ExecutionOrder      []string              `json:"execution_order"`
+	ParameterSets       []string              `json:"parameter_sets,omitempty"`
+	Datasets            []string              `json:"datasets,omitempty"`
+	ValidationMappings  []string              `json:"validation_mappings,omitempty"`
+	CalibrationSetups   []string              `json:"calibration_setups,omitempty"`
+	OptimizationSetups  []string              `json:"optimization_setups,omitempty"`
 }
 
 type SourceDetail struct {
@@ -3991,6 +3996,11 @@ func writeExportManifest(loaded *project.LoadedProject, profile string) (ExportS
 		PublicInputs:        append([]model.PublicNodeRef{}, plan.System.PublicInputs...),
 		PublicOutputs:       append([]model.PublicNodeRef{}, plan.System.PublicOutputs...),
 		ExecutionOrder:      append([]string{}, plan.Order...),
+		ParameterSets:       exportFilesWithPrefix(files, "project/parameter_sets/"),
+		Datasets:            exportFilesWithPrefix(files, "project/datasets/"),
+		ValidationMappings:  exportFilesWithPrefix(files, "project/validation/mappings/"),
+		CalibrationSetups:   exportFilesWithPrefix(files, "project/calibration/setups/"),
+		OptimizationSetups:  exportFilesWithPrefix(files, "project/optimization/setups/"),
 	}
 	exportPath := filepath.Join(exportRoot, "manifest.json")
 	if err := os.MkdirAll(filepath.Dir(exportPath), 0o755); err != nil {
@@ -4037,7 +4047,7 @@ func writeRuntimeExportProject(loaded *project.LoadedProject, targetRoot string)
 			return nil, err
 		}
 	}
-	for _, rel := range []string{"components", "inputs", "scenarios"} {
+	for _, rel := range []string{"components", "inputs", "scenarios", "datasets", "parameter_sets", "validation", "calibration", "optimization"} {
 		if err := copyRuntimeExportDir(loaded.Root, targetRoot, rel, &files, seen); err != nil {
 			return nil, err
 		}
@@ -4605,6 +4615,17 @@ func containsString(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func exportFilesWithPrefix(files []string, prefix string) []string {
+	matches := []string{}
+	for _, file := range files {
+		if strings.HasPrefix(file, prefix) {
+			matches = append(matches, file)
+		}
+	}
+	sort.Strings(matches)
+	return matches
 }
 
 func removeString(values []string, target string) []string {

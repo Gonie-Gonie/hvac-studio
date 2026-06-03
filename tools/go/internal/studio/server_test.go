@@ -3461,6 +3461,7 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
 		t.Fatal(err)
 	}
+	seedExportWorkflowArtifacts(t, filepath.Join(root, "projects", "export-project"))
 
 	payload, err := json.Marshal(map[string]any{
 		"project_path": createBody.Project.ProjectPath,
@@ -3514,6 +3515,11 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 		"project/graph.json",
 		"project/components/__init__.py",
 		"project/components/scalar.py",
+		"project/datasets/scalar_validation.csv",
+		"project/parameter_sets/baseline.json",
+		"project/validation/mappings/scalar_validation.json",
+		"project/calibration/setups/scalar_gain.json",
+		"project/optimization/setups/scalar_grid.json",
 		"project/inputs/case01.json",
 		"project/requirements.lock.txt",
 		"runtime/manifest.json",
@@ -3529,6 +3535,21 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(exportRoot, filepath.FromSlash(rel))); err != nil {
 			t.Fatalf("export file %s: %v", rel, err)
 		}
+	}
+	if !containsString(body.Export.ParameterSets, "project/parameter_sets/baseline.json") {
+		t.Fatalf("export parameter sets = %v", body.Export.ParameterSets)
+	}
+	if !containsString(body.Export.Datasets, "project/datasets/scalar_validation.csv") {
+		t.Fatalf("export datasets = %v", body.Export.Datasets)
+	}
+	if !containsString(body.Export.ValidationMappings, "project/validation/mappings/scalar_validation.json") {
+		t.Fatalf("export validation mappings = %v", body.Export.ValidationMappings)
+	}
+	if !containsString(body.Export.CalibrationSetups, "project/calibration/setups/scalar_gain.json") {
+		t.Fatalf("export calibration setups = %v", body.Export.CalibrationSetups)
+	}
+	if !containsString(body.Export.OptimizationSetups, "project/optimization/setups/scalar_grid.json") {
+		t.Fatalf("export optimization setups = %v", body.Export.OptimizationSetups)
 	}
 	for _, rel := range body.Export.Files {
 		if strings.HasPrefix(rel, "project/runs/") || strings.HasPrefix(rel, "project/exports/") {
@@ -3819,4 +3840,78 @@ func findRepoRoot() (string, error) {
 		}
 		dir = parent
 	}
+}
+
+func writeTestFile(t *testing.T, path string, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func seedExportWorkflowArtifacts(t *testing.T, projectRoot string) {
+	t.Helper()
+	writeTestFile(t, filepath.Join(projectRoot, "parameter_sets", "baseline.json"), `{
+  "id": "baseline",
+  "components": {
+    "scalar": {
+      "gain": 2
+    }
+  }
+}
+`)
+	writeTestFile(t, filepath.Join(projectRoot, "datasets", "scalar_validation.csv"), "value,observed_result\n4,8\n")
+	writeTestFile(t, filepath.Join(projectRoot, "validation", "mappings", "scalar_validation.json"), `{
+  "id": "scalar_validation",
+  "dataset": "datasets/scalar_validation.csv",
+  "input_columns": {
+    "value": "value"
+  },
+  "observed_output_columns": {
+    "result": "observed_result"
+  }
+}
+`)
+	writeTestFile(t, filepath.Join(projectRoot, "calibration", "setups", "scalar_gain.json"), `{
+  "id": "scalar_gain",
+  "algorithm": "grid",
+  "mapping": "validation/mappings/scalar_validation.json",
+  "objective": {
+    "metric": "rmse"
+  },
+  "parameters": [
+    {
+      "component": "scalar",
+      "name": "gain",
+      "min": 1,
+      "max": 3,
+      "step": 1
+    }
+  ]
+}
+`)
+	writeTestFile(t, filepath.Join(projectRoot, "optimization", "setups", "scalar_grid.json"), `{
+  "id": "scalar_grid",
+  "algorithm": "grid",
+  "base_inputs": {
+    "value": 4
+  },
+  "objective": {
+    "output": "result",
+    "sense": "max"
+  },
+  "decision_variables": [
+    {
+      "kind": "public_input",
+      "name": "value",
+      "min": 2,
+      "max": 4,
+      "step": 1
+    }
+  ]
+}
+`)
 }
