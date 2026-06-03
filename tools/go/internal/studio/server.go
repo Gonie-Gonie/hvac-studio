@@ -2505,6 +2505,9 @@ func checkComponentSource(ctx context.Context, loaded *project.LoadedProject, re
 	check.Problems = append(check.Problems, sourceContractReferenceProblems(component, req.Content)...)
 	syntaxProblems := pythonSyntaxProblems(ctx, loaded, componentID, filepath.ToSlash(rel), req.Content)
 	check.Problems = append(check.Problems, syntaxProblems...)
+	if !hasErrorProblems(syntaxProblems) {
+		check.Problems = append(check.Problems, pythonUndefinedNameProblems(ctx, loaded, componentID, filepath.ToSlash(rel), req.Content)...)
+	}
 	if component.Source.Layout != "generated_wrapper" && !hasErrorProblems(syntaxProblems) && expectedClass != "" {
 		check.Problems = append(check.Problems, pythonLoadProblems(ctx, loaded, componentID, filepath.ToSlash(rel), expectedClass, req.Content)...)
 	}
@@ -2799,6 +2802,81 @@ func pythonLoadProblems(ctx context.Context, loaded *project.LoadedProject, comp
 		return []Problem{problem}
 	}
 	return []Problem{}
+}
+
+func pythonUndefinedNameProblems(ctx context.Context, loaded *project.LoadedProject, componentID string, relativePath string, content string) []Problem {
+	pythonExe := resolveStudioPython(loaded.Root, loaded.Project.Environment)
+	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	script := strings.Join([]string{
+		"import ast, builtins, json, sys",
+		"source = sys.stdin.read()",
+		"tree = ast.parse(source, filename=sys.argv[1])",
+		"allowed = set(dir(builtins)) | {'self', 'inputs', 'state', 'params', 'context'}",
+		"assigned = set()",
+		"loads = []",
+		"class Visitor(ast.NodeVisitor):",
+		"    def visit_FunctionDef(self, node):",
+		"        assigned.add(node.name)",
+		"        for arg in list(node.args.posonlyargs) + list(node.args.args) + list(node.args.kwonlyargs):",
+		"            assigned.add(arg.arg)",
+		"        if node.args.vararg:",
+		"            assigned.add(node.args.vararg.arg)",
+		"        if node.args.kwarg:",
+		"            assigned.add(node.args.kwarg.arg)",
+		"        self.generic_visit(node)",
+		"    def visit_ClassDef(self, node):",
+		"        assigned.add(node.name)",
+		"        self.generic_visit(node)",
+		"    def visit_Import(self, node):",
+		"        for alias in node.names:",
+		"            assigned.add(alias.asname or alias.name.split('.')[0])",
+		"    def visit_ImportFrom(self, node):",
+		"        for alias in node.names:",
+		"            assigned.add(alias.asname or alias.name)",
+		"    def visit_Name(self, node):",
+		"        if isinstance(node.ctx, (ast.Store, ast.Param)):",
+		"            assigned.add(node.id)",
+		"        elif isinstance(node.ctx, ast.Load):",
+		"            loads.append((node.id, node.lineno, node.col_offset + 1))",
+		"        self.generic_visit(node)",
+		"Visitor().visit(tree)",
+		"seen = set()",
+		"problems = []",
+		"for name, line, column in loads:",
+		"    if name in assigned or name in allowed or name in seen:",
+		"        continue",
+		"    seen.add(name)",
+		"    problems.append({'name': name, 'line': line, 'column': column})",
+		"print(json.dumps(problems))",
+	}, "\n")
+	cmd := platform.CommandContext(checkCtx, pythonExe, "-c", script, relativePath)
+	cmd.Dir = loaded.Root
+	cmd.Stdin = strings.NewReader(content)
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	if err := cmd.Run(); err != nil {
+		return []Problem{}
+	}
+	var reported []struct {
+		Name   string `json:"name"`
+		Line   int    `json:"line"`
+		Column int    `json:"column"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &reported); err != nil {
+		return []Problem{}
+	}
+	problems := []Problem{}
+	for _, item := range reported {
+		problems = append(problems, Problem{
+			Severity:    "warning",
+			Message:     fmt.Sprintf("undefined name may fail at runtime: %s", item.Name),
+			ComponentID: componentID,
+			Line:        item.Line,
+			Column:      item.Column,
+		})
+	}
+	return problems
 }
 
 func syntaxProblemFromStderr(componentID string, stderrText string) Problem {

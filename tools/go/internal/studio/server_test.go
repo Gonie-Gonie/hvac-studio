@@ -72,6 +72,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("sourceCompletionPanel")) {
 		t.Fatalf("index did not include the source completion panel")
 	}
+	if !bytes.Contains(body, []byte("sourceHighlight")) {
+		t.Fatalf("index did not include the source syntax highlight layer")
+	}
 	if !bytes.Contains(body, []byte("projectNameInput")) {
 		t.Fatalf("index did not include the project name field")
 	}
@@ -162,6 +165,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("bracketCheck")) {
 		t.Fatalf("module entrypoint did not include bracket status checking")
+	}
+	if !bytes.Contains(body, []byte("highlightPython")) {
+		t.Fatalf("module entrypoint did not include Python syntax highlighting")
+	}
+	if !bytes.Contains(body, []byte("handleSourceNewline")) {
+		t.Fatalf("module entrypoint did not include source auto indentation")
 	}
 	if !bytes.Contains(body, []byte("Runtime Contract")) {
 		t.Fatalf("module entrypoint did not render protected runtime contract context")
@@ -2580,6 +2589,59 @@ func TestCheckSourceEndpointReportsImportProblem(t *testing.T) {
 	}
 	if !hasProblemMessageContaining(body.Check.Problems, "definitely_missing_hvac_studio_package") {
 		t.Fatalf("missing import name was not reported in %#v", body.Check.Problems)
+	}
+}
+
+func TestCheckSourceEndpointReportsUndefinedNameWarning(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Source Undefined Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "scalar",
+		"content":      "class ScalarComponent:\n    def evaluate(self, inputs, state, params, context):\n        value = float(inputs.get(\"value\", 0.0)) * missing_factor\n        return {\"result\": value}, state\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/source/check", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Check SourceCheck `json:"check"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !body.Check.OK {
+		t.Fatalf("undefined-name hint should warn without blocking: %#v", body.Check.Problems)
+	}
+	var found *Problem
+	for index := range body.Check.Problems {
+		if strings.Contains(body.Check.Problems[index].Message, "missing_factor") {
+			found = &body.Check.Problems[index]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("undefined-name warning missing from %#v", body.Check.Problems)
+	}
+	if found.Severity != "warning" || found.Line != 3 {
+		t.Fatalf("undefined-name problem = %#v", found)
 	}
 }
 

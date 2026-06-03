@@ -1562,6 +1562,7 @@ function setSourceEditors(value, readOnly) {
     }
     editor.readOnly = readOnly;
   }
+  updateSourceHighlight(value);
 }
 
 function renderSourceComponentSelect(selectedID) {
@@ -2337,6 +2338,73 @@ function bracketCheck(value) {
   }
   if (stack.length) return { ok: false, message: `open ${stack[stack.length - 1].char}` };
   return { ok: true, message: "brackets ok" };
+}
+
+function updateSourceHighlight(value) {
+  const highlight = el("sourceHighlight");
+  if (!highlight) return;
+  highlight.innerHTML = highlightPython(value || "");
+}
+
+function highlightPython(value) {
+  const keywords = new Set([
+    "and", "as", "assert", "break", "class", "continue", "def", "del", "elif", "else", "except",
+    "False", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "None",
+    "nonlocal", "not", "or", "pass", "raise", "return", "True", "try", "while", "with", "yield",
+  ]);
+  const builtins = new Set(["abs", "bool", "dict", "enumerate", "float", "int", "len", "list", "max", "min", "range", "round", "str", "sum"]);
+  let output = "";
+  for (let index = 0; index < value.length;) {
+    const char = value[index];
+    if (char === "#") {
+      const end = value.indexOf("\n", index);
+      const next = end < 0 ? value.length : end;
+      output += `<span class="tok-comment">${escapeHTML(value.slice(index, next))}</span>`;
+      index = next;
+      continue;
+    }
+    if (char === "\"" || char === "'") {
+      const start = index;
+      const quote = char;
+      index += 1;
+      let escaped = false;
+      while (index < value.length) {
+        const nextChar = value[index];
+        index += 1;
+        if (escaped) {
+          escaped = false;
+        } else if (nextChar === "\\") {
+          escaped = true;
+        } else if (nextChar === quote) {
+          break;
+        }
+      }
+      output += `<span class="tok-string">${escapeHTML(value.slice(start, index))}</span>`;
+      continue;
+    }
+    if (/[0-9]/.test(char)) {
+      const match = value.slice(index).match(/^[0-9]+(?:\.[0-9]+)?/);
+      output += `<span class="tok-number">${escapeHTML(match[0])}</span>`;
+      index += match[0].length;
+      continue;
+    }
+    if (/[A-Za-z_]/.test(char)) {
+      const match = value.slice(index).match(/^[A-Za-z_][A-Za-z0-9_]*/);
+      const token = match[0];
+      if (keywords.has(token)) {
+        output += `<span class="tok-keyword">${escapeHTML(token)}</span>`;
+      } else if (builtins.has(token)) {
+        output += `<span class="tok-builtin">${escapeHTML(token)}</span>`;
+      } else {
+        output += escapeHTML(token);
+      }
+      index += token.length;
+      continue;
+    }
+    output += escapeHTML(char);
+    index += 1;
+  }
+  return output.endsWith("\n") ? `${output} ` : output || " ";
 }
 
 function pythonIdentifier(value) {
@@ -3115,6 +3183,7 @@ function updateSourceDraftFromEditor(editor) {
     }
   }
   updateLineNumbers(editor.value);
+  updateSourceHighlight(editor.value);
   updateSourceChrome(component, state.sourceByComponent[component.id], editor.value);
   renderProjectTree();
   markProjectDirty();
@@ -3134,6 +3203,11 @@ function handleSourceEditorKeydown(event) {
     hideSourceCompletionPanel();
     return;
   }
+  if (event.key === "Enter") {
+    event.preventDefault();
+    handleSourceNewline(event.target);
+    return;
+  }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
     event.preventDefault();
     saveCurrentSource();
@@ -3148,6 +3222,20 @@ function handleSourceEditorKeydown(event) {
     event.preventDefault();
     handleSourceIndent(event.target, event.shiftKey);
   }
+}
+
+function handleSourceNewline(editor) {
+  const start = editor.selectionStart ?? 0;
+  const end = editor.selectionEnd ?? start;
+  const value = editor.value;
+  const lineStart = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+  const currentLine = value.slice(lineStart, start);
+  const indent = currentLine.match(/^\s*/)?.[0] || "";
+  const extra = currentLine.trimEnd().endsWith(":") ? "    " : "";
+  const insert = `\n${indent}${extra}`;
+  editor.value = `${value.slice(0, start)}${insert}${value.slice(end)}`;
+  editor.selectionStart = editor.selectionEnd = start + insert.length;
+  updateSourceDraftFromEditor(editor);
 }
 
 function handleSourceIndent(editor, outdent) {
@@ -3188,6 +3276,11 @@ function outdentLine(line) {
 function syncSourceGutterScroll(event) {
   const gutter = el("sourceLineNumbers");
   if (gutter) gutter.scrollTop = event.target.scrollTop;
+  const highlight = el("sourceHighlight");
+  if (highlight) {
+    highlight.scrollTop = event.target.scrollTop;
+    highlight.scrollLeft = event.target.scrollLeft;
+  }
 }
 
 function bindEvents() {
