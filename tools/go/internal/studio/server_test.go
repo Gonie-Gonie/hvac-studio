@@ -154,6 +154,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("updateNodeFromInspector")) {
 		t.Fatalf("module entrypoint did not include node metadata editing")
 	}
+	if !bytes.Contains(body, []byte("newNodeName")) {
+		t.Fatalf("module entrypoint did not include detailed node creation fields")
+	}
 	if !bytes.Contains(body, []byte("/api/project/nodes/update")) {
 		t.Fatalf("module entrypoint did not call node update endpoint")
 	}

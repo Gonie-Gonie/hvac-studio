@@ -819,31 +819,64 @@ function nodeEditor(component) {
   nodeID.placeholder = "id";
   nodeID.setAttribute("aria-label", "Node id");
 
+  const nodeName = document.createElement("input");
+  nodeName.id = "newNodeName";
+  nodeName.placeholder = "name";
+  nodeName.setAttribute("aria-label", "Node name");
+
   const valueType = document.createElement("select");
   valueType.id = "newNodeValueType";
-  for (const type of ["float", "int", "bool", "string"]) {
+  for (const type of ["float", "int", "bool", "string", "object"]) {
     const option = document.createElement("option");
     option.value = type;
     option.textContent = type;
     valueType.append(option);
   }
 
+  const medium = document.createElement("input");
+  medium.id = "newNodeMedium";
+  medium.placeholder = "medium";
+  medium.value = "signal";
+  medium.setAttribute("aria-label", "Node medium");
+
+  const unit = document.createElement("input");
+  unit.id = "newNodeUnit";
+  unit.placeholder = "unit";
+  unit.setAttribute("aria-label", "Node unit");
+
   const defaultValue = document.createElement("input");
   defaultValue.id = "newNodeDefault";
   defaultValue.placeholder = "default";
   defaultValue.setAttribute("aria-label", "Default value");
+
+  const requiredLabel = document.createElement("label");
+  requiredLabel.className = "node-required-toggle node-create-required";
+  const required = document.createElement("input");
+  required.id = "newNodeRequired";
+  required.type = "checkbox";
+  required.checked = true;
+  required.setAttribute("aria-label", "Required input node");
+  requiredLabel.append(required, document.createTextNode("Required"));
 
   const button = document.createElement("button");
   button.type = "button";
   button.textContent = "Add Node";
   button.addEventListener("click", () => addNodeFromInspector(component.id));
 
-  for (const input of [nodeID, defaultValue]) {
+  const syncInputOnlyFields = () => {
+    const isInput = direction.value === "input";
+    defaultValue.disabled = !isInput;
+    required.disabled = !isInput;
+  };
+  direction.addEventListener("change", syncInputOnlyFields);
+  syncInputOnlyFields();
+
+  for (const input of [nodeID, nodeName, medium, unit, defaultValue]) {
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter") addNodeFromInspector(component.id);
     });
   }
-  form.append(direction, nodeID, valueType, defaultValue, button);
+  form.append(direction, nodeID, nodeName, valueType, medium, unit, defaultValue, requiredLabel, button);
   block.append(form);
   return block;
 }
@@ -2059,7 +2092,10 @@ async function addNodeFromInspector(componentID) {
   const component = componentById(componentID);
   const direction = el("newNodeDirection")?.value || "input";
   const nodeID = (el("newNodeId")?.value || "").trim();
+  const nodeName = (el("newNodeName")?.value || "").trim() || nodeID;
   const valueType = el("newNodeValueType")?.value || "float";
+  const medium = (el("newNodeMedium")?.value || "").trim() || "signal";
+  const unit = (el("newNodeUnit")?.value || "").trim();
   const rawDefault = el("newNodeDefault")?.value || "";
   if (!component || !nodeID) {
     showInlineProblem("Select a component and node id");
@@ -2080,12 +2116,16 @@ async function addNodeFromInspector(componentID) {
     component_id: componentID,
     direction,
     id: nodeID,
-    name: nodeID,
-    medium: "signal",
+    name: nodeName,
+    medium,
     value_type: valueType,
+    unit,
   };
   if (direction === "input" && rawDefault.trim() !== "") {
     payload.default = coerceParameter(rawDefault);
+  }
+  if (direction === "input") {
+    payload.required = Boolean(el("newNodeRequired")?.checked);
   }
 
   try {

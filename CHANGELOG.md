@@ -92,3 +92,4 @@
 - Improve canvas node and parameter readability with node display names, metadata lines, wider cards, and wrapping parameter chips.
 - Replace prompt-based Studio component creation with an in-app Project panel component name form.
 - Add a component template list API and drive Studio component creation from template manifests instead of a hard-coded template id.
+- Expand Studio node creation controls so new nodes can be created with display names, media, value types, units, required flags, and defaults in one pass.
