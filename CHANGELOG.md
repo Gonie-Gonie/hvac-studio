@@ -99,3 +99,4 @@
 - Mark components that are not in the runnable system as unused in the Project tree and allow adding them to the system from that row.
 - Replace prompt-based project creation and copy with an in-app project name field in the top project switcher.
 - Add an export manifest reopen API and make Project tree export profiles open the saved Export workspace detail.
+- Add Code workspace contract Insert actions for component inputs, outputs, and parameters.

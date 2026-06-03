@@ -1334,9 +1334,21 @@ function renderSourceContract(component) {
     [component.id, component.class || ""],
     [component.kind || "", component.name || ""],
   ]));
-  container.append(contractBlock("Inputs", (component.nodes.inputs || []).map((node) => [node.id, nodeTypeLabel(node)])));
-  container.append(contractBlock("Outputs", (component.nodes.outputs || []).map((node) => [node.id, nodeTypeLabel(node)])));
-  container.append(contractBlock("Parameters", Object.entries(component.parameters || {}).map(([name, value]) => [name, parameterInputValue(value)])));
+  container.append(sourceReferenceBlock("Inputs", (component.nodes.inputs || []).map((node) => ({
+    name: node.id,
+    meta: nodeTypeLabel(node),
+    snippet: `inputs.get(${pythonStringLiteral(node.id)}, 0.0)`,
+  })), component));
+  container.append(sourceReferenceBlock("Outputs", (component.nodes.outputs || []).map((node) => ({
+    name: node.id,
+    meta: nodeTypeLabel(node),
+    snippet: `${pythonStringLiteral(node.id)}: value`,
+  })), component));
+  container.append(sourceReferenceBlock("Parameters", Object.entries(component.parameters || {}).map(([name, value]) => ({
+    name,
+    meta: parameterInputValue(value),
+    snippet: `params.get(${pythonStringLiteral(name)}, ${pythonLiteral(value)})`,
+  })), component));
   const runtimeBlock = sourceRuntimeBlock(component);
   if (runtimeBlock) container.append(runtimeBlock);
   container.append(sourceIssueBlock(component.id));
@@ -1371,6 +1383,40 @@ function contractBlock(title, rows) {
     block.append(rowEl);
   }
   return block;
+}
+
+function sourceReferenceBlock(title, rows, component) {
+  const block = document.createElement("div");
+  block.className = "contract-block";
+  block.innerHTML = `<div class="contract-title">${escapeHTML(title)}</div>`;
+  if (!rows.length) {
+    const empty = document.createElement("div");
+    empty.className = "contract-row";
+    empty.innerHTML = `<span>empty</span><span class="contract-meta"></span>`;
+    block.append(empty);
+    return block;
+  }
+  const editable = canEditSource(component);
+  for (const item of rows) {
+    const rowEl = document.createElement("div");
+    rowEl.className = "contract-row";
+    rowEl.innerHTML = `<span>${escapeHTML(item.name)}</span><span class="contract-meta">${escapeHTML(item.meta || "")}</span>`;
+    if (editable) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "contract-insert";
+      button.textContent = "Insert";
+      button.addEventListener("click", () => insertSourceText(item.snippet));
+      rowEl.append(button);
+    }
+    block.append(rowEl);
+  }
+  return block;
+}
+
+function canEditSource(component) {
+  const source = component ? state.sourceByComponent[component.id] : null;
+  return Boolean(component && source && !source.read_only && isWorkspaceProject());
 }
 
 function nodeTypeLabel(node) {
@@ -1779,9 +1825,16 @@ function revertCurrentSource() {
 function insertSourceSnippet() {
   const component = componentById(state.selectedComponentId);
   const source = component ? state.sourceByComponent[component.id] : null;
+  if (!component || !source || source.read_only || !isWorkspaceProject()) return;
+  const snippet = sourceSnippet(el("sourceSnippetSelect")?.value || "evaluate", component);
+  insertSourceText(snippet);
+}
+
+function insertSourceText(snippet) {
+  const component = componentById(state.selectedComponentId);
+  const source = component ? state.sourceByComponent[component.id] : null;
   const editor = el("sourceEditor") || el("pythonPanel");
   if (!component || !source || source.read_only || !isWorkspaceProject() || !editor || editor.readOnly) return;
-  const snippet = sourceSnippet(el("sourceSnippetSelect")?.value || "evaluate", component);
   const start = editor.selectionStart ?? editor.value.length;
   const end = editor.selectionEnd ?? editor.value.length;
   editor.value = `${editor.value.slice(0, start)}${snippet}${editor.value.slice(end)}`;
@@ -1846,6 +1899,14 @@ function pythonIdentifier(value) {
 
 function pythonStringLiteral(value) {
   return JSON.stringify(String(value || ""));
+}
+
+function pythonLiteral(value) {
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "0.0";
+  if (typeof value === "boolean") return value ? "True" : "False";
+  if (value === null || value === undefined) return "None";
+  if (typeof value === "string") return pythonStringLiteral(value);
+  return pythonStringLiteral(parameterInputValue(value));
 }
 
 async function saveProjectEdits() {

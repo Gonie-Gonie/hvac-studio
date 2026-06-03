@@ -148,6 +148,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("sourceRuntimeBlock")) {
 		t.Fatalf("module entrypoint did not include code workspace runtime feedback")
 	}
+	if !bytes.Contains(body, []byte("sourceReferenceBlock")) {
+		t.Fatalf("module entrypoint did not include source contract reference insertion")
+	}
+	if !bytes.Contains(body, []byte("insertSourceText")) {
+		t.Fatalf("module entrypoint did not include shared source insertion")
+	}
 	if !bytes.Contains(body, []byte("loadExportRecord")) {
 		t.Fatalf("module entrypoint did not include export record reopening")
 	}

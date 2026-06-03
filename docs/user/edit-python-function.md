@@ -6,6 +6,8 @@ Python source is where users define component calculation logic.
 
 Studio has a dedicated Code workspace for direct component Python source editing. It shows the selected component's source file, graph contract, nodes, parameters, and source-check issues together. Workspace project source can be checked, saved, reverted, and edited with snippets. The evaluate snippet reflects the selected component's declared input and output nodes. Saving a source file also returns the source check result so contract problems can appear immediately in both the Code workspace and the Problems panel. Bundled examples are read-only through Studio write APIs.
 
+In workspace projects, the Code workspace contract panel can insert selected input, output, and parameter references into the editor. These insert actions use the current `graph.json` contract, so they track node and parameter edits made in the Inspector.
+
 Before run, batch, and export actions, Studio flushes dirty workspace source drafts to the project source files. If saved source files have source-check errors, Studio stops the action and shows Problems first. The server enforces the same gate for API calls, reopened projects, and export requests. The source file remains the source of truth; the editor is only an authoring surface.
 
 After a successful run, the Code workspace contract panel shows the selected component's latest input and output values from the runner result. If the source or model changes afterward, those values are marked stale until another successful run updates them.
