@@ -134,4 +134,5 @@
 - Improve Studio readability for dataset/validation artifacts, Inspector wrapping, and mobile command controls after capture review.
 - Add saved validation, calibration, and optimization result records for CLI/Studio workflow reproducibility.
 - Add package release provenance manifests and optional MkDocs HTML documentation packaging.
+- Add a shared Studio parameter-set selector for Run, Batch, and Data validation workflows.
 - Refresh the post-MVP development plan around alpha hardening, beta usability, 1.0 readiness, and later expansion.

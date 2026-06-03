@@ -14,6 +14,7 @@ export const state = {
   latestValidation: null,
   latestDataValidation: null,
   latestWorkflowRecord: null,
+  activeParameterSetPath: "",
   activeRunInput: null,
   selectedConnectionId: "",
   sourceByComponent: {},

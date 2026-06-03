@@ -665,6 +665,17 @@ h2,
   font-size: 11px;
 }
 
+.parameter-set-field {
+  grid-template-columns: minmax(110px, auto) minmax(160px, 220px);
+  min-width: 300px;
+}
+
+.run-select {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+}
+
 .scenario-name-field {
   min-width: 150px;
 }

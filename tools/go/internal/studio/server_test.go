@@ -3170,6 +3170,22 @@ func TestBatchEndpointRunsSavedScenarios(t *testing.T) {
 	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
 		t.Fatal(err)
 	}
+	parameterSetPath := filepath.Join(root, "projects", "batch-project", "parameter_sets", "triple_gain.json")
+	if err := os.MkdirAll(filepath.Dir(parameterSetPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(parameterSetPath, []byte(`{
+  "id": "triple_gain",
+  "name": "Triple Gain",
+  "components": {
+    "scalar": {
+      "gain": 3
+    }
+  }
+}
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	for _, scenario := range []struct {
 		name  string
@@ -3195,7 +3211,10 @@ func TestBatchEndpointRunsSavedScenarios(t *testing.T) {
 		}
 	}
 
-	batchPayload, err := json.Marshal(map[string]any{"project_path": createBody.Project.ProjectPath})
+	batchPayload, err := json.Marshal(map[string]any{
+		"project_path":       createBody.Project.ProjectPath,
+		"parameter_set_path": filepath.Join("parameter_sets", "triple_gain.json"),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3215,14 +3234,20 @@ func TestBatchEndpointRunsSavedScenarios(t *testing.T) {
 	if batchBody.Summary.CaseCount != 2 || batchBody.Summary.OKCount != 2 {
 		t.Fatalf("batch counts = %d/%d, want 2/2", batchBody.Summary.OKCount, batchBody.Summary.CaseCount)
 	}
+	if batchBody.Summary.ParameterSet != "parameter_sets/triple_gain.json" || batchBody.Batch.ParameterSet != "parameter_sets/triple_gain.json" {
+		t.Fatalf("batch parameter set = summary:%q record:%q", batchBody.Summary.ParameterSet, batchBody.Batch.ParameterSet)
+	}
 	if len(batchBody.Batch.Cases) != 2 {
 		t.Fatalf("case count = %d, want 2", len(batchBody.Batch.Cases))
 	}
-	if got := batchBody.Batch.Cases[0].Result.Outputs["result"]; got != 4.0 {
-		t.Fatalf("first output = %v, want 4", got)
+	if got := batchBody.Batch.Cases[0].Result.Outputs["result"]; got != 6.0 {
+		t.Fatalf("first output = %v, want 6", got)
 	}
-	if got := batchBody.Batch.Cases[1].Result.Outputs["result"]; got != 6.0 {
-		t.Fatalf("second output = %v, want 6", got)
+	if got := batchBody.Batch.Cases[1].Result.Outputs["result"]; got != 9.0 {
+		t.Fatalf("second output = %v, want 9", got)
+	}
+	if batchBody.Batch.Cases[0].Result.ParameterSet != "parameter_sets/triple_gain.json" {
+		t.Fatalf("case parameter set = %q", batchBody.Batch.Cases[0].Result.ParameterSet)
 	}
 	if _, err := os.Stat(filepath.Join(root, "projects", "batch-project", batchBody.Summary.RelativePath)); err != nil {
 		t.Fatal(err)
@@ -3237,6 +3262,15 @@ func TestBatchEndpointRunsSavedScenarios(t *testing.T) {
 	server.Handler().ServeHTTP(recordResponse, recordRequest)
 	if recordResponse.Code != http.StatusOK {
 		t.Fatalf("batch record status = %d body=%s", recordResponse.Code, recordResponse.Body.String())
+	}
+	var recordBody struct {
+		BatchRecord BatchRecord `json:"batch_record"`
+	}
+	if err := json.Unmarshal(recordResponse.Body.Bytes(), &recordBody); err != nil {
+		t.Fatal(err)
+	}
+	if recordBody.BatchRecord.ParameterSet != "parameter_sets/triple_gain.json" {
+		t.Fatalf("opened batch parameter set = %q", recordBody.BatchRecord.ParameterSet)
 	}
 }
 

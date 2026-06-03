@@ -101,6 +101,7 @@ async function loadProject(projectPath) {
   state.latestValidation = null;
   state.latestDataValidation = null;
   state.latestWorkflowRecord = null;
+  state.activeParameterSetPath = "";
   state.activeRunInput = null;
   state.sourceByComponent = {};
   state.sourceDraftByComponent = {};
@@ -261,7 +262,7 @@ function datasetTreeItems() {
 }
 
 function parameterSetTreeItems() {
-  return (state.detail?.parameter_sets || []).map((item) => treeStatic(item.name || item.id, item.relative_path || "parameter set"));
+  return (state.detail?.parameter_sets || []).map((item) => parameterSetTreeItem(item));
 }
 
 function validationMappingTreeItems() {
@@ -283,6 +284,18 @@ function optimizationResultTreeItems() {
 function workflowRecordTreeItem(kind, item, label, meta) {
   const row = treeStatic(label, meta || item.relative_path || kind);
   row.addEventListener("click", () => loadWorkflowRecord(kind, item.id));
+  return row;
+}
+
+function parameterSetTreeItem(item) {
+  const row = treeStatic(item.name || item.id, item.relative_path || "parameter set");
+  if (state.activeParameterSetPath === item.relative_path) row.classList.add("active");
+  row.addEventListener("click", () => {
+    state.activeParameterSetPath = item.relative_path || "";
+    renderProjectTree();
+    renderRunInputs();
+    log(`Parameter set selected: ${state.activeParameterSetPath || "baseline"}`);
+  });
   return row;
 }
 
@@ -379,7 +392,8 @@ function runTreeItem(run) {
 }
 
 function batchTreeItem(batch) {
-  const row = treeStatic(batch.id, `${batch.ok_count}/${batch.case_count} ok`);
+  const meta = batch.parameter_set ? `${batch.ok_count}/${batch.case_count} ok / ${batch.parameter_set}` : `${batch.ok_count}/${batch.case_count} ok`;
+  const row = treeStatic(batch.id, meta);
   row.addEventListener("click", () => loadBatchRecord(batch.id));
   return row;
 }
@@ -420,6 +434,7 @@ function renderRunInputs() {
   container.innerHTML = "";
   const inputs = currentSystem()?.public_inputs || [];
   const savedInputs = state.activeRunInput?.inputs || state.detail?.default_run_input?.inputs || {};
+  container.append(parameterSetField());
   for (const input of inputs) {
     const field = document.createElement("div");
     field.className = "input-field";
@@ -1879,7 +1894,7 @@ async function runProject() {
     const save = currentProject()?.source === "workspace";
     const body = await api("/api/run", {
       method: "POST",
-      body: JSON.stringify({ project_path: state.currentProjectPath, inputs, context: currentRunContext(), save }),
+      body: JSON.stringify({ project_path: state.currentProjectPath, inputs, context: currentRunContext(), parameter_set_path: state.activeParameterSetPath, save }),
     });
     state.latestResult = body.result;
     state.latestResultStale = false;
@@ -1922,7 +1937,7 @@ async function runBatch() {
   try {
     const body = await api("/api/batch", {
       method: "POST",
-      body: JSON.stringify({ project_path: state.currentProjectPath }),
+      body: JSON.stringify({ project_path: state.currentProjectPath, parameter_set_path: state.activeParameterSetPath }),
     });
     state.latestBatchRecord = body.batch;
     state.latestRunRecord = null;
@@ -1968,6 +1983,7 @@ async function runDataValidation() {
       body: JSON.stringify({
         project_path: state.currentProjectPath,
         mapping_path: mapping.relative_path,
+        parameter_set_path: state.activeParameterSetPath,
         high_error_rows: 3,
         save: isWorkspaceProject(),
       }),
@@ -1992,6 +2008,32 @@ async function runDataValidation() {
     setBottomTab("problems");
     log(`Data validation failed: ${error.message}`);
   }
+}
+
+function parameterSetField() {
+  const field = document.createElement("div");
+  field.className = "input-field parameter-set-field";
+  const sets = state.detail?.parameter_sets || [];
+  field.innerHTML = `
+    <label for="runParameterSetSelect">
+      <span class="input-label">Parameter Set</span>
+      <span class="input-meta">${escapeHTML(state.activeParameterSetPath || "baseline")}</span>
+    </label>
+    <select id="runParameterSetSelect" class="run-select"></select>
+  `;
+  const select = field.querySelector("select");
+  select.append(new Option("Baseline", ""));
+  for (const item of sets) {
+    select.append(new Option(item.name || item.id || item.relative_path, item.relative_path || ""));
+  }
+  select.value = state.activeParameterSetPath || "";
+  select.addEventListener("change", () => {
+    state.activeParameterSetPath = select.value;
+    renderProjectTree();
+    renderRunInputs();
+    log(`Parameter set selected: ${state.activeParameterSetPath || "baseline"}`);
+  });
+  return field;
 }
 
 function collectBatchProblems(record) {
@@ -2056,6 +2098,7 @@ async function loadRunRecord(runID) {
     state.latestBatchRecord = null;
     state.latestDataValidation = null;
     state.latestWorkflowRecord = null;
+    state.activeParameterSetPath = body.run_record.parameter_set || "";
     state.latestResult = body.run_record.result;
     state.latestResultStale = false;
     setProblems();
@@ -2083,6 +2126,7 @@ async function loadBatchRecord(batchID) {
     state.latestRunRecord = null;
     state.latestDataValidation = null;
     state.latestWorkflowRecord = null;
+    state.activeParameterSetPath = body.batch_record.parameter_set || "";
     state.latestResult = null;
     state.latestResultStale = false;
     const batchProblems = collectBatchProblems(body.batch_record);
@@ -2091,6 +2135,7 @@ async function loadBatchRecord(batchID) {
     renderCanvas();
     renderInspector();
     renderPythonPanel();
+    renderRunInputs();
     renderResults();
     renderRunWorkspace();
     renderProblems();
@@ -2132,6 +2177,7 @@ async function loadWorkflowRecord(kind, recordID) {
     renderCanvas();
     renderInspector();
     renderPythonPanel();
+    renderRunInputs();
     renderResults();
     renderRunWorkspace();
     renderProblems();

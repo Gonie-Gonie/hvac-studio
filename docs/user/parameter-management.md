@@ -22,6 +22,8 @@ Component parameter definitions use roles so workflows can filter meaningful can
 
 Parameter sets are saved JSON overlays under `parameter_sets/`. Applying a parameter set changes runtime values in memory for that run or validation job; it does not rewrite the baseline `graph.json`.
 
+In Studio, selecting a parameter set in the Project tree or Run Inputs toolbar applies the same overlay to Run, Batch, and Data validation commands. Selecting `Baseline` clears the overlay.
+
 Example names:
 
 ```text
@@ -53,4 +55,4 @@ bcs-runner.exe run `
   --parameter-set parameter_sets/high_efficiency.json
 ```
 
-Run and validation results record the parameter-set path when one is used.
+Run, batch, and validation results record the parameter-set path when one is used.

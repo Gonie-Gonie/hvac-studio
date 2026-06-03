@@ -291,6 +291,7 @@ type BatchSummary struct {
 	ID           string `json:"id"`
 	RelativePath string `json:"relative_path"`
 	CreatedAtUTC string `json:"created_at_utc"`
+	ParameterSet string `json:"parameter_set,omitempty"`
 	CaseCount    int    `json:"case_count"`
 	OKCount      int    `json:"ok_count"`
 }
@@ -310,6 +311,7 @@ type BatchRecord struct {
 	ID           string            `json:"id"`
 	ProjectName  string            `json:"project_name"`
 	CreatedAtUTC string            `json:"created_at_utc"`
+	ParameterSet string            `json:"parameter_set,omitempty"`
 	Cases        []BatchCaseRecord `json:"cases"`
 }
 
@@ -1358,6 +1360,12 @@ func (s *Server) handleBatch(w http.ResponseWriter, r *http.Request) {
 		writeErrorWithProblems(w, apperror.Errorf(apperror.CodeValidation, "project source validation failed"), problems)
 		return
 	}
+	if req.ParameterSetPath != "" {
+		if _, err := parameterset.ApplyFile(loaded, req.ParameterSetPath); err != nil {
+			writeError(w, err)
+			return
+		}
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(len(scenarios))*30*time.Second)
 	defer cancel()
@@ -1383,12 +1391,15 @@ func (s *Server) handleBatch(w http.ResponseWriter, r *http.Request) {
 			caseRecord.Error = err.Error()
 			caseRecord.Problems = inferProblems(loaded.Graph, err)
 		} else {
+			if req.ParameterSetPath != "" {
+				result.ParameterSet = filepath.ToSlash(req.ParameterSetPath)
+			}
 			caseRecord.OK = true
 			caseRecord.Result = result
 		}
 		cases = append(cases, caseRecord)
 	}
-	summary, record, err := writeBatchRecord(loaded, cases)
+	summary, record, err := writeBatchRecord(loaded, cases, filepath.ToSlash(req.ParameterSetPath))
 	if err != nil {
 		writeError(w, apperror.Wrap(apperror.CodeRuntime, err))
 		return
@@ -3552,7 +3563,7 @@ func loadRunRecord(projectRoot string, runID string) (RunRecord, error) {
 	return record, nil
 }
 
-func writeBatchRecord(loaded *project.LoadedProject, cases []BatchCaseRecord) (BatchSummary, BatchRecord, error) {
+func writeBatchRecord(loaded *project.LoadedProject, cases []BatchCaseRecord, parameterSet string) (BatchSummary, BatchRecord, error) {
 	now := time.Now().UTC()
 	batchID := "batch-" + now.Format("20060102-150405.000000000")
 	runsRoot := filepath.Join(loaded.Root, "runs")
@@ -3564,6 +3575,7 @@ func writeBatchRecord(loaded *project.LoadedProject, cases []BatchCaseRecord) (B
 		ID:           batchID,
 		ProjectName:  loaded.Project.ProjectName,
 		CreatedAtUTC: now.Format(time.RFC3339Nano),
+		ParameterSet: parameterSet,
 		Cases:        cases,
 	}
 	if err := writeJSONFile(batchPath, record); err != nil {
@@ -3574,6 +3586,7 @@ func writeBatchRecord(loaded *project.LoadedProject, cases []BatchCaseRecord) (B
 		ID:           batchID,
 		RelativePath: filepath.ToSlash(rel),
 		CreatedAtUTC: record.CreatedAtUTC,
+		ParameterSet: record.ParameterSet,
 		CaseCount:    len(cases),
 		OKCount:      batchOKCount(cases),
 	}, record, nil
@@ -3599,6 +3612,7 @@ func loadBatchSummaries(projectRoot string) []BatchSummary {
 			ID:           record.ID,
 			RelativePath: filepath.ToSlash(rel),
 			CreatedAtUTC: record.CreatedAtUTC,
+			ParameterSet: record.ParameterSet,
 			CaseCount:    len(record.Cases),
 			OKCount:      batchOKCount(record.Cases),
 		})
