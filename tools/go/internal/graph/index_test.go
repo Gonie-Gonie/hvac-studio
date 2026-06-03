@@ -14,6 +14,17 @@ func TestNewIndexRejectsMissingGraphSchemaVersion(t *testing.T) {
 	}
 }
 
+func TestNewIndexRejectsIncompatibleGraphSchemaVersion(t *testing.T) {
+	graph := validGraph()
+	graph.SchemaVersion = "0.2.0"
+
+	_, err := NewIndex(graph)
+
+	if err == nil || !strings.Contains(err.Error(), "graph schema_version 0.2.0 is not compatible") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestNewIndexRejectsDuplicateSystemComponentReference(t *testing.T) {
 	graph := validGraph()
 	graph.Systems[0].Components = []string{"gain", "gain"}

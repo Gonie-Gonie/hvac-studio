@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hvac-studio.local/schema/error.schema.json",
+  "title": "HVAC Studio Structured Error",
+  "type": "object",
+  "required": ["schema", "code", "kind", "message"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "hvac-studio.error.v1"
+    },
+    "code": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["success", "validation", "runtime", "input", "python_worker", "license_runtime"]
+    },
+    "message": {
+      "type": "string"
+    },
+    "problems": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/problem"
+      }
+    }
+  },
+  "$defs": {
+    "problem": {
+      "type": "object",
+      "required": ["message"],
+      "properties": {
+        "severity": {
+          "type": "string",
+          "enum": ["error", "warning", "info"]
+        },
+        "message": {
+          "type": "string"
+        },
+        "component_id": {
+          "type": "string"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

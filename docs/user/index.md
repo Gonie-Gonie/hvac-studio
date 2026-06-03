@@ -25,9 +25,9 @@ It is not a fixed HVAC component library. Users define components, nodes, parame
 - Start with [Quick Start](quick-start.md) if you want to run a model immediately.
 - Read [Core Concepts](core-concepts.md) before creating custom components.
 - Read [How It Works](how-it-works.md) to understand why project files, the runner, and Python worker exist.
+- Read [Artifact Compatibility](artifact-compatibility.md) before depending on saved project files across releases.
 - Use [CLI Runner](cli-runner.md) and [Export Runtime](export-runtime.md) when integrating with external tools.
 
 ## Shared Execution Model
 
 Studio, CLI, SDK, and runtime packages use the same source-of-truth project files and runner. A model should not behave differently because it was launched from a different surface.
-

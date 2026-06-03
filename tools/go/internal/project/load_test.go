@@ -73,6 +73,55 @@ func TestLoadRejectsMissingProjectSchemaVersion(t *testing.T) {
 	}
 }
 
+func TestLoadAcceptsCompatibleProjectSchemaPatchVersion(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "project.bcsproj"), `{
+  "project_name": "fixture",
+  "schema_version": "0.1.9",
+  "entry_system": "MainSystem",
+  "graph": "graph.json"
+}
+`)
+	writeFile(t, filepath.Join(root, "graph.json"), `{
+  "schema_version": "0.1.0",
+  "systems": [],
+  "components": [],
+  "connections": []
+}
+`)
+
+	loaded, err := Load(filepath.Join(root, "project.bcsproj"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Project.SchemaVersion != "0.1.9" {
+		t.Fatalf("schema_version = %s", loaded.Project.SchemaVersion)
+	}
+}
+
+func TestLoadRejectsIncompatibleProjectSchemaVersion(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "project.bcsproj"), `{
+  "project_name": "fixture",
+  "schema_version": "0.2.0",
+  "entry_system": "MainSystem",
+  "graph": "graph.json"
+}
+`)
+	writeFile(t, filepath.Join(root, "graph.json"), `{
+  "schema_version": "0.1.0",
+  "systems": [],
+  "components": [],
+  "connections": []
+}
+`)
+
+	_, err := Load(filepath.Join(root, "project.bcsproj"))
+	if err == nil || !strings.Contains(err.Error(), "project schema_version 0.2.0 is not compatible") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestLoadRejectsUnknownGraphFields(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "project.bcsproj"), `{

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/goniegonie/hvac-studio/tools/go/internal/artifactschema"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
 )
 
@@ -16,6 +17,9 @@ type Index struct {
 func NewIndex(g *model.Graph) (*Index, error) {
 	if strings.TrimSpace(g.SchemaVersion) == "" {
 		return nil, fmt.Errorf("graph schema_version is required")
+	}
+	if err := artifactschema.Check("graph", g.SchemaVersion); err != nil {
+		return nil, err
 	}
 
 	idx := &Index{

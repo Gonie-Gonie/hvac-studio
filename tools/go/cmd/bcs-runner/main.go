@@ -23,11 +23,50 @@ import (
 )
 
 func main() {
-	if err := run(os.Args); err != nil {
+	args, errorFormat := splitGlobalErrorFormat(os.Args)
+	if err := run(args); err != nil {
 		code := apperror.ExitCode(err)
-		fmt.Fprintf(os.Stderr, "error[%s]: %v\n", apperror.CodeName(apperror.Code(code)), err)
+		if errorFormat == "json" {
+			_ = json.NewEncoder(os.Stderr).Encode(map[string]any{
+				"ok":    false,
+				"error": apperror.PayloadFor(err, nil),
+			})
+		} else {
+			fmt.Fprintf(os.Stderr, "error[%s]: %v\n", apperror.CodeName(apperror.Code(code)), err)
+		}
 		os.Exit(code)
 	}
+}
+
+func splitGlobalErrorFormat(args []string) ([]string, string) {
+	format := strings.ToLower(strings.TrimSpace(os.Getenv("BCS_RUNNER_ERROR_FORMAT")))
+	if format == "" {
+		format = "text"
+	}
+	if len(args) < 2 {
+		return args, format
+	}
+	out := []string{args[0]}
+	for index := 1; index < len(args); index++ {
+		arg := args[index]
+		switch {
+		case arg == "--error-format" && index+1 < len(args):
+			format = strings.ToLower(strings.TrimSpace(args[index+1]))
+			index++
+		case strings.HasPrefix(arg, "--error-format="):
+			format = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(arg, "--error-format=")))
+		default:
+			out = append(out, args[index:]...)
+			if format != "json" {
+				format = "text"
+			}
+			return out, format
+		}
+	}
+	if format != "json" {
+		format = "text"
+	}
+	return out, format
 }
 
 func run(args []string) error {
@@ -151,13 +190,7 @@ type serveResponse struct {
 	OK      bool                   `json:"ok"`
 	Message string                 `json:"message,omitempty"`
 	Result  *runtimecore.RunResult `json:"result,omitempty"`
-	Error   *serveError            `json:"error,omitempty"`
-}
-
-type serveError struct {
-	Kind    string `json:"kind"`
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Error   *apperror.Payload      `json:"error,omitempty"`
 }
 
 func serveProject(args []string, input io.Reader, output io.Writer) error {
@@ -218,13 +251,9 @@ func serveProject(args []string, input io.Reader, output io.Writer) error {
 	return nil
 }
 
-func responseError(err error) *serveError {
-	code := apperror.ErrorCode(err)
-	return &serveError{
-		Kind:    apperror.CodeName(code),
-		Code:    int(code),
-		Message: err.Error(),
-	}
+func responseError(err error) *apperror.Payload {
+	payload := apperror.PayloadFor(err, nil)
+	return &payload
 }
 
 func exportSchema(args []string) error {

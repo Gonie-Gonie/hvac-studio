@@ -2353,6 +2353,9 @@ func TestRunEndpointReturnsComponentLinkedRuntimeProblem(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
+	if body.Error.Schema != "hvac-studio.error.v1" || body.Error.Kind != "python_worker" {
+		t.Fatalf("error payload = %#v", body.Error)
+	}
 	if len(body.Problems) != 1 {
 		t.Fatalf("problems = %#v", body.Problems)
 	}

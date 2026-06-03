@@ -8,7 +8,8 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "minLength": 1
+      "pattern": "^0\\.1\\.[0-9]+$",
+      "description": "Graph artifact schema version. The current alpha compatibility line is 0.1.x."
     },
     "systems": {
       "type": "array",

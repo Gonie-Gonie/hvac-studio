@@ -12,7 +12,8 @@
     },
     "schema_version": {
       "type": "string",
-      "minLength": 1
+      "pattern": "^0\\.1\\.[0-9]+$",
+      "description": "Project artifact schema version. The current alpha compatibility line is 0.1.x."
     },
     "engine_version": {
       "type": "string"

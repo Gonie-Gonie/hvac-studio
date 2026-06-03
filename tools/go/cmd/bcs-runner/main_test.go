@@ -444,6 +444,58 @@ func TestServeCommandReusesLoadedSessionState(t *testing.T) {
 	}
 }
 
+func TestServeCommandReturnsStructuredError(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectRoot := filepath.Join(tmpDir, "project")
+	copyTree(t, examplePath("001_scalar_component"), projectRoot)
+
+	requests := strings.Join([]string{
+		`{"id":"bad","inputs":{},"context":{}}`,
+		`{"id":"stop","type":"shutdown"}`,
+		"",
+	}, "\n")
+	var output bytes.Buffer
+	err := serveProject([]string{"--project", filepath.Join(projectRoot, "project.bcsproj")}, strings.NewReader(requests), &output)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("response lines = %d output=%s", len(lines), output.String())
+	}
+	var response struct {
+		ID    string `json:"id"`
+		OK    bool   `json:"ok"`
+		Error struct {
+			Schema  string `json:"schema"`
+			Code    int    `json:"code"`
+			Kind    string `json:"kind"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(lines[0]), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.OK || response.Error.Schema != "hvac-studio.error.v1" || response.Error.Kind != "input" {
+		t.Fatalf("response = %#v", response)
+	}
+	if !strings.Contains(response.Error.Message, "missing required public input") {
+		t.Fatalf("message = %s", response.Error.Message)
+	}
+}
+
+func TestSplitGlobalErrorFormat(t *testing.T) {
+	args, format := splitGlobalErrorFormat([]string{"bcs-runner", "--error-format", "json", "validate"})
+	if format != "json" || strings.Join(args, " ") != "bcs-runner validate" {
+		t.Fatalf("args=%v format=%s", args, format)
+	}
+	args, format = splitGlobalErrorFormat([]string{"bcs-runner", "--error-format=yaml", "validate"})
+	if format != "text" || strings.Join(args, " ") != "bcs-runner validate" {
+		t.Fatalf("args=%v format=%s", args, format)
+	}
+}
+
 func examplePath(name string) string {
 	return filepath.Join("..", "..", "..", "..", "examples", name)
 }

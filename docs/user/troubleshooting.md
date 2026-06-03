@@ -1,5 +1,21 @@
 # Troubleshooting
 
+## Structured Errors
+
+CLI JSON errors, Studio API errors, runner `serve` errors, and SDK `RunnerError.error` use the same `hvac-studio.error.v1` payload:
+
+```json
+{
+  "schema": "hvac-studio.error.v1",
+  "code": 3,
+  "kind": "input",
+  "message": "missing required public input: value",
+  "problems": []
+}
+```
+
+The `kind` values follow the documented CLI exit-code taxonomy: `validation`, `runtime`, `input`, `python_worker`, and `license_runtime`. Studio may include `problems` entries with `component_id`, `node_id`, `source`, `line`, and `column` when it can link an error back to a project artifact. For CLI commands, pass `--error-format json` before the subcommand or set `BCS_RUNNER_ERROR_FORMAT=json`.
+
 ## Validation Error
 
 Validation errors usually mean a project artifact has an invalid reference or unsupported graph shape.

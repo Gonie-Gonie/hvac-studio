@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/goniegonie/hvac-studio/tools/go/internal/artifactschema"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
 )
 
@@ -101,6 +102,9 @@ func validateProject(proj model.Project) error {
 	}
 	if strings.TrimSpace(proj.SchemaVersion) == "" {
 		return fmt.Errorf("project schema_version is required")
+	}
+	if err := artifactschema.Check("project", proj.SchemaVersion); err != nil {
+		return err
 	}
 	if strings.TrimSpace(proj.EntrySystem) == "" {
 		return fmt.Errorf("project entry_system is required")

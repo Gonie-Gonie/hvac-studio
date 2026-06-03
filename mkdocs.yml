@@ -18,6 +18,7 @@ nav:
       - Optimization: user/optimization.md
       - CLI Runner: user/cli-runner.md
       - Export Runtime: user/export-runtime.md
+      - Artifact Compatibility: user/artifact-compatibility.md
       - Troubleshooting: user/troubleshooting.md
       - Glossary: user/glossary.md
   - Project Docs:
@@ -25,4 +26,3 @@ nav:
       - Release Process: release.md
       - Development Plan: development-plan.md
       - Repository Design: repository-design.md
-

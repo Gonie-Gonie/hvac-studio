@@ -21,6 +21,24 @@ type Error struct {
 	Err  error
 }
 
+type Payload struct {
+	Schema   string    `json:"schema"`
+	Code     int       `json:"code"`
+	Kind     string    `json:"kind"`
+	Message  string    `json:"message"`
+	Problems []Problem `json:"problems,omitempty"`
+}
+
+type Problem struct {
+	Severity    string `json:"severity,omitempty"`
+	Message     string `json:"message"`
+	ComponentID string `json:"component_id,omitempty"`
+	NodeID      string `json:"node_id,omitempty"`
+	Source      string `json:"source,omitempty"`
+	Line        int    `json:"line,omitempty"`
+	Column      int    `json:"column,omitempty"`
+}
+
 func Wrap(code Code, err error) error {
 	if err == nil {
 		return nil
@@ -89,4 +107,24 @@ func ErrorCode(err error) Code {
 		return appErr.Code
 	}
 	return CodeRuntime
+}
+
+func PayloadFor(err error, problems []Problem) Payload {
+	code := ErrorCode(err)
+	message := ""
+	if err != nil {
+		var appErr *Error
+		if errors.As(err, &appErr) && appErr.Unwrap() != nil {
+			message = appErr.Unwrap().Error()
+		} else {
+			message = err.Error()
+		}
+	}
+	return Payload{
+		Schema:   "hvac-studio.error.v1",
+		Code:     int(code),
+		Kind:     CodeName(code),
+		Message:  message,
+		Problems: problems,
+	}
 }

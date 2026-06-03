@@ -415,11 +415,12 @@ type Problem struct {
 }
 
 type apiError struct {
-	OK       bool      `json:"ok"`
-	Code     int       `json:"code"`
-	Kind     string    `json:"kind"`
-	Message  string    `json:"message"`
-	Problems []Problem `json:"problems,omitempty"`
+	OK       bool             `json:"ok"`
+	Error    apperror.Payload `json:"error"`
+	Code     int              `json:"code"`
+	Kind     string           `json:"kind"`
+	Message  string           `json:"message"`
+	Problems []Problem        `json:"problems,omitempty"`
 }
 
 func New(repoRoot string) (*Server, error) {
@@ -3377,17 +3378,33 @@ func writeErrorWithProblems(w http.ResponseWriter, err error, problems []Problem
 	case apperror.CodePythonWorker:
 		status = http.StatusBadGateway
 	}
-	var appErr *apperror.Error
-	if errors.As(err, &appErr) {
-		err = appErr.Unwrap()
-	}
+	payload := apperror.PayloadFor(err, toAppProblems(problems))
 	writeJSON(w, status, apiError{
 		OK:       false,
-		Code:     int(code),
-		Kind:     apperror.CodeName(code),
-		Message:  fmt.Sprint(err),
+		Error:    payload,
+		Code:     payload.Code,
+		Kind:     payload.Kind,
+		Message:  payload.Message,
 		Problems: problems,
 	})
+}
+
+func toAppProblems(problems []Problem) []apperror.Problem {
+	if len(problems) == 0 {
+		return nil
+	}
+	out := make([]apperror.Problem, 0, len(problems))
+	for _, problem := range problems {
+		out = append(out, apperror.Problem{
+			Severity:    problem.Severity,
+			Message:     problem.Message,
+			ComponentID: problem.ComponentID,
+			NodeID:      problem.NodeID,
+			Line:        problem.Line,
+			Column:      problem.Column,
+		})
+	}
+	return out
 }
 
 func inferProblems(graph *model.Graph, err error) []Problem {

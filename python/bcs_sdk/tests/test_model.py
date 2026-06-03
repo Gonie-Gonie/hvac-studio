@@ -7,7 +7,7 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-from bcs_sdk import RunnerClient
+from bcs_sdk import RunnerClient, RunnerError
 from bcs_sdk.model import load_project
 
 
@@ -35,6 +35,32 @@ class RunnerClientTests(unittest.TestCase):
         self.assertEqual(result["outputs"]["result"], 10)
         self.assertIn('"inputs": {"value": 4}', process.stdin.getvalue())
         self.assertIn('"type": "shutdown"', process.stdin.getvalue())
+
+    def test_evaluate_preserves_structured_error(self) -> None:
+        process = FakeProcess([
+            {
+                "id": "case-1",
+                "ok": False,
+                "error": {
+                    "schema": "hvac-studio.error.v1",
+                    "code": 3,
+                    "kind": "input",
+                    "message": "missing required public input: value",
+                },
+            },
+            {"id": "shutdown", "ok": True, "message": "shutdown"},
+        ])
+
+        with patch("subprocess.Popen", return_value=process):
+            client = RunnerClient.start(project="project.bcsproj", runner="bcs-runner")
+            with self.assertRaises(RunnerError) as raised:
+                client.evaluate({}, {"time": 0})
+            client.close()
+
+        self.assertEqual(raised.exception.schema, "hvac-studio.error.v1")
+        self.assertEqual(raised.exception.kind, "input")
+        self.assertEqual(raised.exception.code, 3)
+        self.assertIn("missing required public input", str(raised.exception))
 
 
 class FakeProcess:

@@ -9,7 +9,12 @@ from typing import Any
 
 
 class RunnerError(RuntimeError):
-    pass
+    def __init__(self, message: str, error: dict[str, Any] | None = None) -> None:
+        super().__init__(message)
+        self.error = error or {}
+        self.kind = self.error.get("kind")
+        self.code = self.error.get("code")
+        self.schema = self.error.get("schema")
 
 
 class RunnerClient:
@@ -120,7 +125,7 @@ class RunnerClient:
         if not response.get("ok"):
             error = response.get("error") or {}
             message = error.get("message") or "runner serve request failed"
-            raise RunnerError(message)
+            raise RunnerError(message, error=error)
         return response["result"]
 
     def __enter__(self) -> "RunnerClient":

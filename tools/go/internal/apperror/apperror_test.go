@@ -47,3 +47,27 @@ func TestDocumentedCodeTaxonomy(t *testing.T) {
 		}
 	}
 }
+
+func TestPayloadForUsesStableSchemaAndProblemShape(t *testing.T) {
+	err := Wrap(CodePythonWorker, errors.New("component scalar failed"))
+	payload := PayloadFor(err, []Problem{{
+		Severity:    "error",
+		Message:     "bad output",
+		ComponentID: "scalar",
+		NodeID:      "result",
+		Source:      "components/scalar.py",
+		Line:        12,
+	}})
+	if payload.Schema != "hvac-studio.error.v1" {
+		t.Fatalf("schema = %s", payload.Schema)
+	}
+	if payload.Code != int(CodePythonWorker) || payload.Kind != "python_worker" {
+		t.Fatalf("payload code/kind = %#v", payload)
+	}
+	if payload.Message != "component scalar failed" {
+		t.Fatalf("message = %s", payload.Message)
+	}
+	if len(payload.Problems) != 1 || payload.Problems[0].ComponentID != "scalar" || payload.Problems[0].Line != 12 {
+		t.Fatalf("problems = %#v", payload.Problems)
+	}
+}
