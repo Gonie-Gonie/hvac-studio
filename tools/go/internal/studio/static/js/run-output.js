@@ -1,12 +1,13 @@
 import { escapeHTML } from "./dom.js";
 import { formatValue } from "./format.js";
 
-export function renderRunOutputWorkspace(state, summary, outputRows, chart, componentRows) {
+export function renderRunOutputWorkspace(state, summary, outputRows, chart, componentRows, batchRows) {
   if (!summary || !outputRows || !chart) return;
   renderRunSummary(state, summary);
   renderPublicOutputs(state, outputRows);
   renderOutputChart(state, chart);
   renderSelectedComponentValues(state, componentRows);
+  renderBatchCases(state, batchRows);
 }
 
 function renderRunSummary(state, summary) {
@@ -90,6 +91,33 @@ function renderSelectedComponentValues(state, tbody) {
     `;
     tbody.append(row);
   }
+}
+
+function renderBatchCases(state, tbody) {
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  const cases = state.latestBatchRecord?.cases || [];
+  if (!cases.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-cell">No batch run yet</td></tr>`;
+    return;
+  }
+  cases.forEach((item, index) => {
+    const outputs = item.ok ? publicOutputSummary(item.result?.outputs || {}) : "";
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${escapeHTML(item.scenario_name || item.scenario_id || `case ${index + 1}`)}</td>
+      <td>${escapeHTML(item.ok ? "ok" : "failed")}</td>
+      <td>${escapeHTML(outputs)}</td>
+      <td>${escapeHTML(item.error || "")}</td>
+    `;
+    tbody.append(row);
+  });
+}
+
+function publicOutputSummary(outputs) {
+  const entries = Object.entries(outputs);
+  if (!entries.length) return "";
+  return entries.map(([name, value]) => `${name}: ${formatValue(value)}`).join(", ");
 }
 
 function renderOutputChart(state, chart) {

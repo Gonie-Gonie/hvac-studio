@@ -72,6 +72,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("componentRunRows")) {
 		t.Fatalf("index did not include selected component run values")
 	}
+	if !bytes.Contains(body, []byte("batchCaseRows")) {
+		t.Fatalf("index did not include batch case rows")
+	}
 	if !bytes.Contains(body, []byte("autoLayoutButton")) {
 		t.Fatalf("index did not include canvas auto layout control")
 	}
@@ -303,6 +306,9 @@ func TestStaticRunOutputModuleServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("renderSelectedComponentValues")) {
 		t.Fatalf("run output module did not render selected component values")
+	}
+	if !bytes.Contains(body, []byte("renderBatchCases")) {
+		t.Fatalf("run output module did not render batch cases")
 	}
 	if !bytes.Contains(body, []byte("component_inputs")) {
 		t.Fatalf("run output module did not read component input snapshots")

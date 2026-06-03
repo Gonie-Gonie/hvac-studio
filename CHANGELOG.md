@@ -108,3 +108,4 @@
 - Show runtime export folder, self-check command, and default run command in the Export workspace.
 - Refresh Project tree Python Source state after source load and distinguish loaded/read-only source files.
 - Show component display names with stable IDs in Code workspace and Parameter Manager selectors.
+- Add a Batch Cases table to the Studio Run workspace.

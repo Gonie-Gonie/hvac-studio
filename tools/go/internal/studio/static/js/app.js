@@ -1344,7 +1344,7 @@ function renderResults() {
 }
 
 function renderRunWorkspace() {
-  renderRunOutputWorkspace(state, el("runSummaryRows"), el("runOutputRows"), el("runOutputChart"), el("componentRunRows"));
+  renderRunOutputWorkspace(state, el("runSummaryRows"), el("runOutputRows"), el("runOutputChart"), el("componentRunRows"), el("batchCaseRows"));
 }
 
 function renderSchema() {
