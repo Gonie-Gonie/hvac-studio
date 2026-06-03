@@ -130,6 +130,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("latestConnectionValue")) {
 		t.Fatalf("module entrypoint did not include connection result rendering")
 	}
+	if !bytes.Contains(body, []byte("latestRuntimeResult")) {
+		t.Fatalf("module entrypoint did not share latest runtime result state")
+	}
 	if !bytes.Contains(body, []byte("runInputMeta")) {
 		t.Fatalf("module entrypoint did not include run input metadata rendering")
 	}

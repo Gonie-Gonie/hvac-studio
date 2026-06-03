@@ -37,4 +37,4 @@ Current run inputs can be saved as scenario artifacts under `scenarios/`. Enter 
 
 Saved scenarios can be reopened from the Project tree to populate the Run Inputs panel for repeatable one-case runs. Opening a scenario returns to the System workspace where those inputs are visible.
 
-Batch runs execute saved scenarios and write `runs/batch-*.json` records. The Run workspace lists batch cases with status, public output summaries, and errors. Batch records can be reopened from the Project tree. Failed cases keep their error and component-linked Problems metadata so the Problems panel can still guide editing after the record is reopened.
+Batch runs execute saved scenarios and write `runs/batch-*.json` records. The Run workspace lists batch cases with status, public output summaries, and errors. Batch records can be reopened from the Project tree. For canvas, Inspector, and Code workspace last-value feedback, Studio uses the first successful batch case. Failed cases keep their error and component-linked Problems metadata so the Problems panel can still guide editing after the record is reopened.

@@ -140,7 +140,7 @@ function renderSystemHeader() {
     return;
   }
   const parts = [`${project.project_name} / ${state.detail.graph_path}`];
-  if (state.latestResult) parts.push(state.latestResultStale ? "last run stale" : "last run current");
+  if (latestRuntimeResult()) parts.push(state.latestResultStale ? "last result stale" : "last result current");
   el("systemSubtitle").textContent = parts.join(" / ");
 }
 
@@ -604,9 +604,10 @@ function canvasParameterSummary(component) {
 }
 
 function latestCanvasNodeValue(componentID, nodeID, direction) {
+  const result = latestRuntimeResult();
   const componentValues = direction === "output"
-    ? state.latestResult?.component_outputs?.[componentID]
-    : state.latestResult?.component_inputs?.[componentID];
+    ? result?.component_outputs?.[componentID]
+    : result?.component_inputs?.[componentID];
   if (!componentValues || !Object.prototype.hasOwnProperty.call(componentValues, nodeID)) {
     return { hasValue: false, value: null };
   }
@@ -719,8 +720,9 @@ function renderInspector() {
   if (isWorkspaceProject()) container.append(nodeEditor(component));
   container.append(parameterInspectorBlock(component));
   container.append(connectionEditor(component));
-  const latestInputs = state.latestResult?.component_inputs?.[component.id];
-  const latestOutputs = state.latestResult?.component_outputs?.[component.id];
+  const result = latestRuntimeResult();
+  const latestInputs = result?.component_inputs?.[component.id];
+  const latestOutputs = result?.component_outputs?.[component.id];
   if (latestInputs) {
     container.append(inspectorBlock(runValueTitle("Last Inputs"), Object.entries(latestInputs).map(([k, v]) => [k, formatValue(v)])));
   }
@@ -1159,11 +1161,12 @@ function connectionRowsFor(component) {
 
 function latestConnectionValue(connection) {
   if (!connection) return { hasValue: false, value: null };
-  const outputs = state.latestResult?.component_outputs?.[connection.from.component] || {};
+  const result = latestRuntimeResult();
+  const outputs = result?.component_outputs?.[connection.from.component] || {};
   if (Object.prototype.hasOwnProperty.call(outputs, connection.from.node)) {
     return { hasValue: true, value: outputs[connection.from.node] };
   }
-  const inputs = state.latestResult?.component_inputs?.[connection.to.component] || {};
+  const inputs = result?.component_inputs?.[connection.to.component] || {};
   if (Object.prototype.hasOwnProperty.call(inputs, connection.to.node)) {
     return { hasValue: true, value: inputs[connection.to.node] };
   }
@@ -1343,6 +1346,15 @@ function renderResults() {
   el("resultsPanel").textContent = value ? JSON.stringify(value, null, 2) : "";
 }
 
+function latestRuntimeResult() {
+  if (state.latestBatchRecord) {
+    const found = (state.latestBatchRecord.cases || []).find((item) => item.ok && item.result);
+    return found?.result || null;
+  }
+  if (state.latestRunRecord?.result) return state.latestRunRecord.result;
+  return state.latestResult;
+}
+
 function renderRunWorkspace() {
   renderRunOutputWorkspace(state, el("runSummaryRows"), el("runOutputRows"), el("runOutputChart"), el("componentRunRows"), el("batchCaseRows"));
 }
@@ -1469,8 +1481,9 @@ function renderSourceContract(component) {
 }
 
 function sourceRuntimeBlock(component) {
-  const latestInputs = state.latestResult?.component_inputs?.[component.id] || {};
-  const latestOutputs = state.latestResult?.component_outputs?.[component.id] || {};
+  const result = latestRuntimeResult();
+  const latestInputs = result?.component_inputs?.[component.id] || {};
+  const latestOutputs = result?.component_outputs?.[component.id] || {};
   const rows = [
     ...Object.entries(latestInputs).map(([name, value]) => [`in ${name}`, formatValue(value)]),
     ...Object.entries(latestOutputs).map(([name, value]) => [`out ${name}`, formatValue(value)]),
@@ -2759,7 +2772,7 @@ function markProjectDirty() {
 }
 
 function markRunResultStale(render = true) {
-  if (!state.latestResult || state.latestResultStale) return;
+  if (!latestRuntimeResult() || state.latestResultStale) return;
   state.latestResultStale = true;
   if (!render) return;
   renderSystemHeader();
