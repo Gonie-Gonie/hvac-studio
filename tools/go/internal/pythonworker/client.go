@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"github.com/goniegonie/hvac-studio/tools/go/internal/platform"
 )
 
 type Client struct {
@@ -60,7 +62,7 @@ func Start(ctx context.Context, pythonExe string, projectRoot string) (*Client, 
 		return nil, err
 	}
 
-	cmd := exec.CommandContext(ctx, pythonExe, "-m", "bcs_worker.worker", "--stdio")
+	cmd := platform.CommandContext(ctx, pythonExe, "-m", "bcs_worker.worker", "--stdio")
 	cmd.Dir = projectRoot
 	cmd.Env = withPythonPath(os.Environ(), []string{workerPath, projectRoot})
 

@@ -10,6 +10,7 @@ import (
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/platform"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/pythonworker"
 )
@@ -234,42 +235,10 @@ func resolvePython(projectRoot string, env model.EnvironmentConfig) string {
 	if _, err := os.Stat(projectPython); err == nil {
 		return projectPython
 	}
-	if isDefaultPythonName(env.Python) {
-		if packagedPython := findPackagedPython(projectRoot); packagedPython != "" {
+	if platform.IsDefaultPythonName(env.Python) {
+		if packagedPython := platform.FindNearestRuntimePython(projectRoot); packagedPython != "" {
 			return packagedPython
 		}
 	}
 	return env.Python
-}
-
-func isDefaultPythonName(path string) bool {
-	name := filepath.Base(path)
-	return name == "python" || name == "python.exe" || name == "python3" || name == "python3.exe"
-}
-
-func findPackagedPython(start string) string {
-	if start == "" {
-		return ""
-	}
-	absStart, err := filepath.Abs(start)
-	if err != nil {
-		return ""
-	}
-	for {
-		candidates := []string{
-			filepath.Join(absStart, "runtime", "python", "python.exe"),
-			filepath.Join(absStart, "runtime", "python", "python"),
-			filepath.Join(absStart, "runtime", "python", "bin", "python"),
-		}
-		for _, candidate := range candidates {
-			if _, err := os.Stat(candidate); err == nil {
-				return candidate
-			}
-		}
-		parent := filepath.Dir(absStart)
-		if parent == absStart {
-			return ""
-		}
-		absStart = parent
-	}
 }

@@ -10,7 +10,6 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -21,6 +20,7 @@ import (
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/platform"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
 	runtimecore "github.com/goniegonie/hvac-studio/tools/go/internal/runtime"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/schemaexport"
@@ -2668,7 +2668,7 @@ func pythonSyntaxProblems(ctx context.Context, loaded *project.LoadedProject, co
 	pythonExe := resolveStudioPython(loaded.Root, loaded.Project.Environment)
 	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(checkCtx, pythonExe, "-c", "import sys\ncompile(sys.stdin.read(), sys.argv[1], 'exec')", relativePath)
+	cmd := platform.CommandContext(checkCtx, pythonExe, "-c", "import sys\ncompile(sys.stdin.read(), sys.argv[1], 'exec')", relativePath)
 	cmd.Dir = loaded.Root
 	cmd.Stdin = strings.NewReader(content)
 	var stderr bytes.Buffer
@@ -2701,7 +2701,7 @@ func pythonLoadProblems(ctx context.Context, loaded *project.LoadedProject, comp
 		"if not callable(cls):",
 		"    raise TypeError('expected class is not callable: ' + sys.argv[2])",
 	}, "\n")
-	cmd := exec.CommandContext(checkCtx, pythonExe, "-c", script, relativePath, expectedClass)
+	cmd := platform.CommandContext(checkCtx, pythonExe, "-c", script, relativePath, expectedClass)
 	cmd.Dir = loaded.Root
 	cmd.Stdin = strings.NewReader(content)
 	var stderr bytes.Buffer
@@ -2746,41 +2746,12 @@ func resolveStudioPython(projectRoot string, env model.EnvironmentConfig) string
 	if _, err := os.Stat(projectPython); err == nil {
 		return projectPython
 	}
-	if isDefaultPythonName(env.Python) {
-		if packagedPython := findPackagedPython(projectRoot); packagedPython != "" {
+	if platform.IsDefaultPythonName(env.Python) {
+		if packagedPython := platform.FindNearestRuntimePython(projectRoot); packagedPython != "" {
 			return packagedPython
 		}
 	}
 	return env.Python
-}
-
-func isDefaultPythonName(path string) bool {
-	name := strings.ToLower(filepath.Base(path))
-	return name == "python" || name == "python.exe" || name == "python3" || name == "python3.exe"
-}
-
-func findPackagedPython(start string) string {
-	absStart, err := filepath.Abs(start)
-	if err != nil {
-		return ""
-	}
-	for {
-		candidates := []string{
-			filepath.Join(absStart, "runtime", "python", "python.exe"),
-			filepath.Join(absStart, "runtime", "python", "python"),
-			filepath.Join(absStart, "runtime", "python", "bin", "python"),
-		}
-		for _, candidate := range candidates {
-			if _, err := os.Stat(candidate); err == nil {
-				return candidate
-			}
-		}
-		parent := filepath.Dir(absStart)
-		if parent == absStart {
-			return ""
-		}
-		absStart = parent
-	}
 }
 
 func hasErrorProblems(problems []Problem) bool {
@@ -3644,8 +3615,8 @@ func findRuntimeSupportRoot(start string) string {
 		return ""
 	}
 	for {
-		runner := filepath.Join(absStart, "bin", "bcs-runner.exe")
-		python := filepath.Join(absStart, "runtime", "python", "python.exe")
+		runner := platform.BinExecutable(absStart, "bcs-runner")
+		python := platform.RuntimePythonPath(absStart)
 		if _, runnerErr := os.Stat(runner); runnerErr == nil {
 			if _, pythonErr := os.Stat(python); pythonErr == nil {
 				return absStart

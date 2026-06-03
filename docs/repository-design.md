@@ -67,7 +67,7 @@ tools/go/internal/compiler      validation and execution plan compilation
 tools/go/internal/pythonworker  JSONL stdio worker client
 tools/go/internal/runtime       run orchestration
 tools/go/internal/studio        local Studio web host and API
-tools/go/internal/platform      planned OS-specific path/process/runtime boundary
+tools/go/internal/platform      OS-specific path/process/runtime boundary
 python/bcs_worker               user component host process
 python/bcs_sdk                  runner wrapper for research workflows
 schema                          JSON Schema contracts

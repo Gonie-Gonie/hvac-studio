@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/goniegonie/hvac-studio/tools/go/internal/platform"
 )
 
 type envStatus struct {
@@ -150,15 +150,15 @@ func detectMode(root string) string {
 	if pathExists(filepath.Join(root, "tools", "go", "go.mod")) {
 		return "repository"
 	}
-	if pathExists(filepath.Join(root, "HVAC Studio.exe")) && pathExists(filepath.Join(root, "bin", "studio.exe")) {
+	if pathExists(filepath.Join(root, "HVAC Studio.exe")) && pathExists(platform.BinExecutable(root, "studio")) {
 		return "portable-studio"
 	}
 	if pathExists(filepath.Join(root, "manifest.json")) &&
 		pathExists(filepath.Join(root, "project", "project.bcsproj")) &&
-		pathExists(filepath.Join(root, "bin", executableName("bcs-runner"))) {
+		pathExists(platform.BinExecutable(root, "bcs-runner")) {
 		return "runtime-export"
 	}
-	if pathExists(filepath.Join(root, "bin", executableName("bcs-runner"))) {
+	if pathExists(platform.BinExecutable(root, "bcs-runner")) {
 		return "runtime-package"
 	}
 	return "unknown"
@@ -173,9 +173,9 @@ func requiredChecks(root string, mode string) []checkStatus {
 			check("project", "exported project", filepath.Join(root, "project", "project.bcsproj"), true),
 			check("graph", "exported graph", filepath.Join(root, "project", "graph.json"), true),
 			check("interface_schema", "public IO schema", filepath.Join(root, "schema", "public-io.json"), true),
-			check("runner", "runner executable", filepath.Join(root, "bin", executableName("bcs-runner")), true),
-			check("env", "environment checker", filepath.Join(root, "bin", executableName("bcs-env")), true),
-			check("runtime_python", "packaged Python runtime", filepath.Join(root, "runtime", "python", executableName("python")), true),
+			check("runner", "runner executable", platform.BinExecutable(root, "bcs-runner"), true),
+			check("env", "environment checker", platform.BinExecutable(root, "bcs-env"), true),
+			check("runtime_python", "packaged Python runtime", platform.RuntimePythonPath(root), true),
 		}
 	}
 	checks := []checkStatus{
@@ -192,12 +192,12 @@ func requiredChecks(root string, mode string) []checkStatus {
 			check("project_template_scalar", "scalar project template", filepath.Join(root, "templates", "projects", "scalar", "project.bcsproj"), true),
 			check("component_template_scalar_manifest", "scalar component template manifest", filepath.Join(root, "templates", "components", "scalar", "manifest.json"), true),
 			check("component_template_scalar_source", "scalar component template source", filepath.Join(root, "templates", "components", "scalar", "scalar.py"), true),
-			check("runner", "runner executable", filepath.Join(root, "bin", executableName("bcs-runner")), true),
-			check("studio_server", "Studio server executable", filepath.Join(root, "bin", executableName("studio")), true),
+			check("runner", "runner executable", platform.BinExecutable(root, "bcs-runner"), true),
+			check("studio_server", "Studio server executable", platform.BinExecutable(root, "studio"), true),
 			check("studio_desktop", "Studio desktop executable", filepath.Join(root, "HVAC Studio.exe"), true),
 		)
 	case "runtime-package":
-		checks = append(checks, check("runner", "runner executable", filepath.Join(root, "bin", executableName("bcs-runner")), true))
+		checks = append(checks, check("runner", "runner executable", platform.BinExecutable(root, "bcs-runner"), true))
 	case "repository":
 		checks = append(checks,
 			check("templates", "templates", filepath.Join(root, "templates"), true),
@@ -384,10 +384,9 @@ func check(id string, label string, path string, required bool) checkStatus {
 func resolvePython(root string) string {
 	candidates := []string{
 		os.Getenv("HVAC_STUDIO_PYTHON"),
-		filepath.Join(root, "runtime", "python", executableName("python")),
-		filepath.Join(root, ".venv", "Scripts", "python.exe"),
-		filepath.Join(root, ".venv", "bin", "python"),
+		platform.RuntimePythonPath(root),
 	}
+	candidates = append(candidates, platform.VirtualEnvPythonCandidates(root)...)
 	candidates = append(candidates, repoManagedPythonCandidates(root)...)
 	for _, candidate := range candidates {
 		if candidate == "" {
@@ -401,7 +400,7 @@ func resolvePython(root string) string {
 			return candidate
 		}
 	}
-	if path, err := exec.LookPath("python"); err == nil {
+	if path, ok := platform.LookPath("python"); ok {
 		return path
 	}
 	return ""
@@ -418,7 +417,7 @@ func repoManagedPythonCandidates(root string) []string {
 		if !dir.IsDir() {
 			continue
 		}
-		candidates = append(candidates, filepath.Join(installRoot, dir.Name(), executableName("python")))
+		candidates = append(candidates, filepath.Join(installRoot, dir.Name(), platform.ExecutableName("python")))
 	}
 	sort.Sort(sort.Reverse(sort.StringSlice(candidates)))
 	return candidates
@@ -427,7 +426,7 @@ func repoManagedPythonCandidates(root string) []string {
 func commandVersion(path string, arg string) (string, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, path, arg)
+	cmd := platform.CommandContext(ctx, path, arg)
 	output, err := cmd.CombinedOutput()
 	text := strings.TrimSpace(string(output))
 	if ctx.Err() != nil {
@@ -493,23 +492,16 @@ func looksLikeRoot(dir string) bool {
 	}
 	if pathExists(filepath.Join(dir, "manifest.json")) &&
 		pathExists(filepath.Join(dir, "project", "project.bcsproj")) &&
-		pathExists(filepath.Join(dir, "bin", executableName("bcs-runner"))) {
+		pathExists(platform.BinExecutable(dir, "bcs-runner")) {
 		return true
 	}
 	if pathExists(filepath.Join(dir, "runtime", "manifest.json")) && pathExists(filepath.Join(dir, "python", "bcs_worker")) {
 		return true
 	}
-	if pathExists(filepath.Join(dir, "release-manifest.json")) && pathExists(filepath.Join(dir, "bin", executableName("bcs-runner"))) {
+	if pathExists(filepath.Join(dir, "release-manifest.json")) && pathExists(platform.BinExecutable(dir, "bcs-runner")) {
 		return true
 	}
 	return false
-}
-
-func executableName(name string) string {
-	if runtime.GOOS == "windows" {
-		return name + ".exe"
-	}
-	return name
 }
 
 func pathExists(path string) bool {

@@ -81,6 +81,7 @@
 - Add a non-release CI workflow for Windows fast checks on push and pull request.
 - Add package smoke coverage to CI for main and manual runs.
 - Add project Python lockfile validation, freeze script support, and lockfile preservation in runtime exports.
+- Add a Go platform boundary for executable naming, packaged Python lookup, and process creation helpers.
 - Add an API workflow test for editing Python source, connecting components, and observing propagated run results.
 - Show selected component last-run input/output values in the Code workspace contract panel.
 - Mark Studio last-run values stale after runtime-affecting edits.

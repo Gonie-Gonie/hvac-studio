@@ -58,10 +58,11 @@ Already present:
 - CI workflow for non-release test runs.
 - Release package smoke test in CI for main and manual runs.
 - Project-specific Python package lock/freeze support on top of bundled `runtime/python`.
+- Explicit Go platform boundary for path, process, runtime Python, and executable naming decisions.
 
 Near-term additions:
 
-- Add explicit platform abstraction for path, process, runtime, and executable naming boundaries.
+- None remaining for Milestone 0; final release-gate verification is pending.
 
 Acceptance criteria:
 

@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/goniegonie/hvac-studio/tools/go/internal/platform"
 )
 
 func TestFindRootFromRepositoryRoot(t *testing.T) {
@@ -25,7 +27,7 @@ func TestFindRootFromPortablePackageBin(t *testing.T) {
 	root := t.TempDir()
 	mkdirAll(t, filepath.Join(root, "examples"))
 	mkdirAll(t, filepath.Join(root, "bin"))
-	writeFile(t, filepath.Join(root, "bin", "bcs-runner.exe"), []byte("runner"))
+	writeFile(t, platform.BinExecutable(root, "bcs-runner"), []byte("runner"))
 
 	found, err := findRootFrom(filepath.Join(root, "bin"))
 	if err != nil {

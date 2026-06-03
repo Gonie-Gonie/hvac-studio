@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/goniegonie/hvac-studio/tools/go/internal/platform"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/studio"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -129,8 +130,7 @@ func looksLikeRoot(dir string) bool {
 		return false
 	}
 	return pathExists(filepath.Join(dir, "tools", "go", "go.mod")) ||
-		pathExists(filepath.Join(dir, "bin", "bcs-runner.exe")) ||
-		pathExists(filepath.Join(dir, "bin", "bcs-runner")) ||
+		pathExists(platform.BinExecutable(dir, "bcs-runner")) ||
 		(pathExists(filepath.Join(dir, "release-manifest.json")) && pathExists(filepath.Join(dir, "runtime", "manifest.json")))
 }
 
