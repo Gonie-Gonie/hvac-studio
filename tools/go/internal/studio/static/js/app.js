@@ -195,14 +195,25 @@ function treeItem(id, label, meta) {
 function componentTreeItem(component, system) {
   const inSystem = Boolean(system?.components?.includes(component.id));
   const row = treeItem(component.id, component.name || component.id, inSystem ? component.kind : "unused");
-  if (!inSystem && isWorkspaceProject()) {
+  if (isWorkspaceProject()) {
+    if (!inSystem) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "tree-action";
+      button.textContent = "Use";
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        includeComponentInSystem(component.id);
+      });
+      row.append(button);
+    }
     const button = document.createElement("button");
     button.type = "button";
     button.className = "tree-action";
-    button.textContent = "Use";
+    button.textContent = "Copy";
     button.addEventListener("click", (event) => {
       event.stopPropagation();
-      includeComponentInSystem(component.id);
+      duplicateComponent(component.id);
     });
     row.append(button);
   }
@@ -938,7 +949,7 @@ function componentEditor(component) {
   const duplicateButton = document.createElement("button");
   duplicateButton.type = "button";
   duplicateButton.textContent = "Duplicate";
-  duplicateButton.addEventListener("click", () => duplicateComponentFromInspector(component.id));
+  duplicateButton.addEventListener("click", () => duplicateComponent(component.id));
   const codeButton = document.createElement("button");
   codeButton.type = "button";
   codeButton.textContent = "Code";
@@ -2219,7 +2230,7 @@ async function updateComponentFromInspector(componentID) {
   }
 }
 
-async function duplicateComponentFromInspector(componentID) {
+async function duplicateComponent(componentID) {
   const component = componentById(componentID);
   if (!component || !isWorkspaceProject()) return;
   const name = `${component.name || component.id} Copy`;

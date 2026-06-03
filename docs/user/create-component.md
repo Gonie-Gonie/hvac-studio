@@ -19,7 +19,7 @@ Workspace component display names can be edited from the Inspector. Component ID
 
 The Inspector can open the selected workspace component in the Code workspace so its Python source can be edited without losing the current component selection.
 
-Existing workspace components can be duplicated from the Inspector. The duplicate copies the graph contract, parameters, and Python source into a new component artifact, but it is not automatically added to the runnable system.
+Existing workspace components can be duplicated from the Project tree or the Inspector. The duplicate copies the graph contract, parameters, and Python source into a new component artifact, but it is not automatically added to the runnable system.
 
 Removing a component from a system cleans system membership, related connections, public IO, and default input entries, while keeping the component source artifact in the project. Deleting a component removes its graph entry and source file only after it is no longer used by a system.
 

@@ -151,6 +151,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("includeComponentInSystem")) {
 		t.Fatalf("module entrypoint did not include tree component system inclusion")
 	}
+	if !bytes.Contains(body, []byte("duplicateComponent")) {
+		t.Fatalf("module entrypoint did not include component duplication action")
+	}
 	if !bytes.Contains(body, []byte("sourceRuntimeBlock")) {
 		t.Fatalf("module entrypoint did not include code workspace runtime feedback")
 	}
