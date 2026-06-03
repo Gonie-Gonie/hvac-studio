@@ -12,6 +12,8 @@ building_load_kw public input
 
 The same adjusted load also feeds the chiller directly. The example is intentionally scalar and small; its job is to test graph compilation, connection propagation, public IO mapping, and result inspection.
 
+Runner output includes `component_inputs`, `component_outputs`, `node_values`, and `connection_values` so the GUI and CLI consumers can inspect how each node and connection was evaluated.
+
 Expected public outputs for `inputs/case01.json`:
 
 ```json
@@ -21,4 +23,3 @@ Expected public outputs for `inputs/case01.json`:
   "chw_supply_temp_c": 7.15
 }
 ```
-

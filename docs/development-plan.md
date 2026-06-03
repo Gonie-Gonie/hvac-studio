@@ -162,9 +162,18 @@ Acceptance criteria:
 
 ## Milestone 3: Feed-Forward Component-Node Systems
 
-Status: started with `examples/003_feedforward_system`.
+Status: complete. Verified on 2026-06-03 with `scripts/dev/test-fast.ps1`.
 
 Goal: support multiple user-defined components connected through nodes.
+
+Implemented:
+
+- `examples/003_feedforward_system` runs an acyclic four-component graph through the runner and example smoke tests.
+- Compiler validation requires connection sources to be declared output nodes and targets to be declared input nodes.
+- Compiler topological ordering preserves feed-forward execution and reports algebraic loops with involved components.
+- Medium compatibility follows the MVP UX rule: matching media pass, signal-to-physical connections pass with warnings, physical mismatches fail by default, and explicit medium overrides are structured in `graph.json`.
+- Runtime results include `component_inputs`, `component_outputs`, `node_values`, and `connection_values` for inspection.
+- Studio validation surfaces connection medium warnings in the Problems panel without blocking execution.
 
 Scope:
 
