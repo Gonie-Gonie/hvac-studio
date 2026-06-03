@@ -151,7 +151,7 @@ function renderProjectTree() {
   const sections = [
     ["Systems", graph.systems.map((item) => treeItem(item.id, item.name || item.id, "system"))],
     ["Components", graph.components.map((item) => componentTreeItem(item, system))],
-    ["Python Source", graph.components.map((item) => treeItem(item.id, item.class || "", "class"))],
+    ["Python Source", graph.components.map((item) => sourceTreeItem(item))],
     ["Runs", (state.detail.runs || []).map((item) => runTreeItem(item))],
     ["Batches", (state.detail.batches || []).map((item) => batchTreeItem(item))],
     ["Scenarios", (state.detail.scenarios || []).map((item) => scenarioTreeItem(item))],
@@ -206,6 +206,32 @@ function componentTreeItem(component, system) {
     row.append(button);
   }
   return row;
+}
+
+function sourceTreeItem(component) {
+  const row = treeItem(component.id, component.class || component.id, sourceTreeMeta(component));
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "tree-action";
+  button.textContent = "Open";
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openComponentCode(component.id);
+  });
+  row.addEventListener("dblclick", () => openComponentCode(component.id));
+  row.append(button);
+  return row;
+}
+
+function sourceTreeMeta(component) {
+  const source = state.sourceByComponent[component.id];
+  if (source && sourceDraft(component.id) !== source.content) return "dirty";
+  const check = state.sourceCheckByComponent[component.id];
+  const problems = check?.problems || [];
+  const issueCount = problems.filter((problem) => problem.severity !== "ok").length;
+  if (issueCount) return `${issueCount} issue${issueCount === 1 ? "" : "s"}`;
+  if (check?.ok) return "ok";
+  return "source";
 }
 
 function treeStatic(label, meta) {
@@ -1774,6 +1800,7 @@ async function saveCurrentSource() {
     const sourceProblems = applySourceSaveResponse(component.id, body);
     state.latestValidation = { problems: sourceProblems };
     renderPythonPanel();
+    renderProjectTree();
     renderProblems();
     if (sourceProblems.length) setBottomTab("problems");
     log(`Source saved: ${component.id}`);
@@ -1806,6 +1833,7 @@ async function checkCurrentSource() {
     state.latestValidation = { problems: body.check.problems || [] };
     renderSourceCheck(component.id);
     renderSourceContract(component);
+    renderProjectTree();
     renderProblems();
     if (!body.check.ok) setBottomTab("problems");
     log(`Source checked: ${component.id}`);
@@ -2660,6 +2688,7 @@ function updateSourceDraftFromEditor(editor) {
   }
   updateLineNumbers(editor.value);
   updateSourceChrome(component, state.sourceByComponent[component.id], editor.value);
+  renderProjectTree();
   markProjectDirty();
 }
 

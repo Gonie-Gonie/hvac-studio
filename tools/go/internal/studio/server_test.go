@@ -154,6 +154,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("sourceReferenceBlock")) {
 		t.Fatalf("module entrypoint did not include source contract reference insertion")
 	}
+	if !bytes.Contains(body, []byte("sourceTreeItem")) {
+		t.Fatalf("module entrypoint did not include source tree navigation")
+	}
 	if !bytes.Contains(body, []byte("insertSourceText")) {
 		t.Fatalf("module entrypoint did not include shared source insertion")
 	}
