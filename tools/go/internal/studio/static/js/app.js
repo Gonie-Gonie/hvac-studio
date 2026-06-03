@@ -281,7 +281,7 @@ function renderArtifactWorkspace() {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "small-action table-action";
-      button.textContent = "Open";
+      button.textContent = artifact.action || "Open";
       button.addEventListener("click", artifact.open);
       tr.querySelector(".action-cell").append(button);
     }
@@ -327,6 +327,28 @@ function artifactRows() {
         renderProjectTree();
         renderRunInputs();
       },
+    });
+  }
+  for (const item of state.detail.calibration_setups || []) {
+    rows.push({
+      type: "Calibration Setup",
+      name: item.name || item.id,
+      path: item.relative_path,
+      state: `${item.algorithm || "grid"} / ${item.parameter_count || 0} params`,
+      ...sourcePolicy,
+      action: "Run",
+      open: () => runCalibrationSetup(item),
+    });
+  }
+  for (const item of state.detail.optimization_setups || []) {
+    rows.push({
+      type: "Optimization Setup",
+      name: item.name || item.id,
+      path: item.relative_path,
+      state: `${item.algorithm || "grid"} / ${item.variable_count || 0} vars`,
+      ...sourcePolicy,
+      action: "Run",
+      open: () => runOptimizationSetup(item),
     });
   }
   for (const item of state.detail.scenarios || []) {
@@ -2154,7 +2176,7 @@ async function runDataValidation() {
     state.latestWorkflowRecord = null;
     if (body.validation_record) {
       state.detail.validation_runs = [body.validation_record, ...(state.detail.validation_runs || [])];
-      renderProjectTree();
+      await refreshCurrentProjectDetail();
     }
     setProblems();
     renderResults();
@@ -2170,6 +2192,76 @@ async function runDataValidation() {
     setBottomTab("problems");
     log(`Data validation failed: ${error.message}`);
   }
+}
+
+async function runCalibrationSetup(setup) {
+  if (!(await saveModelEditsBeforeExecution())) return;
+  try {
+    const body = await api("/api/calibration/run", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        setup_path: setup.relative_path,
+        save: isWorkspaceProject(),
+      }),
+    });
+    state.latestWorkflowRecord = body.calibration_result;
+    state.latestDataValidation = null;
+    setProblems();
+    await refreshCurrentProjectDetail();
+    renderResults();
+    renderProblems();
+    setBottomTab("results");
+    setMode("artifacts");
+    log(`Calibration complete: ${setup.name || setup.id}`);
+  } catch (error) {
+    state.latestWorkflowRecord = null;
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderResults();
+    renderProblems();
+    setBottomTab("problems");
+    log(`Calibration failed: ${error.message}`);
+  }
+}
+
+async function runOptimizationSetup(setup) {
+  if (!(await saveModelEditsBeforeExecution())) return;
+  try {
+    const body = await api("/api/optimization/run", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        setup_path: setup.relative_path,
+        save: isWorkspaceProject(),
+      }),
+    });
+    state.latestWorkflowRecord = body.optimization_result;
+    state.latestDataValidation = null;
+    setProblems();
+    await refreshCurrentProjectDetail();
+    renderResults();
+    renderProblems();
+    setBottomTab("results");
+    setMode("artifacts");
+    log(`Optimization complete: ${setup.name || setup.id}`);
+  } catch (error) {
+    state.latestWorkflowRecord = null;
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderResults();
+    renderProblems();
+    setBottomTab("problems");
+    log(`Optimization failed: ${error.message}`);
+  }
+}
+
+async function refreshCurrentProjectDetail() {
+  if (!state.currentProjectPath) return;
+  const body = await api(`/api/project?project_path=${encodeURIComponent(state.currentProjectPath)}`);
+  state.detail = body.project;
+  renderProjectTree();
+  renderArtifactWorkspace();
+  renderRunInputs();
+  updateCommandState();
 }
 
 function parameterSetField() {

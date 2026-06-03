@@ -66,6 +66,8 @@ type ProjectDetail struct {
 	Datasets            []DatasetSummary                `json:"datasets"`
 	ParameterSets       []ParameterSetSummary           `json:"parameter_sets"`
 	ValidationMappings  []ValidationMappingSummary      `json:"validation_mappings"`
+	CalibrationSetups   []CalibrationSetupSummary       `json:"calibration_setups"`
+	OptimizationSetups  []OptimizationSetupSummary      `json:"optimization_setups"`
 	ValidationRuns      []modelvalidation.RecordSummary `json:"validation_runs"`
 	CalibrationResults  []calibration.RecordSummary     `json:"calibration_results"`
 	OptimizationResults []optimization.RecordSummary    `json:"optimization_results"`
@@ -269,6 +271,20 @@ type validationRunRequest struct {
 	Save             bool   `json:"save"`
 }
 
+type calibrationRunRequest struct {
+	ProjectPath      string `json:"project_path"`
+	SetupPath        string `json:"setup_path"`
+	SaveParameterSet string `json:"save_parameter_set"`
+	Save             bool   `json:"save"`
+}
+
+type optimizationRunRequest struct {
+	ProjectPath  string `json:"project_path"`
+	SetupPath    string `json:"setup_path"`
+	SaveScenario string `json:"save_scenario"`
+	Save         bool   `json:"save"`
+}
+
 type RunSummary struct {
 	ID           string         `json:"id"`
 	RelativePath string         `json:"relative_path"`
@@ -347,6 +363,24 @@ type ValidationMappingSummary struct {
 	Dataset      string `json:"dataset"`
 	InputCount   int    `json:"input_count"`
 	OutputCount  int    `json:"output_count"`
+}
+
+type CalibrationSetupSummary struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	RelativePath   string `json:"relative_path"`
+	Algorithm      string `json:"algorithm"`
+	Mapping        string `json:"mapping"`
+	ParameterCount int    `json:"parameter_count"`
+}
+
+type OptimizationSetupSummary struct {
+	ID            string                 `json:"id"`
+	Name          string                 `json:"name"`
+	RelativePath  string                 `json:"relative_path"`
+	Algorithm     string                 `json:"algorithm"`
+	Objective     optimization.Objective `json:"objective"`
+	VariableCount int                    `json:"variable_count"`
 }
 
 type ScenarioRecord struct {
@@ -481,6 +515,8 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/run", s.handleRun)
 	s.mux.HandleFunc("POST /api/batch", s.handleBatch)
 	s.mux.HandleFunc("POST /api/validation/run", s.handleDataValidation)
+	s.mux.HandleFunc("POST /api/calibration/run", s.handleCalibrationRun)
+	s.mux.HandleFunc("POST /api/optimization/run", s.handleOptimizationRun)
 	s.mux.HandleFunc("POST /api/schema", s.handleSchema)
 	s.mux.HandleFunc("POST /api/export", s.handleExport)
 	s.mux.Handle("/", staticHandler)
@@ -1475,6 +1511,118 @@ func (s *Server) handleDataValidation(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
+func (s *Server) handleCalibrationRun(w http.ResponseWriter, r *http.Request) {
+	var req calibrationRunRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeInput, err))
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if req.Save {
+		if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+			writeError(w, err)
+			return
+		}
+	}
+	if problems := projectSourceErrorProblems(r.Context(), loaded); len(problems) > 0 {
+		writeErrorWithProblems(w, apperror.Errorf(apperror.CodeValidation, "project source validation failed"), problems)
+		return
+	}
+	if req.SetupPath == "" {
+		setups := loadCalibrationSetupSummaries(loaded.Root)
+		if len(setups) == 0 {
+			writeError(w, apperror.Errorf(apperror.CodeValidation, "calibration requires a saved setup"))
+			return
+		}
+		req.SetupPath = setups[0].RelativePath
+	}
+	setup, err := calibration.LoadSetup(loaded.Root, req.SetupPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if req.Save && req.SaveParameterSet == "" {
+		req.SaveParameterSet = filepath.ToSlash(filepath.Join("parameter_sets", setup.ID+"_calibrated.json"))
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+	defer cancel()
+	result, err := calibration.Run(ctx, loaded.Path, setup, calibration.Options{SaveParameterSet: req.SaveParameterSet})
+	if err != nil {
+		writeErrorWithProblems(w, err, inferProblems(loaded.Graph, err))
+		return
+	}
+	response := map[string]any{"ok": true, "calibration_result": result}
+	if req.Save {
+		summary, err := calibration.WriteRecord(loaded, result)
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		response["calibration_record"] = summary
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (s *Server) handleOptimizationRun(w http.ResponseWriter, r *http.Request) {
+	var req optimizationRunRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeInput, err))
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if req.Save {
+		if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+			writeError(w, err)
+			return
+		}
+	}
+	if problems := projectSourceErrorProblems(r.Context(), loaded); len(problems) > 0 {
+		writeErrorWithProblems(w, apperror.Errorf(apperror.CodeValidation, "project source validation failed"), problems)
+		return
+	}
+	if req.SetupPath == "" {
+		setups := loadOptimizationSetupSummaries(loaded.Root)
+		if len(setups) == 0 {
+			writeError(w, apperror.Errorf(apperror.CodeValidation, "optimization requires a saved setup"))
+			return
+		}
+		req.SetupPath = setups[0].RelativePath
+	}
+	setup, err := optimization.LoadSetup(loaded.Root, req.SetupPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if req.Save && req.SaveScenario == "" {
+		req.SaveScenario = filepath.ToSlash(filepath.Join("scenarios", setup.ID+"_optimized.json"))
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+	defer cancel()
+	result, err := optimization.Run(ctx, loaded.Path, setup, optimization.Options{SaveScenario: req.SaveScenario})
+	if err != nil {
+		writeErrorWithProblems(w, err, inferProblems(loaded.Graph, err))
+		return
+	}
+	response := map[string]any{"ok": true, "optimization_result": result}
+	if req.Save {
+		summary, err := optimization.WriteRecord(loaded, result)
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		response["optimization_record"] = summary
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+
 func (s *Server) handleSchema(w http.ResponseWriter, r *http.Request) {
 	req, err := decodeRequest(r)
 	if err != nil {
@@ -1548,6 +1696,8 @@ func projectDetail(loaded *project.LoadedProject) ProjectDetail {
 		Datasets:            loadDatasetSummaries(loaded.Root),
 		ParameterSets:       loadParameterSetSummaries(loaded.Root),
 		ValidationMappings:  loadValidationMappingSummaries(loaded.Root),
+		CalibrationSetups:   loadCalibrationSetupSummaries(loaded.Root),
+		OptimizationSetups:  loadOptimizationSetupSummaries(loaded.Root),
 		ValidationRuns:      modelvalidation.LoadRecordSummaries(loaded.Root),
 		CalibrationResults:  calibration.LoadRecordSummaries(loaded.Root),
 		OptimizationResults: optimization.LoadRecordSummaries(loaded.Root),
@@ -3839,6 +3989,62 @@ func loadValidationMappingSummaries(projectRoot string) []ValidationMappingSumma
 			Dataset:      filepath.ToSlash(mapping.Dataset),
 			InputCount:   len(mapping.InputColumns),
 			OutputCount:  len(mapping.ObservedOutputColumns),
+		})
+	}
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i].RelativePath < summaries[j].RelativePath
+	})
+	return summaries
+}
+
+func loadCalibrationSetupSummaries(projectRoot string) []CalibrationSetupSummary {
+	files := appendMatchingFiles(filepath.Join(projectRoot, "calibration", "setups"), []string{"*.json"})
+	summaries := []CalibrationSetupSummary{}
+	for _, path := range files {
+		rel, _ := filepath.Rel(projectRoot, path)
+		setup, err := calibration.LoadSetup(projectRoot, rel)
+		if err != nil {
+			continue
+		}
+		name := setup.Name
+		if name == "" {
+			name = displayNameFromID(setup.ID)
+		}
+		summaries = append(summaries, CalibrationSetupSummary{
+			ID:             setup.ID,
+			Name:           name,
+			RelativePath:   filepath.ToSlash(rel),
+			Algorithm:      setup.Algorithm,
+			Mapping:        filepath.ToSlash(setup.Mapping),
+			ParameterCount: len(setup.Parameters),
+		})
+	}
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i].RelativePath < summaries[j].RelativePath
+	})
+	return summaries
+}
+
+func loadOptimizationSetupSummaries(projectRoot string) []OptimizationSetupSummary {
+	files := appendMatchingFiles(filepath.Join(projectRoot, "optimization", "setups"), []string{"*.json"})
+	summaries := []OptimizationSetupSummary{}
+	for _, path := range files {
+		rel, _ := filepath.Rel(projectRoot, path)
+		setup, err := optimization.LoadSetup(projectRoot, rel)
+		if err != nil {
+			continue
+		}
+		name := setup.Name
+		if name == "" {
+			name = displayNameFromID(setup.ID)
+		}
+		summaries = append(summaries, OptimizationSetupSummary{
+			ID:            setup.ID,
+			Name:          name,
+			RelativePath:  filepath.ToSlash(rel),
+			Algorithm:     setup.Algorithm,
+			Objective:     setup.Objective,
+			VariableCount: len(setup.DecisionVariables),
 		})
 	}
 	sort.Slice(summaries, func(i, j int) bool {

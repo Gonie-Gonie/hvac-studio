@@ -328,6 +328,18 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("openArtifactSummary")) {
 		t.Fatalf("module entrypoint did not include artifact summary navigation")
 	}
+	if !bytes.Contains(body, []byte("runCalibrationSetup")) {
+		t.Fatalf("module entrypoint did not include calibration setup execution")
+	}
+	if !bytes.Contains(body, []byte("runOptimizationSetup")) {
+		t.Fatalf("module entrypoint did not include optimization setup execution")
+	}
+	if !bytes.Contains(body, []byte("/api/calibration/run")) {
+		t.Fatalf("module entrypoint did not call calibration run endpoint")
+	}
+	if !bytes.Contains(body, []byte("/api/optimization/run")) {
+		t.Fatalf("module entrypoint did not call optimization run endpoint")
+	}
 	if !bytes.Contains(body, []byte("projectTemplateSelect")) {
 		t.Fatalf("module entrypoint did not read the selected project type")
 	}
@@ -2023,6 +2035,12 @@ func TestProjectEndpointIncludesDatasetAndParameterSetSummaries(t *testing.T) {
 	if mapping.ID != "plant_validation" || mapping.InputCount != 3 || mapping.OutputCount != 2 {
 		t.Fatalf("validation mapping summary = %#v", mapping)
 	}
+	if len(body.Project.CalibrationSetups) != 1 {
+		t.Fatalf("calibration setup count = %d", len(body.Project.CalibrationSetups))
+	}
+	if body.Project.CalibrationSetups[0].ID != "chiller_cop_grid" || body.Project.CalibrationSetups[0].ParameterCount != 1 {
+		t.Fatalf("calibration setup summary = %#v", body.Project.CalibrationSetups[0])
+	}
 }
 
 func TestDataValidationEndpointRunsMapping(t *testing.T) {
@@ -2155,6 +2173,116 @@ func TestDataValidationEndpointSavesWorkspaceRecord(t *testing.T) {
 	}
 	if openBody.ValidationRecord.ID != body.ValidationRecord.ID || openBody.ValidationRecord.Result.RowCount != 3 {
 		t.Fatalf("opened record = %#v", openBody.ValidationRecord)
+	}
+}
+
+func TestCalibrationRunEndpointSavesWorkspaceRecord(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectRoot := filepath.Join(root, "projects", "calibration-project")
+	if err := copyProjectTree(filepath.Join(repoRoot, "examples", "005_chiller_plant_like_system"), projectRoot); err != nil {
+		t.Fatal(err)
+	}
+	projectPath := filepath.Join(projectRoot, "project.bcsproj")
+	payload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"setup_path":   filepath.Join("calibration", "setups", "chiller_cop_grid.json"),
+		"save":         true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/calibration/run", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		CalibrationResult struct {
+			OK                bool   `json:"ok"`
+			SavedParameterSet string `json:"saved_parameter_set"`
+			SavedRecord       string `json:"saved_record"`
+		} `json:"calibration_result"`
+		CalibrationRecord struct {
+			ID           string `json:"id"`
+			RelativePath string `json:"relative_path"`
+		} `json:"calibration_record"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !body.CalibrationResult.OK || body.CalibrationResult.SavedParameterSet != "parameter_sets/chiller_cop_grid_calibrated.json" {
+		t.Fatalf("calibration result = %#v", body.CalibrationResult)
+	}
+	if body.CalibrationRecord.ID == "" || body.CalibrationResult.SavedRecord != body.CalibrationRecord.RelativePath {
+		t.Fatalf("calibration record = %#v result=%#v", body.CalibrationRecord, body.CalibrationResult)
+	}
+	if _, err := os.Stat(filepath.Join(projectRoot, "parameter_sets", "chiller_cop_grid_calibrated.json")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(projectRoot, filepath.FromSlash(body.CalibrationRecord.RelativePath))); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOptimizationRunEndpointSavesWorkspaceRecord(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectRoot := filepath.Join(root, "projects", "optimization-project")
+	if err := copyProjectTree(filepath.Join(repoRoot, "examples", "006_optimization_case"), projectRoot); err != nil {
+		t.Fatal(err)
+	}
+	projectPath := filepath.Join(projectRoot, "project.bcsproj")
+	payload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"setup_path":   filepath.Join("optimization", "setups", "chw_setpoint_grid.json"),
+		"save":         true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/optimization/run", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		OptimizationResult struct {
+			OK            bool   `json:"ok"`
+			SavedScenario string `json:"saved_scenario"`
+			SavedRecord   string `json:"saved_record"`
+		} `json:"optimization_result"`
+		OptimizationRecord struct {
+			ID           string `json:"id"`
+			RelativePath string `json:"relative_path"`
+		} `json:"optimization_record"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !body.OptimizationResult.OK || body.OptimizationResult.SavedScenario != "scenarios/chw_setpoint_grid_optimized.json" {
+		t.Fatalf("optimization result = %#v", body.OptimizationResult)
+	}
+	if body.OptimizationRecord.ID == "" || body.OptimizationResult.SavedRecord != body.OptimizationRecord.RelativePath {
+		t.Fatalf("optimization record = %#v result=%#v", body.OptimizationRecord, body.OptimizationResult)
+	}
+	if _, err := os.Stat(filepath.Join(projectRoot, "scenarios", "chw_setpoint_grid_optimized.json")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(projectRoot, filepath.FromSlash(body.OptimizationRecord.RelativePath))); err != nil {
+		t.Fatal(err)
 	}
 }
 
