@@ -24,3 +24,26 @@ func TestWrapKeepsExistingCode(t *testing.T) {
 		t.Fatalf("wrapped code = %v", got)
 	}
 }
+
+func TestDocumentedCodeTaxonomy(t *testing.T) {
+	cases := []struct {
+		code Code
+		exit int
+		name string
+	}{
+		{CodeSuccess, 0, "success"},
+		{CodeValidation, 1, "validation"},
+		{CodeRuntime, 2, "runtime"},
+		{CodeInput, 3, "input"},
+		{CodePythonWorker, 4, "python_worker"},
+		{CodeLicenseRuntime, 5, "license_runtime"},
+	}
+	for _, tc := range cases {
+		if int(tc.code) != tc.exit {
+			t.Fatalf("%s exit code = %d, want %d", tc.name, tc.code, tc.exit)
+		}
+		if got := CodeName(tc.code); got != tc.name {
+			t.Fatalf("code name = %s, want %s", got, tc.name)
+		}
+	}
+}
