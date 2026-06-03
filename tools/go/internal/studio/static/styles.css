@@ -118,7 +118,7 @@ input {
 
 .project-switcher {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) minmax(128px, 180px) auto auto;
   align-items: center;
   gap: 8px;
 }

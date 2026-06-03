@@ -66,6 +66,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("componentTemplateSelect")) {
 		t.Fatalf("index did not include the component template selector")
 	}
+	if !bytes.Contains(body, []byte("projectNameInput")) {
+		t.Fatalf("index did not include the project name field")
+	}
 }
 
 func TestStaticModuleEntrypointServes(t *testing.T) {
@@ -186,6 +189,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("/api/component-templates")) {
 		t.Fatalf("module entrypoint did not load component templates")
+	}
+	if !bytes.Contains(body, []byte("defaultProjectName")) {
+		t.Fatalf("module entrypoint did not include in-app project naming")
+	}
+	if bytes.Contains(body, []byte(`window.prompt("Project name"`)) || bytes.Contains(body, []byte(`window.prompt("Copy project as"`)) {
+		t.Fatalf("module entrypoint should not use prompts for project creation or copy")
 	}
 	if bytes.Contains(body, []byte(`window.prompt("Component name"`)) {
 		t.Fatalf("module entrypoint should not use a prompt for component creation")

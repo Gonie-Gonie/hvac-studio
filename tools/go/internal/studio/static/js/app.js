@@ -313,6 +313,11 @@ function defaultScenarioName() {
   return `Scenario ${stamp}`;
 }
 
+function defaultProjectName(prefix = "Project") {
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "");
+  return `${prefix} ${stamp}`;
+}
+
 function renderCanvas() {
   const canvas = el("systemCanvas");
   const layer = el("connectionLayer");
@@ -1943,13 +1948,15 @@ async function createScenario() {
 }
 
 async function createProject() {
-  const name = window.prompt("Project name", "New Python Component Project");
-  if (!name || !name.trim()) return;
+  const nameInput = el("projectNameInput");
+  const name = (nameInput?.value || defaultProjectName("Project")).trim();
+  if (!name) return;
   try {
     const body = await api("/api/projects", {
       method: "POST",
-      body: JSON.stringify({ name: name.trim(), template: "scalar" }),
+      body: JSON.stringify({ name, template: "scalar" }),
     });
+    if (nameInput) nameInput.value = "";
     await loadProjects(body.project.project_path);
     log(`Created ${body.project.relative_path}`);
   } catch (error) {
@@ -1965,13 +1972,15 @@ async function copyProject() {
   if (!project) return;
   const sourceName = state.detail?.project?.project_name || project.name || "Project";
   const defaultName = `${sourceName} Copy`;
-  const name = window.prompt("Copy project as", defaultName);
-  if (!name || !name.trim()) return;
+  const nameInput = el("projectNameInput");
+  const name = (nameInput?.value || defaultName).trim();
+  if (!name) return;
   try {
     const body = await api("/api/projects/copy", {
       method: "POST",
-      body: JSON.stringify({ project_path: state.currentProjectPath, name: name.trim() }),
+      body: JSON.stringify({ project_path: state.currentProjectPath, name }),
     });
+    if (nameInput) nameInput.value = "";
     await loadProjects(body.project.project_path);
     log(`Copied project: ${body.project.relative_path}`);
   } catch (error) {
