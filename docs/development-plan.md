@@ -557,6 +557,15 @@ Acceptance criteria:
 
 ## Milestone 11: SDK And External Engine Integration
 
+Status: complete for serve-backed Python SDK MVP. Verified on 2026-06-03 with `scripts/dev/test-python.ps1`.
+
+Implemented:
+
+- `bcs_sdk.RunnerClient.start(...)` launches `bcs-runner serve` and keeps the process alive for repeated evaluations.
+- SDK responses return the same structured runner result used by CLI and Studio.
+- SDK supports context-manager shutdown.
+- `examples/006_optimization_case/scripts/grid_search.py` uses the serve-backed SDK workflow.
+
 Goal: make research and delivery paths use the same runner.
 
 Principles:

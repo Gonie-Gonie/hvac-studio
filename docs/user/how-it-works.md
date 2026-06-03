@@ -48,6 +48,19 @@ Execution follows this shape:
 
 User Python runs in a worker process. This keeps the runtime boundary explicit and makes future repeated evaluation, optimization, and external engine integration more stable.
 
+## SDK Wraps Serve Mode
+
+The Python SDK is a client for `bcs-runner serve`. `RunnerClient.start(...)` keeps the runner process alive and sends repeated JSON requests to the same compiled project/session:
+
+```python
+from bcs_sdk import RunnerClient
+
+with RunnerClient.start("project.bcsproj", runner="bcs-runner.exe") as client:
+    result = client.evaluate({"value": 4}, {"time": 0, "dt": 60})
+```
+
+This keeps SDK workflows aligned with CLI, Studio, and external-engine integrations.
+
 ## Public IO Is The Contract
 
 The public input/output schema is the shared contract across Studio, CLI, SDK, validation, calibration, optimization, and runtime-only delivery.

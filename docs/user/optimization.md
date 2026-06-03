@@ -36,4 +36,4 @@ The result includes each candidate objective, the best inputs, best outputs, and
 
 ## SDK Path
 
-Advanced optimization should be possible through Python SDK scripts that call the same runner as Studio.
+Advanced optimization can use Python SDK scripts that call the same runner as Studio. `examples/006_optimization_case/scripts/grid_search.py` keeps a `bcs-runner serve` session alive through `RunnerClient.start(...)` and evaluates candidate setpoints from Python.
