@@ -1111,6 +1111,26 @@ th {
   color: #936400;
 }
 
+.case-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.case-status.ok {
+  background: #e7f8ef;
+  color: #12733d;
+}
+
+.case-status.failed {
+  background: #ffe9e9;
+  color: #a51d1d;
+}
+
 .connection-value {
   display: flex;
   gap: 8px;

@@ -103,10 +103,11 @@ function renderBatchCases(state, tbody) {
   }
   cases.forEach((item, index) => {
     const outputs = item.ok ? publicOutputSummary(item.result?.outputs || {}) : "";
+    const status = item.ok ? "ok" : "failed";
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${escapeHTML(item.scenario_name || item.scenario_id || `case ${index + 1}`)}</td>
-      <td>${escapeHTML(item.ok ? "ok" : "failed")}</td>
+      <td><span class="case-status ${status}">${escapeHTML(status)}</span></td>
       <td>${escapeHTML(outputs)}</td>
       <td>${escapeHTML(item.error || "")}</td>
     `;

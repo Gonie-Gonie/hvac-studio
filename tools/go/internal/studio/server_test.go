@@ -322,6 +322,9 @@ func TestStaticRunOutputModuleServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("renderBatchCases")) {
 		t.Fatalf("run output module did not render batch cases")
 	}
+	if !bytes.Contains(body, []byte("case-status")) {
+		t.Fatalf("run output module did not render batch case status badges")
+	}
 	if !bytes.Contains(body, []byte("component_inputs")) {
 		t.Fatalf("run output module did not read component input snapshots")
 	}
