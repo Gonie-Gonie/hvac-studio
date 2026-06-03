@@ -613,9 +613,9 @@ These items make the existing workflows feel like a product rather than a set of
 
 | ID | Area | Unimplemented item | Done when |
 | --- | --- | --- | --- |
-| PM-101 | Component authoring | Generated-wrapper as default new-component path with migration support for single-file components | New components default to protected generated wrapper layout and existing projects still load |
-| PM-102 | Component authoring | Studio controls for state definitions, source layout, parameter roles, bounds, units, defaults, visibility, and templates | Component contracts can be authored in Studio without direct graph editing |
-| PM-103 | Component templates | Controller, stateful, data source, data sink, utility, external executable placeholder, and vectorized placeholder templates | Templates are selectable, documented, smoke-tested, and included in packages |
+| PM-101 | Component authoring | Done: new Studio components default to generated-wrapper source directories while existing single-file components continue to load, edit, duplicate, delete, and export | Keep compatibility coverage as schemas evolve |
+| PM-102 | Component authoring | Partial: Studio exposes template selection and generated-wrapper source metadata; state definitions, source layout switching, parameter role/bounds/unit/default/visibility editing still need full Inspector controls | Component contracts can be authored in Studio without direct graph editing |
+| PM-103 | Component templates | Done: controller, stateful, data source, data sink, utility, external executable placeholder, vectorized placeholder, and scalar generated-wrapper templates are selectable and smoke-tested | Keep templates packaged and aligned with runtime support boundaries |
 | PM-104 | Canvas | Medium badges, override markers, connection annotations, fan-in/fan-out readability, and long-path conflict markers | Users can understand connection semantics at canvas scale |
 | PM-105 | Python editor | Formatting, hover docs, richer completions, quick fixes, stable problem markers, and traceback-to-line mapping | Common source problems can be diagnosed and fixed inside Studio |
 | PM-106 | Run/inspect | Run comparison, trace timelines, value charts, component timing bars, structured logs, cancellation, timeout, and failed-run recovery UX | Repeated run/debug sessions are inspectable without reading JSON |

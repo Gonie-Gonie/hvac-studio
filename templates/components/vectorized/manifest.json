@@ -1,10 +1,10 @@
 {
-  "id": "scalar",
-  "name": "Scalar Component",
+  "id": "vectorized",
+  "name": "Vectorized Placeholder",
   "kind": "user_python",
   "category": "utility",
-  "execution_mode": "step",
-  "class_name": "ScalarComponent",
+  "execution_mode": "vectorized",
+  "class_name": "VectorizedComponent",
   "source": {
     "layout": "generated_wrapper",
     "metadata": "component.json",
@@ -15,37 +15,37 @@
   },
   "inputs": [
     {
-      "id": "value",
-      "preset": "scalar_input",
+      "id": "values",
+      "name": "Values",
+      "preset": "time_series_input",
       "medium": "signal",
-      "value_type": "float",
+      "value_type": "array",
+      "unit": "",
       "required": true
     }
   ],
   "outputs": [
     {
-      "id": "result",
+      "id": "results",
+      "name": "Results",
       "preset": "scalar_output",
       "medium": "signal",
-      "value_type": "float"
+      "value_type": "array",
+      "unit": ""
     }
   ],
   "parameters": {
-    "gain": 2.0
+    "gain": 1.0
   },
   "parameter_defs": {
     "gain": {
       "display_name": "Gain",
       "unit": "ratio",
-      "default": 2.0,
-      "current": 2.0,
-      "bounds": {
-        "min": 0.0,
-        "max": 100.0
-      },
+      "default": 1.0,
+      "current": 1.0,
       "role": "calibration_target",
-      "group": "Model",
-      "description": "Multiplier applied to the input value."
+      "group": "Vectorized",
+      "description": "Multiplier applied to each value."
     }
   },
   "state_defs": {}

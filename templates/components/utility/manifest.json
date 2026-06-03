@@ -1,0 +1,71 @@
+{
+  "id": "utility",
+  "name": "Utility Component",
+  "kind": "user_python",
+  "category": "utility",
+  "execution_mode": "step",
+  "class_name": "UtilityComponent",
+  "source": {
+    "layout": "generated_wrapper",
+    "metadata": "component.json",
+    "init": "user_init.py",
+    "step": "user_step.py",
+    "helpers": "helpers.py",
+    "wrapper": "wrapper.py"
+  },
+  "inputs": [
+    {
+      "id": "a",
+      "name": "A",
+      "preset": "scalar_input",
+      "medium": "signal",
+      "value_type": "float",
+      "unit": "",
+      "required": true
+    },
+    {
+      "id": "b",
+      "name": "B",
+      "preset": "scalar_input",
+      "medium": "signal",
+      "value_type": "float",
+      "unit": "",
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "id": "result",
+      "name": "Result",
+      "preset": "scalar_output",
+      "medium": "signal",
+      "value_type": "float",
+      "unit": ""
+    }
+  ],
+  "parameters": {
+    "weight_a": 1.0,
+    "weight_b": 1.0
+  },
+  "parameter_defs": {
+    "weight_a": {
+      "display_name": "Weight A",
+      "unit": "ratio",
+      "default": 1.0,
+      "current": 1.0,
+      "role": "scenario_input",
+      "group": "Utility",
+      "description": "Multiplier for input A."
+    },
+    "weight_b": {
+      "display_name": "Weight B",
+      "unit": "ratio",
+      "default": 1.0,
+      "current": 1.0,
+      "role": "scenario_input",
+      "group": "Utility",
+      "description": "Multiplier for input B."
+    }
+  },
+  "state_defs": {}
+}

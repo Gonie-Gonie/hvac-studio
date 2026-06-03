@@ -395,8 +395,20 @@ func TestComponentTemplatesEndpointListsManifests(t *testing.T) {
 	if template.Category != "utility" || template.ExecutionMode != "step" {
 		t.Fatalf("template authoring metadata = %#v", template)
 	}
+	if template.SourceLayout != "generated_wrapper" {
+		t.Fatalf("template source layout = %s", template.SourceLayout)
+	}
 	if template.InputCount != 1 || template.OutputCount != 1 || template.ParameterCount != 1 {
 		t.Fatalf("template counts = %#v", template)
+	}
+	if !hasComponentTemplate(body.Templates, "controller") ||
+		!hasComponentTemplate(body.Templates, "stateful") ||
+		!hasComponentTemplate(body.Templates, "data_source") ||
+		!hasComponentTemplate(body.Templates, "data_sink") ||
+		!hasComponentTemplate(body.Templates, "utility") ||
+		!hasComponentTemplate(body.Templates, "external_executable") ||
+		!hasComponentTemplate(body.Templates, "vectorized") {
+		t.Fatalf("expected beta component templates, got %#v", body.Templates)
 	}
 }
 
@@ -610,8 +622,14 @@ func TestCreateComponentEndpointCreatesWorkspaceComponent(t *testing.T) {
 	if componentBody.Component.Category != "utility" || componentBody.Component.ExecutionMode != "step" {
 		t.Fatalf("component authoring metadata = %#v", componentBody.Component)
 	}
-	if componentBody.Component.Source.Layout != "single_file_class" || componentBody.Component.Source.Step != "components/second_gain.py" {
+	if componentBody.Component.Source.Layout != "generated_wrapper" ||
+		componentBody.Component.Source.Metadata != "components/second_gain/component.json" ||
+		componentBody.Component.Source.Step != "components/second_gain/user_step.py" ||
+		componentBody.Component.Source.Wrapper != "components/second_gain/wrapper.py" {
 		t.Fatalf("component source metadata = %#v", componentBody.Component.Source)
+	}
+	if componentBody.Component.Class != "components.second_gain.wrapper.SecondGainComponent" {
+		t.Fatalf("component class = %s", componentBody.Component.Class)
 	}
 	if len(componentBody.Component.Nodes.Inputs) != 1 || componentBody.Component.Nodes.Inputs[0].Preset != "scalar_input" {
 		t.Fatalf("input node metadata = %#v", componentBody.Component.Nodes.Inputs)
@@ -632,16 +650,26 @@ func TestCreateComponentEndpointCreatesWorkspaceComponent(t *testing.T) {
 	if gainDefinition.Bounds == nil || gainDefinition.Bounds.Min != 0.0 || gainDefinition.Bounds.Max != 100.0 {
 		t.Fatalf("gain bounds = %#v", gainDefinition.Bounds)
 	}
-	sourcePath := filepath.Join(root, "projects", "component-project", "components", "second_gain.py")
+	sourcePath := filepath.Join(root, "projects", "component-project", "components", "second_gain", "user_step.py")
 	sourceBytes, err := os.ReadFile(sourcePath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(sourceBytes), "class SecondGainComponent:") {
-		t.Fatalf("component source did not use generated class name:\n%s", string(sourceBytes))
+	if !strings.Contains(string(sourceBytes), `inputs["value"]`) {
+		t.Fatalf("component source did not read the scalar input:\n%s", string(sourceBytes))
 	}
 	if !strings.Contains(string(sourceBytes), `params.get("gain", 2.0)`) {
 		t.Fatalf("component source did not come from scalar template:\n%s", string(sourceBytes))
+	}
+	wrapperBytes, err := os.ReadFile(filepath.Join(root, "projects", "component-project", "components", "second_gain", "wrapper.py"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(wrapperBytes), "class SecondGainComponent:") {
+		t.Fatalf("component wrapper did not use generated class name:\n%s", string(wrapperBytes))
+	}
+	if _, err := os.Stat(filepath.Join(root, "projects", "component-project", "components", "second_gain", "component.json")); err != nil {
+		t.Fatal(err)
 	}
 	loaded, err := project.Load(createBody.Project.ProjectPath)
 	if err != nil {
@@ -661,7 +689,7 @@ func TestCreateComponentEndpointCreatesWorkspaceComponent(t *testing.T) {
 	if persisted.Category != "utility" || persisted.ExecutionMode != "step" {
 		t.Fatalf("persisted component authoring metadata = %#v", persisted)
 	}
-	if persisted.Source.Step != "components/second_gain.py" {
+	if persisted.Source.Step != "components/second_gain/user_step.py" || persisted.Source.Wrapper != "components/second_gain/wrapper.py" {
 		t.Fatalf("persisted source metadata = %#v", persisted.Source)
 	}
 	if _, ok := persisted.ParameterDefinitions["gain"]; !ok {
@@ -854,8 +882,8 @@ func TestDeleteComponentEndpointRemovesUnusedWorkspaceComponent(t *testing.T) {
 	if componentResponse.Code != http.StatusCreated {
 		t.Fatalf("component status = %d body=%s", componentResponse.Code, componentResponse.Body.String())
 	}
-	sourcePath := filepath.Join(root, "projects", "delete-component-project", "components", "scratch_gain.py")
-	if _, err := os.Stat(sourcePath); err != nil {
+	sourcePath := filepath.Join(root, "projects", "delete-component-project", "components", "scratch_gain")
+	if info, err := os.Stat(sourcePath); err != nil || !info.IsDir() {
 		t.Fatal(err)
 	}
 
@@ -4187,6 +4215,15 @@ func seedTestRuntimeSupport(t *testing.T, root string) {
 func hasColumnSuggestion(values []ColumnSuggestion, publicID string, column string) bool {
 	for _, item := range values {
 		if item.PublicID == publicID && item.Column == column {
+			return true
+		}
+	}
+	return false
+}
+
+func hasComponentTemplate(values []ComponentTemplateSummary, id string) bool {
+	for _, item := range values {
+		if item.ID == id {
 			return true
 		}
 	}

@@ -1,0 +1,75 @@
+{
+  "id": "controller",
+  "name": "Controller",
+  "kind": "user_python",
+  "category": "controller",
+  "execution_mode": "step",
+  "class_name": "ControllerComponent",
+  "source": {
+    "layout": "generated_wrapper",
+    "metadata": "component.json",
+    "init": "user_init.py",
+    "step": "user_step.py",
+    "helpers": "helpers.py",
+    "wrapper": "wrapper.py"
+  },
+  "inputs": [
+    {
+      "id": "setpoint",
+      "name": "Setpoint",
+      "preset": "control_signal_input",
+      "medium": "signal",
+      "value_type": "float",
+      "unit": "",
+      "required": true
+    },
+    {
+      "id": "measurement",
+      "name": "Measurement",
+      "preset": "scalar_input",
+      "medium": "signal",
+      "value_type": "float",
+      "unit": "",
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "id": "command",
+      "name": "Command",
+      "preset": "control_signal_input",
+      "medium": "signal",
+      "value_type": "float",
+      "unit": ""
+    }
+  ],
+  "parameters": {
+    "bias": 0.0,
+    "gain": 1.0
+  },
+  "parameter_defs": {
+    "bias": {
+      "display_name": "Bias",
+      "unit": "",
+      "default": 0.0,
+      "current": 0.0,
+      "role": "scenario_input",
+      "group": "Control",
+      "description": "Base command added to the controller output."
+    },
+    "gain": {
+      "display_name": "Gain",
+      "unit": "ratio",
+      "default": 1.0,
+      "current": 1.0,
+      "bounds": {
+        "min": 0.0,
+        "max": 100.0
+      },
+      "role": "calibration_target",
+      "group": "Control",
+      "description": "Proportional gain applied to setpoint error."
+    }
+  },
+  "state_defs": {}
+}

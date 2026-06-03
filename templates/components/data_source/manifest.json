@@ -1,0 +1,42 @@
+{
+  "id": "data_source",
+  "name": "Data Source",
+  "kind": "user_python",
+  "category": "data_source",
+  "execution_mode": "step",
+  "class_name": "DataSourceComponent",
+  "source": {
+    "layout": "generated_wrapper",
+    "metadata": "component.json",
+    "init": "user_init.py",
+    "step": "user_step.py",
+    "helpers": "helpers.py",
+    "wrapper": "wrapper.py"
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "id": "value",
+      "name": "Value",
+      "preset": "scalar_output",
+      "medium": "signal",
+      "value_type": "float",
+      "unit": ""
+    }
+  ],
+  "parameters": {
+    "default_value": 0.0
+  },
+  "parameter_defs": {
+    "default_value": {
+      "display_name": "Default Value",
+      "unit": "",
+      "default": 0.0,
+      "current": 0.0,
+      "role": "scenario_input",
+      "group": "Source",
+      "description": "Value emitted when the run context does not provide source_value."
+    }
+  },
+  "state_defs": {}
+}

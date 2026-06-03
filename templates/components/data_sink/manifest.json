@@ -1,0 +1,31 @@
+{
+  "id": "data_sink",
+  "name": "Data Sink",
+  "kind": "user_python",
+  "category": "data_sink",
+  "execution_mode": "step",
+  "class_name": "DataSinkComponent",
+  "source": {
+    "layout": "generated_wrapper",
+    "metadata": "component.json",
+    "init": "user_init.py",
+    "step": "user_step.py",
+    "helpers": "helpers.py",
+    "wrapper": "wrapper.py"
+  },
+  "inputs": [
+    {
+      "id": "value",
+      "name": "Value",
+      "preset": "scalar_input",
+      "medium": "signal",
+      "value_type": "float",
+      "unit": "",
+      "required": true
+    }
+  ],
+  "outputs": [],
+  "parameters": {},
+  "parameter_defs": {},
+  "state_defs": {}
+}

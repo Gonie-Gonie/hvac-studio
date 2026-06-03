@@ -1,0 +1,52 @@
+{
+  "id": "external_executable",
+  "name": "External Executable Placeholder",
+  "kind": "external_exe",
+  "category": "utility",
+  "execution_mode": "external_executable",
+  "class_name": "ExternalExecutableComponent",
+  "source": {
+    "layout": "generated_wrapper",
+    "metadata": "component.json",
+    "init": "user_init.py",
+    "step": "user_step.py",
+    "helpers": "helpers.py",
+    "wrapper": "wrapper.py"
+  },
+  "inputs": [
+    {
+      "id": "request",
+      "name": "Request",
+      "preset": "scalar_input",
+      "medium": "signal",
+      "value_type": "float",
+      "unit": "",
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "id": "response",
+      "name": "Response",
+      "preset": "scalar_output",
+      "medium": "signal",
+      "value_type": "float",
+      "unit": ""
+    }
+  ],
+  "parameters": {
+    "command": ""
+  },
+  "parameter_defs": {
+    "command": {
+      "display_name": "Command",
+      "unit": "",
+      "default": "",
+      "current": "",
+      "role": "fixed",
+      "group": "External",
+      "description": "Executable command to connect after external execution mode is enabled."
+    }
+  },
+  "state_defs": {}
+}

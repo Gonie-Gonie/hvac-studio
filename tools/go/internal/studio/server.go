@@ -113,12 +113,52 @@ type componentTemplateManifest struct {
 	Category             string                               `json:"category"`
 	ExecutionMode        string                               `json:"execution_mode"`
 	ClassName            string                               `json:"class_name"`
-	Source               string                               `json:"source"`
+	Source               componentTemplateSource              `json:"source"`
 	Inputs               []model.Node                         `json:"inputs"`
 	Outputs              []model.Node                         `json:"outputs"`
 	Parameters           map[string]any                       `json:"parameters"`
 	ParameterDefinitions map[string]model.ParameterDefinition `json:"parameter_defs"`
 	StateDefinitions     map[string]model.StateDefinition     `json:"state_defs"`
+}
+
+type componentTemplateSource struct {
+	Layout   string `json:"layout,omitempty"`
+	Metadata string `json:"metadata,omitempty"`
+	Init     string `json:"init,omitempty"`
+	Step     string `json:"step,omitempty"`
+	Helpers  string `json:"helpers,omitempty"`
+	Wrapper  string `json:"wrapper,omitempty"`
+}
+
+func (s *componentTemplateSource) UnmarshalJSON(data []byte) error {
+	var singleFile string
+	if err := json.Unmarshal(data, &singleFile); err == nil {
+		*s = componentTemplateSource{
+			Layout: "single_file_class",
+			Step:   singleFile,
+		}
+		return nil
+	}
+	type source componentTemplateSource
+	var decoded source
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*s = componentTemplateSource(decoded)
+	if strings.TrimSpace(s.Layout) == "" {
+		if strings.TrimSpace(s.Wrapper) != "" {
+			s.Layout = "generated_wrapper"
+		} else {
+			s.Layout = "single_file_class"
+		}
+	}
+	return nil
+}
+
+type componentTemplateFile struct {
+	Role        string
+	TemplateRel string
+	Content     string
 }
 
 type ComponentTemplateSummary struct {
@@ -127,6 +167,7 @@ type ComponentTemplateSummary struct {
 	Kind           string `json:"kind"`
 	Category       string `json:"category"`
 	ExecutionMode  string `json:"execution_mode"`
+	SourceLayout   string `json:"source_layout"`
 	InputCount     int    `json:"input_count"`
 	OutputCount    int    `json:"output_count"`
 	ParameterCount int    `json:"parameter_count"`
@@ -2048,10 +2089,7 @@ func createComponent(loaded *project.LoadedProject, req createComponentRequest, 
 	if template == "" {
 		template = "scalar"
 	}
-	if template != "scalar" {
-		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "unsupported component template: %s", template)
-	}
-	templateManifest, sourceContent, err := loadComponentTemplate(repoRoot, template)
+	templateManifest, templateFiles, err := loadComponentTemplate(repoRoot, template)
 	if err != nil {
 		return model.Component{}, err
 	}
@@ -2061,21 +2099,15 @@ func createComponent(loaded *project.LoadedProject, req createComponentRequest, 
 		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "component name must contain letters or numbers")
 	}
 	className := pythonClassName(componentID)
-	sourceContent, err = rewriteTemplateClassName(sourceContent, templateManifest.ClassName, className)
-	if err != nil {
-		return model.Component{}, err
-	}
+	componentSource := componentSourceForTemplate(templateManifest.Source, componentID)
 	component := model.Component{
 		ID:            componentID,
 		Name:          componentName,
 		Kind:          defaultString(templateManifest.Kind, "user_python"),
 		Category:      defaultString(templateManifest.Category, "utility"),
 		ExecutionMode: defaultString(templateManifest.ExecutionMode, "step"),
-		Class:         "components." + componentID + "." + className,
-		Source: model.ComponentSource{
-			Layout: "single_file_class",
-			Step:   filepath.ToSlash(filepath.Join("components", componentID+".py")),
-		},
+		Class:         classPathForComponentSource(componentID, componentSource, className),
+		Source:        componentSource,
 		Nodes: model.NodeSet{
 			Inputs:  componentTemplateNodes(templateManifest.Inputs, "inlet"),
 			Outputs: componentTemplateNodes(templateManifest.Outputs, "outlet"),
@@ -2095,12 +2127,17 @@ func createComponent(loaded *project.LoadedProject, req createComponentRequest, 
 			return model.Component{}, err
 		}
 	}
-	sourcePath := filepath.Join(componentsRoot, componentID+".py")
-	if _, err := os.Stat(sourcePath); err == nil {
-		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "component source already exists: components/%s.py", componentID)
-	}
-	if err := os.WriteFile(sourcePath, []byte(sourceContent), 0o644); err != nil {
+	if err := writeComponentTemplateFiles(loaded.Root, component, templateFiles, templateManifest.ClassName, className); err != nil {
 		return model.Component{}, err
+	}
+	if component.Source.Metadata != "" {
+		metadataPath, err := resolveProjectOwnedFile(loaded.Root, component.Source.Metadata)
+		if err != nil {
+			return model.Component{}, err
+		}
+		if err := writeComponentMetadataFile(metadataPath, component, className); err != nil {
+			return model.Component{}, err
+		}
 	}
 	loaded.Graph.Components = append(loaded.Graph.Components, component)
 	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
@@ -2126,15 +2163,6 @@ func duplicateComponent(loaded *project.LoadedProject, req duplicateComponentReq
 		componentName = sourceID + " Copy"
 	}
 
-	sourcePath, err := componentSourcePath(loaded, sourceID)
-	if err != nil {
-		return model.Component{}, err
-	}
-	sourceBytes, err := os.ReadFile(sourcePath)
-	if err != nil {
-		return model.Component{}, apperror.Wrap(apperror.CodeValidation, err)
-	}
-
 	componentID := uniqueComponentID(loaded.Graph, strings.ReplaceAll(slugify(componentName), "-", "_"))
 	classParts := strings.Split(source.Class, ".")
 	if len(classParts) < 1 || classParts[len(classParts)-1] == "" {
@@ -2157,22 +2185,37 @@ func duplicateComponent(loaded *project.LoadedProject, req duplicateComponentReq
 	if component.Source.Layout == "" || component.Source.Layout == "single_file_class" {
 		component.Source.Layout = "single_file_class"
 		component.Source.Step = filepath.ToSlash(filepath.Join("components", componentID+".py"))
+		component.Class = "components." + componentID + "." + className
+	} else if component.Source.Layout == "generated_wrapper" {
+		sourceDirRel, err := generatedComponentSourceDir(component.Source)
+		if err != nil {
+			return model.Component{}, err
+		}
+		targetDirRel := filepath.ToSlash(filepath.Join("components", componentID))
+		component.Source = rebaseComponentSource(component.Source, sourceDirRel, targetDirRel)
+		component.Class = classPathForComponentSource(componentID, component.Source, className)
 	}
 
 	sourceRoot := filepath.Join(loaded.Root, "components")
 	if err := os.MkdirAll(sourceRoot, 0o755); err != nil {
 		return model.Component{}, err
 	}
-	targetPath := filepath.Join(sourceRoot, componentID+".py")
-	if _, err := os.Stat(targetPath); err == nil {
-		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "component source already exists: components/%s.py", componentID)
-	}
-	if err := os.WriteFile(targetPath, sourceBytes, 0o644); err != nil {
+	copiedPath, err := copyComponentSourceArtifact(loaded, source, component)
+	if err != nil {
 		return model.Component{}, err
+	}
+	if component.Source.Metadata != "" {
+		metadataPath, err := resolveProjectOwnedFile(loaded.Root, component.Source.Metadata)
+		if err != nil {
+			return model.Component{}, err
+		}
+		if err := writeComponentMetadataFile(metadataPath, component, className); err != nil {
+			return model.Component{}, err
+		}
 	}
 	loaded.Graph.Components = append(loaded.Graph.Components, component)
 	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
-		_ = os.Remove(targetPath)
+		_ = removeComponentSourceArtifact(copiedPath, component.Source.Layout)
 		return model.Component{}, err
 	}
 	return component, nil
@@ -2215,6 +2258,7 @@ func deleteComponent(loaded *project.LoadedProject, req deleteComponentRequest) 
 	if componentIndex < 0 {
 		return apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
 	}
+	deletedComponent := loaded.Graph.Components[componentIndex]
 	for _, system := range loaded.Graph.Systems {
 		if containsString(system.Components, componentID) {
 			return apperror.Errorf(apperror.CodeValidation, "component is still used by system %s; remove it from the system first", system.ID)
@@ -2226,7 +2270,7 @@ func deleteComponent(loaded *project.LoadedProject, req deleteComponentRequest) 
 		}
 	}
 
-	sourcePath, err := componentSourcePath(loaded, componentID)
+	sourceArtifactPath, err := componentSourceArtifactPath(loaded, deletedComponent)
 	if err != nil {
 		return err
 	}
@@ -2235,8 +2279,8 @@ func deleteComponent(loaded *project.LoadedProject, req deleteComponentRequest) 
 		if index == componentIndex {
 			continue
 		}
-		otherPath, err := componentSourcePath(loaded, loaded.Graph.Components[index].ID)
-		if err == nil && otherPath == sourcePath {
+		otherPath, err := componentSourceArtifactPath(loaded, loaded.Graph.Components[index])
+		if err == nil && sameFilesystemPath(otherPath, sourceArtifactPath) {
 			sourceShared = true
 			break
 		}
@@ -2250,7 +2294,7 @@ func deleteComponent(loaded *project.LoadedProject, req deleteComponentRequest) 
 		return err
 	}
 	if !sourceShared {
-		if err := os.Remove(sourcePath); err != nil && !os.IsNotExist(err) {
+		if err := removeComponentSourceArtifact(sourceArtifactPath, deletedComponent.Source.Layout); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}
@@ -3086,6 +3130,148 @@ func editableComponentSource(component model.Component) string {
 		}
 	}
 	return ""
+}
+
+func componentSourceArtifactPath(loaded *project.LoadedProject, component model.Component) (string, error) {
+	if component.Source.Layout == "generated_wrapper" {
+		sourceDir, err := generatedComponentSourceDir(component.Source)
+		if err != nil {
+			return "", err
+		}
+		return resolveProjectOwnedFile(loaded.Root, sourceDir)
+	}
+	if sourceRel := editableComponentSource(component); sourceRel != "" {
+		return resolveProjectOwnedFile(loaded.Root, sourceRel)
+	}
+	parts := strings.Split(component.Class, ".")
+	if len(parts) < 3 || parts[0] != "components" {
+		return "", apperror.Errorf(apperror.CodeValidation, "component %s class does not map to a project source file: %s", component.ID, component.Class)
+	}
+	modulePath := filepath.Join(parts[:len(parts)-1]...) + ".py"
+	return resolveProjectOwnedFile(loaded.Root, modulePath)
+}
+
+func generatedComponentSourceDir(source model.ComponentSource) (string, error) {
+	paths := []string{source.Metadata, source.Init, source.Step, source.Helpers, source.Wrapper}
+	sourceDir := ""
+	for _, sourcePath := range paths {
+		sourcePath = strings.TrimSpace(sourcePath)
+		if sourcePath == "" {
+			continue
+		}
+		clean, err := cleanRelativePath(sourcePath)
+		if err != nil {
+			return "", err
+		}
+		dir := filepath.ToSlash(filepath.Dir(clean))
+		if dir == "." || dir == "" {
+			return "", apperror.Errorf(apperror.CodeValidation, "generated_wrapper source files must live in a component directory")
+		}
+		if sourceDir == "" {
+			sourceDir = dir
+			continue
+		}
+		if dir != sourceDir {
+			return "", apperror.Errorf(apperror.CodeValidation, "generated_wrapper source files must share one directory")
+		}
+	}
+	if sourceDir == "" {
+		return "", apperror.Errorf(apperror.CodeValidation, "generated_wrapper source directory is missing")
+	}
+	return sourceDir, nil
+}
+
+func rebaseComponentSource(source model.ComponentSource, oldDir string, newDir string) model.ComponentSource {
+	return model.ComponentSource{
+		Layout:   source.Layout,
+		Metadata: rebaseComponentSourcePath(source.Metadata, oldDir, newDir),
+		Init:     rebaseComponentSourcePath(source.Init, oldDir, newDir),
+		Step:     rebaseComponentSourcePath(source.Step, oldDir, newDir),
+		Helpers:  rebaseComponentSourcePath(source.Helpers, oldDir, newDir),
+		Wrapper:  rebaseComponentSourcePath(source.Wrapper, oldDir, newDir),
+	}
+}
+
+func rebaseComponentSourcePath(sourcePath string, oldDir string, newDir string) string {
+	sourcePath = strings.TrimSpace(filepath.ToSlash(sourcePath))
+	if sourcePath == "" {
+		return ""
+	}
+	oldDir = strings.TrimSuffix(strings.TrimSpace(filepath.ToSlash(oldDir)), "/")
+	newDir = strings.TrimSuffix(strings.TrimSpace(filepath.ToSlash(newDir)), "/")
+	if sourcePath == oldDir {
+		return newDir
+	}
+	prefix := oldDir + "/"
+	if strings.HasPrefix(sourcePath, prefix) {
+		return newDir + "/" + strings.TrimPrefix(sourcePath, prefix)
+	}
+	return filepath.ToSlash(filepath.Join(newDir, filepath.Base(sourcePath)))
+}
+
+func copyComponentSourceArtifact(loaded *project.LoadedProject, source model.Component, target model.Component) (string, error) {
+	sourcePath, err := componentSourceArtifactPath(loaded, source)
+	if err != nil {
+		return "", err
+	}
+	targetPath, err := componentSourceArtifactPath(loaded, target)
+	if err != nil {
+		return "", err
+	}
+	if _, err := os.Stat(targetPath); err == nil {
+		rel, _ := filepath.Rel(loaded.Root, targetPath)
+		return "", apperror.Errorf(apperror.CodeValidation, "component source already exists: %s", filepath.ToSlash(rel))
+	} else if err != nil && !os.IsNotExist(err) {
+		return "", err
+	}
+	if target.Source.Layout == "generated_wrapper" {
+		if err := copyProjectTree(sourcePath, targetPath); err != nil {
+			return "", err
+		}
+		return targetPath, nil
+	}
+	sourceBytes, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return "", apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(targetPath, sourceBytes, 0o644); err != nil {
+		return "", err
+	}
+	return targetPath, nil
+}
+
+func removeComponentSourceArtifact(path string, layout string) error {
+	if layout == "generated_wrapper" {
+		return os.RemoveAll(path)
+	}
+	return os.Remove(path)
+}
+
+func sameFilesystemPath(left string, right string) bool {
+	leftAbs, leftErr := filepath.Abs(left)
+	rightAbs, rightErr := filepath.Abs(right)
+	if leftErr == nil {
+		left = leftAbs
+	}
+	if rightErr == nil {
+		right = rightAbs
+	}
+	return filepath.Clean(left) == filepath.Clean(right)
+}
+
+func cleanRelativePath(rel string) (string, error) {
+	rel = strings.TrimSpace(rel)
+	if rel == "" {
+		return "", apperror.Errorf(apperror.CodeValidation, "relative path is required")
+	}
+	clean := filepath.Clean(filepath.FromSlash(rel))
+	if filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		return "", apperror.Errorf(apperror.CodeValidation, "relative path escapes project: %s", rel)
+	}
+	return clean, nil
 }
 
 func classNameFromPath(classPath string) string {
@@ -5742,44 +5928,103 @@ func listComponentTemplates(repoRoot string) ([]ComponentTemplateSummary, error)
 			Kind:           defaultString(manifest.Kind, "user_python"),
 			Category:       defaultString(manifest.Category, "utility"),
 			ExecutionMode:  defaultString(manifest.ExecutionMode, "step"),
+			SourceLayout:   defaultString(manifest.Source.Layout, "single_file_class"),
 			InputCount:     len(manifest.Inputs),
 			OutputCount:    len(manifest.Outputs),
 			ParameterCount: len(manifest.Parameters),
 		})
 	}
 	sort.Slice(templates, func(i, j int) bool {
+		if templates[i].ID == "scalar" {
+			return true
+		}
+		if templates[j].ID == "scalar" {
+			return false
+		}
 		return templates[i].ID < templates[j].ID
 	})
 	return templates, nil
 }
 
-func loadComponentTemplate(repoRoot, template string) (componentTemplateManifest, string, error) {
+func loadComponentTemplate(repoRoot, template string) (componentTemplateManifest, []componentTemplateFile, error) {
 	templateRoot := filepath.Join(repoRoot, "templates", "components", template)
 	manifestPath := filepath.Join(templateRoot, "manifest.json")
 	manifestBytes, err := os.ReadFile(manifestPath)
 	if err != nil {
-		return componentTemplateManifest{}, "", apperror.Errorf(apperror.CodeValidation, "component template manifest is missing: templates/components/%s/manifest.json", template)
+		return componentTemplateManifest{}, nil, apperror.Errorf(apperror.CodeValidation, "component template manifest is missing: templates/components/%s/manifest.json", template)
 	}
 	var manifest componentTemplateManifest
 	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
-		return componentTemplateManifest{}, "", apperror.Wrap(apperror.CodeValidation, err)
+		return componentTemplateManifest{}, nil, apperror.Wrap(apperror.CodeValidation, err)
 	}
 	if strings.TrimSpace(manifest.ClassName) == "" {
-		return componentTemplateManifest{}, "", apperror.Errorf(apperror.CodeValidation, "component template %s class_name is required", template)
+		return componentTemplateManifest{}, nil, apperror.Errorf(apperror.CodeValidation, "component template %s class_name is required", template)
 	}
-	if strings.TrimSpace(manifest.Source) == "" {
-		return componentTemplateManifest{}, "", apperror.Errorf(apperror.CodeValidation, "component template %s source is required", template)
+	files, err := loadComponentTemplateFiles(templateRoot, template, manifest.Source)
+	if err != nil {
+		return componentTemplateManifest{}, nil, err
 	}
-	cleanSource := filepath.Clean(manifest.Source)
-	if filepath.IsAbs(cleanSource) || strings.HasPrefix(cleanSource, "..") {
-		return componentTemplateManifest{}, "", apperror.Errorf(apperror.CodeValidation, "component template %s source path is invalid: %s", template, manifest.Source)
+	return manifest, files, nil
+}
+
+func loadComponentTemplateFiles(templateRoot, template string, source componentTemplateSource) ([]componentTemplateFile, error) {
+	layout := defaultString(source.Layout, "single_file_class")
+	switch layout {
+	case "single_file_class":
+		if strings.TrimSpace(source.Step) == "" {
+			return nil, apperror.Errorf(apperror.CodeValidation, "component template %s source step is required", template)
+		}
+		file, err := loadComponentTemplateFile(templateRoot, template, "step", source.Step)
+		if err != nil {
+			return nil, err
+		}
+		return []componentTemplateFile{file}, nil
+	case "generated_wrapper":
+		if strings.TrimSpace(source.Step) == "" || strings.TrimSpace(source.Wrapper) == "" {
+			return nil, apperror.Errorf(apperror.CodeValidation, "component template %s generated_wrapper source requires step and wrapper", template)
+		}
+		if strings.TrimSpace(source.Metadata) != "" {
+			if _, err := cleanRelativePath(source.Metadata); err != nil {
+				return nil, apperror.Errorf(apperror.CodeValidation, "component template %s source path is invalid: %s", template, source.Metadata)
+			}
+		}
+		refs := []struct {
+			role string
+			rel  string
+		}{
+			{"init", source.Init},
+			{"step", source.Step},
+			{"helpers", source.Helpers},
+			{"wrapper", source.Wrapper},
+		}
+		files := []componentTemplateFile{}
+		for _, ref := range refs {
+			if strings.TrimSpace(ref.rel) == "" {
+				continue
+			}
+			file, err := loadComponentTemplateFile(templateRoot, template, ref.role, ref.rel)
+			if err != nil {
+				return nil, err
+			}
+			files = append(files, file)
+		}
+		return files, nil
+	default:
+		return nil, apperror.Errorf(apperror.CodeValidation, "component template %s source layout is unsupported: %s", template, layout)
+	}
+}
+
+func loadComponentTemplateFile(templateRoot, template, role, rel string) (componentTemplateFile, error) {
+	cleanSource, err := cleanRelativePath(rel)
+	if err != nil {
+		return componentTemplateFile{}, apperror.Errorf(apperror.CodeValidation, "component template %s source path is invalid: %s", template, rel)
 	}
 	sourcePath := filepath.Join(templateRoot, cleanSource)
 	sourceBytes, err := os.ReadFile(sourcePath)
 	if err != nil {
-		return componentTemplateManifest{}, "", apperror.Errorf(apperror.CodeValidation, "component template source is missing: templates/components/%s/%s", template, manifest.Source)
+		return componentTemplateFile{}, apperror.Errorf(apperror.CodeValidation, "component template source is missing: templates/components/%s/%s", template, rel)
 	}
-	return manifest, string(sourceBytes), nil
+	return componentTemplateFile{Role: role, TemplateRel: filepath.ToSlash(cleanSource), Content: string(sourceBytes)}, nil
 }
 
 func rewriteTemplateClassName(source, oldClass, newClass string) (string, error) {
@@ -5788,6 +6033,135 @@ func rewriteTemplateClassName(source, oldClass, newClass string) (string, error)
 		return "", apperror.Errorf(apperror.CodeValidation, "component template source does not declare %s", oldClass)
 	}
 	return strings.Replace(source, oldDeclaration, "class "+newClass+":", 1), nil
+}
+
+func componentSourceForTemplate(source componentTemplateSource, componentID string) model.ComponentSource {
+	layout := defaultString(source.Layout, "single_file_class")
+	if layout != "generated_wrapper" {
+		return model.ComponentSource{
+			Layout: "single_file_class",
+			Step:   filepath.ToSlash(filepath.Join("components", componentID+".py")),
+		}
+	}
+	return model.ComponentSource{
+		Layout:   "generated_wrapper",
+		Metadata: projectComponentSourceRel(componentID, defaultString(source.Metadata, "component.json")),
+		Init:     projectComponentSourceRel(componentID, source.Init),
+		Step:     projectComponentSourceRel(componentID, source.Step),
+		Helpers:  projectComponentSourceRel(componentID, source.Helpers),
+		Wrapper:  projectComponentSourceRel(componentID, source.Wrapper),
+	}
+}
+
+func projectComponentSourceRel(componentID string, rel string) string {
+	rel = strings.TrimSpace(rel)
+	if rel == "" {
+		return ""
+	}
+	return filepath.ToSlash(filepath.Join("components", componentID, filepath.FromSlash(rel)))
+}
+
+func classPathForComponentSource(componentID string, source model.ComponentSource, className string) string {
+	if source.Layout == "generated_wrapper" && strings.TrimSpace(source.Wrapper) != "" {
+		module := strings.TrimSuffix(filepath.ToSlash(source.Wrapper), ".py")
+		module = strings.ReplaceAll(module, "/", ".")
+		return module + "." + className
+	}
+	return "components." + componentID + "." + className
+}
+
+func writeComponentTemplateFiles(projectRoot string, component model.Component, files []componentTemplateFile, templateClassName string, className string) error {
+	for _, file := range files {
+		targetRel := componentTemplateTargetRel(component, file)
+		if targetRel == "" {
+			continue
+		}
+		targetPath, err := resolveProjectOwnedFile(projectRoot, targetRel)
+		if err != nil {
+			return err
+		}
+		if _, err := os.Stat(targetPath); err == nil {
+			return apperror.Errorf(apperror.CodeValidation, "component source already exists: %s", filepath.ToSlash(targetRel))
+		} else if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+			return err
+		}
+		content := file.Content
+		if component.Source.Layout != "generated_wrapper" || file.Role == "wrapper" {
+			rewritten, err := rewriteTemplateClassName(content, templateClassName, className)
+			if err != nil {
+				return err
+			}
+			content = rewritten
+		}
+		if err := os.WriteFile(targetPath, []byte(content), 0o644); err != nil {
+			return err
+		}
+	}
+	if component.Source.Layout == "generated_wrapper" {
+		initPath, err := resolveProjectOwnedFile(projectRoot, filepath.ToSlash(filepath.Join("components", component.ID, "__init__.py")))
+		if err != nil {
+			return err
+		}
+		if _, err := os.Stat(initPath); os.IsNotExist(err) {
+			if err := os.WriteFile(initPath, []byte(""), 0o644); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func componentTemplateTargetRel(component model.Component, file componentTemplateFile) string {
+	if component.Source.Layout != "generated_wrapper" {
+		return component.Source.Step
+	}
+	switch file.Role {
+	case "init":
+		return component.Source.Init
+	case "step":
+		return component.Source.Step
+	case "helpers":
+		return component.Source.Helpers
+	case "wrapper":
+		return component.Source.Wrapper
+	default:
+		return ""
+	}
+}
+
+func writeComponentMetadataFile(path string, component model.Component, className string) error {
+	metadata := struct {
+		ID                   string                               `json:"id"`
+		Name                 string                               `json:"name"`
+		Kind                 string                               `json:"kind"`
+		Category             string                               `json:"category"`
+		ExecutionMode        string                               `json:"execution_mode"`
+		ClassName            string                               `json:"class_name"`
+		Source               model.ComponentSource                `json:"source"`
+		Nodes                model.NodeSet                        `json:"nodes"`
+		Parameters           map[string]any                       `json:"parameters"`
+		ParameterDefinitions map[string]model.ParameterDefinition `json:"parameter_defs,omitempty"`
+		StateDefinitions     map[string]model.StateDefinition     `json:"state_defs,omitempty"`
+	}{
+		ID:                   component.ID,
+		Name:                 component.Name,
+		Kind:                 component.Kind,
+		Category:             component.Category,
+		ExecutionMode:        component.ExecutionMode,
+		ClassName:            className,
+		Source:               component.Source,
+		Nodes:                component.Nodes,
+		Parameters:           component.Parameters,
+		ParameterDefinitions: component.ParameterDefinitions,
+		StateDefinitions:     component.StateDefinitions,
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return writeJSONFile(path, metadata)
 }
 
 func componentTemplateNodes(nodes []model.Node, direction string) []model.Node {
