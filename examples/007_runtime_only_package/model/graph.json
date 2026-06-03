@@ -1,0 +1,86 @@
+{
+  "schema_version": "0.1.0",
+  "systems": [
+    {
+      "id": "MainSystem",
+      "name": "Delivered Runtime Model",
+      "components": ["delivered_gain"],
+      "connections": [],
+      "public_inputs": [
+        {
+          "id": "value",
+          "name": "Input Value",
+          "component": "delivered_gain",
+          "node": "value",
+          "medium": "signal",
+          "value_type": "float",
+          "required": true
+        }
+      ],
+      "public_outputs": [
+        {
+          "id": "delivered_result",
+          "name": "Delivered Result",
+          "component": "delivered_gain",
+          "node": "delivered_result",
+          "medium": "signal",
+          "value_type": "float"
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "delivered_gain",
+      "name": "Delivered Gain",
+      "kind": "user_python",
+      "category": "utility",
+      "execution_mode": "step",
+      "class": "components.scalar.DeliveredGain",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "value",
+            "name": "Value",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "delivered_result",
+            "name": "Delivered Result",
+            "preset": "scalar_output",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float"
+          }
+        ]
+      },
+      "parameters": {
+        "gain": 3.0,
+        "offset": 1.0
+      },
+      "parameter_defs": {
+        "gain": {
+          "display_name": "Gain",
+          "default": 3.0,
+          "current": 3.0,
+          "role": "fixed",
+          "group": "Delivery"
+        },
+        "offset": {
+          "display_name": "Offset",
+          "default": 1.0,
+          "current": 1.0,
+          "role": "fixed",
+          "group": "Delivery"
+        }
+      }
+    }
+  ],
+  "connections": []
+}

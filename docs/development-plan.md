@@ -582,6 +582,15 @@ Acceptance criteria:
 
 ## Milestone 12: Runtime-Only Delivery Package
 
+Status: complete for Windows runtime zip and delivery-layout example. Verified on 2026-06-03 with `scripts/dev/test-examples.ps1`; release smoke coverage is provided by `scripts/release/test-runtime-package.ps1`.
+
+Implemented:
+
+- Runtime zip packaging includes `bin/bcs-runner.exe`, `bin/bcs-env.exe`, bundled Python runtime, worker, SDK, docs, schema, and examples.
+- Runtime package smoke test expands the zip, runs `bcs-env.exe check --json`, and validates/runs all bundled runnable examples without system Python on `PATH`.
+- Studio runtime export writes project files, public IO schema, run script, runner tools, packaged runtime, and export manifest.
+- `examples/007_runtime_only_package` mirrors the delivery shape with runnable `model/`, `examples/`, `docs/`, `bin/`, and `runtime/` folders.
+
 Goal: deliver models without GUI.
 
 Target package shape:

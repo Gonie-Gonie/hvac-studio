@@ -1,0 +1,9 @@
+{
+  "ok": true,
+  "outputs": {
+    "delivered_result": 13.0
+  },
+  "execution_order": [
+    "delivered_gain"
+  ]
+}

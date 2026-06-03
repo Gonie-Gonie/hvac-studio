@@ -38,6 +38,7 @@ powershell -ExecutionPolicy Bypass -File .\run-default.ps1
 DeliveredModel/
   bin/
     bcs-runner.exe
+    bcs-env.exe
   model/
     project.bcsproj
     graph.json
@@ -61,3 +62,5 @@ DeliveredModel/
 - example input/output files
 - structured errors and exit codes
 - smoke test after package expansion
+
+`examples/007_runtime_only_package` mirrors this layout with a runnable `model/project.bcsproj`, first-run script, and concise CLI guide.
