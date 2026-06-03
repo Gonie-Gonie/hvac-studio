@@ -385,6 +385,16 @@ Acceptance criteria:
 
 ## Milestone 7: Datasets And Model Validation
 
+Status: complete for CSV mapping and metrics MVP. Verified on 2026-06-03 with `go test ./cmd/bcs-runner ./internal/modelvalidation ./internal/studio`.
+
+Implemented:
+
+- `examples/005_chiller_plant_like_system` includes a CSV validation dataset and saved mapping artifact.
+- `bcs-runner validate-data` runs project-relative mappings and writes structured metrics.
+- Validation metrics include RMSE, MAE, MBE, CVRMSE, and R2.
+- Validation results include row summaries and high-error row inspection data with component/node/connection traces.
+- Studio Project tree lists datasets, validation mappings, and parameter sets; the `Data` command runs the first saved mapping and shows the result.
+
 Goal: connect measured/reference datasets to system public inputs/outputs.
 
 Dataset import UX:

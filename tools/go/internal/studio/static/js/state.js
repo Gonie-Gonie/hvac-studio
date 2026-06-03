@@ -12,6 +12,7 @@ export const state = {
   latestExportSummary: null,
   latestSchema: null,
   latestValidation: null,
+  latestDataValidation: null,
   activeRunInput: null,
   selectedConnectionId: "",
   sourceByComponent: {},

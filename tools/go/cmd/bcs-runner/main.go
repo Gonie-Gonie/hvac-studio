@@ -13,6 +13,7 @@ import (
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/modelvalidation"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
 	runtimecore "github.com/goniegonie/hvac-studio/tools/go/internal/runtime"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/schemaexport"
@@ -40,6 +41,8 @@ func run(args []string) error {
 		return serveProject(args[2:], os.Stdin, os.Stdout)
 	case "schema":
 		return exportSchema(args[2:])
+	case "validate-data":
+		return validateData(args[2:])
 	default:
 		return usage()
 	}
@@ -230,6 +233,51 @@ func exportSchema(args []string) error {
 	return apperror.Wrap(apperror.CodeRuntime, schemaexport.Write(resolveProjectPath(loaded.Root, *outputPath), schema))
 }
 
+func validateData(args []string) error {
+	flags := flag.NewFlagSet("validate-data", flag.ContinueOnError)
+	projectPath := flags.String("project", "", "path to project.bcsproj")
+	mappingPath := flags.String("mapping", "", "project-relative path to validation mapping JSON")
+	outputPath := flags.String("output", "", "path to output JSON")
+	highErrorRows := flags.Int("high-error-rows", 3, "number of high-error rows to keep per output")
+	if err := flags.Parse(args); err != nil {
+		return apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if *projectPath == "" {
+		return apperror.Errorf(apperror.CodeValidation, "--project is required")
+	}
+
+	loaded, err := project.Load(*projectPath)
+	if err != nil {
+		return apperror.Wrap(apperror.CodeValidation, err)
+	}
+	mapping, err := modelvalidation.LoadMapping(loaded.Root, *mappingPath)
+	if err != nil {
+		return err
+	}
+	result, err := modelvalidation.Run(context.Background(), loaded, mapping, modelvalidation.Options{
+		HighErrorRows: *highErrorRows,
+	})
+	if err != nil {
+		return err
+	}
+	return writeJSONOutput(resolveProjectPath(loaded.Root, *outputPath), result)
+}
+
+func writeJSONOutput(outputPath string, value any) error {
+	output, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	if outputPath == "" {
+		fmt.Println(string(output))
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		return apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	return apperror.Wrap(apperror.CodeRuntime, os.WriteFile(outputPath, append(output, '\n'), 0o644))
+}
+
 func resolveProjectPath(projectRoot string, path string) string {
 	if path == "" {
 		return ""
@@ -241,5 +289,5 @@ func resolveProjectPath(projectRoot string, path string) string {
 }
 
 func usage() error {
-	return apperror.Errorf(apperror.CodeValidation, "usage: bcs-runner <validate|run|serve|schema> --project project.bcsproj")
+	return apperror.Errorf(apperror.CodeValidation, "usage: bcs-runner <validate|run|serve|schema|validate-data> --project project.bcsproj")
 }

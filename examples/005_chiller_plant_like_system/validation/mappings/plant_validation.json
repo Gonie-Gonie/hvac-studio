@@ -1,0 +1,15 @@
+{
+  "id": "plant_validation",
+  "name": "Plant Validation Mapping",
+  "dataset": "datasets/plant_validation.csv",
+  "time_column": "time",
+  "input_columns": {
+    "building_load_kw": "building_load_kw",
+    "base_chw_setpoint_c": "base_chw_setpoint_c",
+    "condenser_entering_temp_c": "condenser_entering_temp_c"
+  },
+  "observed_output_columns": {
+    "total_power_kw": "measured_total_power_kw",
+    "chw_supply_temp_c": "measured_chw_supply_temp_c"
+  }
+}

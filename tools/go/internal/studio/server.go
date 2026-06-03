@@ -21,6 +21,7 @@ import (
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/modelvalidation"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/platform"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
 	runtimecore "github.com/goniegonie/hvac-studio/tools/go/internal/runtime"
@@ -47,20 +48,21 @@ type ProjectSummary struct {
 }
 
 type ProjectDetail struct {
-	Project          *model.Project        `json:"project"`
-	Graph            *model.Graph          `json:"graph"`
-	ProjectPath      string                `json:"project_path"`
-	GraphPath        string                `json:"graph_path"`
-	DefaultInputPath string                `json:"default_input_path"`
-	DefaultRunInput  *runtimecore.RunInput `json:"default_run_input"`
-	Layout           StudioLayout          `json:"layout"`
-	Root             string                `json:"root"`
-	Runs             []RunSummary          `json:"runs"`
-	Batches          []BatchSummary        `json:"batches"`
-	Exports          []ExportSummary       `json:"exports"`
-	Scenarios        []ScenarioSummary     `json:"scenarios"`
-	Datasets         []DatasetSummary      `json:"datasets"`
-	ParameterSets    []ParameterSetSummary `json:"parameter_sets"`
+	Project            *model.Project             `json:"project"`
+	Graph              *model.Graph               `json:"graph"`
+	ProjectPath        string                     `json:"project_path"`
+	GraphPath          string                     `json:"graph_path"`
+	DefaultInputPath   string                     `json:"default_input_path"`
+	DefaultRunInput    *runtimecore.RunInput      `json:"default_run_input"`
+	Layout             StudioLayout               `json:"layout"`
+	Root               string                     `json:"root"`
+	Runs               []RunSummary               `json:"runs"`
+	Batches            []BatchSummary             `json:"batches"`
+	Exports            []ExportSummary            `json:"exports"`
+	Scenarios          []ScenarioSummary          `json:"scenarios"`
+	Datasets           []DatasetSummary           `json:"datasets"`
+	ParameterSets      []ParameterSetSummary      `json:"parameter_sets"`
+	ValidationMappings []ValidationMappingSummary `json:"validation_mappings"`
 }
 
 type StudioLayout struct {
@@ -252,6 +254,12 @@ type updateInputRequest struct {
 	Context     map[string]any `json:"context"`
 }
 
+type validationRunRequest struct {
+	ProjectPath   string `json:"project_path"`
+	MappingPath   string `json:"mapping_path"`
+	HighErrorRows int    `json:"high_error_rows"`
+}
+
 type RunSummary struct {
 	ID           string         `json:"id"`
 	RelativePath string         `json:"relative_path"`
@@ -317,6 +325,15 @@ type ParameterSetSummary struct {
 	CreatedAtUTC   string `json:"created_at_utc"`
 	ComponentCount int    `json:"component_count"`
 	ParameterCount int    `json:"parameter_count"`
+}
+
+type ValidationMappingSummary struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	RelativePath string `json:"relative_path"`
+	Dataset      string `json:"dataset"`
+	InputCount   int    `json:"input_count"`
+	OutputCount  int    `json:"output_count"`
 }
 
 type ScenarioRecord struct {
@@ -441,6 +458,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/validate", s.handleValidate)
 	s.mux.HandleFunc("POST /api/run", s.handleRun)
 	s.mux.HandleFunc("POST /api/batch", s.handleBatch)
+	s.mux.HandleFunc("POST /api/validation/run", s.handleDataValidation)
 	s.mux.HandleFunc("POST /api/schema", s.handleSchema)
 	s.mux.HandleFunc("POST /api/export", s.handleExport)
 	s.mux.Handle("/", staticHandler)
@@ -1298,6 +1316,44 @@ func (s *Server) handleBatch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "summary": summary, "batch": record})
 }
 
+func (s *Server) handleDataValidation(w http.ResponseWriter, r *http.Request) {
+	var req validationRunRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeInput, err))
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if problems := projectSourceErrorProblems(r.Context(), loaded); len(problems) > 0 {
+		writeErrorWithProblems(w, apperror.Errorf(apperror.CodeValidation, "project source validation failed"), problems)
+		return
+	}
+	if req.MappingPath == "" {
+		mappings := loadValidationMappingSummaries(loaded.Root)
+		if len(mappings) == 0 {
+			writeError(w, apperror.Errorf(apperror.CodeValidation, "data validation requires a saved mapping"))
+			return
+		}
+		req.MappingPath = mappings[0].RelativePath
+	}
+	mapping, err := modelvalidation.LoadMapping(loaded.Root, req.MappingPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
+	defer cancel()
+	result, err := modelvalidation.Run(ctx, loaded, mapping, modelvalidation.Options{HighErrorRows: req.HighErrorRows})
+	if err != nil {
+		writeErrorWithProblems(w, err, inferProblems(loaded.Graph, err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "validation_result": result})
+}
+
 func (s *Server) handleSchema(w http.ResponseWriter, r *http.Request) {
 	req, err := decodeRequest(r)
 	if err != nil {
@@ -1358,18 +1414,19 @@ func (s *Server) loadProject(projectPath string) (*project.LoadedProject, error)
 
 func projectDetail(loaded *project.LoadedProject) ProjectDetail {
 	detail := ProjectDetail{
-		Project:       loaded.Project,
-		Graph:         loaded.Graph,
-		ProjectPath:   loaded.Path,
-		GraphPath:     loaded.GraphPath,
-		Layout:        loadStudioLayout(loaded.Root),
-		Root:          loaded.Root,
-		Runs:          loadRunSummaries(loaded.Root),
-		Batches:       loadBatchSummaries(loaded.Root),
-		Exports:       loadExportSummaries(loaded.Root),
-		Scenarios:     loadScenarioSummaries(loaded.Root),
-		Datasets:      loadDatasetSummaries(loaded.Root),
-		ParameterSets: loadParameterSetSummaries(loaded.Root),
+		Project:            loaded.Project,
+		Graph:              loaded.Graph,
+		ProjectPath:        loaded.Path,
+		GraphPath:          loaded.GraphPath,
+		Layout:             loadStudioLayout(loaded.Root),
+		Root:               loaded.Root,
+		Runs:               loadRunSummaries(loaded.Root),
+		Batches:            loadBatchSummaries(loaded.Root),
+		Exports:            loadExportSummaries(loaded.Root),
+		Scenarios:          loadScenarioSummaries(loaded.Root),
+		Datasets:           loadDatasetSummaries(loaded.Root),
+		ParameterSets:      loadParameterSetSummaries(loaded.Root),
+		ValidationMappings: loadValidationMappingSummaries(loaded.Root),
 	}
 	if inputPath, err := resolveProjectOwnedFile(loaded.Root, loaded.Project.DefaultInput); err == nil {
 		detail.DefaultInputPath = inputPath
@@ -3601,6 +3658,42 @@ func loadParameterSetSummaries(projectRoot string) []ParameterSetSummary {
 		if ok {
 			summaries = append(summaries, summary)
 		}
+	}
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i].RelativePath < summaries[j].RelativePath
+	})
+	return summaries
+}
+
+func loadValidationMappingSummaries(projectRoot string) []ValidationMappingSummary {
+	files := appendMatchingFiles(filepath.Join(projectRoot, "validation", "mappings"), []string{"*.json"})
+	summaries := []ValidationMappingSummary{}
+	for _, path := range files {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var mapping modelvalidation.Mapping
+		if err := json.Unmarshal(data, &mapping); err != nil {
+			continue
+		}
+		id := mapping.ID
+		if id == "" {
+			id = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+		}
+		name := mapping.Name
+		if name == "" {
+			name = displayNameFromID(id)
+		}
+		rel, _ := filepath.Rel(projectRoot, path)
+		summaries = append(summaries, ValidationMappingSummary{
+			ID:           id,
+			Name:         name,
+			RelativePath: filepath.ToSlash(rel),
+			Dataset:      filepath.ToSlash(mapping.Dataset),
+			InputCount:   len(mapping.InputColumns),
+			OutputCount:  len(mapping.ObservedOutputColumns),
+		})
 	}
 	sort.Slice(summaries, func(i, j int) bool {
 		return summaries[i].RelativePath < summaries[j].RelativePath

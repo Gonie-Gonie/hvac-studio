@@ -99,6 +99,7 @@ async function loadProject(projectPath) {
   state.latestExportSummary = null;
   state.latestSchema = null;
   state.latestValidation = null;
+  state.latestDataValidation = null;
   state.activeRunInput = null;
   state.sourceByComponent = {};
   state.sourceDraftByComponent = {};
@@ -158,6 +159,7 @@ function renderProjectTree() {
     ["Components", graph.components.map((item) => componentTreeItem(item, system))],
     ["Python Source", graph.components.map((item) => sourceTreeItem(item))],
     ["Datasets", datasetTreeItems()],
+    ["Validation", validationMappingTreeItems()],
     ["Parameter Sets", parameterSetTreeItems()],
     ["Runs", (state.detail.runs || []).map((item) => runTreeItem(item))],
     ["Batches", (state.detail.batches || []).map((item) => batchTreeItem(item))],
@@ -256,6 +258,10 @@ function datasetTreeItems() {
 
 function parameterSetTreeItems() {
   return (state.detail?.parameter_sets || []).map((item) => treeStatic(item.name || item.id, item.relative_path || "parameter set"));
+}
+
+function validationMappingTreeItems() {
+  return (state.detail?.validation_mappings || []).map((item) => treeStatic(item.name || item.id, `${item.relative_path || "mapping"} / ${item.input_count || 0} in / ${item.output_count || 0} out`));
 }
 
 function treeItem(id, label, meta) {
@@ -1486,7 +1492,7 @@ function renderLogs() {
 }
 
 function renderResults() {
-  const value = state.latestBatchRecord || state.latestRunRecord || state.latestResult;
+  const value = state.latestDataValidation || state.latestBatchRecord || state.latestRunRecord || state.latestResult;
   el("resultsPanel").textContent = value ? JSON.stringify(value, null, 2) : "";
 }
 
@@ -1851,6 +1857,7 @@ async function runProject() {
     state.latestResultStale = false;
     state.latestRunRecord = null;
     state.latestBatchRecord = null;
+    state.latestDataValidation = null;
     setProblems();
     if (body.run_record) {
       state.detail.runs = [body.run_record, ...(state.detail.runs || [])];
@@ -1890,6 +1897,7 @@ async function runBatch() {
     state.latestRunRecord = null;
     state.latestResult = null;
     state.latestResultStale = false;
+    state.latestDataValidation = null;
     const batchProblems = collectBatchProblems(body.batch);
     state.latestValidation = { problems: batchProblems };
     state.detail.batches = [body.summary, ...(state.detail.batches || [])];
@@ -1909,6 +1917,41 @@ async function runBatch() {
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderProblems();
     setBottomTab("problems");
+  }
+}
+
+async function runDataValidation() {
+  if (!(await saveModelEditsBeforeExecution())) return;
+  const mapping = (state.detail?.validation_mappings || [])[0];
+  if (!mapping) {
+    state.latestValidation = { error: "No validation mapping is available for this project" };
+    renderProblems();
+    setBottomTab("problems");
+    log("Data validation unavailable: no mapping");
+    return;
+  }
+  try {
+    const body = await api("/api/validation/run", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        mapping_path: mapping.relative_path,
+        high_error_rows: 3,
+      }),
+    });
+    state.latestDataValidation = body.validation_result;
+    setProblems();
+    renderResults();
+    renderProblems();
+    setBottomTab("results");
+    log(`Data validation complete: ${mapping.name || mapping.id}`);
+  } catch (error) {
+    state.latestDataValidation = null;
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderResults();
+    renderProblems();
+    setBottomTab("problems");
+    log(`Data validation failed: ${error.message}`);
   }
 }
 
@@ -3137,6 +3180,7 @@ function setBottomTab(name) {
 function updateCommandState() {
   const hasProject = Boolean(state.detail);
   el("validateButton").disabled = !hasProject;
+  el("dataValidateButton").disabled = !hasProject || !(state.detail?.validation_mappings || []).length;
   el("runButton").disabled = !hasProject;
   el("scenarioButton").disabled = !hasProject || !isWorkspaceProject();
   el("batchButton").disabled = !hasProject || !isWorkspaceProject();
@@ -3297,6 +3341,7 @@ function bindEvents() {
   el("deleteComponentButton").addEventListener("click", deleteSelectedComponent);
   el("saveProjectButton").addEventListener("click", saveProjectEdits);
   el("validateButton").addEventListener("click", validateProject);
+  el("dataValidateButton").addEventListener("click", runDataValidation);
   el("runButton").addEventListener("click", runProject);
   el("scenarioButton").addEventListener("click", createScenario);
   el("batchButton").addEventListener("click", runBatch);

@@ -81,6 +81,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("projectTemplateSelect")) {
 		t.Fatalf("index did not include the project type selector")
 	}
+	if !bytes.Contains(body, []byte("dataValidateButton")) {
+		t.Fatalf("index did not include the Data validation command slot")
+	}
 	if !bytes.Contains(body, []byte("serveButton")) {
 		t.Fatalf("index did not include the Serve command slot")
 	}
@@ -304,8 +307,14 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("datasetTreeItems")) {
 		t.Fatalf("module entrypoint did not include Dataset project tree objects")
 	}
+	if !bytes.Contains(body, []byte("validationMappingTreeItems")) {
+		t.Fatalf("module entrypoint did not include Validation project tree objects")
+	}
 	if !bytes.Contains(body, []byte("parameterSetTreeItems")) {
 		t.Fatalf("module entrypoint did not include Parameter Set project tree objects")
+	}
+	if !bytes.Contains(body, []byte("runDataValidation")) {
+		t.Fatalf("module entrypoint did not include data validation action")
 	}
 	if !bytes.Contains(body, []byte("projectTemplateSelect")) {
 		t.Fatalf("module entrypoint did not read the selected project type")
@@ -1994,6 +2003,51 @@ func TestProjectEndpointIncludesDatasetAndParameterSetSummaries(t *testing.T) {
 	}
 	if body.Project.ParameterSets[0].ParameterCount == 0 {
 		t.Fatalf("parameter set summary = %#v", body.Project.ParameterSets[0])
+	}
+	if len(body.Project.ValidationMappings) != 1 {
+		t.Fatalf("validation mapping count = %d", len(body.Project.ValidationMappings))
+	}
+	mapping := body.Project.ValidationMappings[0]
+	if mapping.ID != "plant_validation" || mapping.InputCount != 3 || mapping.OutputCount != 2 {
+		t.Fatalf("validation mapping summary = %#v", mapping)
+	}
+}
+
+func TestDataValidationEndpointRunsMapping(t *testing.T) {
+	server := newTestServer(t)
+	payload := []byte(`{
+		"project_path": "examples/005_chiller_plant_like_system/project.bcsproj",
+		"mapping_path": "validation/mappings/plant_validation.json",
+		"high_error_rows": 1
+	}`)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/validation/run", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		OK               bool `json:"ok"`
+		ValidationResult struct {
+			RowCount int `json:"row_count"`
+			Metrics  map[string]struct {
+				Count         int `json:"count"`
+				HighErrorRows []struct {
+					RowIndex int `json:"row_index"`
+				} `json:"high_error_rows"`
+			} `json:"metrics"`
+		} `json:"validation_result"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !body.OK || body.ValidationResult.RowCount != 3 {
+		t.Fatalf("validation response = %#v", body)
+	}
+	if body.ValidationResult.Metrics["total_power_kw"].Count != 3 || len(body.ValidationResult.Metrics["total_power_kw"].HighErrorRows) != 1 {
+		t.Fatalf("validation metrics = %#v", body.ValidationResult.Metrics)
 	}
 }
 

@@ -13,7 +13,7 @@ The first stable slice is the runtime core plus a real Studio workspace shell:
 - `project.bcsproj` and `graph.json` as source-of-truth files.
 - User-defined Python components with `initialize(params, context)` and `evaluate(inputs, state, params, context)`.
 - A persistent Python worker using JSONL over stdio.
-- A Go `bcs-runner` CLI with `validate`, `run`, `serve`, and `schema`.
+- A Go `bcs-runner` CLI with `validate`, `run`, `serve`, `schema`, and `validate-data`.
 - Golden examples that behave as regression assets.
 - A Wails-based Studio desktop UI that opens examples, creates workspace projects, edits parameters/default inputs/Python source, adds components, validates, runs, saves scenarios/run records, and exports public schema/runtime manifests.
 
@@ -128,6 +128,7 @@ go run .\cmd\bcs-runner validate --project ..\..\examples\001_scalar_component\p
 go run .\cmd\bcs-runner run --project ..\..\examples\001_scalar_component\project.bcsproj --input ..\..\examples\001_scalar_component\inputs\case01.json
 '{ "id": "case-1", "inputs": { "value": 4 }, "context": { "time": 0, "dt": 60 } }' | go run .\cmd\bcs-runner serve --project ..\..\examples\001_scalar_component\project.bcsproj
 go run .\cmd\bcs-runner schema --project ..\..\examples\003_feedforward_system\project.bcsproj --output ..\..\examples\003_feedforward_system\outputs\schema.json
+go run .\cmd\bcs-runner validate-data --project ..\..\examples\005_chiller_plant_like_system\project.bcsproj --mapping validation\mappings\plant_validation.json
 ```
 
 ## Component Contract

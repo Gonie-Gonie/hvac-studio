@@ -156,6 +156,52 @@ func TestSchemaCommandWritesPublicInterface(t *testing.T) {
 	}
 }
 
+func TestValidateDataCommandWritesMetrics(t *testing.T) {
+	tmpDir := t.TempDir()
+	outputPath := filepath.Join(tmpDir, "validation.json")
+	projectPath := filepath.Join("..", "..", "..", "..", "examples", "005_chiller_plant_like_system", "project.bcsproj")
+
+	err := run([]string{
+		"bcs-runner",
+		"validate-data",
+		"--project",
+		projectPath,
+		"--mapping",
+		filepath.Join("validation", "mappings", "plant_validation.json"),
+		"--output",
+		outputPath,
+		"--high-error-rows",
+		"1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result struct {
+		OK       bool `json:"ok"`
+		RowCount int  `json:"row_count"`
+		Metrics  map[string]struct {
+			Count         int `json:"count"`
+			HighErrorRows []struct {
+				RowIndex int `json:"row_index"`
+			} `json:"high_error_rows"`
+		} `json:"metrics"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatal(err)
+	}
+	if !result.OK || result.RowCount != 3 {
+		t.Fatalf("validation result = %#v", result)
+	}
+	if result.Metrics["total_power_kw"].Count != 3 || len(result.Metrics["total_power_kw"].HighErrorRows) != 1 {
+		t.Fatalf("metrics = %#v", result.Metrics)
+	}
+}
+
 func TestServeCommandReusesLoadedSessionState(t *testing.T) {
 	tmpDir := t.TempDir()
 	projectRoot := filepath.Join(tmpDir, "project")

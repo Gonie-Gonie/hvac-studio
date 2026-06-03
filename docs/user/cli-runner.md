@@ -25,6 +25,19 @@ bcs-runner.exe schema `
   --output schema.json
 ```
 
+## Data Validation
+
+`validate-data` runs a saved dataset mapping and writes metrics plus high-error rows:
+
+```powershell
+bcs-runner.exe validate-data `
+  --project examples/005_chiller_plant_like_system/project.bcsproj `
+  --mapping validation/mappings/plant_validation.json `
+  --output validation-result.json
+```
+
+The mapping path is project-relative. The result includes RMSE, MAE, MBE, CVRMSE, R2, row summaries, and inspect data for the highest-error rows.
+
 ## Serve
 
 Serve mode keeps the graph compiled and Python components loaded for repeated evaluations:
