@@ -133,6 +133,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("canvasParameterSummary")) {
 		t.Fatalf("module entrypoint did not include readable canvas parameter rendering")
 	}
+	if !bytes.Contains(body, []byte("parameterInspectorBlock")) {
+		t.Fatalf("module entrypoint did not include inspector parameter editing")
+	}
+	if !bytes.Contains(body, []byte("syncParameterInputs")) {
+		t.Fatalf("module entrypoint did not include synchronized parameter input editing")
+	}
 	if !bytes.Contains(body, []byte("CANVAS_NODE_WIDTH")) {
 		t.Fatalf("module entrypoint did not include canvas sizing constants")
 	}

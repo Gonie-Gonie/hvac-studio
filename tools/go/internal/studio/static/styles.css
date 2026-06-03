@@ -961,6 +961,20 @@ th {
   width: 100%;
 }
 
+.parameter-form {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+}
+
+.inspector-input {
+  min-width: 0;
+  width: 100%;
+  height: 26px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 0 8px;
+  background: #fff;
+}
+
 .problem-row {
   display: flex;
   gap: 8px;

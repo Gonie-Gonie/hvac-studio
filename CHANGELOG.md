@@ -85,5 +85,6 @@
 - Extend `bcs-env check` to validate scalar project/component template files and component template source consistency.
 - Add persisted Studio canvas component layout under workspace `studio/layout.json`.
 - Improve Studio canvas card readability with wider component cards, separated input/output columns, wrapped node values, and visible parameter chips.
+- Add Inspector-based parameter editing, addition, and deletion for the selected workspace component.
 - Auto-create an editable starter workspace on fresh Studio launches.
 - Add Python editor keyboard handling for save, check, multi-line indent, and outdent.

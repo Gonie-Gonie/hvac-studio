@@ -501,7 +501,7 @@ function renderInspector() {
   container.append(nodeListBlock("Inputs", component, component.nodes.inputs || []));
   container.append(nodeListBlock("Outputs", component, component.nodes.outputs || []));
   if (isWorkspaceProject()) container.append(nodeEditor(component));
-  container.append(inspectorBlock("Parameters", Object.entries(component.parameters || {}).map(([k, v]) => [k, String(v)])));
+  container.append(parameterInspectorBlock(component));
   container.append(connectionEditor(component));
   const latestInputs = state.latestResult?.component_inputs?.[component.id];
   const latestOutputs = state.latestResult?.component_outputs?.[component.id];
@@ -567,6 +567,67 @@ function nodeListBlock(title, component, nodes) {
     }
     block.append(row);
   }
+  return block;
+}
+
+function parameterInspectorBlock(component) {
+  const editable = isWorkspaceProject();
+  if (!editable) {
+    return inspectorBlock("Parameters", Object.entries(component.parameters || {}).map(([k, v]) => [k, parameterInputValue(v)]));
+  }
+  const block = document.createElement("div");
+  block.className = "inspector-block";
+  block.innerHTML = `<div class="inspector-title">Parameters</div>`;
+
+  const entries = Object.entries(component.parameters || {});
+  if (!entries.length) {
+    const row = document.createElement("div");
+    row.className = "kv";
+    row.innerHTML = `<span class="kv-key">empty</span><span></span>`;
+    block.append(row);
+  }
+  for (const [name, value] of entries) {
+    const row = document.createElement("div");
+    row.className = "kv connection-row";
+    row.innerHTML = `
+      <span class="kv-key">${escapeHTML(name)}</span>
+      <span class="connection-value">
+        <input class="inspector-input" value="${escapeAttr(parameterInputValue(value))}" data-parameter-component="${escapeAttr(component.id)}" data-parameter-name="${escapeAttr(name)}" aria-label="${escapeAttr(`${component.id}.${name}`)}" />
+      </span>
+    `;
+    const input = row.querySelector("input");
+    input.addEventListener("input", () => {
+      syncParameterInputs(component.id, name, input.value, input);
+      markProjectDirty();
+    });
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "small-action";
+    button.textContent = "Delete";
+    button.addEventListener("click", () => deleteParameterFromManager(component.id, name));
+    row.querySelector(".connection-value").append(button);
+    block.append(row);
+  }
+
+  const form = document.createElement("div");
+  form.className = "connection-form parameter-form";
+  const nameInput = document.createElement("input");
+  nameInput.placeholder = "name";
+  nameInput.setAttribute("aria-label", "Parameter name");
+  const valueInput = document.createElement("input");
+  valueInput.placeholder = "value";
+  valueInput.setAttribute("aria-label", "Parameter value");
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = "Add";
+  button.addEventListener("click", () => addParameter(component.id, nameInput.value, valueInput.value));
+  for (const input of [nameInput, valueInput]) {
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") addParameter(component.id, nameInput.value, valueInput.value);
+    });
+  }
+  form.append(nameInput, valueInput, button);
+  block.append(form);
   return block;
 }
 
@@ -840,6 +901,7 @@ function parameterRow(component, name, value, editable) {
     input.dataset.parameterComponent = component.id;
     input.dataset.parameterName = name;
     input.addEventListener("input", () => {
+      syncParameterInputs(component.id, name, input.value, input);
       markProjectDirty();
     });
     valueCell.append(input);
@@ -1938,6 +2000,12 @@ async function addParameterFromManager() {
   const componentID = el("newParameterComponent")?.value || "";
   const name = (el("newParameterName")?.value || "").trim();
   const value = el("newParameterValue")?.value || "";
+  await addParameter(componentID, name, value);
+}
+
+async function addParameter(componentID, name, value) {
+  name = (name || "").trim();
+  value = value || "";
   const component = componentById(componentID);
   if (!component || !name) {
     showInlineProblem("Select a component and parameter name");
@@ -1966,6 +2034,15 @@ async function addParameterFromManager() {
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderProblems();
     setBottomTab("problems");
+  }
+}
+
+function syncParameterInputs(componentID, name, value, source) {
+  for (const input of document.querySelectorAll("[data-parameter-component]")) {
+    if (input === source) continue;
+    if (input.dataset.parameterComponent === componentID && input.dataset.parameterName === name) {
+      input.value = value;
+    }
   }
 }
 
