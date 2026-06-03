@@ -1843,6 +1843,7 @@ async function loadScenario(scenarioID) {
     renderInspector();
     renderPythonPanel();
     renderSystemHeader();
+    setMode("canvas");
     log(`Scenario loaded: ${body.scenario.name || scenarioID}`);
   } catch (error) {
     log(`Open scenario failed: ${error.message}`);
