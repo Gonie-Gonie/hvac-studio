@@ -1,0 +1,52 @@
+{
+  "schema_version": "0.1.0",
+  "systems": [
+    {
+      "id": "MainSystem",
+      "name": "Invalid Duplicate Node",
+      "components": ["gain"],
+      "connections": [],
+      "public_inputs": [],
+      "public_outputs": []
+    }
+  ],
+  "components": [
+    {
+      "id": "gain",
+      "name": "Gain",
+      "kind": "user_python",
+      "class": "components.scalar.Gain",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "value",
+            "name": "Value",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "required": true
+          },
+          {
+            "id": "value",
+            "name": "Duplicate Value",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "result",
+            "name": "Result",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float"
+          }
+        ]
+      },
+      "parameters": {}
+    }
+  ],
+  "connections": []
+}

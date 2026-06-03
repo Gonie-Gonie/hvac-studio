@@ -1,0 +1,2 @@
+error[validation]
+component gain duplicate input node id: value

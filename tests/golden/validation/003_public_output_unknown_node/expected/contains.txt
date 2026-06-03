@@ -1,0 +1,2 @@
+error[validation]
+public output result references unknown output node: gain.missing_result

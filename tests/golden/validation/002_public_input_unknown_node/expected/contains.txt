@@ -1,0 +1,2 @@
+error[validation]
+public input value references unknown input node: gain.missing_value

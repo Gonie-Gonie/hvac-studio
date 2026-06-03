@@ -1,0 +1,63 @@
+{
+  "schema_version": "0.1.0",
+  "systems": [
+    {
+      "id": "MainSystem",
+      "name": "Invalid Public Input Mapping",
+      "components": ["gain"],
+      "connections": [],
+      "public_inputs": [
+        {
+          "id": "value",
+          "name": "Input Value",
+          "component": "gain",
+          "node": "missing_value",
+          "medium": "signal",
+          "value_type": "float",
+          "required": true
+        }
+      ],
+      "public_outputs": [
+        {
+          "id": "result",
+          "name": "Result",
+          "component": "gain",
+          "node": "result",
+          "medium": "signal",
+          "value_type": "float"
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "gain",
+      "name": "Gain",
+      "kind": "user_python",
+      "class": "components.scalar.Gain",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "value",
+            "name": "Value",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "result",
+            "name": "Result",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float"
+          }
+        ]
+      },
+      "parameters": {}
+    }
+  ],
+  "connections": []
+}
