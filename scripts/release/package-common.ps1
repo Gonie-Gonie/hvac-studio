@@ -112,6 +112,244 @@ function Remove-PythonCaches {
     Remove-Item -Force -ErrorAction SilentlyContinue
 }
 
+function Copy-DocumentationAssets {
+  param(
+    [Parameter(Mandatory = $true)][string]$RepoRoot,
+    [Parameter(Mandatory = $true)][string]$StageRoot
+  )
+
+  $DocsRoot = Join-Path $StageRoot 'docs'
+  Copy-Tree -Source (Join-Path $RepoRoot 'docs') -Destination $DocsRoot
+
+  $MkDocs = Get-Command mkdocs -ErrorAction SilentlyContinue
+  if ($null -eq $MkDocs) {
+    @(
+      '# Offline HTML Docs'
+      ''
+      'MkDocs was not available when this package was built, so this package includes Markdown documentation only.'
+      'Install MkDocs in the build environment to include `docs/site/` as offline HTML release assets.'
+    ) | Set-Content -LiteralPath (Join-Path $DocsRoot 'HTML_BUILD_SKIPPED.md') -Encoding UTF8
+    return [ordered]@{
+      source = 'docs'
+      html = ''
+      html_status = 'skipped'
+      html_reason = 'mkdocs command was not available'
+    }
+  }
+
+  $SiteRoot = Join-Path $DocsRoot 'site'
+  Push-Location $RepoRoot
+  try {
+    & $MkDocs.Source build --site-dir $SiteRoot
+    if ($LASTEXITCODE -ne 0) {
+      throw "mkdocs build failed with exit code $LASTEXITCODE"
+    }
+  } finally {
+    Pop-Location
+  }
+
+  return [ordered]@{
+    source = 'docs'
+    html = 'docs/site'
+    html_status = 'built'
+    html_reason = ''
+  }
+}
+
+function Get-GitOutputLine {
+  param([Parameter(Mandatory = $true)][string[]]$Arguments)
+
+  $PreviousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    $Output = (& git @Arguments 2>$null)
+    if ($LASTEXITCODE -ne 0) {
+      return ''
+    }
+  } finally {
+    $ErrorActionPreference = $PreviousErrorActionPreference
+  }
+  return [string](($Output | Select-Object -First 1) -as [string])
+}
+
+function Get-GitMetadata {
+  param([Parameter(Mandatory = $true)][string]$RepoRoot)
+
+  $Git = Get-Command git -ErrorAction SilentlyContinue
+  $Metadata = [ordered]@{
+    commit = ''
+    short_commit = ''
+    branch = ''
+    exact_tag = ''
+    dirty = $false
+  }
+  if ($null -eq $Git) {
+    return $Metadata
+  }
+
+  Push-Location $RepoRoot
+  try {
+    $Metadata.commit = Get-GitOutputLine -Arguments @('rev-parse', 'HEAD')
+    $Metadata.short_commit = Get-GitOutputLine -Arguments @('rev-parse', '--short', 'HEAD')
+    $Metadata.branch = Get-GitOutputLine -Arguments @('rev-parse', '--abbrev-ref', 'HEAD')
+    $Metadata.exact_tag = Get-GitOutputLine -Arguments @('describe', '--tags', '--exact-match')
+    $DirtyOutput = Get-GitOutputLine -Arguments @('status', '--porcelain')
+    $Metadata.dirty = [bool]$DirtyOutput
+  } finally {
+    Pop-Location
+  }
+
+  foreach ($Key in @('commit', 'short_commit', 'branch', 'exact_tag')) {
+    if ($null -eq $Metadata[$Key]) {
+      $Metadata[$Key] = ''
+    } else {
+      $Metadata[$Key] = [string]$Metadata[$Key]
+    }
+  }
+  return $Metadata
+}
+
+function Get-ToolVersionLine {
+  param(
+    [Parameter(Mandatory = $true)][string]$Executable,
+    [string[]]$Arguments = @('--version')
+  )
+
+  if (-not $Executable) {
+    return ''
+  }
+  if (-not (Test-Path -LiteralPath $Executable)) {
+    $Command = Get-Command $Executable -ErrorAction SilentlyContinue
+    if ($null -eq $Command) {
+      return ''
+    }
+    $Executable = $Command.Source
+  }
+
+  $PreviousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    $Output = (& $Executable @Arguments 2>$null)
+    if ($LASTEXITCODE -ne 0) {
+      return ''
+    }
+  } finally {
+    $ErrorActionPreference = $PreviousErrorActionPreference
+  }
+  return [string](($Output | Select-Object -First 1) -as [string])
+}
+
+function Get-PackageFileList {
+  param([Parameter(Mandatory = $true)][string]$StageRoot)
+
+  $StagePath = (Resolve-Path -LiteralPath $StageRoot).Path
+  Push-Location $StagePath
+  try {
+    $Files = Get-ChildItem -Recurse -File -ErrorAction SilentlyContinue |
+      ForEach-Object {
+        $Rel = Resolve-Path -LiteralPath $_.FullName -Relative
+        ($Rel -replace '^[./\\]+', '') -replace '\\', '/'
+      } |
+      Sort-Object
+  } finally {
+    Pop-Location
+  }
+  return @($Files)
+}
+
+function Write-ReleaseProvenance {
+  param(
+    [Parameter(Mandatory = $true)][string]$RepoRoot,
+    [Parameter(Mandatory = $true)][string]$StageRoot,
+    [Parameter(Mandatory = $true)][string]$PackageName,
+    [Parameter(Mandatory = $true)][string]$PackageType,
+    [Parameter(Mandatory = $true)][string]$Version,
+    [Parameter(Mandatory = $true)][string]$RuntimeId,
+    [object]$Documentation = @{}
+  )
+
+  $PythonExe = Join-Path $StageRoot 'runtime\python\python.exe'
+  $WailsVersion = Get-ToolVersionLine -Executable 'wails'
+  if (-not $WailsVersion) {
+    $WailsVersion = Get-ToolVersionLine -Executable 'wails.exe'
+  }
+
+  $Files = Get-PackageFileList -StageRoot $StageRoot
+  if ($Files -notcontains 'release-provenance.json') {
+    $Files += 'release-provenance.json'
+    $Files = @($Files | Sort-Object)
+  }
+
+  $Provenance = [ordered]@{
+    schema = 'hvac-studio.release-provenance.v1'
+    package_name = $PackageName
+    package_type = $PackageType
+    version = $Version
+    runtime_id = $RuntimeId
+    built_at_utc = (Get-Date).ToUniversalTime().ToString('o')
+    git = Get-GitMetadata -RepoRoot $RepoRoot
+    tools = [ordered]@{
+      go = Get-ToolVersionLine -Executable $env:HVAC_STUDIO_GO
+      uv = Get-ToolVersionLine -Executable $env:HVAC_STUDIO_UV
+      python = Get-ToolVersionLine -Executable $env:HVAC_STUDIO_PYTHON
+      packaged_python = Get-ToolVersionLine -Executable $PythonExe
+      wails = $WailsVersion
+    }
+    documentation = $Documentation
+    files = $Files
+  }
+
+  $Provenance | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $StageRoot 'release-provenance.json') -Encoding UTF8
+}
+
+function Assert-ReleaseProvenance {
+  param(
+    [Parameter(Mandatory = $true)][string]$PackageRoot,
+    [Parameter(Mandatory = $true)][string]$PackageType,
+    [string]$Version = ''
+  )
+
+  $ManifestPath = Join-Path $PackageRoot 'release-manifest.json'
+  $ProvenancePath = Join-Path $PackageRoot 'release-provenance.json'
+  foreach ($RequiredPath in @($ManifestPath, $ProvenancePath)) {
+    if (-not (Test-Path -LiteralPath $RequiredPath)) {
+      throw "package provenance file is missing: $RequiredPath"
+    }
+  }
+
+  $Manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
+  $Provenance = Get-Content -Raw -LiteralPath $ProvenancePath | ConvertFrom-Json
+  if ($Manifest.provenance -ne 'release-provenance.json') {
+    throw "release manifest provenance path mismatch: $($Manifest.provenance)"
+  }
+  if ($Provenance.schema -ne 'hvac-studio.release-provenance.v1') {
+    throw "release provenance schema mismatch: $($Provenance.schema)"
+  }
+  if ($Provenance.package_type -ne $PackageType) {
+    throw "release provenance package type mismatch: $($Provenance.package_type)"
+  }
+  if ($Version -and $Provenance.version -ne $Version) {
+    throw "release provenance version mismatch: $($Provenance.version)"
+  }
+  if (-not $Provenance.git.commit) {
+    throw 'release provenance is missing git.commit'
+  }
+  if (-not $Provenance.tools.packaged_python) {
+    throw 'release provenance is missing tools.packaged_python'
+  }
+  if (-not $Provenance.documentation.source) {
+    throw 'release provenance is missing documentation.source'
+  }
+  if ($Provenance.documentation.html_status -notin @('built', 'skipped')) {
+    throw "release provenance documentation html_status mismatch: $($Provenance.documentation.html_status)"
+  }
+  foreach ($RequiredFile in @('release-manifest.json', 'release-provenance.json', 'PACKAGE_README.md')) {
+    if ($Provenance.files -notcontains $RequiredFile) {
+      throw "release provenance file list is missing $RequiredFile"
+    }
+  }
+}
+
 function Get-MinimalPackagePath {
   param([Parameter(Mandatory = $true)][string]$PackageRoot)
 

@@ -44,10 +44,11 @@ bcs-runner.exe validate-data `
   --project examples/005_chiller_plant_like_system/project.bcsproj `
   --mapping validation/mappings/plant_validation.json `
   --parameter-set parameter_sets/high_efficiency.json `
+  --save-record `
   --output validation-result.json
 ```
 
-The mapping and parameter-set paths are project-relative. The result includes RMSE, MAE, MBE, CVRMSE, R2, row summaries, and inspect data for the highest-error rows.
+The mapping and parameter-set paths are project-relative. The result includes RMSE, MAE, MBE, CVRMSE, R2, row summaries, and inspect data for the highest-error rows. `--save-record` also writes a project artifact under `validation/runs/`.
 
 ## Calibration
 
@@ -58,10 +59,11 @@ bcs-runner.exe calibrate `
   --project examples/005_chiller_plant_like_system/project.bcsproj `
   --setup calibration/setups/chiller_cop_grid.json `
   --save-parameter-set parameter_sets/calibrated_chiller_cop.json `
+  --save-record `
   --output calibration-result.json
 ```
 
-The setup points to a validation mapping, an optional base parameter set, an objective, and parameter bounds. Saving the result writes a new parameter set without changing baseline `graph.json`.
+The setup points to a validation mapping, an optional base parameter set, an objective, and parameter bounds. Saving the parameter set writes a new parameter set without changing baseline `graph.json`. `--save-record` also writes the calibration result under `calibration/results/`.
 
 ## Optimization
 
@@ -72,10 +74,11 @@ bcs-runner.exe optimize `
   --project examples/006_optimization_case/project.bcsproj `
   --setup optimization/setups/chw_setpoint_grid.json `
   --save-scenario scenarios/optimized_setpoint.json `
+  --save-record `
   --output optimization-result.json
 ```
 
-The result reports candidate objectives, best inputs, best outputs, and the saved scenario path.
+The result reports candidate objectives, best inputs, best outputs, and the saved scenario path. `--save-record` also writes the optimization result under `optimization/results/`.
 
 ## Serve
 

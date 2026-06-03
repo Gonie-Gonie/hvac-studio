@@ -55,4 +55,6 @@ bcs-runner.exe validate-data `
 
 In Studio, projects with saved mappings show a `Validation` section in the Project tree and enable the `Data` command. The result appears in the Results panel.
 
+For workspace projects, Studio saves Data command results under `validation/runs/` and shows them in the Project tree as `Validation Runs`. CLI users can do the same with `bcs-runner validate-data --save-record`.
+
 Validation should not automatically change parameters. Calibration is the workflow that estimates parameters from observed data.

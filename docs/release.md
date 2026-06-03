@@ -58,6 +58,7 @@ hvac-studio-<version>-windows-amd64-portable/
   Run-Smoke-Example.ps1
   PACKAGE_README.md
   release-manifest.json
+  release-provenance.json
 ```
 
 The runtime-only package is for delivery/external-engine integration and does not include the Studio GUI.
@@ -68,7 +69,9 @@ Both MVP packages include `bin/bcs-env.exe` and a bundled Python runtime under `
 
 Studio desktop binaries are built through `scripts/release/build-studio.ps1` with Wails production tags: `-tags desktop,production`. A plain `go build` can compile but show a Wails runtime error dialog instead of opening the app window.
 
-User documentation source lives under `docs/user/`. The planned documentation release flow is Markdown source to MkDocs HTML, offline/in-app help, PDF manual, and GitHub Release assets. The source scaffold exists now; automated HTML/PDF packaging is still a later release task.
+User documentation source lives under `docs/user/`. Package scripts always include the Markdown docs under `docs/`. If `mkdocs` is available in the build environment, they also build offline HTML under `docs/site/`; otherwise they write `docs/HTML_BUILD_SKIPPED.md` so the package explains why only Markdown docs are present. PDF manual generation remains a later release task.
+
+Each package also includes `release-provenance.json`, which records the package name, version, runtime id, git metadata, tool versions, documentation packaging status, and package file list.
 
 ## Local Release Test
 

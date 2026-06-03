@@ -29,10 +29,11 @@ Run it from the CLI:
 bcs-runner.exe optimize `
   --project examples/006_optimization_case/project.bcsproj `
   --setup optimization/setups/chw_setpoint_grid.json `
-  --save-scenario scenarios/optimized_setpoint.json
+  --save-scenario scenarios/optimized_setpoint.json `
+  --save-record
 ```
 
-The result includes each candidate objective, the best inputs, best outputs, and the saved scenario path.
+The result includes each candidate objective, the best inputs, best outputs, and the saved scenario path. `--save-record` writes a reproducible result artifact under `optimization/results/`.
 
 ## SDK Path
 

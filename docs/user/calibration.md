@@ -25,10 +25,11 @@ Run it from the CLI:
 bcs-runner.exe calibrate `
   --project examples/005_chiller_plant_like_system/project.bcsproj `
   --setup calibration/setups/chiller_cop_grid.json `
-  --save-parameter-set parameter_sets/calibrated_chiller_cop.json
+  --save-parameter-set parameter_sets/calibrated_chiller_cop.json `
+  --save-record
 ```
 
-The result includes the initial objective, best objective, changed parameters, candidate objectives, and the new parameter set content.
+The result includes the initial objective, best objective, changed parameters, candidate objectives, and the new parameter set content. `--save-record` writes a reproducible result artifact under `calibration/results/`.
 
 ## Important Rule
 

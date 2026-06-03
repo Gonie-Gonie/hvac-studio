@@ -37,6 +37,7 @@ try {
       throw "runtime package is missing $RequiredPath"
     }
   }
+  Assert-ReleaseProvenance -PackageRoot $PackageDir.FullName -PackageType 'runtime' -Version $Version
   $env:PATH = Get-MinimalPackagePath -PackageRoot $PackageDir.FullName
   Invoke-Checked $PackagedPython @('--version')
   $EnvStatusRaw = & $EnvTool check --root $PackageDir.FullName --json

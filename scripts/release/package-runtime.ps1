@@ -32,7 +32,7 @@ Copy-Tree -Source (Join-Path $RepoRoot 'python\bcs_sdk') -Destination (Join-Path
 Copy-Tree -Source (Join-Path $RepoRoot 'schema') -Destination (Join-Path $StageRoot 'schema')
 Copy-Tree -Source (Join-Path $RepoRoot 'runtime') -Destination (Join-Path $StageRoot 'runtime')
 Copy-PackagedPythonRuntime -RepoRoot $RepoRoot -Destination (Join-Path $StageRoot 'runtime\python')
-Copy-Tree -Source (Join-Path $RepoRoot 'docs') -Destination (Join-Path $StageRoot 'docs')
+$Documentation = Copy-DocumentationAssets -RepoRoot $RepoRoot -StageRoot $StageRoot
 Copy-Tree -Source (Join-Path $RepoRoot 'examples') -Destination (Join-Path $StageRoot 'examples')
 Copy-Tree -Source (Join-Path $RepoRoot 'README.md') -Destination (Join-Path $StageRoot 'README.md')
 Copy-Tree -Source (Join-Path $RepoRoot 'CHANGELOG.md') -Destination (Join-Path $StageRoot 'CHANGELOG.md')
@@ -53,6 +53,8 @@ $ReleaseManifest = [ordered]@{
   commit = $Commit
   built_at_utc = (Get-Date).ToUniversalTime().ToString('o')
   includes_embedded_python = $true
+  provenance = 'release-provenance.json'
+  documentation = $Documentation
   entrypoints = [ordered]@{
     runner = 'bin/bcs-runner.exe'
     env = 'bin/bcs-env.exe'
@@ -90,6 +92,16 @@ $PackageReadme = @(
 $PackageReadme | Set-Content -LiteralPath (Join-Path $StageRoot 'PACKAGE_README.md') -Encoding UTF8
 
 Remove-PythonCaches -Root $StageRoot
+
+Write-ReleaseProvenance `
+  -RepoRoot $RepoRoot `
+  -StageRoot $StageRoot `
+  -PackageName $PackageName `
+  -PackageType 'runtime' `
+  -Version $ResolvedVersion `
+  -RuntimeId $RuntimeId `
+  -Documentation $Documentation
+
 Compress-Archive -LiteralPath $StageRoot -DestinationPath $ZipPath -Force
 
 if (-not $KeepStage) {

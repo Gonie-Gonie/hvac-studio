@@ -40,7 +40,7 @@ Copy-Tree -Source (Join-Path $RepoRoot 'python\bcs_sdk') -Destination (Join-Path
 Copy-Tree -Source (Join-Path $RepoRoot 'schema') -Destination (Join-Path $StageRoot 'schema')
 Copy-Tree -Source (Join-Path $RepoRoot 'runtime') -Destination (Join-Path $StageRoot 'runtime')
 Copy-PackagedPythonRuntime -RepoRoot $RepoRoot -Destination (Join-Path $StageRoot 'runtime\python')
-Copy-Tree -Source (Join-Path $RepoRoot 'docs') -Destination (Join-Path $StageRoot 'docs')
+$Documentation = Copy-DocumentationAssets -RepoRoot $RepoRoot -StageRoot $StageRoot
 Copy-Tree -Source (Join-Path $RepoRoot 'examples') -Destination (Join-Path $StageRoot 'examples')
 Copy-Tree -Source (Join-Path $RepoRoot 'templates') -Destination (Join-Path $StageRoot 'templates')
 Copy-Tree -Source (Join-Path $RepoRoot 'README.md') -Destination (Join-Path $StageRoot 'README.md')
@@ -173,6 +173,8 @@ $ReleaseManifest = [ordered]@{
   future_platforms = @('macOS experimental after MVP')
   commit = $Commit
   built_at_utc = (Get-Date).ToUniversalTime().ToString('o')
+  provenance = 'release-provenance.json'
+  documentation = $Documentation
   entrypoints = [ordered]@{
     studio = 'HVAC Studio.exe'
     server = 'bin/studio.exe'
@@ -228,6 +230,16 @@ This MVP portable package is Windows-first and includes a bundled Python runtime
 "@ | Set-Content -LiteralPath (Join-Path $StageRoot 'PACKAGE_README.md') -Encoding UTF8
 
 Remove-PythonCaches -Root $StageRoot
+
+Write-ReleaseProvenance `
+  -RepoRoot $RepoRoot `
+  -StageRoot $StageRoot `
+  -PackageName $PackageName `
+  -PackageType 'studio-portable' `
+  -Version $ResolvedVersion `
+  -RuntimeId $RuntimeId `
+  -Documentation $Documentation
+
 Compress-Archive -LiteralPath $StageRoot -DestinationPath $ZipPath -Force
 
 if (-not $KeepStage) {

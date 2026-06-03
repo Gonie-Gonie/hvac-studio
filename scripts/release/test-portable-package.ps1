@@ -53,6 +53,7 @@ try {
       throw "portable package is missing $RequiredPath"
     }
   }
+  Assert-ReleaseProvenance -PackageRoot $PackageDir.FullName -PackageType 'studio-portable' -Version $Version
 
   $env:PATH = Get-MinimalPackagePath -PackageRoot $PackageDir.FullName
 
