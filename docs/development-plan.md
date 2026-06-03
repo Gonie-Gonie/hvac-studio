@@ -75,6 +75,8 @@ Acceptance criteria:
 
 ## Milestone 1: Runtime Core Contract
 
+Status: complete. Verified on 2026-06-03 with `scripts/dev/test-fast.ps1` and `scripts/release/test-release-candidate.ps1 -Version 0.1.0-dev -SkipSetup`.
+
 Goal: make the file contract robust enough for GUI and SDK to build on.
 
 Scope:
@@ -95,10 +97,10 @@ Scope:
 
 Acceptance criteria:
 
-- Invalid graph cases have golden validation errors. Started with `tests/golden/validation/001_algebraic_loop`.
+- Invalid graph cases have golden validation errors for algebraic loops, public IO endpoint mapping, and structural node errors.
 - Algebraic loop detection reports the involved components.
 - Missing public inputs and missing declared outputs fail with actionable messages.
-- CLI errors return documented exit codes. Started in code with typed runner errors for validation, input, runtime, Python worker, and license/runtime categories.
+- CLI errors return documented exit codes for validation, input, runtime, Python worker, and license/runtime categories.
 
 ## Milestone 2: Component Authoring Model
 

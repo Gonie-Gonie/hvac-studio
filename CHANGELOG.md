@@ -83,6 +83,12 @@
 - Add project Python lockfile validation, freeze script support, and lockfile preservation in runtime exports.
 - Add a Go platform boundary for executable naming, packaged Python lookup, and process creation helpers.
 - Mark Milestone 0 complete after the local release-candidate gate passed.
+- Tighten project and graph structural validation with strict JSON decoding and graph shape checks.
+- Add validation golden cases for public IO endpoint errors and duplicate node declarations.
+- Pin actionable CLI errors for missing public inputs and missing declared component outputs.
+- Pin full one-case run output shape with component inputs, component outputs, states, context, and execution order.
+- Pin the documented runner exit code taxonomy in tests.
+- Mark Milestone 1 complete after fast and release-candidate verification passed.
 - Add an API workflow test for editing Python source, connecting components, and observing propagated run results.
 - Show selected component last-run input/output values in the Code workspace contract panel.
 - Mark Studio last-run values stale after runtime-affecting edits.
