@@ -1,11 +1,12 @@
 import { escapeHTML } from "./dom.js";
 import { formatValue } from "./format.js";
 
-export function renderRunOutputWorkspace(state, summary, outputRows, chart) {
+export function renderRunOutputWorkspace(state, summary, outputRows, chart, componentRows) {
   if (!summary || !outputRows || !chart) return;
   renderRunSummary(state, summary);
   renderPublicOutputs(state, outputRows);
   renderOutputChart(state, chart);
+  renderSelectedComponentValues(state, componentRows);
 }
 
 function renderRunSummary(state, summary) {
@@ -41,6 +42,51 @@ function renderPublicOutputs(state, tbody) {
       <td>${escapeHTML(name)}</td>
       <td>${escapeHTML(formatValue(value))}</td>
       <td>${escapeHTML(context.source)}</td>
+    `;
+    tbody.append(row);
+  }
+}
+
+function renderSelectedComponentValues(state, tbody) {
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  const componentID = state.selectedComponentId;
+  const context = latestResultContext(state);
+  if (!componentID || !context.result) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-cell">No component values yet</td></tr>`;
+    return;
+  }
+
+  const inputs = context.result.component_inputs?.[componentID] || {};
+  const outputs = context.result.component_outputs?.[componentID] || {};
+  const rows = [
+    ...Object.entries(inputs).map(([node, value]) => ({
+      direction: "input",
+      node,
+      value: formatValue(value),
+      source: context.source,
+    })),
+    ...Object.entries(outputs).map(([node, value]) => ({
+      direction: "output",
+      node,
+      value: formatValue(value),
+      source: context.source,
+    })),
+  ];
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-cell">No values for selected component</td></tr>`;
+    return;
+  }
+
+  for (const item of rows) {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${escapeHTML(item.direction)}</td>
+      <td>${escapeHTML(item.node)}</td>
+      <td>${escapeHTML(item.value)}</td>
+      <td>${escapeHTML(item.source)}</td>
     `;
     tbody.append(row);
   }

@@ -69,6 +69,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("projectNameInput")) {
 		t.Fatalf("index did not include the project name field")
 	}
+	if !bytes.Contains(body, []byte("componentRunRows")) {
+		t.Fatalf("index did not include selected component run values")
+	}
 }
 
 func TestStaticModuleEntrypointServes(t *testing.T) {
@@ -260,6 +263,31 @@ func TestStaticExportWorkspaceModuleServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("Interface schema")) {
 		t.Fatalf("export workspace module did not render interface schema")
+	}
+}
+
+func TestStaticRunOutputModuleServes(t *testing.T) {
+	server := newTestServer(t)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/js/run-output.js", nil)
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(body, []byte("renderSelectedComponentValues")) {
+		t.Fatalf("run output module did not render selected component values")
+	}
+	if !bytes.Contains(body, []byte("component_inputs")) {
+		t.Fatalf("run output module did not read component input snapshots")
+	}
+	if !bytes.Contains(body, []byte("component_outputs")) {
+		t.Fatalf("run output module did not read component output snapshots")
 	}
 }
 

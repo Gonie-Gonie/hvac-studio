@@ -184,6 +184,7 @@ function treeItem(id, label, meta) {
       renderInspector();
       renderPythonPanel();
       renderProjectTree();
+      renderRunWorkspace();
       updateCommandState();
     }
   });
@@ -369,6 +370,7 @@ function renderCanvas() {
       renderInspector();
       renderPythonPanel();
       renderProjectTree();
+      renderRunWorkspace();
       updateCommandState();
     });
     node.querySelectorAll("[data-node-endpoint]").forEach((endpoint) => {
@@ -405,6 +407,7 @@ function startCanvasNodeDrag(event, node, componentID, positions) {
   renderInspector();
   renderPythonPanel();
   renderProjectTree();
+  renderRunWorkspace();
   updateCommandState();
   const startX = event.clientX;
   const startY = event.clientY;
@@ -599,6 +602,7 @@ function selectConnection(connectionID) {
   renderInspector();
   renderPythonPanel();
   renderProjectTree();
+  renderRunWorkspace();
   updateCommandState();
   log(`Connection selected: ${connection.from.component}.${connection.from.node} -> ${connection.to.component}.${connection.to.node}`);
 }
@@ -1230,7 +1234,7 @@ function renderResults() {
 }
 
 function renderRunWorkspace() {
-  renderRunOutputWorkspace(state, el("runSummaryRows"), el("runOutputRows"), el("runOutputChart"));
+  renderRunOutputWorkspace(state, el("runSummaryRows"), el("runOutputRows"), el("runOutputChart"), el("componentRunRows"));
 }
 
 function renderSchema() {
@@ -2528,6 +2532,7 @@ function selectComponent(id) {
   renderInspector();
   renderPythonPanel();
   renderProjectTree();
+  renderRunWorkspace();
   updateCommandState();
 }
 

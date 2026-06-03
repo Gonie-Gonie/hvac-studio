@@ -100,3 +100,4 @@
 - Replace prompt-based project creation and copy with an in-app project name field in the top project switcher.
 - Add an export manifest reopen API and make Project tree export profiles open the saved Export workspace detail.
 - Add Code workspace contract Insert actions for component inputs, outputs, and parameters.
+- Show selected component input/output snapshots in the Studio Run workspace.
