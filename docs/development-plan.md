@@ -165,13 +165,16 @@ Runnable examples are not demos alone. They are contract tests for the runner, p
 Current release baseline:
 
 ```text
-v0.1.0-alpha.2
+v0.1.0-alpha.3
 Windows portable zip
 Windows runtime-only zip
 Bundled Python runtime
 Wails desktop Studio entrypoint
 CLI runner and environment checker
 Python worker and serve-backed Python SDK
+Saved validation/calibration/optimization result records
+Release provenance manifests
+Runtime export of datasets, parameter sets, validation mappings, calibration setups, and optimization setups
 Runnable examples 001, 003, 004, 005, 006, 007/model, 008
 Markdown user guide source
 ```
@@ -179,15 +182,15 @@ Markdown user guide source
 Release artifacts produced by the release gate:
 
 ```text
-dist/hvac-studio-0.1.0-alpha.2-windows-amd64-portable.zip
-dist/hvac-studio-runtime-0.1.0-alpha.2-windows-amd64.zip
+dist/hvac-studio-0.1.0-alpha.3-windows-amd64-portable.zip
+dist/hvac-studio-runtime-0.1.0-alpha.3-windows-amd64.zip
 ```
 
 Primary verification commands:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-fast.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1 -Version 0.1.0-alpha.2 -SkipSetup
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1 -Version 0.1.0-alpha.3 -SkipSetup
 ```
 
 ## Milestone Status Summary
