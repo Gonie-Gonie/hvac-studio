@@ -1,6 +1,6 @@
 # Agent Working Memory
 
-Last updated: 2026-06-02
+Last updated: 2026-06-03
 
 ## North Star
 
@@ -132,6 +132,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Workspace detail views should render real artifact state, not only raw JSON. Keep JSON panes for inspection, but pair them with concise tables for records, exported files, paths, and statuses.
 - User documentation is part of the product. Keep Markdown source under `docs/user/`, explain both user workflows and the internal execution model users need to reason correctly, and plan for MkDocs HTML, in-app help, PDF manual, and release assets.
 - Quick Start and Troubleshooting should track the actual release package behavior: package self-check, desktop launch, Code workspace source checks, runtime export, export self-check, and `run-default.ps1`.
+- As of 2026-06-03, the `0.1.0-dev` release candidate gate passes through repo-local setup, fast verification, Wails Studio smoke build, portable package smoke, and runtime package smoke. The current user-test path should exercise project creation/copy, component creation/copy/use, Python source edit/check/save-run, canvas connection/layout, scenario/batch, run feedback, and runtime export.
 
 ## Monitoring Checklist
 
