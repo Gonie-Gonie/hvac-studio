@@ -1207,7 +1207,7 @@ function renderParameterAddForm(container, components, editable) {
   for (const component of components) {
     const option = document.createElement("option");
     option.value = component.id;
-    option.textContent = component.id;
+    option.textContent = componentOptionLabel(component);
     select.append(option);
   }
   if (state.selectedComponentId && components.some((component) => component.id === state.selectedComponentId)) {
@@ -1405,7 +1405,7 @@ function renderSourceComponentSelect(selectedID) {
   for (const component of components) {
     const option = document.createElement("option");
     option.value = component.id;
-    option.textContent = component.id;
+    option.textContent = componentOptionLabel(component);
     select.append(option);
   }
   select.disabled = !components.length;
@@ -2638,6 +2638,10 @@ function isWorkspaceProject() {
 
 function componentById(id) {
   return (state.detail?.graph?.components || []).find((component) => component.id === id);
+}
+
+function componentOptionLabel(component) {
+  return component?.name && component.name !== component.id ? `${component.name} (${component.id})` : component?.id || "";
 }
 
 function selectComponent(id) {
