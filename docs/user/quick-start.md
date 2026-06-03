@@ -42,7 +42,7 @@ Use the Run button. Studio sends the current project and run inputs to the same 
 
 ## 5. Check Results
 
-Open the Results panel. For workspace projects, runs are saved as `runs/run-*.json` and can be reopened from the Project tree.
+Open the Run workspace or Results panel. The Run workspace shows public outputs, selected component values, execution trace, connection values, and node values. For workspace projects, runs are saved as `runs/run-*.json` and can be reopened from the Project tree.
 
 ## 6. Create A Workspace Project
 

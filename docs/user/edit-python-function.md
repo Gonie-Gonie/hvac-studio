@@ -16,7 +16,17 @@ The source checker validates the expected Python class name, the presence of `ev
 
 Line-specific source-check rows can be clicked from the Code workspace or Problems panel to focus the editor line.
 
-The editor supports tab indentation and outdent for selected Python lines. `Ctrl+S` saves the current source, and `Ctrl+Enter` runs the source check. The Code workspace can also save the current workspace source and run the project through the normal execution path.
+The editor supports lightweight Python syntax highlighting, line numbers, bracket status, Enter auto indentation, and tab indentation/outdent for selected Python lines. `Ctrl+S` saves the current source, `Ctrl+Enter` runs the source check, and `Ctrl+Space` opens contract-derived completions. The Code workspace can also save the current workspace source and run the project through the normal execution path.
+
+The completion panel and contract rows can insert:
+
+- input reads such as `inputs.get("value", 0.0)`
+- output dictionary entries such as `"result": value`
+- parameter reads such as `params.get("gain", 2.0)`
+- state reads from `state_defs`
+- context reads for `time` and `dt`
+
+Source check warnings include contract-reference hints and likely undefined names. Undefined-name warnings do not block save/run by themselves; source-check errors such as missing signatures, syntax failures, import/load failures, or missing output contracts block run, batch, and export.
 
 ## Component Class Shape
 
@@ -52,7 +62,7 @@ gain = params["gain"]
 
 ## State
 
-`state` stores values that survive across evaluations. The one-case MVP initializes and returns state, and future time-series execution will make this more important.
+`state` stores values that survive across evaluations. One-case runs initialize state for that run. Runner serve mode keeps a live runtime session and preserves component state across repeated JSONL requests.
 
 ## Outputs
 

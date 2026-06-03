@@ -290,7 +290,17 @@ Acceptance criteria:
 
 ## Milestone 5: Component-Aware Python Editor
 
+Status: complete for the MVP editor surface. Verified on 2026-06-03 with `scripts/dev/test-go.ps1` and capture review under `artifacts/ux-captures/`.
+
 Goal: let the user edit component logic with contract-aware help while protecting generated regions.
+
+Implemented:
+
+- Studio Code workspace loads component source, keeps bundled examples read-only, and saves workspace source through the project API.
+- The editor has lightweight Python syntax highlighting, line numbers, bracket status, tab/shift-tab indentation, Enter auto indentation, save/check shortcuts, and contract-derived snippets/completions.
+- The contract panel shows runtime-managed signatures, inputs, outputs, parameters, context/state completions, source-check rows, and latest run values for the selected component.
+- Source checks validate class/function signatures, Python syntax, graph input/output references, import/load failures, and undefined-name hints without executing component evaluation.
+- Run, batch, and export actions flush dirty source and stop on saved source-check errors through both GUI and server API paths.
 
 Required editor features:
 
@@ -330,14 +340,24 @@ User-editable area:
 
 Acceptance criteria:
 
-- Studio Python panel can load component source files and save workspace edits while examples remain read-only. Started.
-- Editing nodes/parameters/states updates the generated scaffold.
-- Editing scaffold-protected areas is blocked or recovered safely.
-- Autocomplete can suggest `inputs["chw_in"]["temperature"]` style paths from component contract metadata.
+- Studio Python panel can load component source files and save workspace edits while examples remain read-only.
+- Editing nodes/parameters/states updates the contract panel, snippets, and completions from the current graph metadata.
+- Runtime-managed class/function signatures are checked before run/export, and generated-wrapper projects expose only user body files as editable source.
+- Autocomplete/completion suggestions can insert `inputs["..."]`, `params["..."]`, `state["..."]`, `context["..."]`, output-return entries, and local input variables from component contract metadata.
 
 ## Milestone 6: Run, Debug, And Inspect UX
 
+Status: complete for one-case, batch, and JSONL serve MVP. Verified on 2026-06-03 with `scripts/dev/test-go.ps1` and Studio capture review.
+
 Goal: make execution understandable for model authors.
+
+Implemented:
+
+- Runtime execution uses a reusable session that compiles the graph, starts the Python worker, loads components, initializes state, and evaluates repeatedly.
+- `bcs-runner serve` exposes a JSONL request/response loop for repeated external evaluations while preserving component state inside the live session.
+- Run results include public outputs, component inputs/outputs, node values, connection values, states, context, execution order, per-component timings, and total duration.
+- Studio Run workspace shows latest run summary, public outputs, selected component values, batch cases, output preview, execution trace, connection values, and node values.
+- Canvas, Inspector, Code workspace, Problems, and Results all consume the same structured runtime result and problem metadata.
 
 Run modes:
 
@@ -359,7 +379,7 @@ Debug/inspect outputs:
 
 Acceptance criteria:
 
-- Runner output has enough structured data for the GUI Results and Inspect panels. Started with `component_inputs`, `component_outputs`, states, context, and execution order in one-case results.
+- Runner output has enough structured data for the GUI Results and Inspect panels.
 - Runtime errors preserve component ID, node ID when applicable, and Python traceback/location.
 - Serve mode compiles graph and imports Python components once, then evaluates repeatedly.
 

@@ -25,11 +25,15 @@ Run results include:
 - public outputs
 - component inputs
 - component outputs
+- node values
+- connection values
 - states
 - context
 - execution order
+- per-component timing
+- total duration
 
-After a run, the system canvas shows the latest values on component input and output node endpoints. Selecting a component also shows its latest inputs and outputs in the Run workspace and the Inspector. If project inputs, parameters, Python source, or graph connections change after the run, Studio keeps the previous values visible but marks them stale until the next successful run.
+After a run, the system canvas shows the latest values on component input and output node endpoints. Selecting a component also shows its latest inputs and outputs in the Run workspace and the Inspector. The Run workspace includes an execution trace, connection-value table, and node-value table so the data flow can be inspected without reading raw JSON. If project inputs, parameters, Python source, or graph connections change after the run, Studio keeps the previous values visible but marks them stale until the next successful run.
 
 ## Scenarios
 
@@ -38,3 +42,14 @@ Current run inputs can be saved as scenario artifacts under `scenarios/`. Enter 
 Saved scenarios can be reopened from the Project tree to populate the Run Inputs panel for repeatable one-case runs. Opening a scenario returns to the System workspace where those inputs are visible. The active scenario badge can be cleared to return the fields to the project's default run input. Editing an input also clears the active scenario badge because the fields no longer exactly match the saved scenario.
 
 Batch runs execute saved scenarios and write `runs/batch-*.json` records. The Run workspace lists batch cases with status, public output summaries, and errors. Batch records can be reopened from the Project tree. For canvas, Inspector, and Code workspace last-value feedback, Studio uses the first successful batch case. Failed cases keep their error and component-linked Problems metadata so the Problems panel can still guide editing after the record is reopened.
+
+## Serve Mode
+
+`bcs-runner serve` keeps the compiled graph and Python components alive for repeated evaluations. It reads one JSON request per line and writes one JSON response per line. This is the current low-level bridge for future SDK and external-engine integrations.
+
+```json
+{"id":"case-1","inputs":{"value":4},"context":{"time":0,"dt":60}}
+{"id":"stop","type":"shutdown"}
+```
+
+Each successful response includes the same structured result fields used by Studio. Request errors return a JSON error object and do not stop the serve process unless initialization failed before the loop started.
