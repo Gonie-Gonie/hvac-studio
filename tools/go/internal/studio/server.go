@@ -383,6 +383,37 @@ type OptimizationSetupSummary struct {
 	VariableCount int                    `json:"variable_count"`
 }
 
+type DatasetPreview struct {
+	Summary          DatasetSummary      `json:"summary"`
+	Columns          []string            `json:"columns"`
+	PreviewRows      []map[string]string `json:"preview_rows"`
+	SuggestedInputs  []ColumnSuggestion  `json:"suggested_inputs"`
+	SuggestedOutputs []ColumnSuggestion  `json:"suggested_outputs"`
+}
+
+type ColumnSuggestion struct {
+	PublicID  string `json:"public_id"`
+	Name      string `json:"name"`
+	Column    string `json:"column,omitempty"`
+	Unit      string `json:"unit,omitempty"`
+	ValueType string `json:"value_type,omitempty"`
+	Required  bool   `json:"required"`
+}
+
+type ParameterSetDetail struct {
+	Summary     ParameterSetSummary `json:"summary"`
+	Set         parameterset.Set    `json:"set"`
+	Differences []ParameterDiff     `json:"differences"`
+}
+
+type ParameterDiff struct {
+	Component string `json:"component"`
+	Parameter string `json:"parameter"`
+	Baseline  any    `json:"baseline,omitempty"`
+	Value     any    `json:"value"`
+	Exists    bool   `json:"exists"`
+}
+
 type ScenarioRecord struct {
 	ID           string         `json:"id"`
 	Name         string         `json:"name"`
@@ -488,6 +519,8 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("GET /api/project/batch", s.handleBatchRecord)
 	s.mux.HandleFunc("GET /api/project/scenario", s.handleScenarioRecord)
 	s.mux.HandleFunc("GET /api/project/export", s.handleExportRecord)
+	s.mux.HandleFunc("GET /api/project/dataset", s.handleDatasetPreview)
+	s.mux.HandleFunc("GET /api/project/parameter-set", s.handleParameterSetDetail)
 	s.mux.HandleFunc("GET /api/project/validation-record", s.handleValidationRecord)
 	s.mux.HandleFunc("GET /api/project/calibration-record", s.handleCalibrationRecord)
 	s.mux.HandleFunc("GET /api/project/optimization-record", s.handleOptimizationRecord)
@@ -637,6 +670,34 @@ func (s *Server) handleExportRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "summary": summary, "export": manifest})
+}
+
+func (s *Server) handleDatasetPreview(w http.ResponseWriter, r *http.Request) {
+	loaded, err := s.loadProject(r.URL.Query().Get("project_path"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	preview, err := datasetPreview(loaded, r.URL.Query().Get("path"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "dataset": preview})
+}
+
+func (s *Server) handleParameterSetDetail(w http.ResponseWriter, r *http.Request) {
+	loaded, err := s.loadProject(r.URL.Query().Get("project_path"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	detail, err := parameterSetDetail(loaded, r.URL.Query().Get("path"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "parameter_set": detail})
 }
 
 func (s *Server) handleValidationRecord(w http.ResponseWriter, r *http.Request) {
@@ -3946,6 +4007,115 @@ func loadDatasetSummaries(projectRoot string) []DatasetSummary {
 	return summaries
 }
 
+func datasetPreview(loaded *project.LoadedProject, relativePath string) (DatasetPreview, error) {
+	resolved, err := resolveProjectOwnedFile(loaded.Root, relativePath)
+	if err != nil {
+		return DatasetPreview{}, err
+	}
+	rel, _ := filepath.Rel(loaded.Root, resolved)
+	rows, columns, err := readDatasetPreviewRows(resolved, 8)
+	if err != nil {
+		return DatasetPreview{}, err
+	}
+	rowCount, columnCount := datasetShape(resolved)
+	summary := DatasetSummary{
+		ID:           strings.TrimSuffix(filepath.Base(resolved), filepath.Ext(resolved)),
+		Name:         displayNameFromID(strings.TrimSuffix(filepath.Base(resolved), filepath.Ext(resolved))),
+		RelativePath: filepath.ToSlash(rel),
+		Format:       strings.TrimPrefix(strings.ToLower(filepath.Ext(resolved)), "."),
+		RowCount:     rowCount,
+		ColumnCount:  columnCount,
+	}
+	system := entrySystem(loaded)
+	return DatasetPreview{
+		Summary:          summary,
+		Columns:          columns,
+		PreviewRows:      rows,
+		SuggestedInputs:  columnSuggestions(system.PublicInputs, columns),
+		SuggestedOutputs: columnSuggestions(system.PublicOutputs, columns),
+	}, nil
+}
+
+func readDatasetPreviewRows(path string, limit int) ([]map[string]string, []string, error) {
+	if strings.ToLower(filepath.Ext(path)) != ".csv" {
+		return []map[string]string{}, []string{}, nil
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, nil, apperror.Wrap(apperror.CodeInput, err)
+	}
+	defer file.Close()
+	reader := csv.NewReader(file)
+	reader.FieldsPerRecord = -1
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, nil, apperror.Wrap(apperror.CodeInput, err)
+	}
+	if len(records) == 0 {
+		return []map[string]string{}, []string{}, nil
+	}
+	columns := append([]string(nil), records[0]...)
+	rows := []map[string]string{}
+	for _, record := range records[1:] {
+		if len(rows) >= limit {
+			break
+		}
+		row := map[string]string{}
+		for index, column := range columns {
+			if index < len(record) {
+				row[column] = record[index]
+			} else {
+				row[column] = ""
+			}
+		}
+		rows = append(rows, row)
+	}
+	return rows, columns, nil
+}
+
+func columnSuggestions(refs []model.PublicNodeRef, columns []string) []ColumnSuggestion {
+	suggestions := []ColumnSuggestion{}
+	for _, ref := range refs {
+		suggestions = append(suggestions, ColumnSuggestion{
+			PublicID:  ref.ID,
+			Name:      ref.Name,
+			Column:    matchColumn(ref, columns),
+			Unit:      ref.Unit,
+			ValueType: ref.ValueType,
+			Required:  ref.IsRequired(),
+		})
+	}
+	return suggestions
+}
+
+func matchColumn(ref model.PublicNodeRef, columns []string) string {
+	targets := []string{ref.ID, ref.Name}
+	for _, target := range targets {
+		normalizedTarget := normalizeColumnName(target)
+		if normalizedTarget == "" {
+			continue
+		}
+		for _, column := range columns {
+			if normalizeColumnName(column) == normalizedTarget {
+				return column
+			}
+		}
+	}
+	for _, target := range targets {
+		normalizedTarget := normalizeColumnName(target)
+		if normalizedTarget == "" {
+			continue
+		}
+		for _, column := range columns {
+			normalizedColumn := normalizeColumnName(column)
+			if strings.HasSuffix(normalizedColumn, normalizedTarget) || strings.Contains(normalizedColumn, normalizedTarget) {
+				return column
+			}
+		}
+	}
+	return ""
+}
+
 func loadParameterSetSummaries(projectRoot string) []ParameterSetSummary {
 	files := appendMatchingFiles(filepath.Join(projectRoot, "parameter_sets"), []string{"*.json"})
 	summaries := []ParameterSetSummary{}
@@ -4138,6 +4308,54 @@ func parameterSetSummary(projectRoot string, path string) (ParameterSetSummary, 
 		ComponentCount: len(record.Components),
 		ParameterCount: parameterCount,
 	}, true
+}
+
+func parameterSetDetail(loaded *project.LoadedProject, relativePath string) (ParameterSetDetail, error) {
+	set, err := parameterset.Load(loaded.Root, relativePath)
+	if err != nil {
+		return ParameterSetDetail{}, err
+	}
+	resolved, err := resolveProjectOwnedFile(loaded.Root, relativePath)
+	if err != nil {
+		return ParameterSetDetail{}, err
+	}
+	summary, ok := parameterSetSummary(loaded.Root, resolved)
+	if !ok {
+		return ParameterSetDetail{}, apperror.Errorf(apperror.CodeInput, "parameter set could not be summarized: %s", relativePath)
+	}
+	return ParameterSetDetail{
+		Summary:     summary,
+		Set:         set,
+		Differences: parameterSetDifferences(loaded.Graph, set),
+	}, nil
+}
+
+func parameterSetDifferences(graph *model.Graph, set parameterset.Set) []ParameterDiff {
+	components := map[string]model.Component{}
+	for _, component := range graph.Components {
+		components[component.ID] = component
+	}
+	diffs := []ParameterDiff{}
+	for componentID, values := range set.Components {
+		component, componentExists := components[componentID]
+		for name, value := range values {
+			baseline, exists := component.Parameters[name]
+			diffs = append(diffs, ParameterDiff{
+				Component: componentID,
+				Parameter: name,
+				Baseline:  baseline,
+				Value:     value,
+				Exists:    componentExists && exists,
+			})
+		}
+	}
+	sort.Slice(diffs, func(i, j int) bool {
+		if diffs[i].Component != diffs[j].Component {
+			return diffs[i].Component < diffs[j].Component
+		}
+		return diffs[i].Parameter < diffs[j].Parameter
+	})
+	return diffs
 }
 
 func writeExportManifest(loaded *project.LoadedProject, profile string) (ExportSummary, ExportManifest, error) {
@@ -4886,6 +5104,18 @@ func systemHasIncomingConnection(system model.System, graph *model.Graph, compon
 	return false
 }
 
+func entrySystem(loaded *project.LoadedProject) model.System {
+	if loaded == nil || loaded.Graph == nil || loaded.Project == nil {
+		return model.System{}
+	}
+	for _, system := range loaded.Graph.Systems {
+		if system.ID == loaded.Project.EntrySystem {
+			return system
+		}
+	}
+	return model.System{}
+}
+
 func hasPublicInputFor(system model.System, componentID string, nodeID string) bool {
 	for _, input := range system.PublicInputs {
 		if input.Component == componentID && input.Node == nodeID {
@@ -4974,6 +5204,16 @@ func uniquePublicNodeID(refs []model.PublicNodeRef, base string) string {
 		candidate = fmt.Sprintf("%s_%d", base, index)
 	}
 	return candidate
+}
+
+func normalizeColumnName(value string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(value) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 func updatePublicNodeRef(ref *model.PublicNodeRef, node model.Node) {

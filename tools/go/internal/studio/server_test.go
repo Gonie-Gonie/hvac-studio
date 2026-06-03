@@ -328,6 +328,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("openArtifactSummary")) {
 		t.Fatalf("module entrypoint did not include artifact summary navigation")
 	}
+	if !bytes.Contains(body, []byte("/api/project/dataset")) {
+		t.Fatalf("module entrypoint did not call dataset preview endpoint")
+	}
+	if !bytes.Contains(body, []byte("/api/project/parameter-set")) {
+		t.Fatalf("module entrypoint did not call parameter-set detail endpoint")
+	}
 	if !bytes.Contains(body, []byte("runCalibrationSetup")) {
 		t.Fatalf("module entrypoint did not include calibration setup execution")
 	}
@@ -2083,6 +2089,65 @@ func TestDataValidationEndpointRunsMapping(t *testing.T) {
 	}
 	if body.ValidationResult.Metrics["total_power_kw"].Count != 3 || len(body.ValidationResult.Metrics["total_power_kw"].HighErrorRows) != 1 {
 		t.Fatalf("validation metrics = %#v", body.ValidationResult.Metrics)
+	}
+}
+
+func TestDatasetPreviewEndpointSuggestsPublicIOMapping(t *testing.T) {
+	server := newTestServer(t)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/project/dataset?project_path="+url.QueryEscape("examples/005_chiller_plant_like_system/project.bcsproj")+"&path="+url.QueryEscape("datasets/plant_validation.csv"),
+		nil,
+	)
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Dataset DatasetPreview `json:"dataset"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Dataset.Summary.RowCount != 3 || len(body.Dataset.Columns) != 6 || len(body.Dataset.PreviewRows) == 0 {
+		t.Fatalf("dataset preview = %#v", body.Dataset)
+	}
+	if !hasColumnSuggestion(body.Dataset.SuggestedInputs, "building_load_kw", "building_load_kw") {
+		t.Fatalf("input suggestions = %#v", body.Dataset.SuggestedInputs)
+	}
+	if !hasColumnSuggestion(body.Dataset.SuggestedOutputs, "total_power_kw", "measured_total_power_kw") {
+		t.Fatalf("output suggestions = %#v", body.Dataset.SuggestedOutputs)
+	}
+}
+
+func TestParameterSetDetailEndpointReturnsDiffs(t *testing.T) {
+	server := newTestServer(t)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/project/parameter-set?project_path="+url.QueryEscape("examples/005_chiller_plant_like_system/project.bcsproj")+"&path="+url.QueryEscape("parameter_sets/high_efficiency.json"),
+		nil,
+	)
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		ParameterSet ParameterSetDetail `json:"parameter_set"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.ParameterSet.Summary.ID != "high_efficiency" || len(body.ParameterSet.Differences) == 0 {
+		t.Fatalf("parameter set detail = %#v", body.ParameterSet)
+	}
+	if !hasParameterDiff(body.ParameterSet.Differences, "chiller", "cop") {
+		t.Fatalf("parameter diffs = %#v", body.ParameterSet.Differences)
 	}
 }
 
@@ -3964,6 +4029,24 @@ func seedTestRuntimeSupport(t *testing.T, root string) {
 			t.Fatal(err)
 		}
 	}
+}
+
+func hasColumnSuggestion(values []ColumnSuggestion, publicID string, column string) bool {
+	for _, item := range values {
+		if item.PublicID == publicID && item.Column == column {
+			return true
+		}
+	}
+	return false
+}
+
+func hasParameterDiff(values []ParameterDiff, component string, parameter string) bool {
+	for _, item := range values {
+		if item.Component == component && item.Parameter == parameter && item.Exists {
+			return true
+		}
+	}
+	return false
 }
 
 func findRepoRoot() (string, error) {

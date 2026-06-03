@@ -425,12 +425,27 @@ function artifactRows() {
   return rows;
 }
 
-function openArtifactSummary(kind, item) {
-  state.latestWorkflowRecord = { kind, artifact: item };
-  renderResults();
-  renderArtifactWorkspace();
-  setBottomTab("results");
-  setMode("artifacts");
+async function openArtifactSummary(kind, item) {
+  try {
+    if (kind === "dataset" && item.relative_path) {
+      const body = await api(`/api/project/dataset?project_path=${encodeURIComponent(state.currentProjectPath)}&path=${encodeURIComponent(item.relative_path)}`);
+      state.latestWorkflowRecord = { kind, dataset: body.dataset };
+    } else if (kind === "parameter_set" && item.relative_path) {
+      const body = await api(`/api/project/parameter-set?project_path=${encodeURIComponent(state.currentProjectPath)}&path=${encodeURIComponent(item.relative_path)}`);
+      state.latestWorkflowRecord = { kind, parameter_set: body.parameter_set };
+    } else {
+      state.latestWorkflowRecord = { kind, artifact: item };
+    }
+    renderResults();
+    renderArtifactWorkspace();
+    setBottomTab("results");
+    setMode("artifacts");
+  } catch (error) {
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+    log(`Artifact open failed: ${error.message}`);
+  }
 }
 
 function datasetTreeItems() {
