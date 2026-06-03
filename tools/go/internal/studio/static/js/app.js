@@ -231,13 +231,42 @@ function renderRunInputs() {
     const field = document.createElement("div");
     field.className = "input-field";
     const defaultValue = savedInputs[input.id] ?? input.default ?? sampleValueFor(input.id);
+    const label = input.name || input.id;
+    const meta = runInputMeta(input, label);
     field.innerHTML = `
-      <label for="input-${escapeAttr(input.id)}">${escapeHTML(input.id)}</label>
+      <label for="input-${escapeAttr(input.id)}">
+        <span class="input-label">${escapeHTML(label)}</span>
+        ${meta ? `<span class="input-meta">${escapeHTML(meta)}</span>` : ""}
+      </label>
       <input id="input-${escapeAttr(input.id)}" data-input-id="${escapeAttr(input.id)}" value="${escapeAttr(defaultValue)}" />
     `;
     field.querySelector("input").addEventListener("input", markProjectDirty);
+    const reset = document.createElement("button");
+    reset.type = "button";
+    reset.className = "input-reset";
+    reset.textContent = "Default";
+    reset.addEventListener("click", () => resetRunInput(input));
+    field.append(reset);
     container.append(field);
   }
+}
+
+function runInputMeta(input, label) {
+  return [
+    input.id && input.id !== label ? input.id : "",
+    input.value_type || "",
+    input.unit || "",
+    input.required === false ? "optional" : "required",
+  ].filter(Boolean).join(" / ");
+}
+
+function resetRunInput(input) {
+  const control = [...document.querySelectorAll("[data-input-id]")].find((item) => item.dataset.inputId === input.id);
+  if (!control) return;
+  const defaultInputs = state.detail?.default_run_input?.inputs || {};
+  const value = defaultInputs[input.id] ?? input.default ?? sampleValueFor(input.id);
+  control.value = parameterInputValue(value);
+  markProjectDirty();
 }
 
 function renderCanvas() {

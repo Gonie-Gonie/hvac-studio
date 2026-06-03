@@ -8,6 +8,8 @@ Validation checks graph structure, public IO mappings, connection references, an
 
 Studio runs the current public inputs and context through the same runtime path as `bcs-runner`.
 
+The Run Inputs toolbar shows each public input's display name, stable ID when different, value type, unit, and required/optional status. The Default control resets a field to the saved default input value or the graph node default.
+
 Workspace runs are saved as:
 
 ```text

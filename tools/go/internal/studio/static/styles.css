@@ -453,17 +453,44 @@ h2,
   flex-wrap: wrap;
   justify-content: end;
   gap: 8px;
+  max-width: 68%;
 }
 
 .input-field {
   display: grid;
-  grid-template-columns: auto 92px;
+  grid-template-columns: minmax(88px, auto) 96px auto;
   align-items: center;
   gap: 6px;
+  min-width: 230px;
 }
 
 .input-field label {
   color: var(--muted);
+  min-width: 0;
+}
+
+.input-label,
+.input-meta {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.15;
+}
+
+.input-label {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.input-meta {
+  margin-top: 2px;
+  font-size: 10px;
+}
+
+.input-reset {
+  height: 26px;
+  padding: 0 7px;
+  font-size: 11px;
 }
 
 .canvas-wrap {
