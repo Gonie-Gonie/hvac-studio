@@ -1735,7 +1735,347 @@ function renderLogs() {
 
 function renderResults() {
   const value = state.latestWorkflowRecord || state.latestDataValidation || state.latestBatchRecord || state.latestRunRecord || state.latestResult;
-  el("resultsPanel").textContent = value ? JSON.stringify(value, null, 2) : "";
+  const panel = el("resultsPanel");
+  panel.innerHTML = "";
+  if (!value) return;
+  const view = structuredResultView(value);
+  if (view) panel.append(view);
+  panel.append(rawJSONBlock(value));
+}
+
+function structuredResultView(value) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "result-structured";
+  if (value.kind === "dataset" && value.dataset) {
+    wrapper.append(resultHeader("Dataset Preview", value.dataset.summary?.relative_path || "", `${value.dataset.summary?.row_count || 0} rows`));
+    wrapper.append(datasetResultSection(value.dataset));
+    return wrapper;
+  }
+  if (value.kind === "parameter_set" && value.parameter_set) {
+    wrapper.append(resultHeader("Parameter Set", value.parameter_set.summary?.relative_path || "", `${value.parameter_set.summary?.parameter_count || 0} values`));
+    wrapper.append(parameterSetResultSection(value.parameter_set));
+    return wrapper;
+  }
+  if (value.kind && value.artifact) {
+    wrapper.append(resultHeader(value.kind.replace(/_/g, " "), value.artifact.relative_path || value.artifact.path || "", value.artifact.state || ""));
+    wrapper.append(resultTable("Summary", objectRows(value.artifact)));
+    return wrapper;
+  }
+
+  const validation = value.result?.metrics ? value.result : value.metrics ? value : null;
+  if (validation) {
+    wrapper.append(resultHeader("Validation Result", validation.mapping_name || validation.mapping_id || "", `${validation.row_count || 0} rows`));
+    wrapper.append(validationResultSection(validation));
+    return wrapper;
+  }
+
+  const calibration = value.result?.candidates && value.result?.saved_parameter_set !== undefined ? value.result : value.candidates && value.saved_parameter_set !== undefined ? value : null;
+  if (calibration) {
+    wrapper.append(resultHeader("Calibration Result", calibration.setup_name || calibration.setup_id || "", `best ${shortNumber(calibration.best_objective)}`));
+    wrapper.append(candidateResultSection(calibration, "Saved parameter set", calibration.saved_parameter_set));
+    return wrapper;
+  }
+
+  const optimization = value.result?.candidates && value.result?.saved_scenario !== undefined ? value.result : value.candidates && value.saved_scenario !== undefined ? value : null;
+  if (optimization) {
+    wrapper.append(resultHeader("Optimization Result", optimization.setup_name || optimization.setup_id || "", `best ${shortNumber(optimization.best_objective)}`));
+    wrapper.append(candidateResultSection(optimization, "Saved scenario", optimization.saved_scenario));
+    return wrapper;
+  }
+
+  if (value.cases) {
+    wrapper.append(resultHeader("Batch Result", value.id || "", `${(value.cases || []).filter((item) => item.ok).length}/${(value.cases || []).length} ok`));
+    wrapper.append(resultTable("Cases", (value.cases || []).map((item) => [
+      item.scenario_name || item.scenario_id || "",
+      item.ok ? "ok" : "failed",
+      item.ok ? resultPublicOutputSummary(item.result?.outputs || {}) : item.error || "",
+    ]), ["Scenario", "Status", "Output / Error"]));
+    return wrapper;
+  }
+
+  const run = value.result?.outputs ? value.result : value.outputs ? value : null;
+  if (run) {
+    wrapper.append(resultHeader("Run Result", value.id || "current run", `${Object.keys(run.outputs || {}).length} outputs`));
+    wrapper.append(resultTable("Public Outputs", Object.entries(run.outputs || {}).map(([name, output]) => [name, formatValue(output)]), ["Output", "Value"]));
+    return wrapper;
+  }
+  return null;
+}
+
+function resultHeader(title, subtitle, status) {
+  const header = document.createElement("div");
+  header.className = "result-header";
+  header.innerHTML = `
+    <div>
+      <div class="result-title">${escapeHTML(title)}</div>
+      <div class="result-subtitle">${escapeHTML(subtitle || "")}</div>
+    </div>
+    <div class="result-status">${escapeHTML(status || "")}</div>
+  `;
+  return header;
+}
+
+function datasetResultSection(dataset) {
+  const section = document.createElement("div");
+  section.className = "result-grid";
+  section.append(resultTable("Dataset", [
+    ["Path", dataset.summary?.relative_path || ""],
+    ["Shape", `${dataset.summary?.row_count || 0} rows / ${dataset.summary?.column_count || 0} columns`],
+    ["Format", dataset.summary?.format || ""],
+  ]));
+  section.append(resultTable("Public IO Mapping", [
+    ...suggestionRows("input", dataset.suggested_inputs || []),
+    ...suggestionRows("output", dataset.suggested_outputs || []),
+  ], ["Direction", "Public ID", "Column", "Unit"]));
+  section.append(previewRowsSection(dataset));
+  if (isWorkspaceProject()) {
+    const actions = document.createElement("div");
+    actions.className = "result-actions";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "small-action";
+    button.textContent = "Create Mapping";
+    button.addEventListener("click", () => createValidationMappingFromDataset(dataset));
+    actions.append(button);
+    section.append(actions);
+  }
+  return section;
+}
+
+function suggestionRows(direction, suggestions) {
+  return suggestions.map((item) => [
+    direction,
+    item.public_id || "",
+    item.column || "unmatched",
+    [item.value_type || "", item.unit || "", item.required ? "required" : "optional"].filter(Boolean).join(" / "),
+  ]);
+}
+
+function previewRowsSection(dataset) {
+  const columns = dataset.columns || [];
+  const rows = (dataset.preview_rows || []).map((row) => columns.map((column) => row[column] ?? ""));
+  return resultTable("Preview Rows", rows, columns);
+}
+
+async function createValidationMappingFromDataset(dataset) {
+  try {
+    const body = await api("/api/project/validation-mapping", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        dataset_path: dataset.summary?.relative_path || "",
+        missing_value_policy: "fail_fast",
+      }),
+    });
+    state.detail = body.project;
+    state.latestWorkflowRecord = { kind: "validation_mapping", artifact: body.summary, mapping: body.mapping };
+    renderProjectTree();
+    renderArtifactWorkspace();
+    renderResults();
+    log(`Validation mapping created: ${body.summary?.relative_path || body.summary?.id}`);
+  } catch (error) {
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+    log(`Validation mapping failed: ${error.message}`);
+  }
+}
+
+function parameterSetResultSection(detail) {
+  const section = document.createElement("div");
+  section.className = "result-grid";
+  section.append(resultTable("Summary", [
+    ["Path", detail.summary?.relative_path || ""],
+    ["Components", String(detail.summary?.component_count || 0)],
+    ["Values", String(detail.summary?.parameter_count || 0)],
+    ["Created", detail.summary?.created_at_utc || ""],
+  ]));
+  section.append(resultTable("Differences", (detail.differences || []).map((item) => [
+    item.component,
+    item.parameter,
+    item.exists ? formatValue(item.baseline) : "new",
+    formatValue(item.value),
+  ]), ["Component", "Parameter", "Current", "Set Value"]));
+  const actions = document.createElement("div");
+  actions.className = "result-actions";
+  const activate = document.createElement("button");
+  activate.type = "button";
+  activate.className = "small-action";
+  activate.textContent = state.activeParameterSetPath === detail.summary?.relative_path ? "Active" : "Use for Runs";
+  activate.disabled = state.activeParameterSetPath === detail.summary?.relative_path;
+  activate.addEventListener("click", () => {
+    state.activeParameterSetPath = detail.summary?.relative_path || "";
+    renderRunInputs();
+    renderProjectTree();
+    renderResults();
+    log(`Active parameter set: ${state.activeParameterSetPath}`);
+  });
+  actions.append(activate);
+  if (isWorkspaceProject()) {
+    const apply = document.createElement("button");
+    apply.type = "button";
+    apply.className = "small-action";
+    apply.textContent = "Apply to Graph";
+    apply.addEventListener("click", () => applyParameterSetToGraph(detail.summary?.relative_path || ""));
+    actions.append(apply);
+  }
+  section.append(actions);
+  return section;
+}
+
+async function applyParameterSetToGraph(path) {
+  try {
+    const body = await api("/api/project/parameter-set/apply", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath, path }),
+    });
+    state.detail = body.project;
+    state.activeParameterSetPath = path;
+    renderAll();
+    log(`Parameter set applied: ${path}`);
+  } catch (error) {
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+    log(`Parameter set apply failed: ${error.message}`);
+  }
+}
+
+function validationResultSection(result) {
+  const section = document.createElement("div");
+  section.className = "result-grid";
+  section.append(resultTable("Summary", [
+    ["Dataset", result.dataset || ""],
+    ["Mapping", result.mapping || result.mapping_id || ""],
+    ["Parameter set", result.parameter_set || ""],
+    ["Missing values", result.missing_value_policy || "fail_fast"],
+  ]));
+  section.append(metricBars(result.metrics || {}));
+  section.append(highErrorRows(result.metrics || {}));
+  return section;
+}
+
+function metricBars(metrics) {
+  const block = document.createElement("div");
+  block.className = "result-block";
+  block.innerHTML = `<div class="result-block-title">Metrics</div>`;
+  const rows = document.createElement("div");
+  rows.className = "metric-bars";
+  const entries = Object.entries(metrics);
+  if (!entries.length) {
+    rows.innerHTML = `<div class="empty-cell">No metrics</div>`;
+  } else {
+    const maxRMSE = Math.max(...entries.map(([, item]) => Number(item.rmse) || 0), 1);
+    for (const [name, item] of entries) {
+      const width = Math.max(3, ((Number(item.rmse) || 0) / maxRMSE) * 100);
+      const row = document.createElement("div");
+      row.className = "metric-row";
+      row.innerHTML = `
+        <div class="metric-name">${escapeHTML(name)}</div>
+        <div class="metric-track"><div class="metric-fill" style="width: ${width}%"></div></div>
+        <div class="metric-values">RMSE ${escapeHTML(shortNumber(item.rmse))} / MAE ${escapeHTML(shortNumber(item.mae))} / R2 ${escapeHTML(shortNumber(item.r2))}</div>
+      `;
+      rows.append(row);
+    }
+  }
+  block.append(rows);
+  return block;
+}
+
+function highErrorRows(metrics) {
+  const rows = [];
+  for (const [metric, item] of Object.entries(metrics)) {
+    for (const high of item.high_error_rows || []) {
+      rows.push([
+        metric,
+        String(high.row_index),
+        high.time ?? "",
+        shortNumber(high.observed),
+        shortNumber(high.simulated),
+        shortNumber(high.error),
+      ]);
+    }
+  }
+  return resultTable("High Error Rows", rows, ["Metric", "Row", "Time", "Observed", "Simulated", "Error"]);
+}
+
+function candidateResultSection(result, savedLabel, savedPath) {
+  const section = document.createElement("div");
+  section.className = "result-grid";
+  section.append(resultTable("Summary", [
+    ["Setup", result.setup_name || result.setup_id || ""],
+    ["Objective", shortNumber(result.objective)],
+    ["Best objective", shortNumber(result.best_objective)],
+    [savedLabel, savedPath || ""],
+  ]));
+  section.append(resultTable("Candidates", (result.candidates || []).slice(0, 12).map((item, index) => [
+    String(item.index ?? index + 1),
+    shortNumber(item.objective),
+    "candidate",
+    parameterCandidateSummary(item.parameters || item.inputs || item.outputs || {}),
+  ]), ["#", "Objective", "Status", "Values"]));
+  return section;
+}
+
+function parameterCandidateSummary(values) {
+  const entries = [];
+  for (const [component, parameters] of Object.entries(values || {})) {
+    if (parameters && typeof parameters === "object" && !Array.isArray(parameters)) {
+      for (const [name, value] of Object.entries(parameters)) {
+        entries.push(`${component}.${name}=${formatValue(value)}`);
+      }
+    } else {
+      entries.push(`${component}=${formatValue(parameters)}`);
+    }
+  }
+  return entries.slice(0, 5).join(", ");
+}
+
+function resultPublicOutputSummary(outputs) {
+  const entries = Object.entries(outputs || {});
+  if (!entries.length) return "";
+  return entries.map(([name, value]) => `${name}: ${formatValue(value)}`).join(", ");
+}
+
+function resultTable(title, rows, headers = ["Item", "Value"]) {
+  const block = document.createElement("div");
+  block.className = "result-block";
+  const normalizedRows = rows || [];
+  block.innerHTML = `
+    <div class="result-block-title">${escapeHTML(title)}</div>
+    <table class="result-table">
+      <thead><tr>${headers.map((header) => `<th>${escapeHTML(header)}</th>`).join("")}</tr></thead>
+      <tbody></tbody>
+    </table>
+  `;
+  const tbody = block.querySelector("tbody");
+  if (!normalizedRows.length) {
+    tbody.innerHTML = `<tr><td colspan="${headers.length}" class="empty-cell">Empty</td></tr>`;
+    return block;
+  }
+  for (const row of normalizedRows) {
+    const cells = Array.isArray(row) ? row : [row.name || row[0] || "", row.value || row[1] || ""];
+    const tr = document.createElement("tr");
+    tr.innerHTML = headers.map((_, index) => `<td>${escapeHTML(cells[index] ?? "")}</td>`).join("");
+    tbody.append(tr);
+  }
+  return block;
+}
+
+function objectRows(value) {
+  return Object.entries(value || {}).filter(([, item]) => typeof item !== "object").map(([key, item]) => [key, item]);
+}
+
+function rawJSONBlock(value) {
+  const details = document.createElement("details");
+  details.className = "result-raw";
+  const summary = document.createElement("summary");
+  summary.textContent = "Raw JSON";
+  const pre = document.createElement("pre");
+  pre.className = "code-pane result-json";
+  pre.textContent = JSON.stringify(value, null, 2);
+  details.append(summary, pre);
+  return details;
 }
 
 function latestRuntimeResult() {

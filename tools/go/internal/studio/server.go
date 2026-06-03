@@ -251,10 +251,26 @@ type updateParametersRequest struct {
 	Parameters  map[string]map[string]any `json:"parameters"`
 }
 
+type applyParameterSetRequest struct {
+	ProjectPath string `json:"project_path"`
+	Path        string `json:"path"`
+}
+
 type deleteParameterRequest struct {
 	ProjectPath string `json:"project_path"`
 	ComponentID string `json:"component_id"`
 	Name        string `json:"name"`
+}
+
+type createValidationMappingRequest struct {
+	ProjectPath           string            `json:"project_path"`
+	DatasetPath           string            `json:"dataset_path"`
+	ID                    string            `json:"id"`
+	Name                  string            `json:"name"`
+	TimeColumn            string            `json:"time_column"`
+	InputColumns          map[string]string `json:"input_columns"`
+	ObservedOutputColumns map[string]string `json:"observed_output_columns"`
+	MissingValuePolicy    string            `json:"missing_value_policy"`
 }
 
 type updateInputRequest struct {
@@ -357,12 +373,13 @@ type ParameterSetSummary struct {
 }
 
 type ValidationMappingSummary struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	RelativePath string `json:"relative_path"`
-	Dataset      string `json:"dataset"`
-	InputCount   int    `json:"input_count"`
-	OutputCount  int    `json:"output_count"`
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	RelativePath       string `json:"relative_path"`
+	Dataset            string `json:"dataset"`
+	InputCount         int    `json:"input_count"`
+	OutputCount        int    `json:"output_count"`
+	MissingValuePolicy string `json:"missing_value_policy,omitempty"`
 }
 
 type CalibrationSetupSummary struct {
@@ -541,8 +558,10 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/project/layout", s.handleUpdateLayout)
 	s.mux.HandleFunc("POST /api/project/input", s.handleUpdateInput)
 	s.mux.HandleFunc("POST /api/project/parameters", s.handleUpdateParameters)
+	s.mux.HandleFunc("POST /api/project/parameter-set/apply", s.handleApplyParameterSet)
 	s.mux.HandleFunc("POST /api/project/parameters/delete", s.handleDeleteParameter)
 	s.mux.HandleFunc("POST /api/project/source", s.handleUpdateSource)
+	s.mux.HandleFunc("POST /api/project/validation-mapping", s.handleCreateValidationMapping)
 	s.mux.HandleFunc("POST /api/project/scenarios", s.handleCreateScenario)
 	s.mux.HandleFunc("POST /api/validate", s.handleValidate)
 	s.mux.HandleFunc("POST /api/run", s.handleRun)
@@ -698,6 +717,34 @@ func (s *Server) handleParameterSetDetail(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "parameter_set": detail})
+}
+
+func (s *Server) handleCreateValidationMapping(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeCreateValidationMappingRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	summary, mapping, err := createValidationMapping(loaded, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "mapping": mapping, "summary": summary, "project": projectDetail(reloaded)})
 }
 
 func (s *Server) handleValidationRecord(w http.ResponseWriter, r *http.Request) {
@@ -1213,6 +1260,38 @@ func (s *Server) handleUpdateParameters(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleApplyParameterSet(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeApplyParameterSetRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	set, err := parameterset.ApplyFile(loaded, req.Path)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeRuntime, err))
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "project": projectDetail(reloaded), "parameter_set": set})
 }
 
 func (s *Server) handleDeleteParameter(w http.ResponseWriter, r *http.Request) {
@@ -3541,9 +3620,27 @@ func decodeUpdateParametersRequest(r *http.Request) (updateParametersRequest, er
 	return req, nil
 }
 
+func decodeApplyParameterSetRequest(r *http.Request) (applyParameterSetRequest, error) {
+	defer r.Body.Close()
+	var req applyParameterSetRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
 func decodeDeleteParameterRequest(r *http.Request) (deleteParameterRequest, error) {
 	defer r.Body.Close()
 	var req deleteParameterRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeCreateValidationMappingRequest(r *http.Request) (createValidationMappingRequest, error) {
+	defer r.Body.Close()
+	var req createValidationMappingRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}
@@ -4116,6 +4213,134 @@ func matchColumn(ref model.PublicNodeRef, columns []string) string {
 	return ""
 }
 
+func createValidationMapping(loaded *project.LoadedProject, req createValidationMappingRequest) (ValidationMappingSummary, modelvalidation.Mapping, error) {
+	if strings.TrimSpace(req.DatasetPath) == "" {
+		return ValidationMappingSummary{}, modelvalidation.Mapping{}, apperror.Errorf(apperror.CodeValidation, "dataset_path is required")
+	}
+	preview, err := datasetPreview(loaded, req.DatasetPath)
+	if err != nil {
+		return ValidationMappingSummary{}, modelvalidation.Mapping{}, err
+	}
+	inputColumns := nonEmptyColumns(req.InputColumns)
+	if len(inputColumns) == 0 {
+		inputColumns = suggestionsToColumns(preview.SuggestedInputs)
+	}
+	outputColumns := nonEmptyColumns(req.ObservedOutputColumns)
+	if len(outputColumns) == 0 {
+		outputColumns = suggestionsToColumns(preview.SuggestedOutputs)
+	}
+	if len(inputColumns) == 0 {
+		return ValidationMappingSummary{}, modelvalidation.Mapping{}, apperror.Errorf(apperror.CodeValidation, "validation mapping requires at least one input column")
+	}
+	if len(outputColumns) == 0 {
+		return ValidationMappingSummary{}, modelvalidation.Mapping{}, apperror.Errorf(apperror.CodeValidation, "validation mapping requires at least one observed output column")
+	}
+
+	id := strings.ReplaceAll(slugify(req.ID), "-", "_")
+	if id == "" {
+		id = uniqueValidationMappingID(loaded.Root, strings.ReplaceAll(slugify(preview.Summary.ID+"_mapping"), "-", "_"))
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		name = displayNameFromID(id)
+	}
+	policy := strings.TrimSpace(req.MissingValuePolicy)
+	if policy == "" {
+		policy = "fail_fast"
+	}
+	if policy != "fail_fast" {
+		return ValidationMappingSummary{}, modelvalidation.Mapping{}, apperror.Errorf(apperror.CodeValidation, "unsupported missing value policy: %s", policy)
+	}
+
+	mapping := modelvalidation.Mapping{
+		ID:                    id,
+		Name:                  name,
+		Dataset:               preview.Summary.RelativePath,
+		TimeColumn:            firstMatchingColumn(preview.Columns, req.TimeColumn, "time", "timestamp"),
+		InputColumns:          inputColumns,
+		ObservedOutputColumns: outputColumns,
+		MissingValuePolicy:    policy,
+	}
+	mappingPath := filepath.Join(loaded.Root, "validation", "mappings", id+".json")
+	if _, err := os.Stat(mappingPath); err == nil {
+		return ValidationMappingSummary{}, modelvalidation.Mapping{}, apperror.Errorf(apperror.CodeValidation, "validation mapping already exists: %s", id)
+	} else if !os.IsNotExist(err) {
+		return ValidationMappingSummary{}, modelvalidation.Mapping{}, apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	if err := os.MkdirAll(filepath.Dir(mappingPath), 0o755); err != nil {
+		return ValidationMappingSummary{}, modelvalidation.Mapping{}, apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	if err := writeJSONFile(mappingPath, mapping); err != nil {
+		return ValidationMappingSummary{}, modelvalidation.Mapping{}, apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	rel, _ := filepath.Rel(loaded.Root, mappingPath)
+	summary := ValidationMappingSummary{
+		ID:                 mapping.ID,
+		Name:               mapping.Name,
+		RelativePath:       filepath.ToSlash(rel),
+		Dataset:            mapping.Dataset,
+		InputCount:         len(mapping.InputColumns),
+		OutputCount:        len(mapping.ObservedOutputColumns),
+		MissingValuePolicy: mapping.MissingValuePolicy,
+	}
+	mapping.Path = summary.RelativePath
+	return summary, mapping, nil
+}
+
+func nonEmptyColumns(values map[string]string) map[string]string {
+	result := map[string]string{}
+	for id, column := range values {
+		id = strings.TrimSpace(id)
+		column = strings.TrimSpace(column)
+		if id != "" && column != "" {
+			result[id] = column
+		}
+	}
+	return result
+}
+
+func suggestionsToColumns(suggestions []ColumnSuggestion) map[string]string {
+	values := map[string]string{}
+	for _, suggestion := range suggestions {
+		if suggestion.PublicID != "" && suggestion.Column != "" {
+			values[suggestion.PublicID] = suggestion.Column
+		}
+	}
+	return values
+}
+
+func firstMatchingColumn(columns []string, preferred string, fallbacks ...string) string {
+	candidates := append([]string{preferred}, fallbacks...)
+	for _, candidate := range candidates {
+		normalized := normalizeColumnName(candidate)
+		if normalized == "" {
+			continue
+		}
+		for _, column := range columns {
+			if normalizeColumnName(column) == normalized {
+				return column
+			}
+		}
+	}
+	return ""
+}
+
+func uniqueValidationMappingID(projectRoot string, base string) string {
+	base = strings.Trim(base, "_")
+	if base == "" {
+		base = "mapping"
+	}
+	exists := map[string]bool{}
+	for _, summary := range loadValidationMappingSummaries(projectRoot) {
+		exists[summary.ID] = true
+	}
+	candidate := base
+	for index := 2; exists[candidate]; index++ {
+		candidate = fmt.Sprintf("%s_%d", base, index)
+	}
+	return candidate
+}
+
 func loadParameterSetSummaries(projectRoot string) []ParameterSetSummary {
 	files := appendMatchingFiles(filepath.Join(projectRoot, "parameter_sets"), []string{"*.json"})
 	summaries := []ParameterSetSummary{}
@@ -4151,14 +4376,18 @@ func loadValidationMappingSummaries(projectRoot string) []ValidationMappingSumma
 		if name == "" {
 			name = displayNameFromID(id)
 		}
+		if mapping.MissingValuePolicy == "" {
+			mapping.MissingValuePolicy = "fail_fast"
+		}
 		rel, _ := filepath.Rel(projectRoot, path)
 		summaries = append(summaries, ValidationMappingSummary{
-			ID:           id,
-			Name:         name,
-			RelativePath: filepath.ToSlash(rel),
-			Dataset:      filepath.ToSlash(mapping.Dataset),
-			InputCount:   len(mapping.InputColumns),
-			OutputCount:  len(mapping.ObservedOutputColumns),
+			ID:                 id,
+			Name:               name,
+			RelativePath:       filepath.ToSlash(rel),
+			Dataset:            filepath.ToSlash(mapping.Dataset),
+			InputCount:         len(mapping.InputColumns),
+			OutputCount:        len(mapping.ObservedOutputColumns),
+			MissingValuePolicy: mapping.MissingValuePolicy,
 		})
 	}
 	sort.Slice(summaries, func(i, j int) bool {

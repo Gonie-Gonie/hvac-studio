@@ -334,6 +334,15 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("/api/project/parameter-set")) {
 		t.Fatalf("module entrypoint did not call parameter-set detail endpoint")
 	}
+	if !bytes.Contains(body, []byte("/api/project/validation-mapping")) {
+		t.Fatalf("module entrypoint did not create validation mappings from datasets")
+	}
+	if !bytes.Contains(body, []byte("/api/project/parameter-set/apply")) {
+		t.Fatalf("module entrypoint did not apply parameter sets")
+	}
+	if !bytes.Contains(body, []byte("Raw JSON")) {
+		t.Fatalf("module entrypoint did not keep raw workflow JSON available")
+	}
 	if !bytes.Contains(body, []byte("runCalibrationSetup")) {
 		t.Fatalf("module entrypoint did not include calibration setup execution")
 	}
@@ -2148,6 +2157,98 @@ func TestParameterSetDetailEndpointReturnsDiffs(t *testing.T) {
 	}
 	if !hasParameterDiff(body.ParameterSet.Differences, "chiller", "cop") {
 		t.Fatalf("parameter diffs = %#v", body.ParameterSet.Differences)
+	}
+}
+
+func TestCreateValidationMappingEndpointWritesSuggestedMapping(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectRoot := filepath.Join(root, "projects", "mapping-project")
+	if err := copyProjectTree(filepath.Join(repoRoot, "examples", "005_chiller_plant_like_system"), projectRoot); err != nil {
+		t.Fatal(err)
+	}
+	projectPath := filepath.Join(projectRoot, "project.bcsproj")
+	payload, err := json.Marshal(map[string]any{
+		"project_path":         projectPath,
+		"dataset_path":         filepath.Join("datasets", "plant_validation.csv"),
+		"id":                   "suggested_validation",
+		"missing_value_policy": "fail_fast",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/validation-mapping", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Summary ValidationMappingSummary `json:"summary"`
+		Mapping struct {
+			InputColumns          map[string]string `json:"input_columns"`
+			ObservedOutputColumns map[string]string `json:"observed_output_columns"`
+			MissingValuePolicy    string            `json:"missing_value_policy"`
+		} `json:"mapping"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Summary.RelativePath != "validation/mappings/suggested_validation.json" || body.Summary.MissingValuePolicy != "fail_fast" {
+		t.Fatalf("summary = %#v", body.Summary)
+	}
+	if body.Mapping.InputColumns["building_load_kw"] != "building_load_kw" {
+		t.Fatalf("input columns = %#v", body.Mapping.InputColumns)
+	}
+	if body.Mapping.ObservedOutputColumns["total_power_kw"] != "measured_total_power_kw" {
+		t.Fatalf("output columns = %#v", body.Mapping.ObservedOutputColumns)
+	}
+	if _, err := os.Stat(filepath.Join(projectRoot, "validation", "mappings", "suggested_validation.json")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestApplyParameterSetEndpointPersistsGraphParameters(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectRoot := filepath.Join(root, "projects", "parameter-project")
+	if err := copyProjectTree(filepath.Join(repoRoot, "examples", "005_chiller_plant_like_system"), projectRoot); err != nil {
+		t.Fatal(err)
+	}
+	projectPath := filepath.Join(projectRoot, "project.bcsproj")
+	payload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"path":         filepath.Join("parameter_sets", "high_efficiency.json"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/parameter-set/apply", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	loaded, err := project.Load(projectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	component, ok := findComponent(loaded.Graph, "chiller")
+	if !ok {
+		t.Fatal("chiller component not found")
+	}
+	if component.Parameters["cop"] != float64(6.8) {
+		t.Fatalf("chiller cop = %#v", component.Parameters["cop"])
 	}
 }
 

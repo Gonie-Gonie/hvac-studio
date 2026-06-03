@@ -27,6 +27,7 @@ type Mapping struct {
 	TimeColumn            string            `json:"time_column,omitempty"`
 	InputColumns          map[string]string `json:"input_columns"`
 	ObservedOutputColumns map[string]string `json:"observed_output_columns"`
+	MissingValuePolicy    string            `json:"missing_value_policy,omitempty"`
 }
 
 type Options struct {
@@ -44,6 +45,7 @@ type Result struct {
 	RowCount              int                      `json:"row_count"`
 	InputColumns          map[string]string        `json:"input_columns"`
 	ObservedOutputColumns map[string]string        `json:"observed_output_columns"`
+	MissingValuePolicy    string                   `json:"missing_value_policy,omitempty"`
 	Metrics               map[string]MetricSummary `json:"metrics"`
 	Rows                  []RowSummary             `json:"rows"`
 }
@@ -243,6 +245,9 @@ func LoadMapping(projectRoot string, mappingPath string) (Mapping, error) {
 	if rel, err := filepath.Rel(projectRoot, resolved); err == nil {
 		mapping.Path = filepath.ToSlash(rel)
 	}
+	if mapping.MissingValuePolicy == "" {
+		mapping.MissingValuePolicy = "fail_fast"
+	}
 	if mapping.Dataset == "" {
 		return Mapping{}, apperror.Errorf(apperror.CodeInput, "validation mapping dataset is required")
 	}
@@ -291,6 +296,7 @@ func Run(ctx context.Context, loaded *project.LoadedProject, mapping Mapping, op
 		RowCount:              len(rows),
 		InputColumns:          mapping.InputColumns,
 		ObservedOutputColumns: mapping.ObservedOutputColumns,
+		MissingValuePolicy:    mapping.MissingValuePolicy,
 		Metrics:               map[string]MetricSummary{},
 		Rows:                  []RowSummary{},
 	}
