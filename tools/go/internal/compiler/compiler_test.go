@@ -77,16 +77,113 @@ func TestCompileOrdersFeedForwardGraph(t *testing.T) {
 	}
 }
 
+func TestCompileWarnsForSignalToPhysicalMediumConnection(t *testing.T) {
+	loaded := compileProjectWithConnection(
+		componentWithMedia("controller", "signal", "signal"),
+		componentWithMedia("coil", "water", "water"),
+		model.Connection{
+			ID:   "controller_to_coil",
+			From: model.Endpoint{Component: "controller", Node: "out"},
+			To:   model.Endpoint{Component: "coil", Node: "in"},
+		},
+	)
+
+	plan, err := Compile(loaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Diagnostics) != 1 {
+		t.Fatalf("diagnostics = %#v", plan.Diagnostics)
+	}
+	diagnostic := plan.Diagnostics[0]
+	if diagnostic.Severity != "warning" || diagnostic.ConnectionID != "controller_to_coil" {
+		t.Fatalf("diagnostic = %#v", diagnostic)
+	}
+	if !strings.Contains(diagnostic.Message, "medium mismatch") {
+		t.Fatalf("diagnostic message = %s", diagnostic.Message)
+	}
+}
+
+func TestCompileRejectsPhysicalMediumMismatchByDefault(t *testing.T) {
+	loaded := compileProjectWithConnection(
+		componentWithMedia("fan", "signal", "air"),
+		componentWithMedia("coil", "water", "water"),
+		model.Connection{
+			ID:   "fan_to_coil",
+			From: model.Endpoint{Component: "fan", Node: "out"},
+			To:   model.Endpoint{Component: "coil", Node: "in"},
+		},
+	)
+
+	_, err := Compile(loaded)
+
+	if err == nil || !strings.Contains(err.Error(), "connection fan_to_coil medium mismatch: fan.out=air -> coil.in=water") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestCompileWarnsForExplicitMediumOverride(t *testing.T) {
+	loaded := compileProjectWithConnection(
+		componentWithMedia("fan", "signal", "air"),
+		componentWithMedia("coil", "water", "water"),
+		model.Connection{
+			ID:                  "fan_to_coil",
+			From:                model.Endpoint{Component: "fan", Node: "out"},
+			To:                  model.Endpoint{Component: "coil", Node: "in"},
+			AllowMediumMismatch: true,
+		},
+	)
+
+	plan, err := Compile(loaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Diagnostics) != 1 {
+		t.Fatalf("diagnostics = %#v", plan.Diagnostics)
+	}
+	if !strings.Contains(plan.Diagnostics[0].Message, "allowed by explicit medium override") {
+		t.Fatalf("diagnostic message = %s", plan.Diagnostics[0].Message)
+	}
+}
+
+func compileProjectWithConnection(source model.Component, target model.Component, connection model.Connection) *project.LoadedProject {
+	return &project.LoadedProject{
+		Project: &model.Project{EntrySystem: "MainSystem"},
+		Graph: &model.Graph{
+			SchemaVersion: "0.1.0",
+			Systems: []model.System{
+				{
+					ID:          "MainSystem",
+					Components:  []string{source.ID, target.ID},
+					Connections: []string{connection.ID},
+					PublicInputs: []model.PublicNodeRef{
+						{ID: "value", Component: source.ID, Node: "in"},
+					},
+					PublicOutputs: []model.PublicNodeRef{
+						{ID: "result", Component: target.ID, Node: "out"},
+					},
+				},
+			},
+			Components:  []model.Component{source, target},
+			Connections: []model.Connection{connection},
+		},
+	}
+}
+
 func component(id string) model.Component {
+	return componentWithMedia(id, "signal", "signal")
+}
+
+func componentWithMedia(id string, inputMedium string, outputMedium string) model.Component {
 	return model.Component{
 		ID:   id,
 		Kind: "user_python",
 		Nodes: model.NodeSet{
 			Inputs: []model.Node{
-				{ID: "in", Medium: "signal", ValueType: "float"},
+				{ID: "in", Medium: inputMedium, ValueType: "float"},
 			},
 			Outputs: []model.Node{
-				{ID: "out", Medium: "signal", ValueType: "float"},
+				{ID: "out", Medium: outputMedium, ValueType: "float"},
 			},
 		},
 	}

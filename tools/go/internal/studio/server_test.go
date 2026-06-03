@@ -1391,6 +1391,98 @@ func TestCreateConnectionEndpointConnectsComponents(t *testing.T) {
 	}
 }
 
+func TestValidateEndpointReportsConnectionMediumWarnings(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	summary := createWorkspaceProject(t, server, "Medium Warning Project")
+
+	componentPayload, err := json.Marshal(map[string]any{
+		"project_path": summary.ProjectPath,
+		"name":         "Water Sink",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	componentResponse := httptest.NewRecorder()
+	componentRequest := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(componentPayload))
+	server.Handler().ServeHTTP(componentResponse, componentRequest)
+	if componentResponse.Code != http.StatusCreated {
+		t.Fatalf("component status = %d body=%s", componentResponse.Code, componentResponse.Body.String())
+	}
+
+	includePayload, err := json.Marshal(map[string]any{
+		"project_path": summary.ProjectPath,
+		"component_id": "water_sink",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	includeResponse := httptest.NewRecorder()
+	includeRequest := httptest.NewRequest(http.MethodPost, "/api/project/system/components", bytes.NewReader(includePayload))
+	server.Handler().ServeHTTP(includeResponse, includeRequest)
+	if includeResponse.Code != http.StatusOK {
+		t.Fatalf("include status = %d body=%s", includeResponse.Code, includeResponse.Body.String())
+	}
+
+	loaded, err := project.Load(summary.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index := range loaded.Graph.Components {
+		if loaded.Graph.Components[index].ID == "water_sink" {
+			loaded.Graph.Components[index].Nodes.Inputs[0].Medium = "water"
+		}
+	}
+	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
+		t.Fatal(err)
+	}
+
+	connectionPayload, err := json.Marshal(map[string]any{
+		"project_path":   summary.ProjectPath,
+		"from_component": "scalar",
+		"from_node":      "result",
+		"to_component":   "water_sink",
+		"to_node":        "value",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	connectionResponse := httptest.NewRecorder()
+	connectionRequest := httptest.NewRequest(http.MethodPost, "/api/project/connections", bytes.NewReader(connectionPayload))
+	server.Handler().ServeHTTP(connectionResponse, connectionRequest)
+	if connectionResponse.Code != http.StatusCreated {
+		t.Fatalf("connection status = %d body=%s", connectionResponse.Code, connectionResponse.Body.String())
+	}
+
+	validatePayload, err := json.Marshal(map[string]any{"project_path": summary.ProjectPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	validateResponse := httptest.NewRecorder()
+	validateRequest := httptest.NewRequest(http.MethodPost, "/api/validate", bytes.NewReader(validatePayload))
+	server.Handler().ServeHTTP(validateResponse, validateRequest)
+	if validateResponse.Code != http.StatusOK {
+		t.Fatalf("validate status = %d body=%s", validateResponse.Code, validateResponse.Body.String())
+	}
+	var body struct {
+		Validation struct {
+			Problems []Problem `json:"problems"`
+		} `json:"validation"`
+	}
+	if err := json.Unmarshal(validateResponse.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Validation.Problems) != 1 {
+		t.Fatalf("problems = %#v", body.Validation.Problems)
+	}
+	problem := body.Validation.Problems[0]
+	if problem.Severity != "warning" || problem.ComponentID != "water_sink" || problem.NodeID != "value" {
+		t.Fatalf("problem = %#v", problem)
+	}
+	if !strings.Contains(problem.Message, "connection scalar_result_to_water_sink_value medium mismatch") {
+		t.Fatalf("problem message = %s", problem.Message)
+	}
+}
+
 func TestWorkspaceWorkflowEditsSourceConnectsAndRuns(t *testing.T) {
 	_, server := newIsolatedTestServer(t)
 	project := createWorkspaceProject(t, server, "Workflow Project")

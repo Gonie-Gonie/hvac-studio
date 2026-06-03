@@ -17,6 +17,15 @@ type Plan struct {
 	PublicInputs   map[string]model.PublicNodeRef
 	PublicOutputs  map[string]model.PublicNodeRef
 	SystemContains map[string]bool
+	Diagnostics    []Diagnostic
+}
+
+type Diagnostic struct {
+	Severity     string         `json:"severity"`
+	Message      string         `json:"message"`
+	ConnectionID string         `json:"connection_id,omitempty"`
+	From         model.Endpoint `json:"from,omitempty"`
+	To           model.Endpoint `json:"to,omitempty"`
 }
 
 func Compile(loaded *project.LoadedProject) (*Plan, error) {
@@ -52,9 +61,11 @@ func Compile(loaded *project.LoadedProject) (*Plan, error) {
 		if !ok {
 			return nil, fmt.Errorf("system %s references unknown connection: %s", system.ID, connectionID)
 		}
-		if err := validateConnection(idx, plan.SystemContains, connection); err != nil {
+		diagnostics, err := validateConnection(idx, plan.SystemContains, connection)
+		if err != nil {
 			return nil, err
 		}
+		plan.Diagnostics = append(plan.Diagnostics, diagnostics...)
 		incomingKey := endpointKey(connection.To.Component, connection.To.Node)
 		if existing, exists := plan.Incoming[incomingKey]; exists {
 			return nil, fmt.Errorf(
@@ -82,37 +93,75 @@ func Compile(loaded *project.LoadedProject) (*Plan, error) {
 	return plan, nil
 }
 
-func validateConnection(idx *graphindex.Index, systemContains map[string]bool, connection model.Connection) error {
+func validateConnection(idx *graphindex.Index, systemContains map[string]bool, connection model.Connection) ([]Diagnostic, error) {
 	if !systemContains[connection.From.Component] {
-		return fmt.Errorf("connection %s source component is not in system: %s", connection.ID, connection.From.Component)
+		return nil, fmt.Errorf("connection %s source component is not in system: %s", connection.ID, connection.From.Component)
 	}
 	if !systemContains[connection.To.Component] {
-		return fmt.Errorf("connection %s target component is not in system: %s", connection.ID, connection.To.Component)
+		return nil, fmt.Errorf("connection %s target component is not in system: %s", connection.ID, connection.To.Component)
 	}
 
 	sourceNode, ok := idx.OutputNode(connection.From.Component, connection.From.Node)
 	if !ok {
-		return fmt.Errorf("connection %s source output node not found: %s.%s", connection.ID, connection.From.Component, connection.From.Node)
+		return nil, fmt.Errorf("connection %s source output node not found: %s.%s", connection.ID, connection.From.Component, connection.From.Node)
 	}
 	targetNode, ok := idx.InputNode(connection.To.Component, connection.To.Node)
 	if !ok {
-		return fmt.Errorf("connection %s target input node not found: %s.%s", connection.ID, connection.To.Component, connection.To.Node)
+		return nil, fmt.Errorf("connection %s target input node not found: %s.%s", connection.ID, connection.To.Component, connection.To.Node)
 	}
 
-	if !compatibleMedium(sourceNode.Medium, targetNode.Medium) {
-		return fmt.Errorf(
-			"connection %s medium mismatch: %s.%s=%s -> %s.%s=%s",
-			connection.ID,
-			connection.From.Component,
-			connection.From.Node,
-			sourceNode.Medium,
-			connection.To.Component,
-			connection.To.Node,
-			targetNode.Medium,
-		)
+	diagnostic, err := connectionMediumDiagnostic(connection, sourceNode, targetNode)
+	if err != nil {
+		return nil, err
 	}
+	if diagnostic == nil {
+		return nil, nil
+	}
+	return []Diagnostic{*diagnostic}, nil
+}
 
-	return nil
+func connectionMediumDiagnostic(connection model.Connection, sourceNode model.Node, targetNode model.Node) (*Diagnostic, error) {
+	if compatibleMedium(sourceNode.Medium, targetNode.Medium) {
+		return nil, nil
+	}
+	message := fmt.Sprintf(
+		"connection %s medium mismatch: %s.%s=%s -> %s.%s=%s",
+		connection.ID,
+		connection.From.Component,
+		connection.From.Node,
+		sourceNode.Medium,
+		connection.To.Component,
+		connection.To.Node,
+		targetNode.Medium,
+	)
+	if connection.AllowMediumMismatch {
+		return &Diagnostic{
+			Severity:     "warning",
+			Message:      message + " allowed by explicit medium override",
+			ConnectionID: connection.ID,
+			From:         connection.From,
+			To:           connection.To,
+		}, nil
+	}
+	if normalizedMedium(sourceNode.Medium) == "signal" && normalizedMedium(targetNode.Medium) != "signal" {
+		return &Diagnostic{
+			Severity:     "warning",
+			Message:      message,
+			ConnectionID: connection.ID,
+			From:         connection.From,
+			To:           connection.To,
+		}, nil
+	}
+	return nil, fmt.Errorf(
+		"connection %s medium mismatch: %s.%s=%s -> %s.%s=%s",
+		connection.ID,
+		connection.From.Component,
+		connection.From.Node,
+		sourceNode.Medium,
+		connection.To.Component,
+		connection.To.Node,
+		targetNode.Medium,
+	)
 }
 
 func validatePublicIO(idx *graphindex.Index, plan *Plan) error {
@@ -214,6 +263,8 @@ func topologicalOrder(componentIDs []string, connections []model.Connection) ([]
 }
 
 func compatibleMedium(source string, target string) bool {
+	source = normalizedMedium(source)
+	target = normalizedMedium(target)
 	if source == "" || target == "" {
 		return true
 	}
@@ -221,6 +272,10 @@ func compatibleMedium(source string, target string) bool {
 		return true
 	}
 	return source == target
+}
+
+func normalizedMedium(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
 }
 
 func endpointKey(componentID string, nodeID string) string {

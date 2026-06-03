@@ -117,9 +117,11 @@ func (n Node) IsRequired() bool {
 }
 
 type Connection struct {
-	ID   string   `json:"id"`
-	From Endpoint `json:"from"`
-	To   Endpoint `json:"to"`
+	ID                   string   `json:"id"`
+	From                 Endpoint `json:"from"`
+	To                   Endpoint `json:"to"`
+	AllowMediumMismatch  bool     `json:"allow_medium_mismatch,omitempty"`
+	MediumOverrideReason string   `json:"medium_override_reason,omitempty"`
 }
 
 type Endpoint struct {

@@ -57,6 +57,9 @@ func validate(args []string) error {
 	if err != nil {
 		return apperror.Wrap(apperror.CodeValidation, err)
 	}
+	for _, diagnostic := range plan.Diagnostics {
+		fmt.Printf("%s: %s\n", diagnostic.Severity, diagnostic.Message)
+	}
 	fmt.Printf("validation ok: project=%s entry_system=%s components=%d connections=%d\n",
 		loaded.Project.ProjectName,
 		loaded.Project.EntrySystem,

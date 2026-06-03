@@ -1147,11 +1147,13 @@ func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
 		writeErrorWithProblems(w, apperror.Wrap(apperror.CodeValidation, err), inferProblems(loaded.Graph, err))
 		return
 	}
+	problems := compilerDiagnosticsProblems(plan.Diagnostics)
 	sourceCheckCount, sourceProblems := checkProjectSources(r.Context(), loaded)
 	if hasErrorProblems(sourceProblems) {
 		writeErrorWithProblems(w, apperror.Errorf(apperror.CodeValidation, "project source validation failed"), sourceProblems)
 		return
 	}
+	problems = append(problems, sourceProblems...)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok": true,
 		"validation": map[string]any{
@@ -1161,7 +1163,7 @@ func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
 			"connection_count": len(plan.System.Connections),
 			"execution_order":  plan.Order,
 			"source_checks":    sourceCheckCount,
-			"problems":         sourceProblems,
+			"problems":         problems,
 		},
 	})
 }
@@ -3131,6 +3133,24 @@ func inferProblems(graph *model.Graph, err error) []Problem {
 		}
 	}
 	return []Problem{problem}
+}
+
+func compilerDiagnosticsProblems(diagnostics []compiler.Diagnostic) []Problem {
+	problems := make([]Problem, 0, len(diagnostics))
+	for _, diagnostic := range diagnostics {
+		problem := Problem{
+			Severity:    defaultString(diagnostic.Severity, "warning"),
+			Message:     diagnostic.Message,
+			ComponentID: diagnostic.To.Component,
+			NodeID:      diagnostic.To.Node,
+		}
+		if problem.ComponentID == "" {
+			problem.ComponentID = diagnostic.From.Component
+			problem.NodeID = diagnostic.From.Node
+		}
+		problems = append(problems, problem)
+	}
+	return problems
 }
 
 func resolveProjectFile(projectRoot string, path string) string {

@@ -313,6 +313,12 @@
         },
         "to": {
           "$ref": "#/$defs/endpoint"
+        },
+        "allow_medium_mismatch": {
+          "type": "boolean"
+        },
+        "medium_override_reason": {
+          "type": "string"
         }
       }
     },
