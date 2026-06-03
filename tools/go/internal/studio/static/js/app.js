@@ -235,9 +235,15 @@ function scenarioTreeItem(scenario) {
 function exportTreeItems() {
   const exports = state.detail?.exports || [];
   if (exports.length) {
-    return exports.map((item) => treeStatic(item.profile, item.relative_path));
+    return exports.map((item) => exportTreeItem(item));
   }
   return [treeStatic("runtime_package", "ready")];
+}
+
+function exportTreeItem(exportSummary) {
+  const row = treeStatic(exportSummary.profile, exportSummary.relative_path);
+  row.addEventListener("click", () => loadExportRecord(exportSummary.profile));
+  return row;
 }
 
 function renderRunInputs() {
@@ -1915,6 +1921,23 @@ async function exportProject() {
     log(`Export manifest written: ${body.summary.relative_path}`);
   } catch (error) {
     log(`Export failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
+async function loadExportRecord(profile) {
+  try {
+    const body = await api(`/api/project/export?project_path=${encodeURIComponent(state.currentProjectPath)}&profile=${encodeURIComponent(profile)}`);
+    state.latestExport = body.export;
+    state.detail.exports = [body.summary, ...(state.detail.exports || []).filter((item) => item.profile !== body.summary.profile)];
+    renderProjectTree();
+    renderExportWorkspaceView();
+    setMode("export");
+    log(`Export opened: ${body.summary.relative_path}`);
+  } catch (error) {
+    log(`Open export failed: ${error.message}`);
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderProblems();
     setBottomTab("problems");

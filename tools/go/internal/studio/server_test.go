@@ -148,6 +148,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("sourceRuntimeBlock")) {
 		t.Fatalf("module entrypoint did not include code workspace runtime feedback")
 	}
+	if !bytes.Contains(body, []byte("loadExportRecord")) {
+		t.Fatalf("module entrypoint did not include export record reopening")
+	}
+	if !bytes.Contains(body, []byte("/api/project/export")) {
+		t.Fatalf("module entrypoint did not call export record endpoint")
+	}
 	if !bytes.Contains(body, []byte("latestResultStale")) {
 		t.Fatalf("module entrypoint did not include stale run result state")
 	}
@@ -2857,6 +2863,26 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	}
 	if _, err := compiler.Compile(exportedLoaded); err != nil {
 		t.Fatalf("compile exported project: %v", err)
+	}
+
+	openResponse := httptest.NewRecorder()
+	openRequest := httptest.NewRequest(http.MethodGet, "/api/project/export?project_path="+url.QueryEscape(createBody.Project.ProjectPath)+"&profile=runtime_package", nil)
+	server.Handler().ServeHTTP(openResponse, openRequest)
+	if openResponse.Code != http.StatusOK {
+		t.Fatalf("open export status = %d body=%s", openResponse.Code, openResponse.Body.String())
+	}
+	var openBody struct {
+		Summary ExportSummary  `json:"summary"`
+		Export  ExportManifest `json:"export"`
+	}
+	if err := json.Unmarshal(openResponse.Body.Bytes(), &openBody); err != nil {
+		t.Fatal(err)
+	}
+	if openBody.Summary.RelativePath != body.Summary.RelativePath {
+		t.Fatalf("opened export relative path = %s, want %s", openBody.Summary.RelativePath, body.Summary.RelativePath)
+	}
+	if len(openBody.Export.Files) != len(body.Export.Files) {
+		t.Fatalf("opened export file count = %d, want %d", len(openBody.Export.Files), len(body.Export.Files))
 	}
 }
 

@@ -388,6 +388,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("GET /api/project/run", s.handleRunRecord)
 	s.mux.HandleFunc("GET /api/project/batch", s.handleBatchRecord)
 	s.mux.HandleFunc("GET /api/project/scenario", s.handleScenarioRecord)
+	s.mux.HandleFunc("GET /api/project/export", s.handleExportRecord)
 	s.mux.HandleFunc("GET /api/project/source", s.handleSource)
 	s.mux.HandleFunc("GET /api/component-templates", s.handleComponentTemplates)
 	s.mux.HandleFunc("POST /api/project/source/check", s.handleCheckSource)
@@ -512,6 +513,25 @@ func (s *Server) handleScenarioRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "scenario": record})
+}
+
+func (s *Server) handleExportRecord(w http.ResponseWriter, r *http.Request) {
+	projectPath, err := s.resolveProjectPath(r.URL.Query().Get("project_path"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := project.Load(projectPath)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	summary, manifest, err := loadExportManifest(loaded.Root, r.URL.Query().Get("profile"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "summary": summary, "export": manifest})
 }
 
 func (s *Server) handleSource(w http.ResponseWriter, r *http.Request) {
@@ -3841,6 +3861,36 @@ func loadExportSummaries(projectRoot string) []ExportSummary {
 		return summaries[i].CreatedAtUTC > summaries[j].CreatedAtUTC
 	})
 	return summaries
+}
+
+func loadExportManifest(projectRoot string, profile string) (ExportSummary, ExportManifest, error) {
+	if profile == "" {
+		profile = "runtime_package"
+	}
+	if filepath.Base(profile) != profile || strings.ContainsAny(profile, `/\`) {
+		return ExportSummary{}, ExportManifest{}, apperror.Errorf(apperror.CodeValidation, "profile must be an export profile id")
+	}
+	manifestPath, err := resolveProjectOwnedFile(projectRoot, filepath.Join("exports", profile, "manifest.json"))
+	if err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
+	manifestBytes, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return ExportSummary{}, ExportManifest{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	var manifest ExportManifest
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		return ExportSummary{}, ExportManifest{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if manifest.Profile == "" {
+		manifest.Profile = profile
+	}
+	rel, _ := filepath.Rel(projectRoot, manifestPath)
+	return ExportSummary{
+		Profile:      manifest.Profile,
+		RelativePath: filepath.ToSlash(rel),
+		CreatedAtUTC: manifest.CreatedAtUTC,
+	}, manifest, nil
 }
 
 func writeJSONFile(path string, value any) error {
