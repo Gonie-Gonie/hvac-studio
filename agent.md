@@ -84,6 +84,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Code snippets should be generated from the selected component's graph contract, especially all declared input/output nodes, so they teach the actual component shape rather than a one-node toy shape.
 - Source-check feedback should be visible inside the Code workspace itself, not only in the global Problems panel, and line-specific issues should focus the editor line.
 - Code workspace runtime feedback should show selected-component values from actual runner results, keeping source edits, graph contract, and observed behavior in one place.
+- Last-run values should remain visible for comparison after edits, but must be marked stale whenever inputs, source, parameters, nodes, or connections change before the next successful run.
 - The Python editor should preserve familiar code-editing mechanics such as save/check shortcuts and line-based indent/outdent, without adding visible shortcut tutorial text inside the app UI.
 - Scenarios should start as explicit project artifacts under `scenarios/`, created from current run inputs/context, before adding richer dataset and validation workflows.
 - Saved scenarios should be reusable immediately in Studio by reopening them into the Run Inputs panel.

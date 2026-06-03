@@ -4,6 +4,7 @@ export const state = {
   detail: null,
   selectedComponentId: "",
   latestResult: null,
+  latestResultStale: false,
   latestRunRecord: null,
   latestBatchRecord: null,
   latestExport: null,

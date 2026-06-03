@@ -41,6 +41,7 @@ async function loadProject(projectPath) {
   state.currentProjectPath = projectPath;
   state.selectedComponentId = "";
   state.latestResult = null;
+  state.latestResultStale = false;
   state.latestRunRecord = null;
   state.latestBatchRecord = null;
   state.latestExport = null;
@@ -77,10 +78,20 @@ function renderAll() {
   renderRunWorkspace();
   renderPythonPanel();
   renderExportWorkspaceView();
+  renderSystemHeader();
+  updateCommandState();
+}
+
+function renderSystemHeader() {
   const project = state.detail?.project;
   el("systemTitle").textContent = project?.entry_system || "System";
-  el("systemSubtitle").textContent = project ? `${project.project_name} / ${state.detail.graph_path}` : "";
-  updateCommandState();
+  if (!project) {
+    el("systemSubtitle").textContent = "";
+    return;
+  }
+  const parts = [`${project.project_name} / ${state.detail.graph_path}`];
+  if (state.latestResult) parts.push(state.latestResultStale ? "last run stale" : "last run current");
+  el("systemSubtitle").textContent = parts.join(" / ");
 }
 
 function renderProjectTree() {
@@ -238,18 +249,20 @@ function renderCanvas() {
 function canvasNodePill(componentID, node, direction) {
   const pending = state.pendingConnection;
   const latest = latestCanvasNodeValue(componentID, node.id, direction);
+  const stale = latest.hasValue && state.latestResultStale;
   const selected = direction === "output" && pending?.component === componentID && pending?.node === node.id;
   const targetable = direction === "input" && pending && pending.component !== componentID;
   const classes = [
     "node-pill",
     direction === "output" ? "output" : "",
     latest.hasValue ? "has-value" : "",
+    stale ? "stale" : "",
     selected ? "pending-source" : "",
     targetable ? "targetable" : "",
   ].filter(Boolean).join(" ");
   const formattedValue = latest.hasValue ? formatValue(latest.value) : "";
   const valueMarkup = latest.hasValue ? `<span class="node-value">${escapeHTML(formattedValue)}</span>` : "";
-  const title = latest.hasValue ? `${node.id}: ${formattedValue}` : node.id;
+  const title = latest.hasValue ? `${state.latestResultStale ? "stale " : ""}${node.id}: ${formattedValue}` : node.id;
   return `<span class="${classes}" data-node-endpoint="true" data-component-id="${escapeAttr(componentID)}" data-node-id="${escapeAttr(node.id)}" data-direction="${escapeAttr(direction)}" title="${escapeAttr(title)}"><span class="node-label">${escapeHTML(node.id)}</span>${valueMarkup}</span>`;
 }
 
@@ -371,11 +384,15 @@ function renderInspector() {
   const latestInputs = state.latestResult?.component_inputs?.[component.id];
   const latestOutputs = state.latestResult?.component_outputs?.[component.id];
   if (latestInputs) {
-    container.append(inspectorBlock("Last Inputs", Object.entries(latestInputs).map(([k, v]) => [k, formatValue(v)])));
+    container.append(inspectorBlock(runValueTitle("Last Inputs"), Object.entries(latestInputs).map(([k, v]) => [k, formatValue(v)])));
   }
   if (latestOutputs) {
-    container.append(inspectorBlock("Last Outputs", Object.entries(latestOutputs).map(([k, v]) => [k, formatValue(v)])));
+    container.append(inspectorBlock(runValueTitle("Last Outputs"), Object.entries(latestOutputs).map(([k, v]) => [k, formatValue(v)])));
   }
+}
+
+function runValueTitle(title) {
+  return state.latestResultStale ? `${title} (stale)` : title;
 }
 
 function inspectorBlock(title, rows) {
@@ -911,7 +928,7 @@ function sourceRuntimeBlock(component) {
     ...Object.entries(latestOutputs).map(([name, value]) => [`out ${name}`, formatValue(value)]),
   ];
   if (!rows.length) return null;
-  return contractBlock("Last Run", rows);
+  return contractBlock(runValueTitle("Last Run"), rows);
 }
 
 function contractBlock(title, rows) {
@@ -1063,6 +1080,7 @@ async function runProject() {
       body: JSON.stringify({ project_path: state.currentProjectPath, inputs, context: currentRunContext(), save }),
     });
     state.latestResult = body.result;
+    state.latestResultStale = false;
     state.latestRunRecord = null;
     state.latestBatchRecord = null;
     setProblems();
@@ -1078,13 +1096,16 @@ async function runProject() {
   } catch (error) {
     log(`Run failed: ${error.message}`);
     state.latestResult = null;
+    state.latestResultStale = false;
     state.latestRunRecord = null;
     state.latestBatchRecord = null;
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     setBottomTab("problems");
   }
+  renderSystemHeader();
   renderCanvas();
   renderInspector();
+  renderPythonPanel();
   renderProblems();
   renderResults();
   renderRunWorkspace();
@@ -1100,11 +1121,15 @@ async function runBatch() {
     state.latestBatchRecord = body.batch;
     state.latestRunRecord = null;
     state.latestResult = null;
+    state.latestResultStale = false;
     const batchProblems = collectBatchProblems(body.batch);
     state.latestValidation = { problems: batchProblems };
     state.detail.batches = [body.summary, ...(state.detail.batches || [])];
     renderProjectTree();
+    renderSystemHeader();
     renderCanvas();
+    renderInspector();
+    renderPythonPanel();
     renderResults();
     renderRunWorkspace();
     renderProblems();
@@ -1180,9 +1205,12 @@ async function loadRunRecord(runID) {
     state.latestRunRecord = body.run_record;
     state.latestBatchRecord = null;
     state.latestResult = body.run_record.result;
+    state.latestResultStale = false;
     setProblems();
+    renderSystemHeader();
     renderCanvas();
     renderInspector();
+    renderPythonPanel();
     renderResults();
     renderRunWorkspace();
     setMode("run");
@@ -1202,9 +1230,13 @@ async function loadBatchRecord(batchID) {
     state.latestBatchRecord = body.batch_record;
     state.latestRunRecord = null;
     state.latestResult = null;
+    state.latestResultStale = false;
     const batchProblems = collectBatchProblems(body.batch_record);
     state.latestValidation = { problems: batchProblems };
+    renderSystemHeader();
     renderCanvas();
+    renderInspector();
+    renderPythonPanel();
     renderResults();
     renderRunWorkspace();
     renderProblems();
@@ -1223,7 +1255,12 @@ async function loadScenario(scenarioID) {
   try {
     const body = await api(`/api/project/scenario?project_path=${encodeURIComponent(state.currentProjectPath)}&scenario_id=${encodeURIComponent(scenarioID)}`);
     state.activeRunInput = body.scenario;
+    markRunResultStale(false);
     renderRunInputs();
+    renderCanvas();
+    renderInspector();
+    renderPythonPanel();
+    renderSystemHeader();
     log(`Scenario loaded: ${body.scenario.name || scenarioID}`);
   } catch (error) {
     log(`Open scenario failed: ${error.message}`);
@@ -1609,6 +1646,7 @@ async function includeSelectedComponent() {
       body: JSON.stringify({ project_path: state.currentProjectPath, component_id: component.id }),
     });
     state.detail = body.project;
+    markRunResultStale(false);
     renderAll();
     log(`Component added to system: ${component.id}`);
   } catch (error) {
@@ -1629,6 +1667,7 @@ async function removeSelectedComponentFromSystem() {
       body: JSON.stringify({ project_path: state.currentProjectPath, component_id: component.id }),
     });
     state.detail = body.project;
+    markRunResultStale(false);
     renderAll();
     log(`Component removed from system: ${component.id}`);
   } catch (error) {
@@ -1685,6 +1724,7 @@ async function createConnection(fromComponent, fromNode, toComponent, toNode) {
     state.detail = body.project;
     state.pendingConnection = null;
     state.selectedConnectionId = body.connection?.id || "";
+    markRunResultStale(false);
     renderAll();
     log(`Connected ${fromComponent}.${fromNode} -> ${toComponent}.${toNode}`);
   } catch (error) {
@@ -1739,6 +1779,7 @@ async function addNodeFromInspector(componentID) {
     });
     state.detail = body.project;
     state.selectedComponentId = componentID;
+    markRunResultStale(false);
     renderAll();
     log(`Node added: ${componentID}.${nodeID}`);
   } catch (error) {
@@ -1759,6 +1800,7 @@ async function deleteNodeFromInspector(componentID, nodeID) {
     });
     state.detail = body.project;
     state.selectedComponentId = componentID;
+    markRunResultStale(false);
     renderAll();
     log(`Node deleted: ${componentID}.${nodeID}`);
   } catch (error) {
@@ -1794,6 +1836,7 @@ async function addParameterFromManager() {
     });
     state.detail = body.project;
     state.selectedComponentId = componentID;
+    markRunResultStale(false);
     renderAll();
     log(`Parameter added: ${componentID}.${name}`);
   } catch (error) {
@@ -1821,6 +1864,7 @@ async function deleteParameterFromManager(componentID, name) {
       body: JSON.stringify({ project_path: state.currentProjectPath, component_id: componentID, name }),
     });
     state.detail = body.project;
+    markRunResultStale(false);
     renderAll();
     log(`Parameter deleted: ${componentID}.${name}`);
   } catch (error) {
@@ -1840,6 +1884,7 @@ async function deleteConnectionFromInspector(connectionId) {
     });
     state.detail = body.project;
     if (state.selectedConnectionId === connectionId) state.selectedConnectionId = "";
+    markRunResultStale(false);
     renderAll();
     log(`Connection removed: ${connectionId}`);
   } catch (error) {
@@ -1978,9 +2023,21 @@ function updateCommandState() {
 }
 
 function markProjectDirty() {
+  markRunResultStale();
   if (isWorkspaceProject()) {
     el("saveProjectButton").classList.add("dirty");
   }
+}
+
+function markRunResultStale(render = true) {
+  if (!state.latestResult || state.latestResultStale) return;
+  state.latestResultStale = true;
+  if (!render) return;
+  renderSystemHeader();
+  renderCanvas();
+  renderInspector();
+  renderPythonPanel();
+  renderRunWorkspace();
 }
 
 function updateSourceDraftFromEditor(editor) {

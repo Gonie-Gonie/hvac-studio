@@ -121,6 +121,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("sourceRuntimeBlock")) {
 		t.Fatalf("module entrypoint did not include code workspace runtime feedback")
 	}
+	if !bytes.Contains(body, []byte("latestResultStale")) {
+		t.Fatalf("module entrypoint did not include stale run result state")
+	}
 }
 
 func TestStaticExportWorkspaceModuleServes(t *testing.T) {

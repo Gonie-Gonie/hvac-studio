@@ -563,6 +563,15 @@ h2,
   background: #edf8f2;
 }
 
+.node-pill.stale {
+  border-style: dashed;
+  opacity: 0.72;
+}
+
+.node-pill.stale .node-value {
+  color: var(--muted);
+}
+
 .node-label,
 .node-value {
   min-width: 0;

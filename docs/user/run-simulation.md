@@ -27,7 +27,7 @@ Run results include:
 - context
 - execution order
 
-After a run, the system canvas shows the latest values on component input and output node endpoints. Selecting a component also shows its latest inputs and outputs in the Inspector.
+After a run, the system canvas shows the latest values on component input and output node endpoints. Selecting a component also shows its latest inputs and outputs in the Inspector. If project inputs, parameters, Python source, or graph connections change after the run, Studio keeps the previous values visible but marks them stale until the next successful run.
 
 ## Scenarios
 

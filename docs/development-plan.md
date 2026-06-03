@@ -250,6 +250,7 @@ Acceptance criteria:
 - Code workspace can run the project after source edits through the normal save/check/run path. Started.
 - Code workspace shows selected component last-run inputs and outputs alongside source contract context. Started.
 - System canvas shows latest run input/output values on component node endpoints. Started.
+- Studio marks last-run values stale when runtime-affecting inputs, source, parameters, nodes, or connections change. Started.
 - API coverage pins the edit-source, connect-components, run-result propagation workflow. Started.
 
 ## Milestone 5: Component-Aware Python Editor
