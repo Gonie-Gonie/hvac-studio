@@ -130,6 +130,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("saveCanvasLayout")) {
 		t.Fatalf("module entrypoint did not include canvas layout persistence")
 	}
+	if !bytes.Contains(body, []byte("canvasParameterSummary")) {
+		t.Fatalf("module entrypoint did not include readable canvas parameter rendering")
+	}
+	if !bytes.Contains(body, []byte("CANVAS_NODE_WIDTH")) {
+		t.Fatalf("module entrypoint did not include canvas sizing constants")
+	}
 	if !bytes.Contains(body, []byte("ensureEditableProject")) {
 		t.Fatalf("module entrypoint did not create an editable first-run workspace")
 	}

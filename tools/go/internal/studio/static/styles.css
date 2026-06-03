@@ -488,14 +488,14 @@ h2,
 
 .system-canvas {
   position: relative;
-  min-width: 920px;
+  min-width: 1120px;
   min-height: 430px;
 }
 
 .component-node {
   position: absolute;
-  width: 190px;
-  min-height: 126px;
+  width: 260px;
+  min-height: 166px;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: var(--surface);
@@ -513,9 +513,10 @@ h2,
 }
 
 .component-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   min-height: 36px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--line);
@@ -524,37 +525,61 @@ h2,
   cursor: grab;
 }
 
+.component-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+  text-align: left;
+}
+
 .component-node.dragging .component-head {
   cursor: grabbing;
 }
 
 .component-kind {
+  max-width: 92px;
   font-size: 10px;
   color: var(--muted);
   font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .node-list {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: 8px;
+  padding: 10px;
+}
+
+.node-column {
+  display: grid;
   gap: 6px;
-  padding: 8px;
+  min-width: 0;
+}
+
+.node-column-title {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
 }
 
 .node-pill {
   min-width: 0;
-  min-height: 32px;
+  min-height: 36px;
   display: grid;
   align-content: center;
   gap: 2px;
-  padding: 4px 6px;
+  padding: 5px 7px;
   border-radius: 5px;
   background: #eef2f6;
   font-size: 11px;
-  white-space: nowrap;
+  line-height: 1.25;
+  white-space: normal;
   overflow: hidden;
-  text-overflow: ellipsis;
   cursor: pointer;
+  text-align: left;
 }
 
 .node-pill.output {
@@ -584,8 +609,7 @@ h2,
 .node-label,
 .node-value {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .node-value {
@@ -603,6 +627,42 @@ h2,
 .node-pill.targetable {
   background: #fff7ed;
   outline: 1px dashed #c2410c;
+}
+
+.canvas-params {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 10px 10px;
+}
+
+.canvas-param {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  gap: 4px;
+  align-items: center;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fbfdff;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.canvas-param-key,
+.canvas-param-value {
+  overflow-wrap: anywhere;
+}
+
+.canvas-param-key {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.canvas-param.extra {
+  font-weight: 700;
 }
 
 .split-workspace {

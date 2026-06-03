@@ -11,6 +11,10 @@ import { renderExportWorkspace } from "./export-workspace.js";
 import { renderRunOutputWorkspace } from "./run-output.js";
 import { state } from "./state.js";
 
+const CANVAS_NODE_WIDTH = 260;
+const CANVAS_NODE_ANCHOR_Y = 92;
+const CANVAS_COLUMN_GAP = 320;
+
 function log(message) {
   const time = new Date().toLocaleTimeString();
   state.logs.unshift(`[${time}] ${message}`);
@@ -234,13 +238,20 @@ function renderCanvas() {
     node.dataset.componentId = component.id;
     node.innerHTML = `
       <div class="component-head">
-        <span>${escapeHTML(component.name || component.id)}</span>
+        <span class="component-title">${escapeHTML(component.name || component.id)}</span>
         <span class="component-kind">${escapeHTML(component.kind)}</span>
       </div>
       <div class="node-list">
-        ${component.nodes.inputs.map((n) => canvasNodePill(component.id, n, "input")).join("")}
-        ${component.nodes.outputs.map((n) => canvasNodePill(component.id, n, "output")).join("")}
+        <div class="node-column">
+          <span class="node-column-title">Inputs</span>
+          ${component.nodes.inputs.map((n) => canvasNodePill(component.id, n, "input")).join("")}
+        </div>
+        <div class="node-column">
+          <span class="node-column-title">Outputs</span>
+          ${component.nodes.outputs.map((n) => canvasNodePill(component.id, n, "output")).join("")}
+        </div>
       </div>
+      ${canvasParameterSummary(component)}
     `;
     node.addEventListener("click", () => {
       state.selectedComponentId = component.id;
@@ -272,7 +283,7 @@ function canvasPositionFor(componentID, index) {
     return { x: saved.x, y: saved.y };
   }
   return {
-    x: 48 + index * 220,
+    x: 48 + index * CANVAS_COLUMN_GAP,
     y: 78 + (index % 2) * 62,
   };
 }
@@ -359,6 +370,24 @@ function canvasNodePill(componentID, node, direction) {
   return `<span class="${classes}" data-node-endpoint="true" data-component-id="${escapeAttr(componentID)}" data-node-id="${escapeAttr(node.id)}" data-direction="${escapeAttr(direction)}" title="${escapeAttr(title)}"><span class="node-label">${escapeHTML(node.id)}</span>${valueMarkup}</span>`;
 }
 
+function canvasParameterSummary(component) {
+  const entries = Object.entries(component.parameters || {});
+  if (!entries.length) return "";
+  const visible = entries.slice(0, 4);
+  const extra = entries.length - visible.length;
+  const pills = visible.map(([name, value]) => {
+    const formatted = parameterInputValue(value);
+    return `
+      <span class="canvas-param" title="${escapeAttr(`${name}: ${formatted}`)}">
+        <span class="canvas-param-key">${escapeHTML(name)}</span>
+        <span class="canvas-param-value">${escapeHTML(formatted)}</span>
+      </span>
+    `;
+  }).join("");
+  const extraPill = extra > 0 ? `<span class="canvas-param extra">+${extra}</span>` : "";
+  return `<div class="canvas-params">${pills}${extraPill}</div>`;
+}
+
 function latestCanvasNodeValue(componentID, nodeID, direction) {
   const componentValues = direction === "output"
     ? state.latestResult?.component_outputs?.[componentID]
@@ -422,10 +451,10 @@ function drawConnections(positions) {
     const from = positions[connection.from.component];
     const to = positions[connection.to.component];
     if (!from || !to) continue;
-    const x1 = from.x + 190;
-    const y1 = from.y + 63;
+    const x1 = from.x + CANVAS_NODE_WIDTH;
+    const y1 = from.y + CANVAS_NODE_ANCHOR_Y;
     const x2 = to.x;
-    const y2 = to.y + 63;
+    const y2 = to.y + CANVAS_NODE_ANCHOR_Y;
     const mid = Math.max(40, (x2 - x1) / 2);
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("class", `connection-line ${state.selectedConnectionId === connection.id ? "selected" : ""}`);

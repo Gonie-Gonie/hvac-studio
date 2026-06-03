@@ -94,6 +94,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Canvas manipulation should use the same persisted graph APIs as Inspector forms. A visual pending connection state is useful only when the next click writes a real `graph.json` connection and immediately refreshes validation/run surfaces.
 - Canvas connection selection should stay tied to real connection IDs and reuse the same delete API as Inspector forms.
 - Canvas view layout is authoring metadata, not runtime graph data. Persist component positions in a Studio-owned project artifact such as `studio/layout.json`, and keep it out of compiler/runtime semantics.
+- Canvas cards must stay readable before adding richer interactions: avoid narrow cards, forced single-line truncation, and ambiguous node/parameter presentation.
 - Canvas run feedback should come from actual runner `component_inputs` and `component_outputs`, so users can see Python edits and graph connections changing values without hunting through raw JSON.
 - Deleting a component node must clean related public IO, default inputs, and connections; if deleting an output removes an upstream connection, restore the still-existing target input as public IO.
 - Parameter Manager should let workspace users create Python-friendly parameter keys, not only edit template-created keys, so source edits and graph parameters can evolve together.
