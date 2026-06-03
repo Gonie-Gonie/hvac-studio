@@ -21,6 +21,31 @@
       "chiller_power_kw": 110.0
     }
   },
+  "component_outputs": {
+    "load_model": {
+      "adjusted_load_kw": 550.0
+    },
+    "controller": {
+      "chw_setpoint_c": 6.95
+    },
+    "chiller": {
+      "power_kw": 110.0,
+      "chw_supply_temp_c": 7.15
+    },
+    "aggregator": {
+      "total_power_kw": 122.0
+    }
+  },
+  "states": {
+    "load_model": {},
+    "controller": {},
+    "chiller": {},
+    "aggregator": {}
+  },
+  "context": {
+    "time": 0.0,
+    "dt": 60.0
+  },
   "execution_order": [
     "load_model",
     "controller",
