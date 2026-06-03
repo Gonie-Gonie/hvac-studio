@@ -130,6 +130,7 @@ go run .\cmd\bcs-runner run --project ..\..\examples\001_scalar_component\projec
 go run .\cmd\bcs-runner schema --project ..\..\examples\003_feedforward_system\project.bcsproj --output ..\..\examples\003_feedforward_system\outputs\schema.json
 go run .\cmd\bcs-runner validate-data --project ..\..\examples\005_chiller_plant_like_system\project.bcsproj --mapping validation\mappings\plant_validation.json
 go run .\cmd\bcs-runner run --project ..\..\examples\005_chiller_plant_like_system\project.bcsproj --input ..\..\examples\005_chiller_plant_like_system\inputs\case01.json --parameter-set parameter_sets\high_efficiency.json
+go run .\cmd\bcs-runner calibrate --project ..\..\examples\005_chiller_plant_like_system\project.bcsproj --setup calibration\setups\chiller_cop_grid.json --output ..\..\artifacts\calibration-result.json
 ```
 
 ## Component Contract

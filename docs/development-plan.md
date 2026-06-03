@@ -479,6 +479,16 @@ Acceptance criteria:
 
 ## Milestone 9: Calibration
 
+Status: complete for grid-search CLI/runtime MVP. Verified on 2026-06-03 with `go test ./cmd/bcs-runner ./internal/calibration`.
+
+Implemented:
+
+- Saved calibration setup artifact under `calibration/setups/*.json`.
+- `bcs-runner calibrate --setup` runs grid search against a saved validation mapping.
+- Calibration setup supports base parameter set, weighted RMSE objective, numeric parameter bounds, and step size.
+- Calibration result reports initial objective, best objective, changed parameters, candidate objectives, and best parameter set.
+- `--save-parameter-set` writes a new parameter set without overwriting baseline `graph.json`.
+
 Goal: estimate model parameters from observed data.
 
 Calibration setup:

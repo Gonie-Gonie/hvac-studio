@@ -1,0 +1,22 @@
+{
+  "id": "chiller_cop_grid",
+  "name": "Chiller COP Grid Calibration",
+  "algorithm": "grid",
+  "mapping": "validation/mappings/plant_validation.json",
+  "base_parameter_set": "parameter_sets/baseline.json",
+  "objective": {
+    "metric": "rmse",
+    "outputs": {
+      "total_power_kw": 1.0
+    }
+  },
+  "parameters": [
+    {
+      "component": "chiller",
+      "name": "cop",
+      "min": 5.0,
+      "max": 7.0,
+      "step": 0.5
+    }
+  ]
+}

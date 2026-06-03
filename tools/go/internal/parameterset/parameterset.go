@@ -54,6 +54,30 @@ func Load(projectRoot string, relativePath string) (Set, error) {
 	return set, nil
 }
 
+func Write(projectRoot string, relativePath string, set Set) error {
+	if strings.TrimSpace(relativePath) == "" {
+		return apperror.Errorf(apperror.CodeValidation, "parameter set output path is required")
+	}
+	if set.Components == nil {
+		return apperror.Errorf(apperror.CodeValidation, "parameter set components is required")
+	}
+	resolved, err := resolveProjectOutputFile(projectRoot, relativePath)
+	if err != nil {
+		return err
+	}
+	if set.ID == "" {
+		set.ID = strings.TrimSuffix(filepath.Base(resolved), filepath.Ext(resolved))
+	}
+	data, err := json.MarshalIndent(set, "", "  ")
+	if err != nil {
+		return apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	if err := os.MkdirAll(filepath.Dir(resolved), 0o755); err != nil {
+		return apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	return apperror.Wrap(apperror.CodeRuntime, os.WriteFile(resolved, append(data, '\n'), 0o644))
+}
+
 func Apply(graph *model.Graph, set Set) error {
 	components := map[string]*model.Component{}
 	for index := range graph.Components {
@@ -98,6 +122,28 @@ func resolveProjectOwnedFile(projectRoot string, relativePath string) (string, e
 	}
 	if _, err := os.Stat(resolved); err != nil {
 		return "", apperror.Wrap(apperror.CodeInput, err)
+	}
+	return resolved, nil
+}
+
+func resolveProjectOutputFile(projectRoot string, relativePath string) (string, error) {
+	if filepath.IsAbs(relativePath) {
+		return "", apperror.Errorf(apperror.CodeInput, "parameter set path must be project-relative: %s", relativePath)
+	}
+	absRoot, err := filepath.Abs(projectRoot)
+	if err != nil {
+		return "", apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	resolved, err := filepath.Abs(filepath.Join(absRoot, relativePath))
+	if err != nil {
+		return "", apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	rel, err := filepath.Rel(absRoot, resolved)
+	if err != nil {
+		return "", apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return "", apperror.Errorf(apperror.CodeInput, "parameter set path escapes project root: %s", relativePath)
 	}
 	return resolved, nil
 }

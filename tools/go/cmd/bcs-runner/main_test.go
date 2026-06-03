@@ -255,6 +255,48 @@ func TestValidateDataCommandWritesMetrics(t *testing.T) {
 	}
 }
 
+func TestCalibrateCommandWritesResultAndParameterSet(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectRoot := filepath.Join(tmpDir, "project")
+	copyTree(t, examplePath("005_chiller_plant_like_system"), projectRoot)
+	outputPath := filepath.Join(tmpDir, "calibration.json")
+
+	err := run([]string{
+		"bcs-runner",
+		"calibrate",
+		"--project",
+		filepath.Join(projectRoot, "project.bcsproj"),
+		"--setup",
+		filepath.Join("calibration", "setups", "chiller_cop_grid.json"),
+		"--save-parameter-set",
+		filepath.Join("parameter_sets", "calibrated_cli.json"),
+		"--output",
+		outputPath,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result struct {
+		OK                bool    `json:"ok"`
+		BestObjective     float64 `json:"best_objective"`
+		SavedParameterSet string  `json:"saved_parameter_set"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatal(err)
+	}
+	if !result.OK || result.BestObjective <= 0 || result.SavedParameterSet != "parameter_sets/calibrated_cli.json" {
+		t.Fatalf("calibration result = %#v", result)
+	}
+	if _, err := os.Stat(filepath.Join(projectRoot, "parameter_sets", "calibrated_cli.json")); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestServeCommandReusesLoadedSessionState(t *testing.T) {
 	tmpDir := t.TempDir()
 	projectRoot := filepath.Join(tmpDir, "project")

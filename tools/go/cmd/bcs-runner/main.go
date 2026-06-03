@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/calibration"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/modelvalidation"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/parameterset"
@@ -44,6 +45,8 @@ func run(args []string) error {
 		return exportSchema(args[2:])
 	case "validate-data":
 		return validateData(args[2:])
+	case "calibrate":
+		return calibrate(args[2:])
 	default:
 		return usage()
 	}
@@ -282,6 +285,35 @@ func validateData(args []string) error {
 	return writeJSONOutput(resolveProjectPath(loaded.Root, *outputPath), result)
 }
 
+func calibrate(args []string) error {
+	flags := flag.NewFlagSet("calibrate", flag.ContinueOnError)
+	projectPath := flags.String("project", "", "path to project.bcsproj")
+	setupPath := flags.String("setup", "", "project-relative calibration setup JSON")
+	outputPath := flags.String("output", "", "path to output JSON")
+	saveParameterSet := flags.String("save-parameter-set", "", "project-relative parameter set output JSON")
+	if err := flags.Parse(args); err != nil {
+		return apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if *projectPath == "" {
+		return apperror.Errorf(apperror.CodeValidation, "--project is required")
+	}
+	loaded, err := project.Load(*projectPath)
+	if err != nil {
+		return apperror.Wrap(apperror.CodeValidation, err)
+	}
+	setup, err := calibration.LoadSetup(loaded.Root, *setupPath)
+	if err != nil {
+		return err
+	}
+	result, err := calibration.Run(context.Background(), loaded.Path, setup, calibration.Options{
+		SaveParameterSet: *saveParameterSet,
+	})
+	if err != nil {
+		return err
+	}
+	return writeJSONOutput(resolveProjectPath(loaded.Root, *outputPath), result)
+}
+
 func writeJSONOutput(outputPath string, value any) error {
 	output, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
@@ -308,5 +340,5 @@ func resolveProjectPath(projectRoot string, path string) string {
 }
 
 func usage() error {
-	return apperror.Errorf(apperror.CodeValidation, "usage: bcs-runner <validate|run|serve|schema|validate-data> --project project.bcsproj")
+	return apperror.Errorf(apperror.CodeValidation, "usage: bcs-runner <validate|run|serve|schema|validate-data|calibrate> --project project.bcsproj")
 }

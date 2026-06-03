@@ -49,6 +49,20 @@ bcs-runner.exe validate-data `
 
 The mapping and parameter-set paths are project-relative. The result includes RMSE, MAE, MBE, CVRMSE, R2, row summaries, and inspect data for the highest-error rows.
 
+## Calibration
+
+`calibrate` runs a saved calibration setup. The current implemented algorithm is grid search:
+
+```powershell
+bcs-runner.exe calibrate `
+  --project examples/005_chiller_plant_like_system/project.bcsproj `
+  --setup calibration/setups/chiller_cop_grid.json `
+  --save-parameter-set parameter_sets/calibrated_chiller_cop.json `
+  --output calibration-result.json
+```
+
+The setup points to a validation mapping, an optional base parameter set, an objective, and parameter bounds. Saving the result writes a new parameter set without changing baseline `graph.json`.
+
 ## Serve
 
 Serve mode keeps the graph compiled and Python components loaded for repeated evaluations:

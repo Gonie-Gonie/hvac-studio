@@ -1,0 +1,385 @@
+package calibration
+
+import (
+	"context"
+	"encoding/json"
+	"math"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/modelvalidation"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/parameterset"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
+)
+
+type Setup struct {
+	ID               string          `json:"id"`
+	Name             string          `json:"name"`
+	Algorithm        string          `json:"algorithm"`
+	Mapping          string          `json:"mapping"`
+	BaseParameterSet string          `json:"base_parameter_set,omitempty"`
+	Objective        Objective       `json:"objective"`
+	Parameters       []ParameterSpec `json:"parameters"`
+}
+
+type Objective struct {
+	Metric  string             `json:"metric"`
+	Outputs map[string]float64 `json:"outputs"`
+}
+
+type ParameterSpec struct {
+	Component string  `json:"component"`
+	Name      string  `json:"name"`
+	Min       float64 `json:"min"`
+	Max       float64 `json:"max"`
+	Step      float64 `json:"step"`
+}
+
+type Options struct {
+	SaveParameterSet string
+}
+
+type Result struct {
+	OK                bool                         `json:"ok"`
+	SetupID           string                       `json:"setup_id"`
+	SetupName         string                       `json:"setup_name,omitempty"`
+	Algorithm         string                       `json:"algorithm"`
+	Mapping           string                       `json:"mapping"`
+	BaseParameterSet  string                       `json:"base_parameter_set,omitempty"`
+	InitialObjective  float64                      `json:"initial_objective"`
+	BestObjective     float64                      `json:"best_objective"`
+	ChangedParameters map[string]map[string]Change `json:"changed_parameters"`
+	BestParameterSet  parameterset.Set             `json:"best_parameter_set"`
+	SavedParameterSet string                       `json:"saved_parameter_set,omitempty"`
+	Candidates        []CandidateSummary           `json:"candidates"`
+}
+
+type Change struct {
+	Initial any `json:"initial"`
+	Best    any `json:"best"`
+}
+
+type CandidateSummary struct {
+	Index      int                           `json:"index"`
+	Parameters map[string]map[string]float64 `json:"parameters"`
+	Objective  float64                       `json:"objective"`
+	Metrics    map[string]float64            `json:"metrics"`
+}
+
+func LoadSetup(projectRoot string, relativePath string) (Setup, error) {
+	resolved, err := resolveProjectOwnedFile(projectRoot, relativePath)
+	if err != nil {
+		return Setup{}, err
+	}
+	data, err := os.ReadFile(resolved)
+	if err != nil {
+		return Setup{}, apperror.Wrap(apperror.CodeInput, err)
+	}
+	var setup Setup
+	if err := json.Unmarshal(data, &setup); err != nil {
+		return Setup{}, apperror.Wrap(apperror.CodeInput, err)
+	}
+	if setup.ID == "" {
+		setup.ID = strings.TrimSuffix(filepath.Base(resolved), filepath.Ext(resolved))
+	}
+	if setup.Algorithm == "" {
+		setup.Algorithm = "grid"
+	}
+	if setup.Algorithm != "grid" {
+		return Setup{}, apperror.Errorf(apperror.CodeValidation, "unsupported calibration algorithm: %s", setup.Algorithm)
+	}
+	if setup.Mapping == "" {
+		return Setup{}, apperror.Errorf(apperror.CodeInput, "calibration setup mapping is required")
+	}
+	if len(setup.Parameters) == 0 {
+		return Setup{}, apperror.Errorf(apperror.CodeInput, "calibration setup parameters is required")
+	}
+	if setup.Objective.Metric == "" {
+		setup.Objective.Metric = "rmse"
+	}
+	if setup.Objective.Metric != "rmse" {
+		return Setup{}, apperror.Errorf(apperror.CodeValidation, "unsupported calibration objective metric: %s", setup.Objective.Metric)
+	}
+	return setup, nil
+}
+
+func Run(ctx context.Context, projectPath string, setup Setup, options Options) (*Result, error) {
+	initialLoaded, err := project.Load(projectPath)
+	if err != nil {
+		return nil, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if setup.BaseParameterSet != "" {
+		if _, err := parameterset.ApplyFile(initialLoaded, setup.BaseParameterSet); err != nil {
+			return nil, err
+		}
+	}
+	initialValues, err := currentParameterValues(initialLoaded, setup.Parameters)
+	if err != nil {
+		return nil, err
+	}
+
+	candidates := gridCandidates(setup.Parameters)
+	if len(candidates) == 0 {
+		return nil, apperror.Errorf(apperror.CodeInput, "calibration grid produced no candidates")
+	}
+
+	var best CandidateSummary
+	var initialObjective float64
+	candidateSummaries := []CandidateSummary{}
+	for index, candidate := range candidates {
+		summary, err := evaluateCandidate(ctx, projectPath, setup, index, candidate)
+		if err != nil {
+			return nil, err
+		}
+		candidateSummaries = append(candidateSummaries, summary)
+		if sameParameterValues(candidate, initialValues) {
+			initialObjective = summary.Objective
+		}
+		if index == 0 || summary.Objective < best.Objective {
+			best = summary
+		}
+	}
+	if initialObjective == 0 {
+		initialSummary, err := evaluateCandidate(ctx, projectPath, setup, -1, initialValues)
+		if err != nil {
+			return nil, err
+		}
+		initialObjective = initialSummary.Objective
+	}
+
+	bestSet := parameterset.Set{
+		ID:         setup.ID + "_result",
+		Name:       setup.Name + " Result",
+		Components: floatParametersToAny(best.Parameters),
+	}
+	result := &Result{
+		OK:                true,
+		SetupID:           setup.ID,
+		SetupName:         setup.Name,
+		Algorithm:         setup.Algorithm,
+		Mapping:           filepath.ToSlash(setup.Mapping),
+		BaseParameterSet:  filepath.ToSlash(setup.BaseParameterSet),
+		InitialObjective:  initialObjective,
+		BestObjective:     best.Objective,
+		ChangedParameters: changedParameters(initialValues, best.Parameters),
+		BestParameterSet:  bestSet,
+		Candidates:        candidateSummaries,
+	}
+	if options.SaveParameterSet != "" {
+		if err := parameterset.Write(initialLoaded.Root, options.SaveParameterSet, bestSet); err != nil {
+			return nil, err
+		}
+		result.SavedParameterSet = filepath.ToSlash(options.SaveParameterSet)
+	}
+	return result, nil
+}
+
+func evaluateCandidate(ctx context.Context, projectPath string, setup Setup, index int, values map[string]map[string]float64) (CandidateSummary, error) {
+	loaded, err := project.Load(projectPath)
+	if err != nil {
+		return CandidateSummary{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if setup.BaseParameterSet != "" {
+		if _, err := parameterset.ApplyFile(loaded, setup.BaseParameterSet); err != nil {
+			return CandidateSummary{}, err
+		}
+	}
+	if err := parameterset.Apply(loaded.Graph, parameterset.Set{Components: floatParametersToAny(values)}); err != nil {
+		return CandidateSummary{}, err
+	}
+	mapping, err := modelvalidation.LoadMapping(loaded.Root, setup.Mapping)
+	if err != nil {
+		return CandidateSummary{}, err
+	}
+	validation, err := modelvalidation.Run(ctx, loaded, mapping, modelvalidation.Options{HighErrorRows: 1})
+	if err != nil {
+		return CandidateSummary{}, err
+	}
+	objective, metrics := objectiveValue(setup.Objective, validation)
+	return CandidateSummary{
+		Index:      index,
+		Parameters: cloneFloatParameters(values),
+		Objective:  objective,
+		Metrics:    metrics,
+	}, nil
+}
+
+func objectiveValue(objective Objective, validation *modelvalidation.Result) (float64, map[string]float64) {
+	weights := objective.Outputs
+	if len(weights) == 0 {
+		weights = map[string]float64{}
+		for outputID := range validation.Metrics {
+			weights[outputID] = 1.0
+		}
+	}
+	metrics := map[string]float64{}
+	total := 0.0
+	for outputID, weight := range weights {
+		value := validation.Metrics[outputID].RMSE
+		metrics[outputID] = value
+		total += weight * value
+	}
+	return total, metrics
+}
+
+func currentParameterValues(loaded *project.LoadedProject, specs []ParameterSpec) (map[string]map[string]float64, error) {
+	values := map[string]map[string]float64{}
+	components := map[string]map[string]any{}
+	for _, component := range loaded.Graph.Components {
+		components[component.ID] = component.Parameters
+	}
+	for _, spec := range specs {
+		componentParams, ok := components[spec.Component]
+		if !ok {
+			return nil, apperror.Errorf(apperror.CodeValidation, "calibration component is not in graph: %s", spec.Component)
+		}
+		raw, ok := componentParams[spec.Name]
+		if !ok {
+			return nil, apperror.Errorf(apperror.CodeValidation, "calibration parameter is not in graph: %s.%s", spec.Component, spec.Name)
+		}
+		value, ok := numberValue(raw)
+		if !ok {
+			return nil, apperror.Errorf(apperror.CodeValidation, "calibration parameter must be numeric: %s.%s", spec.Component, spec.Name)
+		}
+		if values[spec.Component] == nil {
+			values[spec.Component] = map[string]float64{}
+		}
+		values[spec.Component][spec.Name] = value
+	}
+	return values, nil
+}
+
+func gridCandidates(specs []ParameterSpec) []map[string]map[string]float64 {
+	candidates := []map[string]map[string]float64{{}}
+	for _, spec := range specs {
+		values := gridValues(spec)
+		next := []map[string]map[string]float64{}
+		for _, candidate := range candidates {
+			for _, value := range values {
+				cloned := cloneFloatParameters(candidate)
+				if cloned[spec.Component] == nil {
+					cloned[spec.Component] = map[string]float64{}
+				}
+				cloned[spec.Component][spec.Name] = value
+				next = append(next, cloned)
+			}
+		}
+		candidates = next
+	}
+	return candidates
+}
+
+func gridValues(spec ParameterSpec) []float64 {
+	if spec.Step <= 0 {
+		return []float64{spec.Min}
+	}
+	values := []float64{}
+	for value := spec.Min; value <= spec.Max+spec.Step/1000.0; value += spec.Step {
+		values = append(values, math.Round(value*1e9)/1e9)
+	}
+	return values
+}
+
+func changedParameters(initial, best map[string]map[string]float64) map[string]map[string]Change {
+	changes := map[string]map[string]Change{}
+	for componentID, params := range best {
+		for name, bestValue := range params {
+			initialValue := initial[componentID][name]
+			if initialValue == bestValue {
+				continue
+			}
+			if changes[componentID] == nil {
+				changes[componentID] = map[string]Change{}
+			}
+			changes[componentID][name] = Change{Initial: initialValue, Best: bestValue}
+		}
+	}
+	return changes
+}
+
+func sameParameterValues(candidate, initial map[string]map[string]float64) bool {
+	for componentID, params := range initial {
+		for name, value := range params {
+			if candidate[componentID][name] != value {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func floatParametersToAny(values map[string]map[string]float64) map[string]map[string]any {
+	out := map[string]map[string]any{}
+	for componentID, params := range values {
+		out[componentID] = map[string]any{}
+		for name, value := range params {
+			out[componentID][name] = value
+		}
+	}
+	return out
+}
+
+func cloneFloatParameters(values map[string]map[string]float64) map[string]map[string]float64 {
+	out := map[string]map[string]float64{}
+	for componentID, params := range values {
+		out[componentID] = map[string]float64{}
+		for name, value := range params {
+			out[componentID][name] = value
+		}
+	}
+	return out
+}
+
+func numberValue(value any) (float64, bool) {
+	switch typed := value.(type) {
+	case float64:
+		return typed, true
+	case float32:
+		return float64(typed), true
+	case int:
+		return float64(typed), true
+	case int64:
+		return float64(typed), true
+	case json.Number:
+		number, err := typed.Float64()
+		return number, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func resolveProjectOwnedFile(projectRoot string, relativePath string) (string, error) {
+	if filepath.IsAbs(relativePath) {
+		return "", apperror.Errorf(apperror.CodeInput, "project path must be relative: %s", relativePath)
+	}
+	absRoot, err := filepath.Abs(projectRoot)
+	if err != nil {
+		return "", apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	resolved, err := filepath.Abs(filepath.Join(absRoot, relativePath))
+	if err != nil {
+		return "", apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	rel, err := filepath.Rel(absRoot, resolved)
+	if err != nil {
+		return "", apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return "", apperror.Errorf(apperror.CodeInput, "project path escapes project root: %s", relativePath)
+	}
+	if _, err := os.Stat(resolved); err != nil {
+		return "", apperror.Wrap(apperror.CodeInput, err)
+	}
+	return resolved, nil
+}
+
+func sortedCandidateSummaries(candidates []CandidateSummary) []CandidateSummary {
+	out := append([]CandidateSummary(nil), candidates...)
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Objective < out[j].Objective
+	})
+	return out
+}
