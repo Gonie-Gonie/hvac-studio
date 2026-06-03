@@ -249,6 +249,9 @@ function renderRunInputs() {
     field.append(reset);
     container.append(field);
   }
+  if (isWorkspaceProject()) {
+    container.append(scenarioNameField());
+  }
 }
 
 function runInputMeta(input, label) {
@@ -267,6 +270,29 @@ function resetRunInput(input) {
   const value = defaultInputs[input.id] ?? input.default ?? sampleValueFor(input.id);
   control.value = parameterInputValue(value);
   markProjectDirty();
+}
+
+function scenarioNameField() {
+  const field = document.createElement("div");
+  field.className = "scenario-name-field";
+  const input = document.createElement("input");
+  input.id = "scenarioNameInput";
+  input.placeholder = "Scenario name";
+  input.value = state.scenarioDraftName;
+  input.setAttribute("aria-label", "Scenario name");
+  input.addEventListener("input", () => {
+    state.scenarioDraftName = input.value;
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") createScenario();
+  });
+  field.append(input);
+  return field;
+}
+
+function defaultScenarioName() {
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "");
+  return `Scenario ${stamp}`;
 }
 
 function renderCanvas() {
@@ -1877,14 +1903,17 @@ async function createScenario() {
     log("Only workspace projects can be edited");
     return;
   }
-  const name = window.prompt("Scenario name", "Current Inputs");
-  if (!name || !name.trim()) return;
+  const nameInput = el("scenarioNameInput");
+  const name = (state.scenarioDraftName || nameInput?.value || defaultScenarioName()).trim();
+  if (!name) return;
   try {
     const body = await api("/api/project/scenarios", {
       method: "POST",
-      body: JSON.stringify({ project_path: state.currentProjectPath, name: name.trim(), inputs: collectRunInputs(), context: currentRunContext() }),
+      body: JSON.stringify({ project_path: state.currentProjectPath, name, inputs: collectRunInputs(), context: currentRunContext() }),
     });
     state.detail.scenarios = [body.summary, ...(state.detail.scenarios || [])];
+    state.scenarioDraftName = "";
+    if (nameInput) nameInput.value = "";
     renderProjectTree();
     log(`Scenario saved: ${body.summary.relative_path}`);
   } catch (error) {

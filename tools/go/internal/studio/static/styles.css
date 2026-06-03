@@ -493,6 +493,14 @@ h2,
   font-size: 11px;
 }
 
+.scenario-name-field {
+  min-width: 150px;
+}
+
+.scenario-name-field input {
+  width: 100%;
+}
+
 .canvas-wrap {
   position: relative;
   min-height: 430px;

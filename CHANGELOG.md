@@ -95,3 +95,4 @@
 - Expand Studio node creation controls so new nodes can be created with display names, media, value types, units, required flags, and defaults in one pass.
 - Keep release package staging folders out of `dist/` by default and write the latest Studio smoke build under `dist/build/latest/`.
 - Show public input names, metadata, and default reset controls in the Studio Run Inputs toolbar.
+- Replace prompt-based scenario creation with an in-app scenario name field in the Run Inputs toolbar.

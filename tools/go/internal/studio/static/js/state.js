@@ -19,5 +19,6 @@ export const state = {
   loadingSource: {},
   pendingSourceFocus: null,
   pendingConnection: null,
+  scenarioDraftName: "",
   logs: [],
 };

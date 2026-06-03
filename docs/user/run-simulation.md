@@ -33,7 +33,7 @@ After a run, the system canvas shows the latest values on component input and ou
 
 ## Scenarios
 
-Current run inputs can be saved as scenario artifacts under `scenarios/`.
+Current run inputs can be saved as scenario artifacts under `scenarios/`. Enter a scenario name in the Run Inputs toolbar and use Scenario; if the name is empty, Studio generates a timestamped scenario name.
 
 Saved scenarios can be reopened from the Project tree to populate the Run Inputs panel for repeatable one-case runs.
 
