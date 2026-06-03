@@ -104,7 +104,18 @@ Acceptance criteria:
 
 ## Milestone 2: Component Authoring Model
 
+Status: complete. Verified on 2026-06-03 with `scripts/dev/test-fast.ps1`.
+
 Goal: define how GUI-managed component contracts map to user-editable Python.
+
+Implemented:
+
+- Component graph/schema fields for category, execution mode, source layout, node presets, parameter definitions, and state definitions.
+- Scalar project/component templates now seed the component authoring metadata.
+- `generated_wrapper` source layout maps `component.json` and wrapper files to user-editable `user_init.py`, `user_step.py`, and `helpers.py`.
+- Studio source loading/checking opens the user step body for generated-wrapper components and validates `step(inputs, state, params, context)`.
+- Runtime export includes nested generated-wrapper component metadata, user body files, helpers, and wrapper adapter.
+- `examples/008_generated_wrapper_component` verifies worker execution through a generated wrapper.
 
 UX requirements:
 

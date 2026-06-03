@@ -3099,6 +3099,55 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	}
 }
 
+func TestExportEndpointIncludesGeneratedWrapperSources(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	seedTestRuntimeSupport(t, root)
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectRoot := filepath.Join(root, "projects", "generated-wrapper-export")
+	if err := copyProjectTree(filepath.Join(repoRoot, "examples", "008_generated_wrapper_component"), projectRoot); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path": filepath.Join(projectRoot, "project.bcsproj"),
+		"profile":      "runtime_package",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/export", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Export ExportManifest `json:"export"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	expectedFiles := []string{
+		"project/components/custom_gain/component.json",
+		"project/components/custom_gain/helpers.py",
+		"project/components/custom_gain/user_init.py",
+		"project/components/custom_gain/user_step.py",
+		"project/components/custom_gain/wrapper.py",
+	}
+	exportRoot := filepath.Join(projectRoot, "exports", "runtime_package")
+	for _, rel := range expectedFiles {
+		if !containsString(body.Export.Files, rel) {
+			t.Fatalf("export files missing %s in %v", rel, body.Export.Files)
+		}
+		if _, err := os.Stat(filepath.Join(exportRoot, filepath.FromSlash(rel))); err != nil {
+			t.Fatalf("export file %s: %v", rel, err)
+		}
+	}
+}
+
 func TestExportEndpointRejectsSavedSourceContractErrors(t *testing.T) {
 	_, server := newIsolatedTestServer(t)
 	project := createWorkspaceProject(t, server, "Export Source Gate Project")
