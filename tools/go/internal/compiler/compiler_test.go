@@ -12,6 +12,7 @@ func TestCompileDetectsAlgebraicLoop(t *testing.T) {
 	loaded := &project.LoadedProject{
 		Project: &model.Project{EntrySystem: "MainSystem"},
 		Graph: &model.Graph{
+			SchemaVersion: "0.1.0",
 			Systems: []model.System{
 				{
 					ID:          "MainSystem",
@@ -43,6 +44,7 @@ func TestCompileOrdersFeedForwardGraph(t *testing.T) {
 	loaded := &project.LoadedProject{
 		Project: &model.Project{EntrySystem: "MainSystem"},
 		Graph: &model.Graph{
+			SchemaVersion: "0.1.0",
 			Systems: []model.System{
 				{
 					ID:          "MainSystem",

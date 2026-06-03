@@ -34,6 +34,69 @@ func TestLoadRejectsMissingEnvironmentLockfile(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsUnknownProjectFields(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "project.bcsproj"), `{
+  "project_name": "fixture",
+  "schema_version": "0.1.0",
+  "entry_system": "MainSystem",
+  "graph": "graph.json",
+  "surprise": true
+}
+`)
+	writeFile(t, filepath.Join(root, "graph.json"), `{
+  "schema_version": "0.1.0",
+  "systems": [],
+  "components": [],
+  "connections": []
+}
+`)
+
+	_, err := Load(filepath.Join(root, "project.bcsproj"))
+	if err == nil || !strings.Contains(err.Error(), `decode project: json: unknown field "surprise"`) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadRejectsMissingProjectSchemaVersion(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "project.bcsproj"), `{
+  "project_name": "fixture",
+  "entry_system": "MainSystem",
+  "graph": "graph.json"
+}
+`)
+
+	_, err := Load(filepath.Join(root, "project.bcsproj"))
+	if err == nil || !strings.Contains(err.Error(), "project schema_version is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadRejectsUnknownGraphFields(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "project.bcsproj"), `{
+  "project_name": "fixture",
+  "schema_version": "0.1.0",
+  "entry_system": "MainSystem",
+  "graph": "graph.json"
+}
+`)
+	writeFile(t, filepath.Join(root, "graph.json"), `{
+  "schema_version": "0.1.0",
+  "systems": [],
+  "components": [],
+  "connections": [],
+  "surprise": true
+}
+`)
+
+	_, err := Load(filepath.Join(root, "project.bcsproj"))
+	if err == nil || !strings.Contains(err.Error(), `decode graph: json: unknown field "surprise"`) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func writeProjectFixture(t *testing.T, root string, environmentLine string) {
 	t.Helper()
 	writeFile(t, filepath.Join(root, "project.bcsproj"), `{
