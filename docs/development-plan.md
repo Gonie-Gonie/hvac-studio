@@ -1,14 +1,16 @@
 # Development Plan
 
-Last updated: 2026-06-03
+Last updated: 2026-06-04
 
-This plan folds the Component-Node-System UX flow into the runtime-first repository direction. The product is not a drag-and-drop HVAC library. It is a Python-based component-node-system authoring and runtime tool for building equipment modeling and control research.
+This document is the planning spine for HVAC Studio. It should explain why the product is built this way, what the current alpha baseline can do, and what should happen next without mixing old implementation notes into future commitments.
 
-## Product UX Thesis
+HVAC Studio is not a fixed drag-and-drop HVAC component library. It is a Python-first component-node-system authoring and runtime tool for equipment modeling, controls research, validation, calibration, optimization, SDK use, and runtime-only delivery.
 
-The user defines component-node-system structure and parameter schema in the GUI, edits only the component calculation body in a component-aware Python editor, then reuses the same system for one-case runs, time-series simulation, batch simulation, model validation, calibration, optimization, Python SDK calls, CLI integration, and runtime-only export.
+## Product Thesis
 
-The primary workflow is:
+The user defines component-node-system structure, node contracts, parameters, state, public inputs, and public outputs as project artifacts. The user edits Python component logic inside those contracts. The same project then runs through Studio, CLI, SDK, external engines, validation, calibration, optimization, and runtime-only packages.
+
+Primary workflow:
 
 ```text
 New Project
@@ -16,731 +18,623 @@ New Project
 -> Component creation
 -> Component node definition
 -> Parameter/state definition
--> Function body editing
+-> Python function editing
 -> System canvas composition
 -> Node-to-node connection
 -> Public input/output mapping
 -> Validate
 -> Run one case
--> Dataset import
+-> Save scenarios and runs
+-> Dataset mapping
 -> Model validation
+-> Parameter sets
 -> Calibration
 -> Optimization
--> Export
+-> SDK / external engine use
+-> Runtime export / release package
 ```
 
-## Operating Priorities
+## Design Philosophy
 
-1. Stabilize runner/worker/source-of-truth files before GUI.
-2. Keep GUI as authoring UX over `project.bcsproj`, `graph.json`, component files, schemas, datasets, parameter sets, scenarios, and run records.
-3. Preserve user freedom in component logic, node count/meaning, parameters, system composition, and runtime mode.
-4. Make every milestone testable by CLI/golden examples before attaching GUI.
-5. Commit and push after each coherent test-green unit.
-6. Build the Studio as a complete workspace shell first, then progressively connect panel behavior.
-7. Release Windows-first as a portable installed tool while keeping engine/project/schema formats OS-independent.
-8. Treat user-facing documentation as a product surface: explain workflow and runtime behavior, not only button usage.
+### File-Based Source Of Truth
 
-## Milestone 0: Repository And Release Foundation
+The model is defined by files, not by GUI memory or Python object instances. The important source artifacts are:
 
-Status: complete. Verified on 2026-06-03 with `scripts/release/test-release-candidate.ps1 -Version 0.1.0-dev -SkipSetup`.
+- `project.bcsproj`
+- `graph.json`
+- `components/`
+- `inputs/`
+- `scenarios/`
+- `runs/`
+- `datasets/`
+- `validation/mappings/`
+- `parameter_sets/`
+- `calibration/setups/`
+- `optimization/setups/`
+- `exports/`
+- environment lock files
 
-Already present:
+Studio edits and visualizes these files. The runner loads them. The SDK and runtime packages reuse them.
 
-- Repo-local setup for Go, uv, uv-managed Python, and `.venv`.
-- Runtime core skeleton.
-- `bcs-runner validate/run`.
-- Python worker JSONL protocol.
-- First scalar example.
-- Minimal Windows runtime release package.
-- Go-hosted Studio shell and Windows portable package script.
-- Bundled Python runtime copied into Windows portable and runtime-only packages.
-- Source templates under `templates/` for Studio-created projects/components.
-- CI workflow for non-release test runs.
-- Release package smoke test in CI for main and manual runs.
-- Project-specific Python package lock/freeze support on top of bundled `runtime/python`.
-- Explicit Go platform boundary for path, process, runtime Python, and executable naming decisions.
+### Runner Before GUI
 
-Near-term additions:
+The runner/worker contract must stay ahead of the GUI. Every GUI command should call a runtime-backed API path rather than becoming a second modeling engine.
 
-- None remaining for Milestone 0.
-
-Acceptance criteria:
-
-- Fresh clone can run `scripts/dev/setup.ps1`.
-- `scripts/dev/test-fast.ps1` passes using repo-local tools.
-- `scripts/release/test-runtime-package.ps1` builds, expands, and smoke-tests a runtime zip.
-- `scripts/release/test-portable-package.ps1` builds, expands, and smoke-tests a portable Studio zip.
-- `scripts/release/test-release-candidate.ps1` is the local release gate for fast checks plus both package smoke tests.
-- Portable packages include real project/component templates rather than placeholder directories.
-
-## Milestone 1: Runtime Core Contract
-
-Status: complete. Verified on 2026-06-03 with `scripts/dev/test-fast.ps1` and `scripts/release/test-release-candidate.ps1 -Version 0.1.0-dev -SkipSetup`.
-
-Goal: make the file contract robust enough for GUI and SDK to build on.
-
-Scope:
-
-- `project.bcsproj` and `graph.json` structural validation.
-- Component, node, connection, system, public input, public output schemas.
-- Explicit public IO endpoint mapping.
-- Clear validation errors with component/node references.
-- Exit code taxonomy for CLI:
-  - `0`: success
-  - `1`: validation error
-  - `2`: runtime error
-  - `3`: input schema error
-  - `4`: Python worker error
-  - `5`: license/runtime error
-- One-case run result format with component outputs, states, context, and execution order.
-- Public interface schema export through `bcs-runner schema`.
-
-Acceptance criteria:
-
-- Invalid graph cases have golden validation errors for algebraic loops, public IO endpoint mapping, and structural node errors.
-- Algebraic loop detection reports the involved components.
-- Missing public inputs and missing declared outputs fail with actionable messages.
-- CLI errors return documented exit codes for validation, input, runtime, Python worker, and license/runtime categories.
-
-## Milestone 2: Component Authoring Model
-
-Status: complete. Verified on 2026-06-03 with `scripts/dev/test-fast.ps1`.
-
-Goal: define how GUI-managed component contracts map to user-editable Python.
-
-Implemented:
-
-- Component graph/schema fields for category, execution mode, source layout, node presets, parameter definitions, and state definitions.
-- Scalar project/component templates now seed the component authoring metadata.
-- `generated_wrapper` source layout maps `component.json` and wrapper files to user-editable `user_init.py`, `user_step.py`, and `helpers.py`.
-- Studio source loading/checking opens the user step body for generated-wrapper components and validates `step(inputs, state, params, context)`.
-- Runtime export includes nested generated-wrapper component metadata, user body files, helpers, and wrapper adapter.
-- `examples/008_generated_wrapper_component` verifies worker execution through a generated wrapper.
-
-UX requirements:
-
-- User creates a New Python Component by default.
-- Component categories:
-  - physical component
-  - controller
-  - data source
-  - data sink
-  - utility
-  - composite wrapper
-- Execution modes:
-  - step-based
-  - vectorized
-  - initialization only
-  - external executable
-- Node presets:
-  - water inlet/outlet
-  - air inlet/outlet
-  - control signal input
-  - electric power output
-  - scalar input/output
-  - time-series input
-
-Storage direction:
+The dependency direction is:
 
 ```text
-components/
-  custom_chiller/
-    component.json
-    user_init.py
-    user_step.py
-    helpers.py
+Studio GUI
+Python SDK
+External engine
+        -> bcs-runner
+        -> Go project/graph/compiler/runtime packages
+        -> Python worker
+        -> user Python components
 ```
 
-The GUI may display a generated function scaffold, but the safe persisted boundary should separate generated contract metadata from user-editable function bodies.
+### Explicit Public IO
 
-Acceptance criteria:
+System public inputs and outputs are explicit endpoint mappings. The runtime must never guess public IO by matching names.
 
-- A component can declare arbitrary inlet/outlet/signal nodes.
-- Parameters include display name, unit, default/current value, bounds, role, group, and description.
-- States include name, unit, and initial value.
-- Worker can execute a component body through a generated wrapper without exposing runtime-managed regions as editable code.
-
-## Milestone 3: Feed-Forward Component-Node Systems
-
-Status: complete. Verified on 2026-06-03 with `scripts/dev/test-fast.ps1`.
-
-Goal: support multiple user-defined components connected through nodes.
-
-Implemented:
-
-- `examples/003_feedforward_system` runs an acyclic four-component graph through the runner and example smoke tests.
-- Compiler validation requires connection sources to be declared output nodes and targets to be declared input nodes.
-- Compiler topological ordering preserves feed-forward execution and reports algebraic loops with involved components.
-- Medium compatibility follows the MVP UX rule: matching media pass, signal-to-physical connections pass with warnings, physical mismatches fail by default, and explicit medium overrides are structured in `graph.json`.
-- Runtime results include `component_inputs`, `component_outputs`, `node_values`, and `connection_values` for inspection.
-- Studio validation surfaces connection medium warnings in the Problems panel without blocking execution.
-
-Scope:
-
-- Build out `examples/003_feedforward_system`.
-- Propagate connection values component-to-component.
-- Validate source output node to target input node.
-- Validate medium compatibility with warning/override planning.
-- Preserve acyclic topological execution for MVP.
-
-Connection UX rule:
-
-```text
-Allowed: water outlet node -> water inlet node
-Warning: signal node -> water inlet node
-Error by default: air outlet node -> water inlet node
+```json
+{
+  "id": "total_power_kw",
+  "component": "aggregator",
+  "node": "total_power_kw"
+}
 ```
 
-Research override direction:
+This keeps Studio labels friendly while preserving a stable machine contract for CLI, SDK, external engines, validation, calibration, optimization, and delivery.
 
-- Medium mismatch should support an explicit custom-connection override later.
-- Overridden connections must be visibly marked in GUI and structured in `graph.json`.
+### User Python Owns Model Semantics
 
-Acceptance criteria:
+The runtime manages contracts, execution order, state passing, validation, packaging, and structured results. It does not interpret the physics inside user components.
 
-- Feed-forward example runs through runner and package smoke test.
-- Each connection has traceable source/target endpoint metadata.
-- Runtime output can show node values for inspection.
+Component authors should remain free to model physical equipment, controllers, data sources, data sinks, utilities, surrogate models, and research-specific logic.
 
-## Milestone 4: Project Explorer And GUI Shell
+### Contracts Protect Freedom
 
-Status: complete. Verified on 2026-06-03 with `scripts/dev/test-fast.ps1`.
+The more freedom user Python has, the more explicit the surrounding contract must be:
 
-Goal: create the first GUI surface without redefining runtime semantics.
+- input nodes
+- output nodes
+- parameter definitions
+- state definitions
+- execution mode
+- public IO
+- connection medium compatibility
+- result shape
 
-Implemented:
+The editor can assist with snippets, completions, lint hints, and source checks, but persisted contracts should stay in project artifacts.
 
-- Go-hosted Studio shell in `tools/go/cmd/studio` with the planned top bar, Project tree, System canvas, Inspector, and bottom workspace panels.
-- Start workspace for runtime status, project type visibility, workspace projects, and examples.
-- Project Explorer sections for systems, components, Python source, datasets, parameter sets, runs, batches, scenarios, and export profiles.
-- Scalar and feed-forward projects open through the same project loader and display graph systems, components, nodes, and canvas connections.
-- Validate, Run, Batch, Schema, and Export actions call the existing compiler/runtime/server paths used by CLI-facing code.
-- New/copy project, starter workspace creation, component creation, component inclusion, node/connection editing, canvas layout persistence, default run inputs, scenarios, saved runs, parameter editing, source checks, and runtime export are wired for workspace projects.
-- The Serve command slot is visible in the shell and intentionally disabled until the later serve-mode runtime milestone.
+### One Runtime Path
 
-Primary layout:
+Studio, CLI, SDK, package smoke tests, exported runtime folders, calibration, and optimization should all use the same runner/runtime behavior. Divergence between surfaces is treated as a bug.
 
-```text
-Top Bar: Project | Validate | Run | Batch | Serve | Export
-Left: Project Tree
-Center: System Canvas
-Right: Inspector
-Bottom: Problems | Logs | Python Console | Results | Schema
-```
+### Reproducibility By Artifact
 
-Project Explorer objects:
+Research workflows should produce named artifacts instead of silently mutating baseline files:
 
-- Systems
-- Components
-- Python Source
-- Datasets
-- Parameter Sets
-- Runs
-- Scenarios
-- Export Profiles
+- scenarios save input/context cases
+- runs save inputs, context, outputs, traces, and parameter-set references
+- parameter sets overlay baseline parameters at runtime
+- validation mappings connect datasets to public IO
+- calibration setups record objective, bounds, mapping, and base parameter set
+- optimization setups record decision variables, objective, and base inputs
+- exports record copied files, schema, commands, and environment assumptions
 
-Start page:
+### Inspectability First
 
-- New Project
-- Open Project
-- Recent Projects
-- Example Projects
-- Runtime/Python Environment Status
+Execution must be understandable. Runtime results should include enough structure for Studio and external tools to inspect:
 
-Project types:
-
-- Empty System
-- Python Component Project (default)
-- HVAC System Template
-- Runtime-only Imported Project
-
-Acceptance criteria:
-
-- GUI can open scalar and feed-forward examples and display systems/components/nodes.
-- Validate, Run, and Schema buttons use the same runtime/compiler path as the CLI runner. Validate also checks Python component source contracts.
-- GUI can create a workspace project from the scalar Python component template.
-- Fresh Studio sessions create/open an editable starter workspace when no workspace project exists.
-- GUI can add a workspace Python component template from `templates/components/` to `graph.json` and `components/` without changing the runnable system yet.
-- GUI can explicitly add a workspace component to the entry system with generated public IO and default input values.
-- Inspector can jump from a selected workspace component to its Code workspace source editor.
-- GUI can create a node-to-node connection between workspace system components from the canvas or Inspector and persist it to `graph.json`.
-- GUI can select persisted canvas connection lines and remove them through the same Inspector/API path.
-- GUI can drag workspace canvas components and persist view layout to `studio/layout.json`.
-- GUI can load and save a workspace project's `default_input` run values.
-- GUI can save current run inputs as workspace `scenarios/*.json` artifacts and reload them into Run Inputs.
-- Runs from workspace projects are saved as `runs/run-*.json` records.
-- Saved run records can be reopened from the Project tree and shown in Results.
-- Parameter Manager can edit workspace component parameters and persist them to `graph.json`.
-- Problems, results, schema, logs, inspector, parameters, run output, and runtime export workspaces are visible in the active shell.
-- Export button can write a workspace `exports/runtime_package/` artifact with manifest, public IO schema, source-of-truth project files, a first-run script, and packaged runner/Python support when available.
-- `bcs-env check` can diagnose exported runtime folders as `runtime-export` packages.
-- Problems panel links validation, run, and batch-case messages to graph or source locations where possible, including inferred component links for runtime errors.
-- Source save returns source-check feedback and execution actions stop on saved source-check errors.
-- Source checks warn when Python source does not visibly reference required graph inputs or declared outputs.
-- Run, batch, and export APIs reject saved source-check errors server-side.
-- Code workspace snippets generate evaluate skeletons from all selected component input/output nodes.
-- Code workspace shows source-check issue rows in the contract panel and can focus line-specific problems.
-- Source checks load draft Python source to catch import and class-load errors before run/export.
-- Python editor supports save/check shortcuts and line-based indent/outdent.
-- Code workspace can run the project after source edits through the normal save/check/run path.
-- Code workspace shows selected component last-run inputs and outputs alongside source contract context.
-- System canvas shows latest run input/output values on component node endpoints.
-- Studio marks last-run values stale when runtime-affecting inputs, source, parameters, nodes, or connections change.
-- API coverage pins the edit-source, connect-components, run-result propagation workflow.
-
-## Milestone 5: Component-Aware Python Editor
-
-Status: complete for the MVP editor surface. Verified on 2026-06-03 with `scripts/dev/test-go.ps1` and capture review under `artifacts/ux-captures/`.
-
-Goal: let the user edit component logic with contract-aware help while protecting generated regions.
-
-Implemented:
-
-- Studio Code workspace loads component source, keeps bundled examples read-only, and saves workspace source through the project API.
-- The editor has lightweight Python syntax highlighting, line numbers, bracket status, tab/shift-tab indentation, Enter auto indentation, save/check shortcuts, and contract-derived snippets/completions.
-- The contract panel shows runtime-managed signatures, inputs, outputs, parameters, context/state completions, source-check rows, and latest run values for the selected component.
-- Source checks validate class/function signatures, Python syntax, graph input/output references, import/load failures, and undefined-name hints without executing component evaluation.
-- Run, batch, and export actions flush dirty source and stop on saved source-check errors through both GUI and server API paths.
-
-Required editor features:
-
-- Python syntax highlighting.
-- Bracket matching.
-- Auto indentation.
-- Syntax errors.
-- Undefined variable hints.
-- Component contract autocomplete.
-- Node name autocomplete.
-- Variable name autocomplete.
-- Parameter name autocomplete.
-- Pre-run lint.
-- Runtime error location display.
-
-Recommended editor features:
-
-- Type-hint based completion.
-- Unit display.
-- Generated docstring.
-- Formatting.
-- Quick fix.
-- Hover documentation.
-
-Generated/protected areas:
-
-- import policy
-- class wrapper
-- function signature
-- input/output binding
-- state/parameter loading
-- return format
-
-User-editable area:
-
-- The calculation body for `step(t, dt, inputs, params, state)` or the equivalent component function.
-
-Acceptance criteria:
-
-- Studio Python panel can load component source files and save workspace edits while examples remain read-only.
-- Editing nodes/parameters/states updates the contract panel, snippets, and completions from the current graph metadata.
-- Runtime-managed class/function signatures are checked before run/export, and generated-wrapper projects expose only user body files as editable source.
-- Autocomplete/completion suggestions can insert `inputs["..."]`, `params["..."]`, `state["..."]`, `context["..."]`, output-return entries, and local input variables from component contract metadata.
-
-## Milestone 6: Run, Debug, And Inspect UX
-
-Status: complete for one-case, batch, and JSONL serve MVP. Verified on 2026-06-03 with `scripts/dev/test-go.ps1` and Studio capture review.
-
-Goal: make execution understandable for model authors.
-
-Implemented:
-
-- Runtime execution uses a reusable session that compiles the graph, starts the Python worker, loads components, initializes state, and evaluates repeatedly.
-- `bcs-runner serve` exposes a JSONL request/response loop for repeated external evaluations while preserving component state inside the live session.
-- Run results include public outputs, component inputs/outputs, node values, connection values, states, context, execution order, per-component timings, and total duration.
-- Studio Run workspace shows latest run summary, public outputs, selected component values, batch cases, output preview, execution trace, connection values, and node values.
-- Canvas, Inspector, Code workspace, Problems, and Results all consume the same structured runtime result and problem metadata.
-
-Run modes:
-
-- one case
-- time-series
-- batch cases
-- serve mode
-- Python SDK
-
-Debug/inspect outputs:
-
-- component execution order
+- public outputs
+- component inputs and outputs
 - node values
-- component logs
-- selected timestep component inputs/outputs
-- parameters
-- states
-- execution time
+- connection values
+- component state
+- context
+- execution order
+- timings
+- source/runtime error metadata
 
-Acceptance criteria:
+### Windows-First, OS-Independent Core
 
-- Runner output has enough structured data for the GUI Results and Inspect panels.
-- Runtime errors preserve component ID, node ID when applicable, and Python traceback/location.
-- Serve mode compiles graph and imports Python components once, then evaluates repeatedly.
+Initial distribution is Windows-first. The portable zip is the first supported user-facing package. The project files, graph schema, runner logic, and Python worker contract should remain OS-independent. OS-specific path, process, executable naming, packaged Python, installer, and signing concerns belong behind explicit platform/package boundaries.
 
-## Milestone 7: Datasets And Model Validation
+### Documentation Is Product Surface
 
-Status: complete for CSV mapping and metrics MVP. Verified on 2026-06-03 with `go test ./cmd/bcs-runner ./internal/modelvalidation ./internal/studio`.
+The user guide should explain how to operate the product and how the artifacts work together. It should not only list buttons. Documentation, examples, and package readmes are part of the product.
 
-Implemented:
+### Examples Are Regression Assets
 
-- `examples/005_chiller_plant_like_system` includes a CSV validation dataset and saved mapping artifact.
-- `bcs-runner validate-data` runs project-relative mappings and writes structured metrics.
-- Validation metrics include RMSE, MAE, MBE, CVRMSE, and R2.
-- Validation results include row summaries and high-error row inspection data with component/node/connection traces.
-- Studio Project tree lists datasets, validation mappings, and parameter sets; the `Data` command runs the first saved mapping and shows the result.
+Runnable examples are not demos alone. They are contract tests for the runner, packaging, SDK, validation, calibration, optimization, and delivery flows.
 
-Goal: connect measured/reference datasets to system public inputs/outputs.
+## Operating Rules
 
-Dataset import UX:
+1. Stabilize source-of-truth files, runner behavior, and examples before broadening GUI features.
+2. Keep GUI as an authoring and inspection surface over project artifacts.
+3. Prefer CLI/golden/example coverage before wiring equivalent Studio controls.
+4. Preserve baseline files unless the user explicitly edits them.
+5. Save research outputs as named artifacts.
+6. Keep release gates repeatable through local scripts and CI.
+7. Keep Windows release behavior reproducible before starting installer/macOS work.
+8. Review GUI readability with screenshots after meaningful UI changes.
 
-- Import CSV/weather-like files.
-- Detect columns.
-- Map dataset columns to system public inputs.
-- Map observed output columns to system public outputs.
+## Current Alpha Baseline
 
-Validation metrics:
+Current release baseline:
 
-- RMSE
-- MAE
-- MBE
-- CVRMSE
-- R2
+```text
+v0.1.0-alpha.2
+Windows portable zip
+Windows runtime-only zip
+Bundled Python runtime
+Wails desktop Studio entrypoint
+CLI runner and environment checker
+Python worker and serve-backed Python SDK
+Runnable examples 001, 003, 004, 005, 006, 007/model, 008
+Markdown user guide source
+```
 
-Plots:
+Release artifacts produced by the release gate:
 
-- measured vs simulated time-series
-- scatter plot
-- residual plot
-- error histogram
-- error by operating range
+```text
+dist/hvac-studio-0.1.0-alpha.2-windows-amd64-portable.zip
+dist/hvac-studio-runtime-0.1.0-alpha.2-windows-amd64.zip
+```
 
-Acceptance criteria:
+Primary verification commands:
 
-- Dataset mapping is saved in source-of-truth project artifacts.
-- Validation run writes structured metrics and links high-error timesteps to inspectable node/component values.
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-fast.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1 -Version 0.1.0-alpha.2 -SkipSetup
+```
 
-## Milestone 8: Parameter Manager And Parameter Sets
+## Milestone Status Summary
 
-Status: complete for parameter editing and parameter-set runtime overlay MVP. Verified on 2026-06-03 with `go test ./cmd/bcs-runner ./internal/parameterset ./internal/studio`.
+| Milestone | Status | Current MVP slice |
+| --- | --- | --- |
+| 0. Repository and release foundation | Complete | Repo-local tools, CI, package scripts, release gate |
+| 1. Runtime core contract | Complete | Strict project/graph loading, validation, exit codes, schema export |
+| 2. Component authoring model | Complete | Component metadata, templates, generated-wrapper layout |
+| 3. Feed-forward systems | Complete | Multi-component DAG execution, connection traces, medium rules |
+| 4. Project Explorer and GUI shell | Complete | Studio workspace, project tree, canvas, inspector, APIs |
+| 5. Component-aware Python editor | Complete | Source loading, syntax highlight, source checks, snippets, completions |
+| 6. Run/debug/inspect UX | Complete | Run workspace, traces, batch cases, reusable runtime session, serve mode |
+| 7. Datasets and model validation | Complete MVP | CSV mappings, metrics, high-error inspection, Data command |
+| 8. Parameter manager and parameter sets | Complete MVP | Parameter editing, runtime overlays, parameter-set references |
+| 9. Calibration | Complete MVP | Grid search over parameter bounds, result parameter set |
+| 10. Optimization | Complete MVP | Grid search over public inputs, optimized scenario |
+| 11. SDK and external integration | Complete MVP | Python SDK backed by `bcs-runner serve` |
+| 12. Runtime-only delivery | Complete MVP | Runtime zip smoke tests, export artifacts, delivery-layout example |
+| 13. Installed Studio distribution | Complete MVP | Windows portable zip and desktop entrypoint |
+| 14. User guide and documentation release | Complete MVP | Markdown guide and MkDocs source config |
 
-Implemented:
+## Remaining Work Model
 
-- Studio Parameter Manager can edit workspace component parameters in `graph.json`.
-- Project tree lists saved `parameter_sets/*.json` artifacts.
-- `bcs-runner run --parameter-set` applies a saved parameter set in memory without overwriting baseline `graph.json`.
-- `bcs-runner validate-data --parameter-set` evaluates validation datasets against a saved parameter set.
-- Studio run and validation APIs accept `parameter_set_path`; run records and runtime results preserve the parameter-set path.
+All MVP milestones are complete in the sense that each workflow has at least one file-backed, runner-backed, releasable path. The remaining work is depth: making those paths comfortable for daily use, broader across runtime modes, easier to inspect, and stronger as release assets.
+
+| Horizon | Meaning | Planning rule |
+| --- | --- | --- |
+| Alpha hardening | Stabilize contracts and remove obvious workflow friction | Prefer runner/API coverage before Studio polish |
+| Beta usability | Make the workflows natural for real users | Add structured Studio views, screenshots, docs, and examples |
+| 1.0 readiness | Make release, support, and compatibility promises credible | Freeze schemas, package docs, sign releases, and document migrations |
+| Post-1.0 expansion | Add larger engine/platform capabilities | Keep new modes behind explicit contracts and examples |
+
+Before a remaining item is considered done, it should have a source artifact, a runner/API path when applicable, a Studio affordance when user-facing, and at least one example, guide section, or smoke/golden check proportional to the risk.
+
+## Completed MVP Milestones
+
+### Milestone 0: Foundation
+
+Goal: make the repository buildable, testable, and releasable on Windows.
+
+Completed:
+
+- Repo-local Go, uv, Python, and `.venv` setup.
+- Go runner, Python worker, runtime skeleton, first scalar example.
+- Windows portable and runtime package scripts.
+- Bundled Python runtime support.
+- CI fast checks and package smoke checks.
+- `bcs-env check` for portable/runtime/export diagnostics.
+- Local release candidate gate.
+
+Next depth:
+
+- Add a release provenance manifest that records git SHA, version, tool versions, bundled Python version, and package contents.
+- Keep local setup, CI, package smoke tests, and release gate behavior aligned so a clean machine can reproduce the same result.
+- Add clearer remediation messages for missing Go, uv, Wails, Python, WebView2, and bundled-runtime issues.
+- Periodically test bootstrap from an empty dependency cache and document the expected setup time.
+- Keep installer work behind Milestone 13 until portable behavior and runtime export diagnostics remain stable.
+
+### Milestone 1: Runtime Core Contract
+
+Goal: make project and graph files robust enough for every other surface.
+
+Completed:
+
+- Strict JSON loading for `project.bcsproj` and `graph.json`.
+- Graph validation for systems, components, nodes, connections, and public IO.
+- Algebraic loop detection.
+- Actionable validation/input/runtime/Python-worker error classes.
+- CLI exit code taxonomy.
+- One-case run results with public outputs, component IO, states, context, and execution order.
+- `bcs-runner schema`.
+
+Next depth:
+
+- Version `project.bcsproj`, `graph.json`, component manifests, mappings, parameter sets, calibration setups, optimization setups, and export manifests with migration notes.
+- Publish a stable structured error schema for Studio, CLI, SDK, and external-engine consumers.
+- Expand fixture coverage for malformed public IO, duplicate identifiers, medium mismatches, missing files, invalid parameter overlays, and Python worker failures.
+- Add richer value-type and unit compatibility checks without making the runtime interpret user physics.
+- Define compatibility guarantees: what can change in alpha, what must migrate in beta, and what becomes stable for 1.0.
+
+### Milestone 2: Component Authoring Model
+
+Goal: separate GUI-managed contracts from user-editable Python logic.
+
+Completed:
+
+- Component categories and execution modes.
+- Node presets.
+- Parameter and state definitions.
+- Scalar component template.
+- Generated-wrapper example with user body files.
+- Runtime export of component metadata and source.
+
+Next depth:
+
+- Make the generated-wrapper layout the default new-component path while retaining migration support for existing single-file components.
+- Add Studio controls for source layout selection, state definitions, parameter roles, bounds, units, defaults, and visibility.
+- Add templates for controller, stateful component, data source, data sink, utility component, external executable placeholder, and vectorized placeholder.
+- Generate clearer docstrings and contract comments that explain what the user may edit and what Studio owns.
+- Add authoring checks that compare component metadata, function signatures, defaults, and generated wrapper assumptions.
+
+### Milestone 3: Feed-Forward Systems
+
+Goal: support user-defined components connected through nodes.
+
+Completed:
+
+- Runnable feed-forward example.
+- Topological execution order.
+- Connection value propagation.
+- Source/target node validation.
+- Medium compatibility warnings/errors and explicit overrides.
+- Node and connection traces in run results.
+
+Next depth:
+
+- Visibly mark medium compatibility, warnings, and explicit overrides on the canvas and Inspector.
+- Improve fan-out, fan-in, and long-path readability with connection labels, hover values, and conflict markers.
+- Add optional connection annotations for design intent, expected units, operating range, and notes.
+- Write an ADR for feedback loops and solver boundaries before implementing any loop-solving behavior.
+- Keep composite-system and time-series expansion behind explicit public IO and runner/compiler contracts.
+
+### Milestone 4: Studio Shell
+
+Goal: create the authoring shell without redefining runtime semantics.
+
+Completed:
+
+- Wails/Go-hosted Studio shell.
+- Project tree, System canvas, Inspector, Start workspace, bottom panels.
+- Workspace project creation/copy.
+- Component creation, inclusion, duplication, deletion.
+- Node and connection editing.
+- Canvas layout persistence.
+- Default inputs, scenarios, runs, batches, export records.
+- Parameter Manager.
+- Runtime export.
+- Source checks before run/batch/export.
+
+Next depth:
+
+- Replace remaining raw JSON result surfaces with structured views for datasets, validation runs, parameter sets, calibration results, optimization results, exports, and logs.
+- Add first-class artifact openers and editors for mappings, scenarios, runs, batches, parameter sets, calibration setups, optimization setups, and export manifests.
+- Add project tree search/filter, artifact grouping, empty states, rename/delete affordances, and safer dirty-state prompts.
+- Define undo/redo scope for canvas edits, Inspector edits, source edits, and artifact creation.
+- Continue screenshot-based readability passes for project tree density, command bars, canvas contrast, Inspector tables, bottom panels, and small-window behavior.
+
+### Milestone 5: Python Editor
+
+Goal: help users edit component logic while protecting runtime-managed contracts.
+
+Completed:
+
+- Code workspace source loading/saving.
+- Read-only examples.
+- Syntax highlighting, line numbers, bracket status, auto indentation, indent/outdent.
+- Save/check/run shortcuts.
+- Contract panel.
+- Snippets and contract-derived completions.
+- Source checks for signatures, syntax, imports, class loading, visible IO references, and undefined-name hints.
+
+Next depth:
+
+- Add formatting support that preserves generated-wrapper boundaries and user-editable regions.
+- Add hover documentation for public IO, parameters, state, context, return shape, and common runtime helpers.
+- Improve completions from component contracts, parameter definitions, state definitions, and known context keys.
+- Add quick fixes for missing outputs, typo-like references, signature drift, unused public IO, and invalid imports where safe.
+- Map Python syntax, import, runtime, and source-check errors back to editor lines with stable problem markers.
+- Add editor-focused tests for wrapper layout, read-only examples, save/check/run shortcuts, and diagnostics.
+
+### Milestone 6: Run, Debug, Inspect
+
+Goal: make execution understandable.
+
+Completed:
+
+- Reusable runtime session.
+- `bcs-runner serve` JSONL protocol.
+- Component timings and total duration.
+- Run workspace summary, outputs, selected component values, batch cases, trace tables.
+- Canvas/Inspector/Code integration for latest run values.
+- Stale result marking after runtime-affecting edits.
+
+Next depth:
+
+- Add a native time-series runner contract with explicit input series, timestep/context handling, state carryover, and result shape.
+- Add run comparison for baseline vs scenario vs parameter set vs calibration result vs optimization result.
+- Add trace timelines, compact value charts, component timing bars, and connection-value history when data is time-indexed.
+- Persist richer run records with runner version, graph checksum, parameter-set path, scenario path, source freshness, and selected artifacts.
+- Add structured component log capture and display with severity, component, step/time, and source location when available.
+- Improve cancellation, timeout, stale-result, and failed-run recovery UX.
+
+### Milestone 7: Data Validation
+
+Goal: compare simulated outputs against measured/reference data.
+
+Completed:
+
+- CSV dataset artifacts.
+- Saved validation mapping artifacts.
+- `bcs-runner validate-data`.
+- Metrics: RMSE, MAE, MBE, CVRMSE, R2.
+- Row summaries and high-error row inspection.
+- Studio Project tree dataset/validation sections and `Data` command.
+
+Next depth:
+
+- Build a dataset import and mapping workflow with column detection, preview, unit hints, missing-value policy, and public IO matching.
+- Support JSON/JSONL and weather-style time-series formats after CSV remains stable.
+- Persist validation run records with mapping, dataset checksum, parameter set, metrics, high-error rows, and runner version.
+- Add measured-vs-simulated plots, scatter plots, residual plots, histograms, operating-range summaries, and row-level navigation.
+- Add validation comparison across parameter sets, calibration results, and scenarios.
+- Document data expectations, missing-data handling, row ordering, and reproducibility rules.
+
+### Milestone 8: Parameter Sets
 
 Goal: make parameters first-class research objects.
 
-Parameter hierarchy:
+Completed:
 
-- project parameters
-- system parameters
-- component parameters
-- scenario parameters
-- calibration parameters
-- optimization variables
+- Workspace parameter editing.
+- Saved `parameter_sets/*.json` artifacts.
+- `run --parameter-set` runtime overlay.
+- `validate-data --parameter-set` runtime overlay.
+- Studio run/validation APIs accept `parameter_set_path`.
+- Run results and records preserve parameter-set path.
 
-Parameter roles:
+Next depth:
 
-- fixed
-- scenario input
-- calibration target
-- optimization variable
-- derived parameter
+- Add a parameter-set editor with filters by component, role, unit, changed-only, calibratable, optimizable, and validation status.
+- Add diff/apply/revert views for baseline graph parameters, parameter sets, calibration outputs, and imported sets.
+- Add parameter-set selection to run, batch, validation, calibration, optimization, SDK, and export workflows consistently.
+- Define project/system/scenario/run-level parameter precedence and document replay behavior.
+- Support derived/read-only parameters only after the artifact format and validation rules are explicit.
+- Add import/export helpers for CSV and JSON parameter libraries.
 
-Parameter sets:
+### Milestone 9: Calibration
 
-- default
-- calibrated cases
-- design cases
-- optimization results
+Goal: estimate parameters from observed data.
 
-Each run record must include:
+Completed:
 
-- project version
-- graph version
-- parameter set
-- input dataset/scenario
-- output location
+- Saved `calibration/setups/*.json`.
+- `bcs-runner calibrate`.
+- Grid search.
+- Weighted RMSE objective.
+- Base parameter set support.
+- Numeric parameter bounds.
+- Result parameter set saving without overwriting `graph.json`.
 
-Acceptance criteria:
+Next depth:
 
-- Parameter sets can be saved without overwriting baseline values.
-- Runs are reproducible from recorded parameter set and input artifacts.
-- Parameter table supports filtering by component, role, unit, parameter set, changed-only, calibratable, and optimizable.
+- Build a Studio calibration setup editor for dataset mapping, target outputs, candidate parameters, bounds, weights, base parameter set, and stopping rules.
+- Add a candidate-grid preview with estimated run count, invalid-bound warnings, and parameter role filters.
+- Add non-grid algorithms such as differential evolution and least squares behind a stable algorithm contract.
+- Persist calibration result records with objective history, best parameters, failed candidates, runtime metadata, and source artifact checksums.
+- Add calibration result comparison, apply-to-parameter-set, and report export workflows.
+- Provide a tutorial that starts from a noisy dataset and ends with a saved parameter set.
 
-## Milestone 9: Calibration
+### Milestone 10: Optimization
 
-Status: complete for grid-search CLI/runtime MVP. Verified on 2026-06-03 with `go test ./cmd/bcs-runner ./internal/calibration`.
+Goal: optimize controls or design variables against objectives.
 
-Implemented:
+Completed:
 
-- Saved calibration setup artifact under `calibration/setups/*.json`.
-- `bcs-runner calibrate --setup` runs grid search against a saved validation mapping.
-- Calibration setup supports base parameter set, weighted RMSE objective, numeric parameter bounds, and step size.
-- Calibration result reports initial objective, best objective, changed parameters, candidate objectives, and best parameter set.
-- `--save-parameter-set` writes a new parameter set without overwriting baseline `graph.json`.
+- Saved `optimization/setups/*.json`.
+- `bcs-runner optimize`.
+- Grid search over public input decision variables.
+- Base inputs and context.
+- Objective output with min/max sense.
+- Optimized scenario saving.
 
-Goal: estimate model parameters from observed data.
+Next depth:
 
-Calibration setup:
+- Build a Studio optimization setup editor for decision variables, objective outputs, sense, constraints, base inputs, base scenario, and base parameter set.
+- Support component-parameter decision variables in addition to public input decision variables.
+- Add constraints for bounds, output limits, feasibility checks, and invalid-run penalties.
+- Persist optimization result records with objective history, best candidate, failed candidates, scenario output, and runtime metadata.
+- Add CSV export, scenario export, and SDK script export for repeatable optimization studies.
+- Add multi-objective and scenario/batch optimization only after single-objective artifacts are stable.
 
-- Select dataset.
-- Select target outputs.
-- Select objective, initially weighted RMSE.
-- Select calibration parameters and bounds.
-- Choose algorithm:
-  - grid search
-  - differential evolution
-  - scipy least_squares
-  - Bayesian optimization later
+### Milestone 11: SDK And External Integration
 
-Result behavior:
+Goal: let research code and external engines use the same runner.
 
-- Show initial/final objective.
-- Show changed parameters.
-- Default action saves as a new parameter set.
-- Optional report export.
+Completed:
 
-Acceptance criteria:
+- `bcs_sdk.RunnerClient.start(...)` launches `bcs-runner serve`.
+- SDK keeps the runner alive across repeated evaluations.
+- Context-manager shutdown.
+- SDK returns the same structured runner result.
+- Optimization example script uses the SDK.
 
-- Calibration does not overwrite current parameters by default.
-- Calibration can be reproduced from dataset mapping, objective settings, parameter bounds, and base parameter set.
+Next depth:
 
-## Milestone 10: Optimization
+- Add SDK helpers for parameter sets, scenarios, batches, validation mappings, calibration setups, optimization setups, and runtime exports.
+- Add typed SDK exceptions that preserve runner error code, command, source location, component, node, and raw diagnostic payload.
+- Add async or pooled evaluation helpers for external optimization engines while keeping the runner contract single-source.
+- Publish stable JSON examples for external tools that do not use the Python SDK.
+- Add notebooks/scripts for parameter sweeps, validation loops, calibration, optimization, and co-simulation harnesses.
+- Keep SDK semantics as a thin client over `bcs-runner serve`; avoid a second execution engine.
 
-Status: complete for public-input grid-search CLI/runtime MVP. Verified on 2026-06-03 with `go test ./cmd/bcs-runner ./internal/optimization`.
+### Milestone 12: Runtime-Only Delivery
 
-Implemented:
+Goal: deliver runnable models without Studio.
 
-- Saved optimization setup artifact under `optimization/setups/*.json`.
-- `bcs-runner optimize --setup` runs grid search over public input decision variables.
-- Optimization setup supports base inputs, context, objective output, min/max/step bounds, and min/max sense.
-- Optimization result reports candidate objectives, best inputs, best outputs, and saved scenario path.
-- `--save-scenario` writes an optimized scenario artifact for later runs.
+Completed:
 
-Goal: optimize control inputs or design parameters against objectives and constraints.
+- Runtime package zip with runner, env checker, worker, SDK, docs, schemas, examples, and bundled Python.
+- Runtime package smoke tests.
+- Studio runtime export folder with project files, public IO schema, scripts, manifest, runner tools, and packaged runtime when available.
+- Runtime-only delivery-layout example.
 
-Optimization differs from calibration:
+Next depth:
 
-- Calibration estimates model parameters to match data.
-- Optimization changes public inputs or design parameters to minimize/maximize an objective.
+- Generate a model-specific CLI guide during export that lists public IO, available scenarios, parameter sets, mappings, calibration setups, optimization setups, and smoke commands.
+- Include validation, calibration, optimization, parameter-set, scenario, batch, and run-record artifacts in export manifests with checksums.
+- Generate run, batch, validation, calibration, and optimization scripts appropriate to the exported model.
+- Add a runtime logging folder convention and diagnostic bundle command.
+- Add runtime package provenance, license notices, dependency notices, and environment compatibility checks.
+- Keep runtime-only folders runnable without Studio and without hidden references to the source checkout.
 
-Optimization setup:
+### Milestone 13: Studio Distribution
 
-- Base parameter set.
-- Decision variables from public inputs or component parameters.
-- Objective, initially a public output such as `total_power`.
-- Constraints from public outputs.
-- Dataset/scenario.
+Goal: release a Windows-first engineering tool.
 
-Optimization modes:
+Completed:
 
-- single scenario
-- time-series
-- batch scenario
-- external Python through SDK
+- Windows portable zip.
+- Wails desktop entrypoint `HVAC Studio.exe`.
+- `bin/studio.exe --server` for automation.
+- Package smoke coverage for Studio API and runner examples.
+- Runtime/export environment checks.
+- `v0.1.0-alpha.1` and `v0.1.0-alpha.2` release tags.
 
-Acceptance criteria:
+Next depth:
 
-- GUI supports basic optimization.
-- Advanced optimization can export a Python SDK script.
-- Results can be saved as scenario, parameter set, Python script, and CSV.
+- Add installer packaging after portable zip behavior, environment checks, and release gates are stable.
+- Add WebView2/runtime detection with user-facing remediation and packaged fallback policy.
+- Define code signing, checksum, provenance, and release-note requirements for public builds.
+- Add Start menu integration, optional PATH registration, and file association policy for `.bcsproj`.
+- Add an update policy that distinguishes alpha zip releases, beta installer releases, and future stable channels.
+- Keep macOS experimental packaging behind Windows portable/installer stability and OS-independent core checks.
 
-## Milestone 11: SDK And External Engine Integration
+### Milestone 14: User Guide And Documentation
 
-Status: complete for serve-backed Python SDK MVP. Verified on 2026-06-03 with `scripts/dev/test-python.ps1`.
+Goal: help users build correct models, not just press buttons.
 
-Implemented:
+Completed:
 
-- `bcs_sdk.RunnerClient.start(...)` launches `bcs-runner serve` and keeps the process alive for repeated evaluations.
-- SDK responses return the same structured runner result used by CLI and Studio.
-- SDK supports context-manager shutdown.
-- `examples/006_optimization_case/scripts/grid_search.py` uses the serve-backed SDK workflow.
+- Markdown guide under `docs/user/`.
+- Quick start, concepts, internals, authoring, Python editing, system building, parameters, run/inspect, validation, calibration, optimization, CLI, export, troubleshooting, glossary.
+- `mkdocs.yml` source configuration.
+- Runtime-only example CLI guide.
 
-Goal: make research and delivery paths use the same runner.
+Next depth:
 
-Principles:
+- Build offline MkDocs HTML docs as release assets and include them in portable/runtime packages where appropriate.
+- Add PDF manual generation once the Markdown guide structure is stable.
+- Add in-app help links from Start, Project tree, System canvas, Inspector, Code, Run, Data, Parameters, Calibration, Optimization, Export, and Settings.
+- Add screenshot-backed tutorials for component authoring, system building, validation, parameter sets, calibration, optimization, SDK use, and runtime-only delivery.
+- Add a "concept map" page that explains how project artifacts relate to Studio screens, CLI commands, SDK calls, and exported packages.
+- Keep docs versioned with releases and record behavior differences for alpha/beta/stable builds.
 
-- `bcs_sdk` is not a simulation engine.
-- `bcs_sdk` wraps `bcs-runner.exe serve`.
-- GUI, CLI, SDK, and external engines use the same project files and runner.
+## Near-Term Update Sequence
 
-Acceptance criteria:
+1. Alpha hardening release: finish schema/error compatibility notes, release provenance, artifact openers, parameter-set selector consistency, saved validation/calibration/optimization result records, and docs build packaging.
+2. Beta usability release: add dataset mapping UI, parameter-set diff editor, calibration setup editor, optimization setup editor, validation/result plots, and screenshot-backed tutorials.
+3. 1.0 candidate release: freeze public artifact schemas, package offline docs, add installer/signing/provenance flow, complete migration docs, and run clean-machine release rehearsals.
+4. Post-1.0 expansion: add native time-series execution, vectorized/external-executable component modes, loop solver boundaries, broader SDK helpers, and experimental non-Windows packages.
 
-- SDK can keep runner alive across repeated evaluations.
-- Example optimization script uses SDK and the scalar/feed-forward examples.
-- External engine calls receive stable JSON outputs and exit codes.
+## Post-MVP Roadmap
 
-## Milestone 12: Runtime-Only Delivery Package
+### Track A: Runtime Contract Hardening
 
-Status: complete for Windows runtime zip and delivery-layout example. Verified on 2026-06-03 with `scripts/dev/test-examples.ps1`; release smoke coverage is provided by `scripts/release/test-runtime-package.ps1`.
+- Schema versioning and migrations.
+- First-class time-series execution.
+- Vectorized component execution mode.
+- External executable component mode.
+- Richer unit/value-type validation.
+- Solver-boundary design for loops.
+- Stable structured error schema for all commands.
 
-Implemented:
+### Track B: Studio Workflow Depth
 
-- Runtime zip packaging includes `bin/bcs-runner.exe`, `bin/bcs-env.exe`, bundled Python runtime, worker, SDK, docs, schema, and examples.
-- Runtime package smoke test expands the zip, runs `bcs-env.exe check --json`, and validates/runs all bundled runnable examples without system Python on `PATH`.
-- Studio runtime export writes project files, public IO schema, run script, runner tools, packaged runtime, and export manifest.
-- `examples/007_runtime_only_package` mirrors the delivery shape with runnable `model/`, `examples/`, `docs/`, `bin/`, and `runtime/` folders.
+- Dataset import and mapping editor.
+- Validation results workspace with plots.
+- Parameter set diff/editor.
+- Calibration setup/result workspace.
+- Optimization setup/result workspace.
+- Better source editor diagnostics and quick fixes.
+- Serve/session status workspace.
 
-Goal: deliver models without GUI.
+### Track C: Research And SDK
 
-Target package shape:
+- SDK parameter-set support.
+- SDK batch and scenario helpers.
+- SDK validation/calibration/optimization wrappers.
+- Example notebooks/scripts for research loops.
+- External-engine integration examples with stable JSON contracts.
 
-```text
-DeliveredModel/
-  bin/
-    bcs-runner.exe
-    bcs-env.exe
-  model/
-    project.bcsproj
-    graph.json
-    components/
-    schema/
-  runtime/
-    python/
-  examples/
-    input.json
-    run_once.ps1
-    run_batch.ps1
-  docs/
-    CLI_Guide.md
+### Track D: Delivery And Release
+
+- Runtime export docs generated per model.
+- MkDocs HTML site packaged with releases.
+- PDF manual.
+- Windows installer.
+- Signing and release provenance.
+- macOS experimental package after Windows portable/installer stability.
+
+### Track E: Examples And Templates
+
+- HVAC plant template.
+- Controller template.
+- Stateful time-series example.
+- Dataset validation tutorial.
+- Calibration tutorial.
+- Optimization tutorial.
+- Runtime-only delivery tutorial.
+
+## Release Gates
+
+Per coherent implementation unit:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-fast.ps1
 ```
 
-Delivery requirements:
+For release candidates:
 
-- No external Python installation requirement.
-- Clear input/output schema.
-- Example input/output.
-- Logs.
-- Clear exit codes.
-- Structured errors for external engines.
-- Package environment check through `bcs-env.exe check`.
-
-Acceptance criteria:
-
-- Release package vendors Python runtime or a frozen project environment.
-- Package smoke test validates and runs without system Python.
-- Runtime and portable smoke tests run `bcs-env.exe check --json` before runner/API checks.
-- CLI guide and schemas are included in the package.
-
-## Milestone 13: Installed Studio Distribution
-
-Status: complete for Windows portable zip MVP. Verified on 2026-06-03 with local release candidate smoke tests and the `v0.1.0-alpha.1` release tag; the second alpha release is prepared after Milestones 7-14 MVP completion.
-
-Goal: release HVAC Studio as a Windows-first installed/portable engineering tool.
-
-Distribution order:
-
-- Windows portable zip first.
-- Windows installer after the portable package is stable.
-- macOS experimental package after MVP.
-
-Portable package target:
-
-```text
-hvac-studio-<version>-windows-amd64-portable/
-  HVAC Studio.exe
-  bin/
-    studio.exe
-    bcs-runner.exe
-    bcs-env.exe
-  runtime/
-    python/
-  python/
-    bcs_worker/
-    bcs_sdk/
-  schema/
-  examples/
-  templates/
-  docs/
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1 -Version <version> -SkipSetup
 ```
 
-Acceptance criteria:
+For GUI readability changes:
 
-- Portable package launches Studio from `HVAC Studio.exe` as a Wails desktop app without launching a browser or binding a normal-use TCP port.
-- Portable package can create projects under `projects/`.
-- Studio-created projects are copied from source templates under `templates/projects/`.
-- CLI runner validates and runs included examples using bundled `runtime/python`.
-- `bcs-env.exe check` verifies packaged Python, worker, schemas, examples, and entrypoints.
-- Package smoke test exercises Studio API and runner CLI after zip expansion.
-- Installer work does not start until portable zip behavior is reproducible.
-- macOS packaging remains a deliberate post-MVP release target, not an implicit promise.
+- start Studio server or desktop build
+- capture desktop and mobile screenshots
+- check Project tree, command bars, Inspector, canvas, tables, code editor, and results for overlap/truncation
+- keep captures under ignored `artifacts/`
 
-## Milestone 14: User Guide, In-App Help, And Documentation Release
+## Explicit Non-Goals For The Current MVP
 
-Status: complete for Markdown user-guide MVP and MkDocs source configuration. Verified by source review on 2026-06-03; MkDocs HTML/PDF asset packaging remains a post-MVP release enhancement unless MkDocs is installed in the build environment.
-
-Implemented:
-
-- User guide Markdown covers quick start, concepts, internals, component authoring, Python editing, system building, parameter management, run/inspect, data validation, calibration, optimization, CLI, runtime export, troubleshooting, and glossary.
-- `mkdocs.yml` maps the user guide and project docs into an offline-buildable documentation site.
-- README links the user guide draft and release process.
-- Runtime-only example includes a concise CLI guide.
-
-Goal: give users enough conceptual and procedural guidance to build correct component-node-system models.
-
-Documentation thesis:
-
-- The User Guide should explain how users operate the program.
-- It should also explain how project files, `graph.json`, public IO, the runner, and the Python worker cooperate internally.
-- It should avoid low-level implementation details that do not help users model correctly, such as worker protocol messages, WebView internals, or scheduler implementation details.
-
-Source structure:
-
-```text
-docs/user/
-  index.md
-  quick-start.md
-  core-concepts.md
-  how-it-works.md
-  create-component.md
-  edit-python-function.md
-  build-system.md
-  parameter-management.md
-  run-simulation.md
-  data-validation.md
-  calibration.md
-  optimization.md
-  cli-runner.md
-  export-runtime.md
-  troubleshooting.md
-  glossary.md
-```
-
-Target build flow:
-
-```text
-Markdown source
--> MkDocs HTML site
--> in-app Help Viewer / offline docs
--> PDF manual
--> GitHub Release assets
-```
-
-In-app help mapping direction:
-
-- Component Editor -> `docs/user/create-component.md`
-- Python Function Editor -> `docs/user/edit-python-function.md`
-- System Canvas -> `docs/user/build-system.md`
-- Parameter Manager -> `docs/user/parameter-management.md`
-- Validation Workspace -> `docs/user/data-validation.md`
-- Calibration Workspace -> `docs/user/calibration.md`
-- Optimization Workspace -> `docs/user/optimization.md`
-- CLI Export -> `docs/user/export-runtime.md`
-
-Acceptance criteria:
-
-- User Guide Markdown source exists and is linked from README. Started.
-- MkDocs config can build an offline HTML user guide. Started.
-- Release scripts can package HTML docs and a PDF manual as release assets.
-- Portable Studio can open relevant local help pages from major workspaces.
-- Runtime-only packages include concise user-facing CLI/runtime documentation.
+- A fixed built-in HVAC component library as the main product.
+- GUI-only model semantics.
+- Python SDK reimplementation of the engine.
+- Hidden mutation of baseline parameters during validation/calibration/optimization.
+- Unplanned macOS support before Windows package behavior is stable.
+- Feedback-loop solving without an explicit solver-boundary design.
