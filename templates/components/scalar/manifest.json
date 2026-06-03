@@ -2,11 +2,14 @@
   "id": "scalar",
   "name": "Scalar Component",
   "kind": "user_python",
+  "category": "utility",
+  "execution_mode": "step",
   "class_name": "ScalarComponent",
   "source": "scalar.py",
   "inputs": [
     {
       "id": "value",
+      "preset": "scalar_input",
       "medium": "signal",
       "value_type": "float",
       "required": true
@@ -15,11 +18,28 @@
   "outputs": [
     {
       "id": "result",
+      "preset": "scalar_output",
       "medium": "signal",
       "value_type": "float"
     }
   ],
   "parameters": {
     "gain": 2.0
-  }
+  },
+  "parameter_defs": {
+    "gain": {
+      "display_name": "Gain",
+      "unit": "ratio",
+      "default": 2.0,
+      "current": 2.0,
+      "bounds": {
+        "min": 0.0,
+        "max": 100.0
+      },
+      "role": "calibration_target",
+      "group": "Model",
+      "description": "Multiplier applied to the input value."
+    }
+  },
+  "state_defs": {}
 }

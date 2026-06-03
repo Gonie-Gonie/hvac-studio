@@ -91,10 +91,38 @@ func validateComponent(component model.Component) error {
 		}
 		return fmt.Errorf("component %s kind is invalid: %s", component.ID, component.Kind)
 	}
+	if err := validateOptionalEnum(
+		"component "+component.ID+" category",
+		component.Category,
+		"physical_component",
+		"controller",
+		"data_source",
+		"data_sink",
+		"utility",
+		"composite_wrapper",
+	); err != nil {
+		return err
+	}
+	if err := validateOptionalEnum(
+		"component "+component.ID+" execution_mode",
+		component.ExecutionMode,
+		"step",
+		"vectorized",
+		"initialization_only",
+		"external_executable",
+	); err != nil {
+		return err
+	}
 	if err := validateNodes(component.ID, "input", component.Nodes.Inputs); err != nil {
 		return err
 	}
 	if err := validateNodes(component.ID, "output", component.Nodes.Outputs); err != nil {
+		return err
+	}
+	if err := validateParameterDefinitions(component.ID, component.ParameterDefinitions); err != nil {
+		return err
+	}
+	if err := validateStateDefinitions(component.ID, component.StateDefinitions); err != nil {
 		return err
 	}
 	return nil
@@ -115,6 +143,50 @@ func validateNodes(componentID string, direction string, nodes []model.Node) err
 		}
 		if strings.TrimSpace(node.ValueType) == "" {
 			return fmt.Errorf("component %s %s node %s value_type is required", componentID, direction, node.ID)
+		}
+		if err := validateOptionalEnum(
+			"component "+componentID+" "+direction+" node "+node.ID+" preset",
+			node.Preset,
+			"water_inlet",
+			"water_outlet",
+			"air_inlet",
+			"air_outlet",
+			"control_signal_input",
+			"electric_power_output",
+			"scalar_input",
+			"scalar_output",
+			"time_series_input",
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateParameterDefinitions(componentID string, definitions map[string]model.ParameterDefinition) error {
+	for name, definition := range definitions {
+		if strings.TrimSpace(name) == "" {
+			return fmt.Errorf("component %s parameter_defs key is required", componentID)
+		}
+		if err := validateOptionalEnum(
+			"component "+componentID+" parameter "+name+" role",
+			definition.Role,
+			"fixed",
+			"scenario_input",
+			"calibration_target",
+			"optimization_variable",
+			"derived",
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateStateDefinitions(componentID string, definitions map[string]model.StateDefinition) error {
+	for name := range definitions {
+		if strings.TrimSpace(name) == "" {
+			return fmt.Errorf("component %s state_defs key is required", componentID)
 		}
 	}
 	return nil
@@ -168,6 +240,18 @@ func validateUniqueIDs(label string, ids []string) error {
 		seen[id] = true
 	}
 	return nil
+}
+
+func validateOptionalEnum(label string, value string, allowed ...string) error {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	for _, item := range allowed {
+		if value == item {
+			return nil
+		}
+	}
+	return fmt.Errorf("%s is invalid: %s", label, value)
 }
 
 func (i *Index) InputNode(componentID string, nodeID string) (model.Node, bool) {

@@ -61,6 +61,68 @@ func TestNewIndexRejectsDuplicatePublicInput(t *testing.T) {
 	}
 }
 
+func TestNewIndexAcceptsComponentAuthoringMetadata(t *testing.T) {
+	graph := validGraph()
+	graph.Components[0].Category = "physical_component"
+	graph.Components[0].ExecutionMode = "step"
+	graph.Components[0].Source = model.ComponentSource{
+		Layout:   "generated_wrapper",
+		Metadata: "components/gain/component.json",
+		Init:     "components/gain/user_init.py",
+		Step:     "components/gain/user_step.py",
+		Helpers:  "components/gain/helpers.py",
+		Wrapper:  "components/gain/wrapper.py",
+	}
+	graph.Components[0].Nodes.Inputs[0].Preset = "scalar_input"
+	graph.Components[0].Nodes.Outputs[0].Preset = "scalar_output"
+	graph.Components[0].ParameterDefinitions = map[string]model.ParameterDefinition{
+		"gain": {
+			DisplayName: "Gain",
+			Unit:        "ratio",
+			Default:     2.0,
+			Current:     2.5,
+			Bounds:      &model.ValueBounds{Min: 0.0, Max: 10.0},
+			Role:        "calibration_target",
+			Group:       "Model",
+			Description: "Multiplier applied to the input value.",
+		},
+	}
+	graph.Components[0].StateDefinitions = map[string]model.StateDefinition{
+		"calls": {
+			DisplayName: "Call Count",
+			Unit:        "count",
+			Initial:     0,
+			Description: "Number of completed evaluations.",
+		},
+	}
+
+	if _, err := NewIndex(graph); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNewIndexRejectsInvalidComponentCategory(t *testing.T) {
+	graph := validGraph()
+	graph.Components[0].Category = "pumpish"
+
+	_, err := NewIndex(graph)
+
+	if err == nil || !strings.Contains(err.Error(), "component gain category is invalid: pumpish") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestNewIndexRejectsInvalidNodePreset(t *testing.T) {
+	graph := validGraph()
+	graph.Components[0].Nodes.Inputs[0].Preset = "mystery_port"
+
+	_, err := NewIndex(graph)
+
+	if err == nil || !strings.Contains(err.Error(), "component gain input node value preset is invalid: mystery_port") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func validGraph() *model.Graph {
 	return &model.Graph{
 		SchemaVersion: "0.1.0",

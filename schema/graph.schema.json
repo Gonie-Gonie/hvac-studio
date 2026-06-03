@@ -123,8 +123,19 @@
           "type": "string",
           "enum": ["user_python", "builtin_go", "external_exe", "future_compiled"]
         },
+        "category": {
+          "type": "string",
+          "enum": ["physical_component", "controller", "data_source", "data_sink", "utility", "composite_wrapper"]
+        },
+        "execution_mode": {
+          "type": "string",
+          "enum": ["step", "vectorized", "initialization_only", "external_executable"]
+        },
         "class": {
           "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/componentSource"
         },
         "nodes": {
           "type": "object",
@@ -147,7 +158,95 @@
         },
         "parameters": {
           "type": "object"
+        },
+        "parameter_defs": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/parameterDefinition"
+          }
+        },
+        "state_defs": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/stateDefinition"
+          }
         }
+      }
+    },
+    "componentSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "layout": {
+          "type": "string",
+          "enum": ["single_file_class", "generated_wrapper"]
+        },
+        "metadata": {
+          "type": "string"
+        },
+        "init": {
+          "type": "string"
+        },
+        "step": {
+          "type": "string"
+        },
+        "helpers": {
+          "type": "string"
+        },
+        "wrapper": {
+          "type": "string"
+        }
+      }
+    },
+    "parameterDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "unit": {
+          "type": ["string", "null"]
+        },
+        "default": true,
+        "current": true,
+        "bounds": {
+          "$ref": "#/$defs/valueBounds"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["fixed", "scenario_input", "calibration_target", "optimization_variable", "derived"]
+        },
+        "group": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "stateDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "unit": {
+          "type": ["string", "null"]
+        },
+        "initial": true,
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "valueBounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "min": true,
+        "max": true
       }
     },
     "node": {
@@ -161,6 +260,10 @@
         },
         "name": {
           "type": "string"
+        },
+        "preset": {
+          "type": "string",
+          "enum": ["water_inlet", "water_outlet", "air_inlet", "air_outlet", "control_signal_input", "electric_power_output", "scalar_input", "scalar_output", "time_series_input"]
         },
         "direction": {
           "type": "string",
@@ -215,4 +318,3 @@
     }
   }
 }
-

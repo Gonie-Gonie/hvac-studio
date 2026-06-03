@@ -272,6 +272,9 @@ func TestComponentTemplatesEndpointListsManifests(t *testing.T) {
 	if template.ID != "scalar" || template.Name != "Scalar Component" || template.Kind != "user_python" {
 		t.Fatalf("template summary = %#v", template)
 	}
+	if template.Category != "utility" || template.ExecutionMode != "step" {
+		t.Fatalf("template authoring metadata = %#v", template)
+	}
 	if template.InputCount != 1 || template.OutputCount != 1 || template.ParameterCount != 1 {
 		t.Fatalf("template counts = %#v", template)
 	}
@@ -472,6 +475,31 @@ func TestCreateComponentEndpointCreatesWorkspaceComponent(t *testing.T) {
 	if componentBody.Component.ID != "second_gain" {
 		t.Fatalf("component id = %s, want second_gain", componentBody.Component.ID)
 	}
+	if componentBody.Component.Category != "utility" || componentBody.Component.ExecutionMode != "step" {
+		t.Fatalf("component authoring metadata = %#v", componentBody.Component)
+	}
+	if componentBody.Component.Source.Layout != "single_file_class" || componentBody.Component.Source.Step != "components/second_gain.py" {
+		t.Fatalf("component source metadata = %#v", componentBody.Component.Source)
+	}
+	if len(componentBody.Component.Nodes.Inputs) != 1 || componentBody.Component.Nodes.Inputs[0].Preset != "scalar_input" {
+		t.Fatalf("input node metadata = %#v", componentBody.Component.Nodes.Inputs)
+	}
+	if len(componentBody.Component.Nodes.Outputs) != 1 || componentBody.Component.Nodes.Outputs[0].Preset != "scalar_output" {
+		t.Fatalf("output node metadata = %#v", componentBody.Component.Nodes.Outputs)
+	}
+	gainDefinition, ok := componentBody.Component.ParameterDefinitions["gain"]
+	if !ok {
+		t.Fatalf("parameter definitions = %#v", componentBody.Component.ParameterDefinitions)
+	}
+	if gainDefinition.DisplayName != "Gain" || gainDefinition.Unit != "ratio" || gainDefinition.Role != "calibration_target" || gainDefinition.Group != "Model" {
+		t.Fatalf("gain definition = %#v", gainDefinition)
+	}
+	if gainDefinition.Default != 2.0 || gainDefinition.Current != 2.0 {
+		t.Fatalf("gain values = default %v current %v", gainDefinition.Default, gainDefinition.Current)
+	}
+	if gainDefinition.Bounds == nil || gainDefinition.Bounds.Min != 0.0 || gainDefinition.Bounds.Max != 100.0 {
+		t.Fatalf("gain bounds = %#v", gainDefinition.Bounds)
+	}
 	sourcePath := filepath.Join(root, "projects", "component-project", "components", "second_gain.py")
 	sourceBytes, err := os.ReadFile(sourcePath)
 	if err != nil {
@@ -487,14 +515,25 @@ func TestCreateComponentEndpointCreatesWorkspaceComponent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var persisted model.Component
 	found := false
 	for _, component := range loaded.Graph.Components {
 		if component.ID == "second_gain" {
+			persisted = component
 			found = true
 		}
 	}
 	if !found {
 		t.Fatal("created component was not written to graph")
+	}
+	if persisted.Category != "utility" || persisted.ExecutionMode != "step" {
+		t.Fatalf("persisted component authoring metadata = %#v", persisted)
+	}
+	if persisted.Source.Step != "components/second_gain.py" {
+		t.Fatalf("persisted source metadata = %#v", persisted.Source)
+	}
+	if _, ok := persisted.ParameterDefinitions["gain"]; !ok {
+		t.Fatalf("persisted parameter definitions = %#v", persisted.ParameterDefinitions)
 	}
 	if got := componentBody.Component.Parameters["gain"]; got != 2.0 {
 		t.Fatalf("created gain = %v, want 2", got)

@@ -3,20 +3,200 @@
   "$id": "https://hvac-studio.local/schema/component.schema.json",
   "title": "Python Component Metadata",
   "type": "object",
+  "required": ["id", "name", "kind", "category", "execution_mode", "nodes"],
   "additionalProperties": false,
   "properties": {
-    "input_nodes": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["user_python", "builtin_go", "external_exe", "future_compiled"]
+    },
+    "category": {
+      "type": "string",
+      "enum": ["physical_component", "controller", "data_source", "data_sink", "utility", "composite_wrapper"]
+    },
+    "execution_mode": {
+      "type": "string",
+      "enum": ["step", "vectorized", "initialization_only", "external_executable"]
+    },
+    "class": {
+      "type": "string"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/componentSource"
+    },
+    "nodes": {
+      "type": "object",
+      "required": ["inputs", "outputs"],
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/node"
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/node"
+          }
+        }
+      }
+    },
+    "parameters": {
       "type": "object"
+    },
+    "parameter_defs": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/parameterDefinition"
+      }
+    },
+    "state_defs": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/stateDefinition"
+      }
+    },
+    "input_nodes": {
+      "type": "object",
+      "deprecated": true
     },
     "output_nodes": {
-      "type": "object"
+      "type": "object",
+      "deprecated": true
     },
     "parameter_schema": {
-      "type": "object"
+      "type": "object",
+      "deprecated": true
     },
     "state_schema": {
-      "type": "object"
+      "type": "object",
+      "deprecated": true
+    }
+  },
+  "$defs": {
+    "componentSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "layout": {
+          "type": "string",
+          "enum": ["single_file_class", "generated_wrapper"]
+        },
+        "metadata": {
+          "type": "string"
+        },
+        "init": {
+          "type": "string"
+        },
+        "step": {
+          "type": "string"
+        },
+        "helpers": {
+          "type": "string"
+        },
+        "wrapper": {
+          "type": "string"
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "required": ["id", "medium", "value_type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string"
+        },
+        "preset": {
+          "type": "string",
+          "enum": ["water_inlet", "water_outlet", "air_inlet", "air_outlet", "control_signal_input", "electric_power_output", "scalar_input", "scalar_output", "time_series_input"]
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["inlet", "outlet", "bidirectional", "signal"]
+        },
+        "medium": {
+          "type": "string"
+        },
+        "value_type": {
+          "type": "string"
+        },
+        "unit": {
+          "type": ["string", "null"]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "default": true
+      }
+    },
+    "parameterDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "unit": {
+          "type": ["string", "null"]
+        },
+        "default": true,
+        "current": true,
+        "bounds": {
+          "$ref": "#/$defs/valueBounds"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["fixed", "scenario_input", "calibration_target", "optimization_variable", "derived"]
+        },
+        "group": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "stateDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "unit": {
+          "type": ["string", "null"]
+        },
+        "initial": true,
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "valueBounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "min": true,
+        "max": true
+      }
     }
   }
 }
-

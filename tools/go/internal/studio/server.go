@@ -93,20 +93,26 @@ type createComponentRequest struct {
 }
 
 type componentTemplateManifest struct {
-	ID         string         `json:"id"`
-	Name       string         `json:"name"`
-	Kind       string         `json:"kind"`
-	ClassName  string         `json:"class_name"`
-	Source     string         `json:"source"`
-	Inputs     []model.Node   `json:"inputs"`
-	Outputs    []model.Node   `json:"outputs"`
-	Parameters map[string]any `json:"parameters"`
+	ID                   string                               `json:"id"`
+	Name                 string                               `json:"name"`
+	Kind                 string                               `json:"kind"`
+	Category             string                               `json:"category"`
+	ExecutionMode        string                               `json:"execution_mode"`
+	ClassName            string                               `json:"class_name"`
+	Source               string                               `json:"source"`
+	Inputs               []model.Node                         `json:"inputs"`
+	Outputs              []model.Node                         `json:"outputs"`
+	Parameters           map[string]any                       `json:"parameters"`
+	ParameterDefinitions map[string]model.ParameterDefinition `json:"parameter_defs"`
+	StateDefinitions     map[string]model.StateDefinition     `json:"state_defs"`
 }
 
 type ComponentTemplateSummary struct {
 	ID             string `json:"id"`
 	Name           string `json:"name"`
 	Kind           string `json:"kind"`
+	Category       string `json:"category"`
+	ExecutionMode  string `json:"execution_mode"`
 	InputCount     int    `json:"input_count"`
 	OutputCount    int    `json:"output_count"`
 	ParameterCount int    `json:"parameter_count"`
@@ -1555,15 +1561,23 @@ func createComponent(loaded *project.LoadedProject, req createComponentRequest, 
 		return model.Component{}, err
 	}
 	component := model.Component{
-		ID:    componentID,
-		Name:  componentName,
-		Kind:  defaultString(templateManifest.Kind, "user_python"),
-		Class: "components." + componentID + "." + className,
+		ID:            componentID,
+		Name:          componentName,
+		Kind:          defaultString(templateManifest.Kind, "user_python"),
+		Category:      defaultString(templateManifest.Category, "utility"),
+		ExecutionMode: defaultString(templateManifest.ExecutionMode, "step"),
+		Class:         "components." + componentID + "." + className,
+		Source: model.ComponentSource{
+			Layout: "single_file_class",
+			Step:   filepath.ToSlash(filepath.Join("components", componentID+".py")),
+		},
 		Nodes: model.NodeSet{
 			Inputs:  componentTemplateNodes(templateManifest.Inputs, "inlet"),
 			Outputs: componentTemplateNodes(templateManifest.Outputs, "outlet"),
 		},
-		Parameters: cloneMap(templateManifest.Parameters),
+		Parameters:           cloneMap(templateManifest.Parameters),
+		ParameterDefinitions: cloneParameterDefinitions(templateManifest.ParameterDefinitions),
+		StateDefinitions:     cloneStateDefinitions(templateManifest.StateDefinitions),
 	}
 
 	componentsRoot := filepath.Join(loaded.Root, "components")
@@ -1631,6 +1645,13 @@ func duplicateComponent(loaded *project.LoadedProject, req duplicateComponentReq
 	component.Parameters = map[string]any{}
 	for name, value := range source.Parameters {
 		component.Parameters[name] = value
+	}
+	component.ParameterDefinitions = cloneParameterDefinitions(source.ParameterDefinitions)
+	component.StateDefinitions = cloneStateDefinitions(source.StateDefinitions)
+	component.Source = cloneComponentSource(source.Source)
+	if component.Source.Layout == "" || component.Source.Layout == "single_file_class" {
+		component.Source.Layout = "single_file_class"
+		component.Source.Step = filepath.ToSlash(filepath.Join("components", componentID+".py"))
 	}
 
 	sourceRoot := filepath.Join(loaded.Root, "components")
@@ -2548,12 +2569,28 @@ func componentSourcePath(loaded *project.LoadedProject, componentID string) (str
 	if !found {
 		return "", apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
 	}
+	if sourceRel := editableComponentSource(component); sourceRel != "" {
+		return resolveProjectOwnedFile(loaded.Root, sourceRel)
+	}
 	parts := strings.Split(component.Class, ".")
 	if len(parts) < 3 || parts[0] != "components" {
 		return "", apperror.Errorf(apperror.CodeValidation, "component %s class does not map to a project source file: %s", componentID, component.Class)
 	}
 	modulePath := filepath.Join(parts[:len(parts)-1]...) + ".py"
 	return resolveProjectOwnedFile(loaded.Root, modulePath)
+}
+
+func editableComponentSource(component model.Component) string {
+	source := component.Source
+	switch source.Layout {
+	case "generated_wrapper":
+		return strings.TrimSpace(source.Step)
+	case "single_file_class", "":
+		if strings.TrimSpace(source.Step) != "" {
+			return strings.TrimSpace(source.Step)
+		}
+	}
+	return ""
 }
 
 func classNameFromPath(classPath string) string {
@@ -4270,6 +4307,8 @@ func listComponentTemplates(repoRoot string) ([]ComponentTemplateSummary, error)
 			ID:             id,
 			Name:           name,
 			Kind:           defaultString(manifest.Kind, "user_python"),
+			Category:       defaultString(manifest.Category, "utility"),
+			ExecutionMode:  defaultString(manifest.ExecutionMode, "step"),
 			InputCount:     len(manifest.Inputs),
 			OutputCount:    len(manifest.Outputs),
 			ParameterCount: len(manifest.Parameters),
@@ -4359,6 +4398,43 @@ func displayNameFromID(id string) string {
 
 func cloneMap(values map[string]any) map[string]any {
 	out := map[string]any{}
+	for key, value := range values {
+		out[key] = value
+	}
+	return out
+}
+
+func cloneComponentSource(value model.ComponentSource) model.ComponentSource {
+	return model.ComponentSource{
+		Layout:   value.Layout,
+		Metadata: value.Metadata,
+		Init:     value.Init,
+		Step:     value.Step,
+		Helpers:  value.Helpers,
+		Wrapper:  value.Wrapper,
+	}
+}
+
+func cloneParameterDefinitions(values map[string]model.ParameterDefinition) map[string]model.ParameterDefinition {
+	if len(values) == 0 {
+		return nil
+	}
+	out := map[string]model.ParameterDefinition{}
+	for key, value := range values {
+		if value.Bounds != nil {
+			bounds := *value.Bounds
+			value.Bounds = &bounds
+		}
+		out[key] = value
+	}
+	return out
+}
+
+func cloneStateDefinitions(values map[string]model.StateDefinition) map[string]model.StateDefinition {
+	if len(values) == 0 {
+		return nil
+	}
+	out := map[string]model.StateDefinition{}
 	for key, value := range values {
 		out[key] = value
 	}
