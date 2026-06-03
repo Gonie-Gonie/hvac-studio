@@ -279,6 +279,12 @@ func TestStaticExportWorkspaceModuleServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("Interface schema")) {
 		t.Fatalf("export workspace module did not render interface schema")
 	}
+	if !bytes.Contains(body, []byte("Export folder")) {
+		t.Fatalf("export workspace module did not render export folder")
+	}
+	if !bytes.Contains(body, []byte("Run command")) {
+		t.Fatalf("export workspace module did not render run command")
+	}
 }
 
 func TestStaticRunOutputModuleServes(t *testing.T) {

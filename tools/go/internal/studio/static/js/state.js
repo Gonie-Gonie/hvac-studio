@@ -9,6 +9,7 @@ export const state = {
   latestRunRecord: null,
   latestBatchRecord: null,
   latestExport: null,
+  latestExportSummary: null,
   latestSchema: null,
   latestValidation: null,
   activeRunInput: null,

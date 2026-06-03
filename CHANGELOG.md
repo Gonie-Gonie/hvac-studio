@@ -105,3 +105,4 @@
 - Add a Studio canvas Auto Layout action that persists connection-aware component positions.
 - Add Project tree component Copy actions backed by the existing graph/source duplication API.
 - Show latest run values on Inspector connection rows.
+- Show runtime export folder, self-check command, and default run command in the Export workspace.

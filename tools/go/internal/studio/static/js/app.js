@@ -94,6 +94,7 @@ async function loadProject(projectPath) {
   state.latestRunRecord = null;
   state.latestBatchRecord = null;
   state.latestExport = null;
+  state.latestExportSummary = null;
   state.latestSchema = null;
   state.latestValidation = null;
   state.activeRunInput = null;
@@ -2088,6 +2089,7 @@ async function exportProject() {
       body: JSON.stringify({ project_path: state.currentProjectPath, profile: "runtime_package" }),
     });
     state.latestExport = body.export;
+    state.latestExportSummary = body.summary;
     state.detail.exports = [body.summary, ...(state.detail.exports || []).filter((item) => item.profile !== body.summary.profile)];
     setProblems();
     renderProjectTree();
@@ -2106,6 +2108,7 @@ async function loadExportRecord(profile) {
   try {
     const body = await api(`/api/project/export?project_path=${encodeURIComponent(state.currentProjectPath)}&profile=${encodeURIComponent(profile)}`);
     state.latestExport = body.export;
+    state.latestExportSummary = body.summary;
     state.detail.exports = [body.summary, ...(state.detail.exports || []).filter((item) => item.profile !== body.summary.profile)];
     renderProjectTree();
     renderExportWorkspaceView();

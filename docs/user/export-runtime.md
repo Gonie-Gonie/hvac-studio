@@ -23,7 +23,7 @@ exports/runtime_package/schema/public-io.json
 
 This is the first connected runtime export artifact. It copies the source-of-truth project files needed by the runner, writes a public input/output schema for consumers, adds a default Windows run script, and records the exported files plus public IO and execution order in the manifest. When Studio is running from a portable/runtime package, export also copies the packaged runner tools and Python runtime into the export folder so the exported project can run without a system Python install.
 
-Saved export profiles appear in the Project tree. Selecting an export profile reopens the saved manifest in the Export workspace so the exported file list, public IO, and paths can be inspected after the original export action has completed.
+Saved export profiles appear in the Project tree. Selecting an export profile reopens the saved manifest in the Export workspace so the exported folder, file list, public IO, first-run command, self-check command, and paths can be inspected after the original export action has completed.
 
 From the export folder:
 
