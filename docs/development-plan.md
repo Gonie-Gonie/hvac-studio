@@ -204,9 +204,19 @@ Acceptance criteria:
 
 ## Milestone 4: Project Explorer And GUI Shell
 
-Status: started with the Go-hosted Studio web workspace in `tools/go/cmd/studio`.
+Status: complete. Verified on 2026-06-03 with `scripts/dev/test-fast.ps1`.
 
 Goal: create the first GUI surface without redefining runtime semantics.
+
+Implemented:
+
+- Go-hosted Studio shell in `tools/go/cmd/studio` with the planned top bar, Project tree, System canvas, Inspector, and bottom workspace panels.
+- Start workspace for runtime status, project type visibility, workspace projects, and examples.
+- Project Explorer sections for systems, components, Python source, datasets, parameter sets, runs, batches, scenarios, and export profiles.
+- Scalar and feed-forward projects open through the same project loader and display graph systems, components, nodes, and canvas connections.
+- Validate, Run, Batch, Schema, and Export actions call the existing compiler/runtime/server paths used by CLI-facing code.
+- New/copy project, starter workspace creation, component creation, component inclusion, node/connection editing, canvas layout persistence, default run inputs, scenarios, saved runs, parameter editing, source checks, and runtime export are wired for workspace projects.
+- The Serve command slot is visible in the shell and intentionally disabled until the later serve-mode runtime milestone.
 
 Primary layout:
 
@@ -246,37 +256,37 @@ Project types:
 
 Acceptance criteria:
 
-- GUI can open scalar and feed-forward examples and display systems/components/nodes. Started.
-- Validate, Run, and Schema buttons use the same runtime/compiler path as the CLI runner. Validate also checks Python component source contracts. Started.
-- GUI can create a workspace project from the scalar Python component template. Started.
-- Fresh Studio sessions create/open an editable starter workspace when no workspace project exists. Started.
-- GUI can add a workspace Python component template from `templates/components/` to `graph.json` and `components/` without changing the runnable system yet. Started.
-- GUI can explicitly add a workspace component to the entry system with generated public IO and default input values. Started.
-- Inspector can jump from a selected workspace component to its Code workspace source editor. Started.
-- GUI can create a node-to-node connection between workspace system components from the canvas or Inspector and persist it to `graph.json`. Started.
-- GUI can select persisted canvas connection lines and remove them through the same Inspector/API path. Started.
-- GUI can drag workspace canvas components and persist view layout to `studio/layout.json`. Started.
-- GUI can load and save a workspace project's `default_input` run values. Started.
-- GUI can save current run inputs as workspace `scenarios/*.json` artifacts and reload them into Run Inputs. Started.
-- Runs from workspace projects are saved as `runs/run-*.json` records. Started.
-- Saved run records can be reopened from the Project tree and shown in Results. Started.
-- Parameter Manager can edit workspace component parameters and persist them to `graph.json`. Started.
-- Problems, results, schema, logs, inspector, parameters, run output, and runtime export workspaces are visible in the active shell. Started.
-- Export button can write a workspace `exports/runtime_package/` artifact with manifest, public IO schema, source-of-truth project files, a first-run script, and packaged runner/Python support when available. Started.
-- `bcs-env check` can diagnose exported runtime folders as `runtime-export` packages. Started.
-- Problems panel links validation, run, and batch-case messages to graph or source locations where possible. Started with inferred component links for runtime errors.
-- Source save returns source-check feedback and execution actions stop on saved source-check errors. Started.
-- Source checks warn when Python source does not visibly reference required graph inputs or declared outputs. Started.
-- Run, batch, and export APIs reject saved source-check errors server-side. Started.
-- Code workspace snippets generate evaluate skeletons from all selected component input/output nodes. Started.
-- Code workspace shows source-check issue rows in the contract panel and can focus line-specific problems. Started.
-- Source checks load draft Python source to catch import and class-load errors before run/export. Started.
-- Python editor supports save/check shortcuts and line-based indent/outdent. Started.
-- Code workspace can run the project after source edits through the normal save/check/run path. Started.
-- Code workspace shows selected component last-run inputs and outputs alongside source contract context. Started.
-- System canvas shows latest run input/output values on component node endpoints. Started.
-- Studio marks last-run values stale when runtime-affecting inputs, source, parameters, nodes, or connections change. Started.
-- API coverage pins the edit-source, connect-components, run-result propagation workflow. Started.
+- GUI can open scalar and feed-forward examples and display systems/components/nodes.
+- Validate, Run, and Schema buttons use the same runtime/compiler path as the CLI runner. Validate also checks Python component source contracts.
+- GUI can create a workspace project from the scalar Python component template.
+- Fresh Studio sessions create/open an editable starter workspace when no workspace project exists.
+- GUI can add a workspace Python component template from `templates/components/` to `graph.json` and `components/` without changing the runnable system yet.
+- GUI can explicitly add a workspace component to the entry system with generated public IO and default input values.
+- Inspector can jump from a selected workspace component to its Code workspace source editor.
+- GUI can create a node-to-node connection between workspace system components from the canvas or Inspector and persist it to `graph.json`.
+- GUI can select persisted canvas connection lines and remove them through the same Inspector/API path.
+- GUI can drag workspace canvas components and persist view layout to `studio/layout.json`.
+- GUI can load and save a workspace project's `default_input` run values.
+- GUI can save current run inputs as workspace `scenarios/*.json` artifacts and reload them into Run Inputs.
+- Runs from workspace projects are saved as `runs/run-*.json` records.
+- Saved run records can be reopened from the Project tree and shown in Results.
+- Parameter Manager can edit workspace component parameters and persist them to `graph.json`.
+- Problems, results, schema, logs, inspector, parameters, run output, and runtime export workspaces are visible in the active shell.
+- Export button can write a workspace `exports/runtime_package/` artifact with manifest, public IO schema, source-of-truth project files, a first-run script, and packaged runner/Python support when available.
+- `bcs-env check` can diagnose exported runtime folders as `runtime-export` packages.
+- Problems panel links validation, run, and batch-case messages to graph or source locations where possible, including inferred component links for runtime errors.
+- Source save returns source-check feedback and execution actions stop on saved source-check errors.
+- Source checks warn when Python source does not visibly reference required graph inputs or declared outputs.
+- Run, batch, and export APIs reject saved source-check errors server-side.
+- Code workspace snippets generate evaluate skeletons from all selected component input/output nodes.
+- Code workspace shows source-check issue rows in the contract panel and can focus line-specific problems.
+- Source checks load draft Python source to catch import and class-load errors before run/export.
+- Python editor supports save/check shortcuts and line-based indent/outdent.
+- Code workspace can run the project after source edits through the normal save/check/run path.
+- Code workspace shows selected component last-run inputs and outputs alongside source contract context.
+- System canvas shows latest run input/output values on component node endpoints.
+- Studio marks last-run values stale when runtime-affecting inputs, source, parameters, nodes, or connections change.
+- API coverage pins the edit-source, connect-components, run-result propagation workflow.
 
 ## Milestone 5: Component-Aware Python Editor
 
