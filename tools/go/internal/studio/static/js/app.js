@@ -238,13 +238,14 @@ function sourceTreeItem(component) {
 
 function sourceTreeMeta(component) {
   const source = state.sourceByComponent[component.id];
+  if (source?.read_only || !isWorkspaceProject()) return "read only";
   if (source && sourceDraft(component.id) !== source.content) return "dirty";
   const check = state.sourceCheckByComponent[component.id];
   const problems = check?.problems || [];
   const issueCount = problems.filter((problem) => problem.severity !== "ok").length;
   if (issueCount) return `${issueCount} issue${issueCount === 1 ? "" : "s"}`;
   if (check?.ok) return "ok";
-  return "source";
+  return source ? "loaded" : "source";
 }
 
 function treeStatic(label, meta) {
@@ -1863,6 +1864,7 @@ async function loadComponentSource(componentID) {
     if (state.selectedComponentId === componentID) {
       renderPythonPanel();
     }
+    renderProjectTree();
   } catch (error) {
     log(`Source load failed: ${error.message}`);
   } finally {

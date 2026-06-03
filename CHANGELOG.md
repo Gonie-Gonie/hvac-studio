@@ -106,3 +106,4 @@
 - Add Project tree component Copy actions backed by the existing graph/source duplication API.
 - Show latest run values on Inspector connection rows.
 - Show runtime export folder, self-check command, and default run command in the Export workspace.
+- Refresh Project tree Python Source state after source load and distinguish loaded/read-only source files.
