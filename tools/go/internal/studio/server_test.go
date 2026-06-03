@@ -139,6 +139,15 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("syncParameterInputs")) {
 		t.Fatalf("module entrypoint did not include synchronized parameter input editing")
 	}
+	if !bytes.Contains(body, []byte("editableNodeRow")) {
+		t.Fatalf("module entrypoint did not include editable node rows")
+	}
+	if !bytes.Contains(body, []byte("updateNodeFromInspector")) {
+		t.Fatalf("module entrypoint did not include node metadata editing")
+	}
+	if !bytes.Contains(body, []byte("/api/project/nodes/update")) {
+		t.Fatalf("module entrypoint did not call node update endpoint")
+	}
 	if !bytes.Contains(body, []byte("CANVAS_NODE_WIDTH")) {
 		t.Fatalf("module entrypoint did not include canvas sizing constants")
 	}
@@ -683,6 +692,64 @@ func TestCreateNodeEndpointAddsPublicIOAndDefaultInput(t *testing.T) {
 	}
 }
 
+func TestUpdateNodeEndpointUpdatesPublicIOAndDefaultInput(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	projectSummary := createWorkspaceProject(t, server, "Update Node Project")
+	required := false
+	payload, err := json.Marshal(map[string]any{
+		"project_path": projectSummary.ProjectPath,
+		"component_id": "scalar",
+		"node_id":      "value",
+		"name":         "Room temperature",
+		"medium":       "air",
+		"value_type":   "int",
+		"unit":         "C",
+		"required":     required,
+		"default":      21,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/nodes/update", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+
+	loaded, err := project.Load(projectSummary.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, found := findInputNode(loaded.Graph.Components[0], "value")
+	if !found {
+		t.Fatal("value node not found")
+	}
+	if node.Name != "Room temperature" || node.Medium != "air" || node.ValueType != "int" || node.Unit != "C" {
+		t.Fatalf("node metadata = %#v", node)
+	}
+	if node.Required == nil || *node.Required {
+		t.Fatalf("node required = %#v, want false", node.Required)
+	}
+	if got := node.Default; got != float64(21) {
+		t.Fatalf("node default = %#v, want 21", got)
+	}
+	publicInput := loaded.Graph.Systems[0].PublicInputs[0]
+	if publicInput.Name != node.Name || publicInput.Medium != node.Medium || publicInput.ValueType != node.ValueType || publicInput.Unit != node.Unit {
+		t.Fatalf("public input metadata = %#v, want node metadata", publicInput)
+	}
+	if publicInput.Required == nil || *publicInput.Required {
+		t.Fatalf("public input required = %#v, want false", publicInput.Required)
+	}
+	input, err := runtimecore.LoadInput(filepath.Join(loaded.Root, loaded.Project.DefaultInput))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := input.Inputs["value"]; got != float64(21) {
+		t.Fatalf("value default input = %#v, want 21", got)
+	}
+}
+
 func TestDeleteNodeEndpointCleansPublicIOAndConnections(t *testing.T) {
 	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
@@ -854,6 +921,24 @@ func TestDeleteNodeEndpointRejectsExamples(t *testing.T) {
 	}`)
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/api/project/nodes/delete", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestUpdateNodeEndpointRejectsExamples(t *testing.T) {
+	server := newTestServer(t)
+	payload := []byte(`{
+		"project_path": "examples/001_scalar_component/project.bcsproj",
+		"component_id": "scalar",
+		"node_id": "value",
+		"name": "Edited"
+	}`)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/nodes/update", bytes.NewReader(payload))
 
 	server.Handler().ServeHTTP(response, request)
 

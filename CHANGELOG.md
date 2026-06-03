@@ -88,3 +88,4 @@
 - Add Inspector-based parameter editing, addition, and deletion for the selected workspace component.
 - Auto-create an editable starter workspace on fresh Studio launches.
 - Add Python editor keyboard handling for save, check, multi-line indent, and outdent.
+- Add Inspector-based workspace node contract editing for names, media, value types, units, required flags, and defaults.

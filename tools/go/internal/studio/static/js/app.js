@@ -498,8 +498,8 @@ function renderInspector() {
     ["Class", component.class || ""],
   ]));
   if (isWorkspaceProject()) container.append(componentEditor(component));
-  container.append(nodeListBlock("Inputs", component, component.nodes.inputs || []));
-  container.append(nodeListBlock("Outputs", component, component.nodes.outputs || []));
+  container.append(nodeListBlock("Inputs", component, component.nodes.inputs || [], "input"));
+  container.append(nodeListBlock("Outputs", component, component.nodes.outputs || [], "output"));
   if (isWorkspaceProject()) container.append(nodeEditor(component));
   container.append(parameterInspectorBlock(component));
   container.append(connectionEditor(component));
@@ -537,7 +537,7 @@ function inspectorBlock(title, rows) {
   return block;
 }
 
-function nodeListBlock(title, component, nodes) {
+function nodeListBlock(title, component, nodes, direction) {
   const block = document.createElement("div");
   block.className = "inspector-block";
   block.innerHTML = `<div class="inspector-title">${escapeHTML(title)}</div>`;
@@ -549,6 +549,10 @@ function nodeListBlock(title, component, nodes) {
     return block;
   }
   for (const node of nodes) {
+    if (isWorkspaceProject()) {
+      block.append(editableNodeRow(component, node, direction));
+      continue;
+    }
     const row = document.createElement("div");
     row.className = "kv connection-row";
     row.innerHTML = `
@@ -557,17 +561,98 @@ function nodeListBlock(title, component, nodes) {
         <span>${escapeHTML(`${node.medium || ""} ${node.value_type || ""} ${node.unit || ""}`.trim())}</span>
       </span>
     `;
-    if (isWorkspaceProject()) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "small-action";
-      button.textContent = "Delete";
-      button.addEventListener("click", () => deleteNodeFromInspector(component.id, node.id));
-      row.querySelector(".connection-value").append(button);
-    }
     block.append(row);
   }
   return block;
+}
+
+function editableNodeRow(component, node, direction) {
+  const row = document.createElement("div");
+  row.className = "kv node-edit-row";
+  row.dataset.nodeComponent = component.id;
+  row.dataset.nodeId = node.id;
+
+  const key = document.createElement("span");
+  key.className = "kv-key node-id-label";
+  key.textContent = node.id;
+
+  const controls = document.createElement("span");
+  controls.className = "node-meta-controls";
+
+  const name = document.createElement("input");
+  name.className = "inspector-input";
+  name.value = node.name || node.id;
+  name.placeholder = "name";
+  name.dataset.nodeField = "name";
+  name.setAttribute("aria-label", `${component.id}.${node.id} name`);
+
+  const medium = document.createElement("input");
+  medium.className = "inspector-input";
+  medium.value = node.medium || "signal";
+  medium.placeholder = "medium";
+  medium.dataset.nodeField = "medium";
+  medium.setAttribute("aria-label", `${component.id}.${node.id} medium`);
+
+  const valueType = document.createElement("select");
+  valueType.className = "inspector-input";
+  valueType.dataset.nodeField = "value_type";
+  valueType.setAttribute("aria-label", `${component.id}.${node.id} value type`);
+  for (const type of ["float", "int", "bool", "string", "object"]) {
+    const option = document.createElement("option");
+    option.value = type;
+    option.textContent = type;
+    valueType.append(option);
+  }
+  valueType.value = node.value_type || "float";
+
+  const unit = document.createElement("input");
+  unit.className = "inspector-input";
+  unit.value = node.unit || "";
+  unit.placeholder = "unit";
+  unit.dataset.nodeField = "unit";
+  unit.setAttribute("aria-label", `${component.id}.${node.id} unit`);
+
+  controls.append(name, medium, valueType, unit);
+
+  if (direction === "input") {
+    const defaultValue = document.createElement("input");
+    defaultValue.className = "inspector-input";
+    defaultValue.value = parameterInputValue(node.default);
+    defaultValue.placeholder = "default";
+    defaultValue.dataset.nodeField = "default";
+    defaultValue.setAttribute("aria-label", `${component.id}.${node.id} default`);
+
+    const requiredLabel = document.createElement("label");
+    requiredLabel.className = "node-required-toggle";
+    const required = document.createElement("input");
+    required.type = "checkbox";
+    required.checked = node.required !== false;
+    required.dataset.nodeField = "required";
+    required.setAttribute("aria-label", `${component.id}.${node.id} required`);
+    requiredLabel.append(required, document.createTextNode("Required"));
+    controls.append(defaultValue, requiredLabel);
+  }
+
+  const saveButton = document.createElement("button");
+  saveButton.type = "button";
+  saveButton.className = "small-action";
+  saveButton.textContent = "Save";
+  saveButton.addEventListener("click", () => updateNodeFromInspector(component.id, node.id, direction, row));
+
+  const deleteButton = document.createElement("button");
+  deleteButton.type = "button";
+  deleteButton.className = "small-action";
+  deleteButton.textContent = "Delete";
+  deleteButton.addEventListener("click", () => deleteNodeFromInspector(component.id, node.id));
+
+  for (const input of controls.querySelectorAll("input, select")) {
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") updateNodeFromInspector(component.id, node.id, direction, row);
+    });
+  }
+  controls.append(saveButton, deleteButton);
+  row.append(key, controls);
+  return row;
 }
 
 function parameterInspectorBlock(component) {
@@ -1972,6 +2057,60 @@ async function addNodeFromInspector(componentID) {
     renderProblems();
     setBottomTab("problems");
   }
+}
+
+async function updateNodeFromInspector(componentID, nodeID, direction, row) {
+  if (!componentID || !nodeID || !isWorkspaceProject()) return;
+  const form = row || findNodeEditRow(componentID, nodeID);
+  if (!form) return;
+  const field = (name) => form.querySelector(`[data-node-field="${name}"]`);
+  const name = (field("name")?.value || "").trim();
+  const medium = (field("medium")?.value || "").trim();
+  const valueType = field("value_type")?.value || "float";
+  const unit = (field("unit")?.value || "").trim();
+  if (!name) {
+    showInlineProblem("Node name is required");
+    return;
+  }
+  const payload = {
+    project_path: state.currentProjectPath,
+    component_id: componentID,
+    node_id: nodeID,
+    name,
+    medium,
+    value_type: valueType,
+    unit,
+  };
+  if (direction === "input") {
+    const rawDefault = field("default")?.value || "";
+    payload.required = Boolean(field("required")?.checked);
+    payload.default = rawDefault.trim() === "" ? null : coerceParameter(rawDefault);
+  }
+  try {
+    const body = await api("/api/project/nodes/update", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    state.detail = body.project;
+    state.selectedComponentId = componentID;
+    markRunResultStale(false);
+    renderAll();
+    log(`Node updated: ${componentID}.${nodeID}`);
+  } catch (error) {
+    log(`Update node failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
+function findNodeEditRow(componentID, nodeID) {
+  for (const row of document.querySelectorAll("[data-node-component][data-node-id]")) {
+    if (row.dataset.nodeComponent === componentID && row.dataset.nodeId === nodeID) {
+      return row;
+    }
+  }
+  return null;
 }
 
 async function deleteNodeFromInspector(componentID, nodeID) {

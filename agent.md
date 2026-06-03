@@ -100,6 +100,7 @@ The core is not an HVAC component library. The core is preserving user-defined P
 - Parameter Manager should let workspace users create Python-friendly parameter keys, not only edit template-created keys, so source edits and graph parameters can evolve together.
 - Selected-component Inspector editing should cover common graph edits directly, including parameter value changes and parameter add/delete, while staying synchronized with broader manager views.
 - Parameter deletion is a graph edit only; it should preserve other pending parameter edits before removing the selected key and still reject bundled examples.
+- Node contract edits should be first-class Inspector actions for workspace projects. Keep node IDs/directions stable until full rename/refactor support exists, but allow display name, medium, value type, unit, required flag, and default value changes to update graph, public IO, and default inputs together.
 - Examples should remain read-only, but Studio needs a first-class copy-to-workspace path so users can turn an example into an editable project without manually duplicating files.
 - Removing a component from a runnable system should not delete its source artifact; it should clean system membership, touching connections, public IO, and default inputs so the graph remains valid and reversible.
 - Deleting a component artifact is allowed only after it is out of every system and has no connection references; then graph entry and unshared source file are removed together.

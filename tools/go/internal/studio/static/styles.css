@@ -924,6 +924,47 @@ th {
   grid-template-columns: 88px minmax(0, 1fr);
 }
 
+.node-edit-row {
+  grid-template-columns: 78px minmax(0, 1fr);
+  align-items: start;
+}
+
+.node-id-label {
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  overflow-wrap: anywhere;
+}
+
+.node-meta-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.node-meta-controls .inspector-input {
+  flex: 1 1 76px;
+}
+
+.node-meta-controls select.inspector-input {
+  flex-basis: 70px;
+}
+
+.node-required-toggle {
+  display: inline-flex;
+  flex: 0 1 auto;
+  gap: 4px;
+  align-items: center;
+  min-height: 26px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.node-required-toggle input {
+  margin: 0;
+}
+
 .connection-row.selected {
   background: var(--accent-soft);
 }

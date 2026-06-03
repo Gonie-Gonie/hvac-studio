@@ -145,6 +145,34 @@ type deleteNodeRequest struct {
 	NodeID      string `json:"node_id"`
 }
 
+type updateNodeRequest struct {
+	ProjectPath     string `json:"project_path"`
+	ComponentID     string `json:"component_id"`
+	NodeID          string `json:"node_id"`
+	Name            string `json:"name"`
+	Medium          string `json:"medium"`
+	ValueType       string `json:"value_type"`
+	Unit            string `json:"unit"`
+	Required        *bool  `json:"required"`
+	Default         any    `json:"default"`
+	DefaultProvided bool   `json:"-"`
+}
+
+func (r *updateNodeRequest) UnmarshalJSON(data []byte) error {
+	type request updateNodeRequest
+	var decoded request
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*r = updateNodeRequest(decoded)
+	_, r.DefaultProvided = raw["default"]
+	return nil
+}
+
 type createConnectionRequest struct {
 	ProjectPath   string `json:"project_path"`
 	SystemID      string `json:"system_id"`
@@ -360,6 +388,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/project/system/components", s.handleIncludeComponent)
 	s.mux.HandleFunc("POST /api/project/system/components/remove", s.handleRemoveComponentFromSystem)
 	s.mux.HandleFunc("POST /api/project/nodes", s.handleCreateNode)
+	s.mux.HandleFunc("POST /api/project/nodes/update", s.handleUpdateNode)
 	s.mux.HandleFunc("POST /api/project/nodes/delete", s.handleDeleteNode)
 	s.mux.HandleFunc("POST /api/project/connections", s.handleCreateConnection)
 	s.mux.HandleFunc("POST /api/project/connections/delete", s.handleDeleteConnection)
@@ -704,6 +733,34 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "node": node, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeUpdateNodeRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	node, err := updateNode(loaded, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "node": node, "project": projectDetail(reloaded)})
 }
 
 func (s *Server) handleDeleteNode(w http.ResponseWriter, r *http.Request) {
@@ -1932,6 +1989,132 @@ func createNode(loaded *project.LoadedProject, req createNodeRequest) (model.Nod
 	return node, nil
 }
 
+func updateNode(loaded *project.LoadedProject, req updateNodeRequest) (model.Node, error) {
+	componentID := strings.TrimSpace(req.ComponentID)
+	nodeID := strings.TrimSpace(req.NodeID)
+	if componentID == "" || nodeID == "" {
+		return model.Node{}, apperror.Errorf(apperror.CodeValidation, "component_id and node_id are required")
+	}
+
+	componentIndex := -1
+	for index := range loaded.Graph.Components {
+		if loaded.Graph.Components[index].ID == componentID {
+			componentIndex = index
+			break
+		}
+	}
+	if componentIndex < 0 {
+		return model.Node{}, apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
+	}
+
+	component := &loaded.Graph.Components[componentIndex]
+	nodeIndex := -1
+	isInput := true
+	for index := range component.Nodes.Inputs {
+		if component.Nodes.Inputs[index].ID == nodeID {
+			nodeIndex = index
+			break
+		}
+	}
+	if nodeIndex < 0 {
+		isInput = false
+		for index := range component.Nodes.Outputs {
+			if component.Nodes.Outputs[index].ID == nodeID {
+				nodeIndex = index
+				break
+			}
+		}
+	}
+	if nodeIndex < 0 {
+		return model.Node{}, apperror.Errorf(apperror.CodeValidation, "node not found: %s.%s", componentID, nodeID)
+	}
+
+	var node *model.Node
+	if isInput {
+		node = &component.Nodes.Inputs[nodeIndex]
+	} else {
+		node = &component.Nodes.Outputs[nodeIndex]
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		name = nodeID
+	}
+	medium := strings.TrimSpace(req.Medium)
+	if medium == "" {
+		medium = "signal"
+	}
+	valueType := strings.TrimSpace(req.ValueType)
+	if valueType == "" {
+		valueType = "float"
+	}
+	node.Name = name
+	node.Medium = medium
+	node.ValueType = valueType
+	node.Unit = strings.TrimSpace(req.Unit)
+	node.Required = req.Required
+	if req.DefaultProvided {
+		node.Default = req.Default
+	}
+	updatedNode := *node
+
+	inputPath := ""
+	var input runtimecore.RunInput
+	inputDirty := false
+	if isInput {
+		var err error
+		inputPath, input, err = loadEditableDefaultInput(loaded)
+		if err != nil {
+			return model.Node{}, err
+		}
+	}
+
+	for systemIndex := range loaded.Graph.Systems {
+		system := &loaded.Graph.Systems[systemIndex]
+		if !containsString(system.Components, componentID) {
+			continue
+		}
+		if isInput {
+			for refIndex := range system.PublicInputs {
+				ref := &system.PublicInputs[refIndex]
+				if ref.Component != componentID || ref.Node != nodeID {
+					continue
+				}
+				updatePublicNodeRef(ref, updatedNode)
+				if req.DefaultProvided {
+					input.Inputs[ref.ID] = defaultValueForNode(updatedNode)
+					inputDirty = true
+					continue
+				}
+				if _, exists := input.Inputs[ref.ID]; !exists {
+					input.Inputs[ref.ID] = defaultValueForNode(updatedNode)
+					inputDirty = true
+				}
+			}
+			continue
+		}
+		for refIndex := range system.PublicOutputs {
+			ref := &system.PublicOutputs[refIndex]
+			if ref.Component != componentID || ref.Node != nodeID {
+				continue
+			}
+			updatePublicNodeRef(ref, updatedNode)
+		}
+	}
+
+	if _, err := compiler.Compile(loaded); err != nil {
+		return model.Node{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if inputDirty {
+		if err := writeJSONFile(inputPath, input); err != nil {
+			return model.Node{}, err
+		}
+	}
+	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
+		return model.Node{}, err
+	}
+	return updatedNode, nil
+}
+
 func deleteNode(loaded *project.LoadedProject, req deleteNodeRequest) (model.Node, error) {
 	componentID := strings.TrimSpace(req.ComponentID)
 	nodeID := strings.TrimSpace(req.NodeID)
@@ -2678,6 +2861,15 @@ func decodeIncludeComponentRequest(r *http.Request) (includeComponentRequest, er
 func decodeCreateNodeRequest(r *http.Request) (createNodeRequest, error) {
 	defer r.Body.Close()
 	var req createNodeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeUpdateNodeRequest(r *http.Request) (updateNodeRequest, error) {
+	defer r.Body.Close()
+	var req updateNodeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}
@@ -3944,6 +4136,15 @@ func uniquePublicNodeID(refs []model.PublicNodeRef, base string) string {
 		candidate = fmt.Sprintf("%s_%d", base, index)
 	}
 	return candidate
+}
+
+func updatePublicNodeRef(ref *model.PublicNodeRef, node model.Node) {
+	ref.Name = node.Name
+	ref.Medium = node.Medium
+	ref.ValueType = node.ValueType
+	ref.Unit = node.Unit
+	ref.Required = node.Required
+	ref.Default = node.Default
 }
 
 func defaultValueForNode(node model.Node) any {
