@@ -199,6 +199,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("autoLayoutPositions")) {
 		t.Fatalf("module entrypoint did not include canvas auto layout")
 	}
+	if !bytes.Contains(body, []byte("resizeCanvasSurface")) {
+		t.Fatalf("module entrypoint did not resize the canvas surface")
+	}
 	if !bytes.Contains(body, []byte("canvasParameterSummary")) {
 		t.Fatalf("module entrypoint did not include readable canvas parameter rendering")
 	}

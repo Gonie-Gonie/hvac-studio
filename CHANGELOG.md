@@ -114,3 +114,4 @@
 - Use the first successful batch case for canvas, Inspector, Code, and connection last-value feedback.
 - Show the active scenario in Run Inputs with a clear control.
 - Clear the active scenario badge when run inputs are manually edited or reset.
+- Expand the Studio canvas surface to cover saved, auto-laid-out, and dragged component positions.

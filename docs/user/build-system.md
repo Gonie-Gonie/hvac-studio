@@ -18,7 +18,7 @@ The Inspector also supports the same operation with explicit source and target e
 
 Existing connections can also be selected from the canvas line or the Inspector. After a run, Inspector connection rows show the latest value carried by that connection. Removing a connection from the Inspector restores the target input as a public input and adds it back to the default input file, so the value can be edited again in Run Inputs.
 
-Workspace component positions can be adjusted on the canvas. Studio saves those positions in `studio/layout.json`; the layout file affects the authoring view only and does not change runtime execution. Auto Layout rebuilds the saved layout from the current system connections so connected components are arranged left-to-right.
+Workspace component positions can be adjusted on the canvas. Studio saves those positions in `studio/layout.json`; the layout file affects the authoring view only and does not change runtime execution. Auto Layout rebuilds the saved layout from the current system connections so connected components are arranged left-to-right. The canvas surface expands to cover saved, auto-laid-out, and dragged node positions so cards and connection lines remain scrollable.
 
 ## Public IO Mapping
 

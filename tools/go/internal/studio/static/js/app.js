@@ -12,9 +12,11 @@ import { renderRunOutputWorkspace } from "./run-output.js";
 import { state } from "./state.js";
 
 const CANVAS_NODE_WIDTH = 300;
+const CANVAS_NODE_HEIGHT = 220;
 const CANVAS_NODE_ANCHOR_Y = 92;
 const CANVAS_COLUMN_GAP = 370;
 const CANVAS_ROW_GAP = 250;
+const CANVAS_PADDING = 96;
 
 function log(message) {
   const time = new Date().toLocaleTimeString();
@@ -455,6 +457,7 @@ function renderCanvas() {
     canvas.append(node);
   });
 
+  resizeCanvasSurface(canvas, layer, positions);
   requestAnimationFrame(() => drawConnections(positions));
 }
 
@@ -467,6 +470,20 @@ function canvasPositionFor(componentID, index) {
     x: 48 + index * CANVAS_COLUMN_GAP,
     y: 78 + (index % 2) * 62,
   };
+}
+
+function resizeCanvasSurface(canvas, layer, positions) {
+  const values = Object.values(positions);
+  const maxX = Math.max(0, ...values.map((position) => position.x));
+  const maxY = Math.max(0, ...values.map((position) => position.y));
+  const width = Math.max(1240, maxX + CANVAS_NODE_WIDTH + CANVAS_PADDING);
+  const height = Math.max(430, maxY + CANVAS_NODE_HEIGHT + CANVAS_PADDING);
+  canvas.style.minWidth = `${width}px`;
+  canvas.style.minHeight = `${height}px`;
+  layer.style.width = `${width}px`;
+  layer.style.height = `${height}px`;
+  layer.setAttribute("width", String(width));
+  layer.setAttribute("height", String(height));
 }
 
 function startCanvasNodeDrag(event, node, componentID, positions) {
@@ -495,6 +512,7 @@ function startCanvasNodeDrag(event, node, componentID, positions) {
     node.style.left = `${last.x}px`;
     node.style.top = `${last.y}px`;
     positions[componentID] = last;
+    resizeCanvasSurface(el("systemCanvas"), el("connectionLayer"), positions);
     drawConnections(positions);
   };
 
