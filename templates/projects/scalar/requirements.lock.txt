@@ -1,0 +1,2 @@
+# HVAC Studio project Python lockfile
+# New scalar projects start with no third-party Python package dependencies.

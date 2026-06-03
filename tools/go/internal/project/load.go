@@ -2,9 +2,11 @@ package project
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
 )
@@ -40,6 +42,10 @@ func Load(projectPath string) (*LoadedProject, error) {
 	}
 
 	root := filepath.Dir(absProjectPath)
+	if err := validateEnvironmentLockfile(root, proj.Environment.Lockfile); err != nil {
+		return nil, err
+	}
+
 	graphPath := proj.Graph
 	if !filepath.IsAbs(graphPath) {
 		graphPath = filepath.Join(root, graphPath)
@@ -66,4 +72,40 @@ func Load(projectPath string) (*LoadedProject, error) {
 		Path:      absProjectPath,
 		GraphPath: graphPath,
 	}, nil
+}
+
+func validateEnvironmentLockfile(projectRoot string, lockfile string) error {
+	lockfile = strings.TrimSpace(lockfile)
+	if lockfile == "" {
+		return nil
+	}
+	if filepath.IsAbs(lockfile) {
+		return fmt.Errorf("project environment lockfile must be relative to project root: %s", lockfile)
+	}
+	absRoot, err := filepath.Abs(projectRoot)
+	if err != nil {
+		return err
+	}
+	lockPath, err := filepath.Abs(filepath.Join(absRoot, lockfile))
+	if err != nil {
+		return err
+	}
+	rel, err := filepath.Rel(absRoot, lockPath)
+	if err != nil {
+		return err
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return fmt.Errorf("project environment lockfile must stay inside project root: %s", lockfile)
+	}
+	info, err := os.Stat(lockPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("project environment lockfile not found: %s", lockfile)
+	}
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		return fmt.Errorf("project environment lockfile is a directory: %s", lockfile)
+	}
+	return nil
 }

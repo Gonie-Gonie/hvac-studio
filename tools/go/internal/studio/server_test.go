@@ -2887,6 +2887,9 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	if body.Export.DefaultInput != "project/inputs/case01.json" {
 		t.Fatalf("default input = %s", body.Export.DefaultInput)
 	}
+	if body.Export.EnvironmentLockfile != "project/requirements.lock.txt" {
+		t.Fatalf("environment lockfile = %s", body.Export.EnvironmentLockfile)
+	}
 	if body.Export.InterfaceSchema != "schema/public-io.json" {
 		t.Fatalf("interface schema = %s", body.Export.InterfaceSchema)
 	}
@@ -2902,6 +2905,7 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 		"project/components/__init__.py",
 		"project/components/scalar.py",
 		"project/inputs/case01.json",
+		"project/requirements.lock.txt",
 		"runtime/manifest.json",
 		"runtime/python/python.exe",
 		"run-default.ps1",

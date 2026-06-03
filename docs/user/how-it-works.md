@@ -15,15 +15,17 @@ project.bcsproj
 graph.json
 components/
 inputs/
+requirements.lock.txt
 scenarios/
 runs/
 exports/
 ```
 
-- `project.bcsproj` stores project metadata, entry system, default input, and environment settings.
+- `project.bcsproj` stores project metadata, entry system, default input, and environment settings, including the optional Python lockfile path.
 - `graph.json` stores systems, components, nodes, connections, public inputs, public outputs, and parameters.
 - `components/` stores user Python source.
 - `inputs/` stores default run input files.
+- `requirements.lock.txt` or another declared lockfile stores the frozen project Python package set.
 - `scenarios/` stores reusable input/context cases.
 - `runs/` stores saved execution records.
 - `exports/` stores export manifests and later package outputs.
@@ -49,4 +51,3 @@ User Python runs in a worker process. This keeps the runtime boundary explicit a
 ## Public IO Is The Contract
 
 The public input/output schema is the shared contract across Studio, CLI, SDK, validation, calibration, optimization, and runtime-only delivery.
-

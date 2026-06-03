@@ -1,0 +1,2 @@
+# HVAC Studio project Python lockfile
+# This example uses only the Python standard library and bundled HVAC worker support.

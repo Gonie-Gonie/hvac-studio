@@ -7,7 +7,7 @@
   "environment": {
     "mode": "project",
     "python": "python",
-    "lockfile": ""
+    "lockfile": "requirements.lock.txt"
   },
   "default_input": "inputs/case01.json",
   "default_output": "outputs/result.json"

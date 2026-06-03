@@ -57,10 +57,10 @@ Already present:
 - Source templates under `templates/` for Studio-created projects/components.
 - CI workflow for non-release test runs.
 - Release package smoke test in CI for main and manual runs.
+- Project-specific Python package lock/freeze support on top of bundled `runtime/python`.
 
 Near-term additions:
 
-- Add project-specific Python package lock/freeze support on top of bundled `runtime/python`.
 - Add explicit platform abstraction for path, process, runtime, and executable naming boundaries.
 
 Acceptance criteria:

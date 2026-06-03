@@ -35,6 +35,63 @@ func TestCollectStatusForRepositoryRoot(t *testing.T) {
 	}
 }
 
+func TestCollectStatusChecksProjectLockfiles(t *testing.T) {
+	restoreVersionCommand := stubVersionCommand()
+	defer restoreVersionCommand()
+
+	root := t.TempDir()
+	seedRepositoryRoot(t, root)
+	writeFile(t, filepath.Join(root, "examples", "locked", "project.bcsproj"), `{
+  "project_name": "locked",
+  "schema_version": "0.1.0",
+  "entry_system": "MainSystem",
+  "graph": "graph.json",
+  "environment": {
+    "mode": "project",
+    "python": "python",
+    "lockfile": "requirements.lock.txt"
+  }
+}
+`)
+	writeFile(t, filepath.Join(root, "examples", "locked", "requirements.lock.txt"), "# locked\n")
+
+	status := collectStatus(root)
+	if !status.OK {
+		t.Fatalf("status should be ok: %#v", status.Problems)
+	}
+	if !hasCheck(status.Checks, "project_lockfile", filepath.Join(root, "examples", "locked", "requirements.lock.txt")) {
+		t.Fatalf("project lockfile check missing from %#v", status.Checks)
+	}
+}
+
+func TestCollectStatusReportsMissingProjectLockfile(t *testing.T) {
+	restoreVersionCommand := stubVersionCommand()
+	defer restoreVersionCommand()
+
+	root := t.TempDir()
+	seedRepositoryRoot(t, root)
+	writeFile(t, filepath.Join(root, "examples", "missing-lock", "project.bcsproj"), `{
+  "project_name": "missing-lock",
+  "schema_version": "0.1.0",
+  "entry_system": "MainSystem",
+  "graph": "graph.json",
+  "environment": {
+    "mode": "project",
+    "python": "python",
+    "lockfile": "requirements.lock.txt"
+  }
+}
+`)
+
+	status := collectStatus(root)
+	if status.OK {
+		t.Fatal("status should fail for a missing project lockfile")
+	}
+	if !containsProblem(status.Problems, "missing project Python lockfile") {
+		t.Fatalf("lockfile problem missing from %#v", status.Problems)
+	}
+}
+
 func TestCollectStatusForPortableRoot(t *testing.T) {
 	restoreVersionCommand := stubVersionCommand()
 	defer restoreVersionCommand()
@@ -165,9 +222,30 @@ func seedTemplates(t *testing.T, root string) {
 	writeFile(t, filepath.Join(root, "templates", "components", "scalar", "scalar.py"), "class ScalarComponent:\n    pass\n")
 }
 
+func seedRepositoryRoot(t *testing.T, root string) {
+	t.Helper()
+	writeFile(t, filepath.Join(root, "tools", "go", "go.mod"), "module test\n")
+	writeFile(t, filepath.Join(root, "runtime", "manifest.json"), "{}\n")
+	writeFile(t, filepath.Join(root, ".venv", "Scripts", "python.exe"), "fake python\n")
+	mkdirAll(t, filepath.Join(root, "python", "bcs_worker"))
+	mkdirAll(t, filepath.Join(root, "python", "bcs_sdk"))
+	mkdirAll(t, filepath.Join(root, "schema"))
+	mkdirAll(t, filepath.Join(root, "examples"))
+	seedTemplates(t, root)
+}
+
 func containsProblem(problems []string, want string) bool {
 	for _, problem := range problems {
 		if strings.Contains(problem, want) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasCheck(checks []checkStatus, id string, path string) bool {
+	for _, item := range checks {
+		if item.ID == id && item.Path == path && item.Present {
 			return true
 		}
 	}

@@ -308,21 +308,22 @@ type ExportSummary struct {
 }
 
 type ExportManifest struct {
-	Profile         string                `json:"profile"`
-	CreatedAtUTC    string                `json:"created_at_utc"`
-	ProjectName     string                `json:"project_name"`
-	ProjectRoot     string                `json:"project_root"`
-	ProjectPath     string                `json:"project_path"`
-	GraphPath       string                `json:"graph_path"`
-	DefaultInput    string                `json:"default_input"`
-	InterfaceSchema string                `json:"interface_schema"`
-	Runner          string                `json:"runner"`
-	RuntimePython   string                `json:"runtime_python"`
-	Files           []string              `json:"files"`
-	Components      []string              `json:"components"`
-	PublicInputs    []model.PublicNodeRef `json:"public_inputs"`
-	PublicOutputs   []model.PublicNodeRef `json:"public_outputs"`
-	ExecutionOrder  []string              `json:"execution_order"`
+	Profile             string                `json:"profile"`
+	CreatedAtUTC        string                `json:"created_at_utc"`
+	ProjectName         string                `json:"project_name"`
+	ProjectRoot         string                `json:"project_root"`
+	ProjectPath         string                `json:"project_path"`
+	GraphPath           string                `json:"graph_path"`
+	DefaultInput        string                `json:"default_input"`
+	EnvironmentLockfile string                `json:"environment_lockfile"`
+	InterfaceSchema     string                `json:"interface_schema"`
+	Runner              string                `json:"runner"`
+	RuntimePython       string                `json:"runtime_python"`
+	Files               []string              `json:"files"`
+	Components          []string              `json:"components"`
+	PublicInputs        []model.PublicNodeRef `json:"public_inputs"`
+	PublicOutputs       []model.PublicNodeRef `json:"public_outputs"`
+	ExecutionOrder      []string              `json:"execution_order"`
 }
 
 type SourceDetail struct {
@@ -3427,6 +3428,13 @@ func writeExportManifest(loaded *project.LoadedProject, profile string) (ExportS
 			return ExportSummary{}, ExportManifest{}, err
 		}
 	}
+	environmentLockfilePath := ""
+	if loaded.Project.Environment.Lockfile != "" {
+		environmentLockfilePath, _, err = projectOwnedRelativePath(loaded.Root, loaded.Project.Environment.Lockfile)
+		if err != nil {
+			return ExportSummary{}, ExportManifest{}, err
+		}
+	}
 	exportRoot := filepath.Join(loaded.Root, "exports", profile)
 	if err := resetGeneratedDir(filepath.Join(loaded.Root, "exports"), exportRoot); err != nil {
 		return ExportSummary{}, ExportManifest{}, err
@@ -3449,28 +3457,29 @@ func writeExportManifest(loaded *project.LoadedProject, profile string) (ExportS
 		return ExportSummary{}, ExportManifest{}, err
 	}
 	files = append(files, interfaceSchemaPath)
-	entrypointFiles, err := writeRuntimeExportEntrypoints(exportRoot, exportArtifactPath(projectPath), exportArtifactPath(defaultInputPath))
+	entrypointFiles, err := writeRuntimeExportEntrypoints(exportRoot, exportArtifactPath(projectPath), exportArtifactPath(defaultInputPath), exportArtifactPath(environmentLockfilePath))
 	if err != nil {
 		return ExportSummary{}, ExportManifest{}, err
 	}
 	files = append(files, entrypointFiles...)
 	sort.Strings(files)
 	manifest := ExportManifest{
-		Profile:         profile,
-		CreatedAtUTC:    now.Format(time.RFC3339Nano),
-		ProjectName:     loaded.Project.ProjectName,
-		ProjectRoot:     "project",
-		ProjectPath:     exportArtifactPath(projectPath),
-		GraphPath:       exportArtifactPath(graphPath),
-		DefaultInput:    exportArtifactPath(defaultInputPath),
-		InterfaceSchema: interfaceSchemaPath,
-		Runner:          "bin/bcs-runner.exe",
-		RuntimePython:   "runtime/python/python.exe",
-		Files:           files,
-		Components:      append([]string{}, plan.System.Components...),
-		PublicInputs:    append([]model.PublicNodeRef{}, plan.System.PublicInputs...),
-		PublicOutputs:   append([]model.PublicNodeRef{}, plan.System.PublicOutputs...),
-		ExecutionOrder:  append([]string{}, plan.Order...),
+		Profile:             profile,
+		CreatedAtUTC:        now.Format(time.RFC3339Nano),
+		ProjectName:         loaded.Project.ProjectName,
+		ProjectRoot:         "project",
+		ProjectPath:         exportArtifactPath(projectPath),
+		GraphPath:           exportArtifactPath(graphPath),
+		DefaultInput:        exportArtifactPath(defaultInputPath),
+		EnvironmentLockfile: exportArtifactPath(environmentLockfilePath),
+		InterfaceSchema:     interfaceSchemaPath,
+		Runner:              "bin/bcs-runner.exe",
+		RuntimePython:       "runtime/python/python.exe",
+		Files:               files,
+		Components:          append([]string{}, plan.System.Components...),
+		PublicInputs:        append([]model.PublicNodeRef{}, plan.System.PublicInputs...),
+		PublicOutputs:       append([]model.PublicNodeRef{}, plan.System.PublicOutputs...),
+		ExecutionOrder:      append([]string{}, plan.Order...),
 	}
 	exportPath := filepath.Join(exportRoot, "manifest.json")
 	if err := os.MkdirAll(filepath.Dir(exportPath), 0o755); err != nil {
@@ -3512,7 +3521,7 @@ func writeRuntimeExportProject(loaded *project.LoadedProject, targetRoot string)
 	if err != nil {
 		return nil, err
 	}
-	for _, rel := range []string{projectPath, graphPath, loaded.Project.DefaultInput} {
+	for _, rel := range []string{projectPath, graphPath, loaded.Project.DefaultInput, loaded.Project.Environment.Lockfile} {
 		if err := copyRuntimeExportFile(loaded.Root, targetRoot, rel, &files, seen); err != nil {
 			return nil, err
 		}
@@ -3545,12 +3554,12 @@ func writeRuntimeExportSupportFiles(projectRoot string, exportRoot string) ([]st
 	return files, nil
 }
 
-func writeRuntimeExportEntrypoints(exportRoot string, projectPath string, defaultInput string) ([]string, error) {
+func writeRuntimeExportEntrypoints(exportRoot string, projectPath string, defaultInput string, lockfile string) ([]string, error) {
 	files := []struct {
 		rel     string
 		content string
 	}{
-		{rel: "README.md", content: runtimeExportReadme(projectPath, defaultInput)},
+		{rel: "README.md", content: runtimeExportReadme(projectPath, defaultInput, lockfile)},
 		{rel: "run-default.ps1", content: runtimeExportRunScript(projectPath, defaultInput)},
 	}
 	written := []string{}
@@ -3604,15 +3613,20 @@ Write-Host "wrote $Output"
 `, projectLiteral, inputLiteral), "\r\n")
 }
 
-func runtimeExportReadme(projectPath string, defaultInput string) string {
+func runtimeExportReadme(projectPath string, defaultInput string, lockfile string) string {
 	inputLine := ""
 	if defaultInput != "" {
 		inputLine = fmt.Sprintf("- Default input: `%s`\n", defaultInput)
+	}
+	lockfileLine := ""
+	if lockfile != "" {
+		lockfileLine = fmt.Sprintf("- Python lockfile: `%s`\n", lockfile)
 	}
 	return "# Runtime Export\n\n" +
 		"This folder contains a runnable Studio runtime export.\n\n" +
 		fmt.Sprintf("- Project: `%s`\n", projectPath) +
 		inputLine +
+		lockfileLine +
 		"- Public IO schema: `schema/public-io.json`\n" +
 		"- Runner: `bin/bcs-runner.exe`\n\n" +
 		"Run the default case on Windows:\n\n" +

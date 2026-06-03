@@ -37,7 +37,8 @@
           "type": "string"
         },
         "lockfile": {
-          "type": "string"
+          "type": "string",
+          "description": "Project-root-relative Python package lockfile path, usually requirements.lock.txt."
         }
       }
     },
@@ -49,4 +50,3 @@
     }
   }
 }
-

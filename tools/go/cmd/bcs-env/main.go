@@ -45,6 +45,12 @@ type componentTemplateManifest struct {
 	Source    string `json:"source"`
 }
 
+type projectManifest struct {
+	Environment struct {
+		Lockfile string `json:"lockfile"`
+	} `json:"environment"`
+}
+
 var versionCommand = commandVersion
 
 func main() {
@@ -112,6 +118,9 @@ func collectStatus(root string) envStatus {
 		}
 	}
 	problems = append(problems, validateTemplates(root, mode)...)
+	lockfileChecks, lockfileProblems := projectLockfileChecks(root, mode)
+	checks = append(checks, lockfileChecks...)
+	problems = append(problems, lockfileProblems...)
 
 	pythonPath := resolvePython(root)
 	python := toolStatus{
@@ -233,6 +242,134 @@ func validateTemplates(root string, mode string) []string {
 		return []string{fmt.Sprintf("scalar component template source does not declare %s", manifest.ClassName)}
 	}
 	return nil
+}
+
+func projectLockfileChecks(root string, mode string) ([]checkStatus, []string) {
+	projectPaths := findProjectManifests(root, mode)
+	checks := []checkStatus{}
+	problems := []string{}
+	for _, projectPath := range projectPaths {
+		projectBytes, err := os.ReadFile(projectPath)
+		if err != nil {
+			problems = append(problems, fmt.Sprintf("read project for lockfile check: %s: %s", projectPath, err))
+			continue
+		}
+		var manifest projectManifest
+		if err := json.Unmarshal(projectBytes, &manifest); err != nil {
+			problems = append(problems, fmt.Sprintf("decode project for lockfile check: %s: %s", projectPath, err))
+			continue
+		}
+		lockfile := strings.TrimSpace(manifest.Environment.Lockfile)
+		if lockfile == "" {
+			continue
+		}
+		lockfilePath, err := projectOwnedPath(filepath.Dir(projectPath), lockfile)
+		if err != nil {
+			problems = append(problems, fmt.Sprintf("invalid project Python lockfile %s in %s: %s", lockfile, projectPath, err))
+			continue
+		}
+		relProject, err := filepath.Rel(root, projectPath)
+		if err != nil {
+			relProject = projectPath
+		}
+		item := check(
+			"project_lockfile",
+			"project Python lockfile for "+filepath.ToSlash(relProject),
+			lockfilePath,
+			true,
+		)
+		item.Present = pathExists(lockfilePath)
+		checks = append(checks, item)
+		if !item.Present {
+			problems = append(problems, fmt.Sprintf("missing project Python lockfile for %s: %s", filepath.ToSlash(relProject), lockfilePath))
+		}
+	}
+	return checks, problems
+}
+
+func findProjectManifests(root string, mode string) []string {
+	candidates := []string{}
+	switch mode {
+	case "runtime-export":
+		candidates = append(candidates, filepath.Join(root, "project", "project.bcsproj"))
+	case "repository":
+		candidates = append(candidates,
+			filepath.Join(root, "examples"),
+			filepath.Join(root, "templates", "projects"),
+			filepath.Join(root, "projects"),
+		)
+	case "portable-studio":
+		candidates = append(candidates,
+			filepath.Join(root, "examples"),
+			filepath.Join(root, "templates", "projects"),
+			filepath.Join(root, "projects"),
+		)
+	case "runtime-package":
+		candidates = append(candidates, filepath.Join(root, "examples"))
+	default:
+		return []string{}
+	}
+
+	projectPaths := []string{}
+	seen := map[string]bool{}
+	for _, candidate := range candidates {
+		info, err := os.Stat(candidate)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			continue
+		}
+		if !info.IsDir() {
+			if filepath.Base(candidate) == "project.bcsproj" && !seen[candidate] {
+				seen[candidate] = true
+				projectPaths = append(projectPaths, candidate)
+			}
+			continue
+		}
+		_ = filepath.WalkDir(candidate, func(path string, entry os.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return nil
+			}
+			if entry.IsDir() {
+				switch entry.Name() {
+				case ".git", ".repo_tools", "dist", "exports", "runs", "__pycache__":
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if entry.Name() != "project.bcsproj" || seen[path] {
+				return nil
+			}
+			seen[path] = true
+			projectPaths = append(projectPaths, path)
+			return nil
+		})
+	}
+	sort.Strings(projectPaths)
+	return projectPaths
+}
+
+func projectOwnedPath(projectRoot string, path string) (string, error) {
+	if filepath.IsAbs(path) {
+		return "", errors.New("path must be relative to the project root")
+	}
+	absRoot, err := filepath.Abs(projectRoot)
+	if err != nil {
+		return "", err
+	}
+	absPath, err := filepath.Abs(filepath.Join(absRoot, path))
+	if err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(absRoot, absPath)
+	if err != nil {
+		return "", err
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return "", errors.New("path must stay inside the project root")
+	}
+	return absPath, nil
 }
 
 func check(id string, label string, path string, required bool) checkStatus {

@@ -62,9 +62,9 @@ hvac-studio-<version>-windows-amd64-portable/
 
 The runtime-only package is for delivery/external-engine integration and does not include the Studio GUI.
 
-Both MVP packages include `bin/bcs-env.exe` and a bundled Python runtime under `runtime/python`, copied from the repo-local setup toolchain. Included examples run without system Python on `PATH`. Project-specific third-party package locking and dependency freezing are still later milestones.
+Both MVP packages include `bin/bcs-env.exe` and a bundled Python runtime under `runtime/python`, copied from the repo-local setup toolchain. Included examples run without system Python on `PATH`. Projects can declare `environment.lockfile` in `project.bcsproj`; package and export flows preserve that lockfile, and `bcs-env.exe check` reports missing declared lockfiles.
 
-`bcs-env.exe check` verifies the package root, bundled Python runtime, Python worker, SDK, schemas, examples, project/component templates, scalar component template manifest/source consistency, and required executables. Release smoke tests call it with `--json` before running examples or Studio API checks.
+`bcs-env.exe check` verifies the package root, bundled Python runtime, Python worker, SDK, schemas, examples, project/component templates, scalar component template manifest/source consistency, project Python lockfiles, and required executables. Release smoke tests call it with `--json` before running examples or Studio API checks.
 
 Studio desktop binaries are built through `scripts/release/build-studio.ps1` with Wails production tags: `-tags desktop,production`. A plain `go build` can compile but show a Wails runtime error dialog instead of opening the app window.
 

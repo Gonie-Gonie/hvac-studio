@@ -189,7 +189,7 @@ $ReleaseManifest = [ordered]@{
     'HVAC Studio.exe opens a native Wails desktop window for normal use.',
     'bin/studio.exe --server is reserved for scripted API smoke tests and automation.',
     'Includes a bundled Python runtime for included examples.',
-    'Project-specific third-party Python package locking is still a later milestone.'
+    'Project-specific Python lockfiles are preserved and checked when projects declare environment.lockfile.'
   )
 }
 
@@ -224,7 +224,7 @@ Run the CLI smoke example:
 
 Studio runtime exports are written under `projects\<name>\exports\runtime_package\`. From an export folder, run `.\run-default.ps1` or `.\bin\bcs-env.exe check --root . --json`.
 
-This MVP portable package is Windows-first and includes a bundled Python runtime for included examples. Project-specific third-party Python package locking is still a later milestone.
+This MVP portable package is Windows-first and includes a bundled Python runtime for included examples. Project-specific Python lockfiles are preserved when projects declare `environment.lockfile`.
 "@ | Set-Content -LiteralPath (Join-Path $StageRoot 'PACKAGE_README.md') -Encoding UTF8
 
 Remove-PythonCaches -Root $StageRoot

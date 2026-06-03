@@ -60,7 +60,7 @@ $ReleaseManifest = [ordered]@{
   }
   notes = @(
     'MVP runtime package: runner executable, bundled Python runtime, and Python worker/source files.',
-    'Project-specific third-party Python package locking is still a later milestone.'
+    'Project-specific Python lockfiles are preserved and checked when projects declare environment.lockfile.'
   )
 }
 
@@ -79,7 +79,7 @@ $PackageReadme = @(
   '.\bin\bcs-runner.exe run --project .\examples\001_scalar_component\project.bcsproj --input .\examples\001_scalar_component\inputs\case01.json --output .\outputs\001_scalar_component.json'
   '```'
   ''
-  'This MVP package includes the runner executable, environment checker, bundled Python runtime, and Python worker source. Project-specific third-party Python package locking is still a later milestone.'
+  'This MVP package includes the runner executable, environment checker, bundled Python runtime, and Python worker source. Project-specific Python lockfiles are preserved when projects declare environment.lockfile.'
   ''
   'Check the packaged runtime:'
   ''
