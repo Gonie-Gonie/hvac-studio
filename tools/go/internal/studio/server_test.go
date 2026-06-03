@@ -102,6 +102,12 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("startExampleRows")) {
 		t.Fatalf("index did not include Start example project rows")
 	}
+	if !bytes.Contains(body, []byte("artifactsView")) {
+		t.Fatalf("index did not include the Artifacts workspace")
+	}
+	if !bytes.Contains(body, []byte("artifactRows")) {
+		t.Fatalf("index did not include artifact browser rows")
+	}
 	if !bytes.Contains(body, []byte("componentRunRows")) {
 		t.Fatalf("index did not include selected component run values")
 	}
@@ -315,6 +321,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("runDataValidation")) {
 		t.Fatalf("module entrypoint did not include data validation action")
+	}
+	if !bytes.Contains(body, []byte("renderArtifactWorkspace")) {
+		t.Fatalf("module entrypoint did not include artifact browser rendering")
+	}
+	if !bytes.Contains(body, []byte("openArtifactSummary")) {
+		t.Fatalf("module entrypoint did not include artifact summary navigation")
 	}
 	if !bytes.Contains(body, []byte("projectTemplateSelect")) {
 		t.Fatalf("module entrypoint did not read the selected project type")

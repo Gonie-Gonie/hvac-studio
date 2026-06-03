@@ -131,6 +131,7 @@ function renderAll() {
   renderProblems();
   renderResults();
   renderSchema();
+  renderArtifactWorkspace();
   renderRunWorkspace();
   renderPythonPanel();
   renderExportWorkspaceView();
@@ -257,8 +258,165 @@ function renderProjectTypeRows() {
   `).join("");
 }
 
+function renderArtifactWorkspace() {
+  const tbody = el("artifactRows");
+  if (!tbody) return;
+  const rows = artifactRows();
+  tbody.innerHTML = "";
+  if (!rows.length) {
+    tbody.append(emptyRow(6));
+    return;
+  }
+  for (const artifact of rows) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHTML(artifact.type)}</td>
+      <td>${escapeHTML(artifact.name)}</td>
+      <td class="path-cell">${escapeHTML(artifact.path || "")}</td>
+      <td>${escapeHTML(artifact.state || "")}</td>
+      <td><span class="policy-pill ${artifact.protected ? "protected" : ""}">${escapeHTML(artifact.policy)}</span></td>
+      <td class="action-cell"></td>
+    `;
+    if (artifact.open) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "small-action table-action";
+      button.textContent = "Open";
+      button.addEventListener("click", artifact.open);
+      tr.querySelector(".action-cell").append(button);
+    }
+    tbody.append(tr);
+  }
+}
+
+function artifactRows() {
+  if (!state.detail) return [];
+  const rows = [];
+  const sourcePolicy = { policy: "Source artifact", protected: false };
+  const recordPolicy = { policy: "Generated record", protected: true };
+  for (const item of state.detail.datasets || []) {
+    rows.push({
+      type: "Dataset",
+      name: item.name || item.id,
+      path: item.relative_path,
+      state: `${item.row_count || 0} rows / ${item.column_count || 0} cols`,
+      ...sourcePolicy,
+      open: () => openArtifactSummary("dataset", item),
+    });
+  }
+  for (const item of state.detail.validation_mappings || []) {
+    rows.push({
+      type: "Validation Mapping",
+      name: item.name || item.id,
+      path: item.relative_path,
+      state: `${item.input_count || 0} in / ${item.output_count || 0} out`,
+      ...sourcePolicy,
+      open: () => openArtifactSummary("validation_mapping", item),
+    });
+  }
+  for (const item of state.detail.parameter_sets || []) {
+    rows.push({
+      type: "Parameter Set",
+      name: item.name || item.id,
+      path: item.relative_path,
+      state: `${item.parameter_count || 0} values`,
+      ...sourcePolicy,
+      open: () => {
+        state.activeParameterSetPath = item.relative_path || "";
+        openArtifactSummary("parameter_set", item);
+        renderProjectTree();
+        renderRunInputs();
+      },
+    });
+  }
+  for (const item of state.detail.scenarios || []) {
+    rows.push({
+      type: "Scenario",
+      name: item.name || item.id,
+      path: item.relative_path,
+      state: item.created_at_utc || "",
+      ...sourcePolicy,
+      open: () => loadScenario(item.id),
+    });
+  }
+  for (const item of state.detail.runs || []) {
+    rows.push({
+      type: "Run Record",
+      name: item.id,
+      path: item.relative_path,
+      state: item.created_at_utc || "",
+      ...recordPolicy,
+      open: () => loadRunRecord(item.id),
+    });
+  }
+  for (const item of state.detail.batches || []) {
+    rows.push({
+      type: "Batch Record",
+      name: item.id,
+      path: item.relative_path,
+      state: `${item.ok_count || 0}/${item.case_count || 0} ok`,
+      ...recordPolicy,
+      open: () => loadBatchRecord(item.id),
+    });
+  }
+  for (const item of state.detail.validation_runs || []) {
+    rows.push({
+      type: "Validation Record",
+      name: item.mapping_name || item.mapping_id || item.id,
+      path: item.relative_path,
+      state: `${item.row_count || 0} rows`,
+      ...recordPolicy,
+      open: () => loadWorkflowRecord("validation", item.id),
+    });
+  }
+  for (const item of state.detail.calibration_results || []) {
+    rows.push({
+      type: "Calibration Record",
+      name: item.setup_name || item.setup_id || item.id,
+      path: item.relative_path,
+      state: `best ${shortNumber(item.best_objective)}`,
+      ...recordPolicy,
+      open: () => loadWorkflowRecord("calibration", item.id),
+    });
+  }
+  for (const item of state.detail.optimization_results || []) {
+    rows.push({
+      type: "Optimization Record",
+      name: item.setup_name || item.setup_id || item.id,
+      path: item.relative_path,
+      state: `best ${shortNumber(item.best_objective)}`,
+      ...recordPolicy,
+      open: () => loadWorkflowRecord("optimization", item.id),
+    });
+  }
+  for (const item of state.detail.exports || []) {
+    rows.push({
+      type: "Export Manifest",
+      name: item.profile,
+      path: item.relative_path,
+      state: item.created_at_utc || "",
+      policy: "Generated export",
+      protected: true,
+      open: () => loadExportRecord(item.profile),
+    });
+  }
+  return rows;
+}
+
+function openArtifactSummary(kind, item) {
+  state.latestWorkflowRecord = { kind, artifact: item };
+  renderResults();
+  renderArtifactWorkspace();
+  setBottomTab("results");
+  setMode("artifacts");
+}
+
 function datasetTreeItems() {
-  return (state.detail?.datasets || []).map((item) => treeStatic(item.name || item.id, item.relative_path || "dataset"));
+  return (state.detail?.datasets || []).map((item) => {
+    const row = treeStatic(item.name || item.id, item.relative_path || "dataset");
+    row.addEventListener("click", () => openArtifactSummary("dataset", item));
+    return row;
+  });
 }
 
 function parameterSetTreeItems() {
@@ -266,7 +424,11 @@ function parameterSetTreeItems() {
 }
 
 function validationMappingTreeItems() {
-  return (state.detail?.validation_mappings || []).map((item) => treeStatic(item.name || item.id, `${item.relative_path || "mapping"} / ${item.input_count || 0} in / ${item.output_count || 0} out`));
+  return (state.detail?.validation_mappings || []).map((item) => {
+    const row = treeStatic(item.name || item.id, `${item.relative_path || "mapping"} / ${item.input_count || 0} in / ${item.output_count || 0} out`);
+    row.addEventListener("click", () => openArtifactSummary("validation_mapping", item));
+    return row;
+  });
 }
 
 function validationRunTreeItems() {

@@ -63,6 +63,7 @@
             <button class="mode-button active" data-mode="canvas" type="button">System</button>
             <button class="mode-button" data-mode="code" type="button">Code</button>
             <button class="mode-button" data-mode="parameters" type="button">Parameters</button>
+            <button class="mode-button" data-mode="artifacts" type="button">Artifacts</button>
             <button class="mode-button" data-mode="run" type="button">Run</button>
             <button class="mode-button" data-mode="export" type="button">Export</button>
           </section>
@@ -161,6 +162,27 @@
                   </tr>
                 </thead>
                 <tbody id="parameterRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section id="artifactsView" class="view artifact-workspace">
+            <div class="table-shell">
+              <div class="table-title">Project Artifacts</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Name</th>
+                    <th>Path</th>
+                    <th>State</th>
+                    <th>Policy</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="artifactRows">
+                  <tr><td colspan="6" class="empty-cell">No project open</td></tr>
+                </tbody>
               </table>
             </div>
           </section>

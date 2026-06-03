@@ -306,6 +306,35 @@ h2,
   align-content: start;
 }
 
+.artifact-workspace .table-shell {
+  max-width: 1180px;
+}
+
+.path-cell {
+  max-width: 360px;
+  overflow-wrap: anywhere;
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
+.policy-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid #b7d4ea;
+  border-radius: 999px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  white-space: nowrap;
+}
+
+.policy-pill.protected {
+  border-color: #e5d1a7;
+  color: #765312;
+  background: #fff7e6;
+}
+
 #codeView.active {
   display: grid;
 }
