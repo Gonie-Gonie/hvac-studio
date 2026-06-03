@@ -69,6 +69,27 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("projectNameInput")) {
 		t.Fatalf("index did not include the project name field")
 	}
+	if !bytes.Contains(body, []byte("projectTemplateSelect")) {
+		t.Fatalf("index did not include the project type selector")
+	}
+	if !bytes.Contains(body, []byte("serveButton")) {
+		t.Fatalf("index did not include the Serve command slot")
+	}
+	if !bytes.Contains(body, []byte("startView")) {
+		t.Fatalf("index did not include the Start workspace")
+	}
+	if !bytes.Contains(body, []byte("startRuntimeRows")) {
+		t.Fatalf("index did not include Start runtime status rows")
+	}
+	if !bytes.Contains(body, []byte("startProjectTypeRows")) {
+		t.Fatalf("index did not include Start project type rows")
+	}
+	if !bytes.Contains(body, []byte("startWorkspaceRows")) {
+		t.Fatalf("index did not include Start workspace project rows")
+	}
+	if !bytes.Contains(body, []byte("startExampleRows")) {
+		t.Fatalf("index did not include Start example project rows")
+	}
 	if !bytes.Contains(body, []byte("componentRunRows")) {
 		t.Fatalf("index did not include selected component run values")
 	}
@@ -240,6 +261,21 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("defaultProjectName")) {
 		t.Fatalf("module entrypoint did not include in-app project naming")
+	}
+	if !bytes.Contains(body, []byte("renderStartWorkspace")) {
+		t.Fatalf("module entrypoint did not include the Start workspace renderer")
+	}
+	if !bytes.Contains(body, []byte("datasetTreeItems")) {
+		t.Fatalf("module entrypoint did not include Dataset project tree objects")
+	}
+	if !bytes.Contains(body, []byte("parameterSetTreeItems")) {
+		t.Fatalf("module entrypoint did not include Parameter Set project tree objects")
+	}
+	if !bytes.Contains(body, []byte("projectTemplateSelect")) {
+		t.Fatalf("module entrypoint did not read the selected project type")
+	}
+	if !bytes.Contains(body, []byte("serveButton")) {
+		t.Fatalf("module entrypoint did not reserve the Serve command state")
 	}
 	if bytes.Contains(body, []byte(`window.prompt("Project name"`)) || bytes.Contains(body, []byte(`window.prompt("Copy project as"`)) {
 		t.Fatalf("module entrypoint should not use prompts for project creation or copy")

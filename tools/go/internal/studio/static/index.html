@@ -20,6 +20,12 @@
           <label for="projectSelect">Project</label>
           <select id="projectSelect"></select>
           <input id="projectNameInput" type="text" placeholder="Project name" aria-label="Project name" />
+          <select id="projectTemplateSelect" aria-label="Project type">
+            <option value="scalar">Python Component</option>
+            <option value="empty" disabled>Empty System</option>
+            <option value="hvac" disabled>HVAC System</option>
+            <option value="runtime_import" disabled>Runtime-only</option>
+          </select>
           <button id="newProjectButton" type="button">New</button>
           <button id="copyProjectButton" type="button" disabled>Copy</button>
         </div>
@@ -30,6 +36,7 @@
           <button id="scenarioButton" type="button" disabled>Scenario</button>
           <button id="schemaButton" type="button">Schema</button>
           <button id="batchButton" type="button" disabled>Batch</button>
+          <button id="serveButton" type="button" disabled>Serve</button>
           <button id="exportButton" type="button" disabled>Export</button>
         </nav>
       </header>
@@ -51,11 +58,41 @@
 
         <main class="main-stage">
           <section class="mode-strip" aria-label="Workspace modes">
+            <button class="mode-button" data-mode="start" type="button">Start</button>
             <button class="mode-button active" data-mode="canvas" type="button">System</button>
             <button class="mode-button" data-mode="code" type="button">Code</button>
             <button class="mode-button" data-mode="parameters" type="button">Parameters</button>
             <button class="mode-button" data-mode="run" type="button">Run</button>
             <button class="mode-button" data-mode="export" type="button">Export</button>
+          </section>
+
+          <section id="startView" class="view start-workspace">
+            <div class="start-grid">
+              <div class="table-shell">
+                <div class="table-title">Runtime</div>
+                <table>
+                  <tbody id="startRuntimeRows"></tbody>
+                </table>
+              </div>
+              <div class="table-shell">
+                <div class="table-title">Project Types</div>
+                <table>
+                  <tbody id="startProjectTypeRows"></tbody>
+                </table>
+              </div>
+              <div class="table-shell">
+                <div class="table-title">Workspace Projects</div>
+                <table>
+                  <tbody id="startWorkspaceRows"></tbody>
+                </table>
+              </div>
+              <div class="table-shell">
+                <div class="table-title">Example Projects</div>
+                <table>
+                  <tbody id="startExampleRows"></tbody>
+                </table>
+              </div>
+            </div>
           </section>
 
           <section id="canvasView" class="view active">

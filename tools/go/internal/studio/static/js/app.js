@@ -119,6 +119,7 @@ async function loadProject(projectPath) {
 }
 
 function renderAll() {
+  renderStartWorkspace();
   renderProjectTree();
   renderRunInputs();
   renderCanvas();
@@ -156,6 +157,8 @@ function renderProjectTree() {
     ["Systems", graph.systems.map((item) => treeItem(item.id, item.name || item.id, "system"))],
     ["Components", graph.components.map((item) => componentTreeItem(item, system))],
     ["Python Source", graph.components.map((item) => sourceTreeItem(item))],
+    ["Datasets", datasetTreeItems()],
+    ["Parameter Sets", parameterSetTreeItems()],
     ["Runs", (state.detail.runs || []).map((item) => runTreeItem(item))],
     ["Batches", (state.detail.batches || []).map((item) => batchTreeItem(item))],
     ["Scenarios", (state.detail.scenarios || []).map((item) => scenarioTreeItem(item))],
@@ -175,6 +178,84 @@ function renderProjectTree() {
     }
     root.append(section);
   }
+}
+
+function renderStartWorkspace() {
+  renderStartRuntimeRows();
+  renderProjectRows(el("startWorkspaceRows"), state.projects.filter((project) => project.source === "workspace"));
+  renderProjectRows(el("startExampleRows"), state.projects.filter((project) => project.source === "example"));
+  renderProjectTypeRows();
+}
+
+function renderStartRuntimeRows() {
+  const tbody = el("startRuntimeRows");
+  if (!tbody) return;
+  const project = state.detail?.project;
+  const rows = [
+    ["Runtime", el("runtimeStatus")?.textContent || "Runtime ready"],
+    ["Current Project", project?.project_name || "none"],
+    ["Python", project?.environment?.python || "python"],
+    ["Environment", project?.environment?.mode || "project"],
+  ];
+  tbody.innerHTML = rows.map(([name, value]) => `
+    <tr>
+      <td>${escapeHTML(name)}</td>
+      <td>${escapeHTML(value)}</td>
+    </tr>
+  `).join("");
+}
+
+function renderProjectRows(tbody, projects) {
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  if (!projects.length) {
+    tbody.append(emptyRow(3));
+    return;
+  }
+  for (const project of projects.slice(0, 8)) {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${escapeHTML(project.name || project.relative_path)}</td>
+      <td>${escapeHTML(project.relative_path)}</td>
+      <td class="action-cell"></td>
+    `;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "small-action table-action";
+    button.textContent = "Open";
+    button.addEventListener("click", () => {
+      el("projectSelect").value = project.project_path;
+      loadProject(project.project_path);
+      setMode("canvas");
+    });
+    row.querySelector(".action-cell").append(button);
+    tbody.append(row);
+  }
+}
+
+function renderProjectTypeRows() {
+  const tbody = el("startProjectTypeRows");
+  if (!tbody) return;
+  const types = [
+    ["Python Component Project", "default"],
+    ["Empty System", "planned"],
+    ["HVAC System Template", "planned"],
+    ["Runtime-only Imported Project", "planned"],
+  ];
+  tbody.innerHTML = types.map(([name, status]) => `
+    <tr>
+      <td>${escapeHTML(name)}</td>
+      <td>${escapeHTML(status)}</td>
+    </tr>
+  `).join("");
+}
+
+function datasetTreeItems() {
+  return (state.detail?.datasets || []).map((item) => treeStatic(item.name || item.id, item.relative_path || "dataset"));
+}
+
+function parameterSetTreeItems() {
+  return (state.detail?.parameter_sets || []).map((item) => treeStatic(item.name || item.id, item.relative_path || "parameter set"));
 }
 
 function treeItem(id, label, meta) {
@@ -2233,10 +2314,11 @@ async function createProject() {
   const nameInput = el("projectNameInput");
   const name = (nameInput?.value || defaultProjectName("Project")).trim();
   if (!name) return;
+  const template = el("projectTemplateSelect")?.value || "scalar";
   try {
     const body = await api("/api/projects", {
       method: "POST",
-      body: JSON.stringify({ name, template: "scalar" }),
+      body: JSON.stringify({ name, template }),
     });
     if (nameInput) nameInput.value = "";
     await loadProjects(body.project.project_path);
@@ -2817,6 +2899,7 @@ function updateCommandState() {
   el("scenarioButton").disabled = !hasProject || !isWorkspaceProject();
   el("batchButton").disabled = !hasProject || !isWorkspaceProject();
   el("schemaButton").disabled = !hasProject;
+  el("serveButton").disabled = true;
   el("exportButton").disabled = !hasProject || !isWorkspaceProject();
   el("saveProjectButton").disabled = !hasProject || !isWorkspaceProject();
   el("copyProjectButton").disabled = !hasProject;

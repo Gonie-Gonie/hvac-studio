@@ -118,7 +118,7 @@ input {
 
 .project-switcher {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(128px, 180px) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) minmax(128px, 180px) minmax(132px, 168px) auto auto;
   align-items: center;
   gap: 8px;
 }
@@ -289,6 +289,13 @@ h2,
 
 .view.active {
   display: block;
+}
+
+.start-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-content: start;
 }
 
 #codeView.active {
@@ -1255,6 +1262,11 @@ th {
   .system-toolbar,
   .run-inputs {
     justify-content: stretch;
+  }
+
+  .project-switcher,
+  .start-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .command-bar,
