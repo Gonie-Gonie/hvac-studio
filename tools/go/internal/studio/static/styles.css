@@ -169,6 +169,19 @@ input {
   align-items: center;
 }
 
+.component-add-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.component-add-row input {
+  min-width: 0;
+}
+
 h1,
 h2 {
   margin: 0;

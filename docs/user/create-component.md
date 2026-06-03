@@ -4,7 +4,7 @@ Use components when you need to add a new calculation unit to a project.
 
 ## Current Studio Behavior
 
-Workspace projects can create a scalar Python component template. Studio reads the template manifest and Python source from `templates/components/scalar/`, then writes:
+Workspace projects can create a scalar Python component template from the Project panel by entering a component name and pressing Add. Studio reads the template manifest and Python source from `templates/components/scalar/`, then writes:
 
 ```text
 graph.json

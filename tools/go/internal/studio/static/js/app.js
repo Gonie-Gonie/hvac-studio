@@ -1853,15 +1853,21 @@ async function createComponent() {
     log("Only workspace projects can be edited");
     return;
   }
-  const name = window.prompt("Component name", "New Scalar Component");
-  if (!name || !name.trim()) return;
+  const nameInput = el("newComponentName");
+  const name = (nameInput?.value || "").trim();
+  if (!name) {
+    showInlineProblem("Component name is required");
+    nameInput?.focus();
+    return;
+  }
   try {
     const body = await api("/api/project/components", {
       method: "POST",
-      body: JSON.stringify({ project_path: state.currentProjectPath, name: name.trim(), template: "scalar" }),
+      body: JSON.stringify({ project_path: state.currentProjectPath, name, template: "scalar" }),
     });
     state.detail = body.project;
     state.selectedComponentId = body.component.id;
+    if (nameInput) nameInput.value = "";
     renderAll();
     log(`Component created: ${body.component.id}`);
   } catch (error) {
@@ -2366,6 +2372,7 @@ function updateCommandState() {
   el("saveProjectButton").disabled = !hasProject || !isWorkspaceProject();
   el("copyProjectButton").disabled = !hasProject;
   el("addComponentButton").disabled = !hasProject || !isWorkspaceProject();
+  el("newComponentName").disabled = !hasProject || !isWorkspaceProject();
   el("includeComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || selectedComponentInSystem();
   el("removeComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || !selectedComponentInSystem();
   el("deleteComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || selectedComponentInSystem();
@@ -2470,6 +2477,9 @@ function bindEvents() {
   el("newProjectButton").addEventListener("click", createProject);
   el("copyProjectButton").addEventListener("click", copyProject);
   el("addComponentButton").addEventListener("click", createComponent);
+  el("newComponentName").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") createComponent();
+  });
   el("includeComponentButton").addEventListener("click", includeSelectedComponent);
   el("removeComponentButton").addEventListener("click", removeSelectedComponentFromSystem);
   el("deleteComponentButton").addEventListener("click", deleteSelectedComponent);

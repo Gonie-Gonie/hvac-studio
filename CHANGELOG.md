@@ -90,3 +90,4 @@
 - Add Python editor keyboard handling for save, check, multi-line indent, and outdent.
 - Add Inspector-based workspace node contract editing for names, media, value types, units, required flags, and defaults.
 - Improve canvas node and parameter readability with node display names, metadata lines, wider cards, and wrapping parameter chips.
+- Replace prompt-based Studio component creation with an in-app Project panel component name form.

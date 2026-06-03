@@ -60,6 +60,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte(`type="module"`)) {
 		t.Fatalf("index did not load the Studio JavaScript module")
 	}
+	if !bytes.Contains(body, []byte("newComponentName")) {
+		t.Fatalf("index did not include the component creation form")
+	}
 }
 
 func TestStaticModuleEntrypointServes(t *testing.T) {
@@ -156,6 +159,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("ensureEditableProject")) {
 		t.Fatalf("module entrypoint did not create an editable first-run workspace")
+	}
+	if bytes.Contains(body, []byte(`window.prompt("Component name"`)) {
+		t.Fatalf("module entrypoint should not use a prompt for component creation")
 	}
 }
 
