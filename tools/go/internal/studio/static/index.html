@@ -118,6 +118,7 @@
                 <select id="sourceComponentSelect" aria-label="Component"></select>
                 <span id="sourcePath" class="source-path"></span>
                 <span id="sourceStatus" class="source-status"></span>
+                <span id="sourceEditorMeta" class="source-editor-meta"></span>
                 <select id="sourceSnippetSelect" aria-label="Snippet">
                   <option value="evaluate">evaluate</option>
                   <option value="initialize">initialize</option>
@@ -134,6 +135,7 @@
               <div class="source-editor-shell">
                 <pre id="sourceLineNumbers" class="source-line-numbers" aria-hidden="true"></pre>
                 <textarea id="sourceEditor" class="source-main-editor" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+                <div id="sourceCompletionPanel" class="source-completion-panel" hidden></div>
               </div>
             </div>
             <aside id="sourceContract" class="source-contract"></aside>

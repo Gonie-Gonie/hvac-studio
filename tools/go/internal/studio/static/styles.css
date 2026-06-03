@@ -319,7 +319,7 @@ h2,
 
 .source-toolbar {
   display: grid;
-  grid-template-columns: minmax(120px, 180px) minmax(90px, 1fr) auto minmax(92px, 120px) repeat(5, auto);
+  grid-template-columns: minmax(120px, 180px) minmax(90px, 1fr) auto auto minmax(92px, 120px) repeat(5, auto);
   gap: 6px;
   align-items: center;
   min-width: 0;
@@ -359,7 +359,24 @@ h2,
   color: var(--ok);
 }
 
+.source-editor-meta {
+  min-width: 82px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.source-editor-meta.error {
+  color: var(--danger);
+}
+
+.source-editor-meta.ok {
+  color: var(--ok);
+}
+
 .source-editor-shell {
+  position: relative;
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);
   min-height: 0;
@@ -400,6 +417,65 @@ h2,
 
 .source-main-editor:read-only {
   color: #b9c5d4;
+}
+
+.source-completion-panel {
+  position: absolute;
+  z-index: 4;
+  top: 14px;
+  left: 58px;
+  width: min(430px, calc(100% - 72px));
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid #37516d;
+  border-radius: 8px;
+  background: #f8fafc;
+  box-shadow: 0 16px 32px rgba(8, 17, 31, 0.28);
+}
+
+.source-completion-panel[hidden] {
+  display: none;
+}
+
+.source-completion-title {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.source-completion-item {
+  width: 100%;
+  height: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid #e5ebf2;
+  border-radius: 0;
+  text-align: left;
+  background: var(--surface);
+}
+
+.source-completion-item:last-child {
+  border-bottom: 0;
+}
+
+.source-completion-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
+.source-completion-meta {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .source-contract {

@@ -66,6 +66,12 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("componentTemplateSelect")) {
 		t.Fatalf("index did not include the component template selector")
 	}
+	if !bytes.Contains(body, []byte("sourceEditorMeta")) {
+		t.Fatalf("index did not include the source editor metadata status")
+	}
+	if !bytes.Contains(body, []byte("sourceCompletionPanel")) {
+		t.Fatalf("index did not include the source completion panel")
+	}
 	if !bytes.Contains(body, []byte("projectNameInput")) {
 		t.Fatalf("index did not include the project name field")
 	}
@@ -147,6 +153,18 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("handleSourceIndent")) {
 		t.Fatalf("module entrypoint did not include source indentation handling")
+	}
+	if !bytes.Contains(body, []byte("showSourceCompletionPanel")) {
+		t.Fatalf("module entrypoint did not include source completion handling")
+	}
+	if !bytes.Contains(body, []byte("sourceCompletionItems")) {
+		t.Fatalf("module entrypoint did not include contract-derived source completion items")
+	}
+	if !bytes.Contains(body, []byte("bracketCheck")) {
+		t.Fatalf("module entrypoint did not include bracket status checking")
+	}
+	if !bytes.Contains(body, []byte("Runtime Contract")) {
+		t.Fatalf("module entrypoint did not render protected runtime contract context")
 	}
 	if !bytes.Contains(body, []byte("handleCanvasEndpointClick")) {
 		t.Fatalf("module entrypoint did not include direct canvas endpoint connection handling")

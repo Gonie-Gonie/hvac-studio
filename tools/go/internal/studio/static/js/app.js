@@ -1525,6 +1525,7 @@ function renderPythonPanel() {
   updateSourceChrome(component, null, "");
   if (!component) {
     updateLineNumbers("");
+    hideSourceCompletionPanel();
     return;
   }
   const source = state.sourceByComponent[component.id];
@@ -1599,6 +1600,7 @@ function updateSourceChrome(component, source, draft) {
       status.classList.add("ok");
     }
   }
+  renderSourceEditorMeta(component && source ? draft || "" : null);
   for (const id of ["saveSourceButton", "saveRunSourceButton", "revertSourceButton", "checkSourceButton", "insertSnippetButton", "sourceSnippetSelect"]) {
     const control = el(id);
     if (control) control.disabled = !component || !source || (id !== "checkSourceButton" && !editable);
@@ -1614,6 +1616,7 @@ function renderSourceContract(component) {
     [component.id, component.class || ""],
     [component.kind || "", component.name || ""],
   ]));
+  container.append(contractBlock("Runtime Contract", sourceContractRows(component)));
   container.append(sourceReferenceBlock("Inputs", (component.nodes.inputs || []).map((node) => ({
     name: node.id,
     meta: nodeTypeLabel(node),
@@ -1629,9 +1632,24 @@ function renderSourceContract(component) {
     meta: parameterInputValue(value),
     snippet: `params.get(${pythonStringLiteral(name)}, ${pythonLiteral(value)})`,
   })), component));
+  container.append(sourceReferenceBlock("Completions", sourceCompletionItems(component), component));
   const runtimeBlock = sourceRuntimeBlock(component);
   if (runtimeBlock) container.append(runtimeBlock);
   container.append(sourceIssueBlock(component.id));
+}
+
+function sourceContractRows(component) {
+  if (component.source?.layout === "generated_wrapper") {
+    return [
+      ["Editable", component.source.step || "user_step.py"],
+      ["Function", "step(inputs, state, params, context)"],
+    ];
+  }
+  return [
+    ["Editable", component.source?.step || component.class || ""],
+    ["Evaluate", "evaluate(self, inputs, state, params, context)"],
+    ["Initialize", "initialize(self, params, context)"],
+  ];
 }
 
 function sourceRuntimeBlock(component) {
@@ -2127,6 +2145,7 @@ function insertSourceText(snippet) {
   editor.value = `${editor.value.slice(0, start)}${snippet}${editor.value.slice(end)}`;
   editor.selectionStart = editor.selectionEnd = start + snippet.length;
   updateSourceDraftFromEditor(editor);
+  hideSourceCompletionPanel();
   editor.focus();
 }
 
@@ -2174,6 +2193,144 @@ function pythonInputBindings(component) {
     used.add(candidate);
     return { id: node.id || fallback, varName: candidate };
   });
+}
+
+function sourceCompletionItems(component) {
+  if (!component) return [];
+  const items = [];
+  const inputBindings = pythonInputBindings(component);
+  for (const item of inputBindings) {
+    const node = (component.nodes.inputs || []).find((candidate) => candidate.id === item.id) || {};
+    items.push({
+      name: `inputs[${pythonStringLiteral(item.id)}]`,
+      meta: nodeTypeLabel(node) || "input",
+      snippet: `inputs.get(${pythonStringLiteral(item.id)}, 0.0)`,
+    });
+    items.push({
+      name: item.varName,
+      meta: `local from ${item.id}`,
+      snippet: item.varName,
+    });
+  }
+  for (const node of component.nodes.outputs || []) {
+    items.push({
+      name: `${pythonStringLiteral(node.id)}: value`,
+      meta: nodeTypeLabel(node) || "output",
+      snippet: `${pythonStringLiteral(node.id)}: value`,
+    });
+  }
+  const parameterDefinitions = component.parameter_defs || {};
+  const parameterNames = new Set([...Object.keys(component.parameters || {}), ...Object.keys(parameterDefinitions)]);
+  for (const name of [...parameterNames].sort()) {
+    const definition = parameterDefinitions[name] || {};
+    const value = component.parameters?.[name] ?? definition.current ?? definition.default ?? 0.0;
+    items.push({
+      name: `params[${pythonStringLiteral(name)}]`,
+      meta: [definition.unit || "", definition.role || "parameter"].filter(Boolean).join(" / "),
+      snippet: `params.get(${pythonStringLiteral(name)}, ${pythonLiteral(value)})`,
+    });
+  }
+  for (const [name, definition] of Object.entries(component.state_defs || {})) {
+    items.push({
+      name: `state[${pythonStringLiteral(name)}]`,
+      meta: [definition.unit || "", "state"].filter(Boolean).join(" / "),
+      snippet: `state.get(${pythonStringLiteral(name)}, ${pythonLiteral(definition.initial)})`,
+    });
+  }
+  for (const name of ["time", "dt"]) {
+    items.push({
+      name: `context[${pythonStringLiteral(name)}]`,
+      meta: "context",
+      snippet: `context.get(${pythonStringLiteral(name)}, 0.0)`,
+    });
+  }
+  return items;
+}
+
+function showSourceCompletionPanel() {
+  const panel = el("sourceCompletionPanel");
+  const component = componentById(state.selectedComponentId);
+  if (!panel || !canEditSource(component)) return;
+  const items = sourceCompletionItems(component);
+  if (!items.length) {
+    hideSourceCompletionPanel();
+    return;
+  }
+  panel.hidden = false;
+  panel.innerHTML = `<div class="source-completion-title">Completions</div>`;
+  for (const item of items.slice(0, 14)) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "source-completion-item";
+    button.innerHTML = `
+      <span class="source-completion-label">${escapeHTML(item.name)}</span>
+      <span class="source-completion-meta">${escapeHTML(item.meta || "")}</span>
+    `;
+    button.addEventListener("click", () => insertSourceText(item.snippet));
+    panel.append(button);
+  }
+}
+
+function hideSourceCompletionPanel() {
+  const panel = el("sourceCompletionPanel");
+  if (!panel) return;
+  panel.hidden = true;
+  panel.innerHTML = "";
+}
+
+function renderSourceEditorMeta(value) {
+  const meta = el("sourceEditorMeta");
+  if (!meta) return;
+  if (value === null) {
+    meta.textContent = "";
+    meta.className = "source-editor-meta";
+    return;
+  }
+  const check = bracketCheck(value || "");
+  meta.textContent = check.message;
+  meta.className = `source-editor-meta ${check.ok ? "ok" : "error"}`;
+}
+
+function bracketCheck(value) {
+  const openers = new Map([["(", ")"], ["[", "]"], ["{", "}"]]);
+  const closers = new Set([...openers.values()]);
+  const stack = [];
+  let quote = "";
+  let escaped = false;
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === quote) {
+        quote = "";
+      }
+      continue;
+    }
+    if (char === "#") {
+      const nextLine = value.indexOf("\n", index);
+      if (nextLine < 0) break;
+      index = nextLine;
+      continue;
+    }
+    if (char === "\"" || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (openers.has(char)) {
+      stack.push({ char, index });
+      continue;
+    }
+    if (closers.has(char)) {
+      const expected = stack.length ? openers.get(stack[stack.length - 1].char) : "";
+      if (expected !== char) return { ok: false, message: "bracket mismatch" };
+      stack.pop();
+    }
+  }
+  if (stack.length) return { ok: false, message: `open ${stack[stack.length - 1].char}` };
+  return { ok: true, message: "brackets ok" };
 }
 
 function pythonIdentifier(value) {
@@ -2817,6 +2974,7 @@ function componentOptionLabel(component) {
 
 function selectComponent(id) {
   if (!componentById(id)) return;
+  hideSourceCompletionPanel();
   state.selectedComponentId = id;
   renderCanvas();
   renderInspector();
@@ -2961,6 +3119,15 @@ function handleSourceEditorInput(event) {
 }
 
 function handleSourceEditorKeydown(event) {
+  if ((event.ctrlKey || event.metaKey) && event.code === "Space") {
+    event.preventDefault();
+    showSourceCompletionPanel();
+    return;
+  }
+  if (event.key === "Escape") {
+    hideSourceCompletionPanel();
+    return;
+  }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
     event.preventDefault();
     saveCurrentSource();
