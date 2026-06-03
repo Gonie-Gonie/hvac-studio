@@ -1,6 +1,6 @@
 # Development Plan
 
-Last updated: 2026-06-01
+Last updated: 2026-06-03
 
 This plan folds the Component-Node-System UX flow into the runtime-first repository direction. The product is not a drag-and-drop HVAC library. It is a Python-based component-node-system authoring and runtime tool for building equipment modeling and control research.
 
@@ -55,10 +55,10 @@ Already present:
 - Go-hosted Studio shell and Windows portable package script.
 - Bundled Python runtime copied into Windows portable and runtime-only packages.
 - Source templates under `templates/` for Studio-created projects/components.
+- CI workflow for non-release test runs.
 
 Near-term additions:
 
-- Add CI workflow for non-release test runs.
 - Add release package smoke test to CI.
 - Add project-specific Python package lock/freeze support on top of bundled `runtime/python`.
 - Add explicit platform abstraction for path, process, runtime, and executable naming boundaries.

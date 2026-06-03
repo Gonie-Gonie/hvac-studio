@@ -78,6 +78,7 @@
 - Add canvas connection-line selection tied to Inspector connection removal.
 - Add a Code workspace save-and-run action for faster Python edit feedback.
 - Add Inspector navigation from selected components to the Code workspace.
+- Add a non-release CI workflow for Windows fast checks on push and pull request.
 - Add an API workflow test for editing Python source, connecting components, and observing propagated run results.
 - Show selected component last-run input/output values in the Code workspace contract panel.
 - Mark Studio last-run values stale after runtime-affecting edits.
