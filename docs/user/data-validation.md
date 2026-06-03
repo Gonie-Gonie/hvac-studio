@@ -49,7 +49,8 @@ Run from the CLI:
 ```powershell
 bcs-runner.exe validate-data `
   --project examples/005_chiller_plant_like_system/project.bcsproj `
-  --mapping validation/mappings/plant_validation.json
+  --mapping validation/mappings/plant_validation.json `
+  --parameter-set parameter_sets/high_efficiency.json
 ```
 
 In Studio, projects with saved mappings show a `Validation` section in the Project tree and enable the `Data` command. The result appears in the Results panel.

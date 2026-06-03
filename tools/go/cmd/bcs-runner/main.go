@@ -14,6 +14,7 @@ import (
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/modelvalidation"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/parameterset"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
 	runtimecore "github.com/goniegonie/hvac-studio/tools/go/internal/runtime"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/schemaexport"
@@ -83,6 +84,7 @@ func runProject(args []string) error {
 	projectPath := flags.String("project", "", "path to project.bcsproj")
 	inputPath := flags.String("input", "", "path to input JSON")
 	outputPath := flags.String("output", "", "path to output JSON")
+	parameterSetPath := flags.String("parameter-set", "", "project-relative parameter set JSON")
 	if err := flags.Parse(args); err != nil {
 		return apperror.Wrap(apperror.CodeValidation, err)
 	}
@@ -93,6 +95,11 @@ func runProject(args []string) error {
 	loaded, err := project.Load(*projectPath)
 	if err != nil {
 		return apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if *parameterSetPath != "" {
+		if _, err := parameterset.ApplyFile(loaded, *parameterSetPath); err != nil {
+			return err
+		}
 	}
 
 	resolvedInput := *inputPath
@@ -111,6 +118,9 @@ func runProject(args []string) error {
 	result, err := runtimecore.Run(context.Background(), loaded, input)
 	if err != nil {
 		return apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	if *parameterSetPath != "" {
+		result.ParameterSet = filepath.ToSlash(*parameterSetPath)
 	}
 
 	resolvedOutput := *outputPath
@@ -238,6 +248,7 @@ func validateData(args []string) error {
 	projectPath := flags.String("project", "", "path to project.bcsproj")
 	mappingPath := flags.String("mapping", "", "project-relative path to validation mapping JSON")
 	outputPath := flags.String("output", "", "path to output JSON")
+	parameterSetPath := flags.String("parameter-set", "", "project-relative parameter set JSON")
 	highErrorRows := flags.Int("high-error-rows", 3, "number of high-error rows to keep per output")
 	if err := flags.Parse(args); err != nil {
 		return apperror.Wrap(apperror.CodeValidation, err)
@@ -250,6 +261,11 @@ func validateData(args []string) error {
 	if err != nil {
 		return apperror.Wrap(apperror.CodeValidation, err)
 	}
+	if *parameterSetPath != "" {
+		if _, err := parameterset.ApplyFile(loaded, *parameterSetPath); err != nil {
+			return err
+		}
+	}
 	mapping, err := modelvalidation.LoadMapping(loaded.Root, *mappingPath)
 	if err != nil {
 		return err
@@ -259,6 +275,9 @@ func validateData(args []string) error {
 	})
 	if err != nil {
 		return err
+	}
+	if *parameterSetPath != "" {
+		result.ParameterSet = filepath.ToSlash(*parameterSetPath)
 	}
 	return writeJSONOutput(resolveProjectPath(loaded.Root, *outputPath), result)
 }

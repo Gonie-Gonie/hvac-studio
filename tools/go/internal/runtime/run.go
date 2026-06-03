@@ -21,6 +21,7 @@ type RunInput struct {
 
 type RunResult struct {
 	OK               bool                      `json:"ok"`
+	ParameterSet     string                    `json:"parameter_set,omitempty"`
 	Outputs          map[string]any            `json:"outputs"`
 	ComponentInputs  map[string]map[string]any `json:"component_inputs"`
 	ComponentOutputs map[string]map[string]any `json:"component_outputs"`

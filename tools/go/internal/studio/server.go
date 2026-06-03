@@ -22,6 +22,7 @@ import (
 	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/modelvalidation"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/parameterset"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/platform"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
 	runtimecore "github.com/goniegonie/hvac-studio/tools/go/internal/runtime"
@@ -75,10 +76,11 @@ type CanvasPosition struct {
 }
 
 type apiRequest struct {
-	ProjectPath string         `json:"project_path"`
-	Inputs      map[string]any `json:"inputs"`
-	Context     map[string]any `json:"context"`
-	Save        bool           `json:"save"`
+	ProjectPath      string         `json:"project_path"`
+	Inputs           map[string]any `json:"inputs"`
+	Context          map[string]any `json:"context"`
+	Save             bool           `json:"save"`
+	ParameterSetPath string         `json:"parameter_set_path"`
 }
 
 type createProjectRequest struct {
@@ -255,15 +257,17 @@ type updateInputRequest struct {
 }
 
 type validationRunRequest struct {
-	ProjectPath   string `json:"project_path"`
-	MappingPath   string `json:"mapping_path"`
-	HighErrorRows int    `json:"high_error_rows"`
+	ProjectPath      string `json:"project_path"`
+	MappingPath      string `json:"mapping_path"`
+	ParameterSetPath string `json:"parameter_set_path"`
+	HighErrorRows    int    `json:"high_error_rows"`
 }
 
 type RunSummary struct {
 	ID           string         `json:"id"`
 	RelativePath string         `json:"relative_path"`
 	CreatedAtUTC string         `json:"created_at_utc"`
+	ParameterSet string         `json:"parameter_set,omitempty"`
 	Outputs      map[string]any `json:"outputs"`
 }
 
@@ -271,6 +275,7 @@ type RunRecord struct {
 	ID           string                 `json:"id"`
 	ProjectName  string                 `json:"project_name"`
 	CreatedAtUTC string                 `json:"created_at_utc"`
+	ParameterSet string                 `json:"parameter_set,omitempty"`
 	Inputs       map[string]any         `json:"inputs"`
 	Context      map[string]any         `json:"context"`
 	Result       *runtimecore.RunResult `json:"result"`
@@ -1234,6 +1239,12 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		writeErrorWithProblems(w, apperror.Errorf(apperror.CodeValidation, "project source validation failed"), problems)
 		return
 	}
+	if req.ParameterSetPath != "" {
+		if _, err := parameterset.ApplyFile(loaded, req.ParameterSetPath); err != nil {
+			writeError(w, err)
+			return
+		}
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
@@ -1242,9 +1253,12 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		writeErrorWithProblems(w, err, inferProblems(loaded.Graph, err))
 		return
 	}
+	if req.ParameterSetPath != "" {
+		result.ParameterSet = filepath.ToSlash(req.ParameterSetPath)
+	}
 	response := map[string]any{"ok": true, "result": result}
 	if req.Save {
-		runRecord, err := writeRunRecord(loaded, input, result)
+		runRecord, err := writeRunRecord(loaded, input, result, filepath.ToSlash(req.ParameterSetPath))
 		if err != nil {
 			writeError(w, apperror.Wrap(apperror.CodeRuntime, err))
 			return
@@ -1331,6 +1345,12 @@ func (s *Server) handleDataValidation(w http.ResponseWriter, r *http.Request) {
 		writeErrorWithProblems(w, apperror.Errorf(apperror.CodeValidation, "project source validation failed"), problems)
 		return
 	}
+	if req.ParameterSetPath != "" {
+		if _, err := parameterset.ApplyFile(loaded, req.ParameterSetPath); err != nil {
+			writeError(w, err)
+			return
+		}
+	}
 	if req.MappingPath == "" {
 		mappings := loadValidationMappingSummaries(loaded.Root)
 		if len(mappings) == 0 {
@@ -1350,6 +1370,9 @@ func (s *Server) handleDataValidation(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeErrorWithProblems(w, err, inferProblems(loaded.Graph, err))
 		return
+	}
+	if req.ParameterSetPath != "" {
+		result.ParameterSet = filepath.ToSlash(req.ParameterSetPath)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "validation_result": result})
 }
@@ -3359,7 +3382,7 @@ func loadEditableDefaultInput(loaded *project.LoadedProject) (string, runtimecor
 	return inputPath, input, nil
 }
 
-func writeRunRecord(loaded *project.LoadedProject, input runtimecore.RunInput, result *runtimecore.RunResult) (RunSummary, error) {
+func writeRunRecord(loaded *project.LoadedProject, input runtimecore.RunInput, result *runtimecore.RunResult, parameterSet string) (RunSummary, error) {
 	now := time.Now().UTC()
 	runID := "run-" + now.Format("20060102-150405.000000000")
 	runsRoot := filepath.Join(loaded.Root, "runs")
@@ -3371,6 +3394,7 @@ func writeRunRecord(loaded *project.LoadedProject, input runtimecore.RunInput, r
 		ID:           runID,
 		ProjectName:  loaded.Project.ProjectName,
 		CreatedAtUTC: now.Format(time.RFC3339Nano),
+		ParameterSet: parameterSet,
 		Inputs:       input.Inputs,
 		Context:      input.Context,
 		Result:       result,
@@ -3383,6 +3407,7 @@ func writeRunRecord(loaded *project.LoadedProject, input runtimecore.RunInput, r
 		ID:           runID,
 		RelativePath: filepath.ToSlash(rel),
 		CreatedAtUTC: record.CreatedAtUTC,
+		ParameterSet: record.ParameterSet,
 		Outputs:      result.Outputs,
 	}, nil
 }
@@ -3411,6 +3436,7 @@ func loadRunSummaries(projectRoot string) []RunSummary {
 			ID:           record.ID,
 			RelativePath: filepath.ToSlash(rel),
 			CreatedAtUTC: record.CreatedAtUTC,
+			ParameterSet: record.ParameterSet,
 			Outputs:      outputs,
 		})
 	}

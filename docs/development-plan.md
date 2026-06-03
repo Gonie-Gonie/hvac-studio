@@ -427,7 +427,15 @@ Acceptance criteria:
 
 ## Milestone 8: Parameter Manager And Parameter Sets
 
-Status: started with direct workspace component-parameter editing.
+Status: complete for parameter editing and parameter-set runtime overlay MVP. Verified on 2026-06-03 with `go test ./cmd/bcs-runner ./internal/parameterset ./internal/studio`.
+
+Implemented:
+
+- Studio Parameter Manager can edit workspace component parameters in `graph.json`.
+- Project tree lists saved `parameter_sets/*.json` artifacts.
+- `bcs-runner run --parameter-set` applies a saved parameter set in memory without overwriting baseline `graph.json`.
+- `bcs-runner validate-data --parameter-set` evaluates validation datasets against a saved parameter set.
+- Studio run and validation APIs accept `parameter_set_path`; run records and runtime results preserve the parameter-set path.
 
 Goal: make parameters first-class research objects.
 

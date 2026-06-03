@@ -2018,6 +2018,7 @@ func TestDataValidationEndpointRunsMapping(t *testing.T) {
 	payload := []byte(`{
 		"project_path": "examples/005_chiller_plant_like_system/project.bcsproj",
 		"mapping_path": "validation/mappings/plant_validation.json",
+		"parameter_set_path": "parameter_sets/high_efficiency.json",
 		"high_error_rows": 1
 	}`)
 	response := httptest.NewRecorder()
@@ -2031,8 +2032,9 @@ func TestDataValidationEndpointRunsMapping(t *testing.T) {
 	var body struct {
 		OK               bool `json:"ok"`
 		ValidationResult struct {
-			RowCount int `json:"row_count"`
-			Metrics  map[string]struct {
+			RowCount     int    `json:"row_count"`
+			ParameterSet string `json:"parameter_set"`
+			Metrics      map[string]struct {
 				Count         int `json:"count"`
 				HighErrorRows []struct {
 					RowIndex int `json:"row_index"`
@@ -2045,6 +2047,9 @@ func TestDataValidationEndpointRunsMapping(t *testing.T) {
 	}
 	if !body.OK || body.ValidationResult.RowCount != 3 {
 		t.Fatalf("validation response = %#v", body)
+	}
+	if body.ValidationResult.ParameterSet != "parameter_sets/high_efficiency.json" {
+		t.Fatalf("parameter_set = %q", body.ValidationResult.ParameterSet)
 	}
 	if body.ValidationResult.Metrics["total_power_kw"].Count != 3 || len(body.ValidationResult.Metrics["total_power_kw"].HighErrorRows) != 1 {
 		t.Fatalf("validation metrics = %#v", body.ValidationResult.Metrics)
@@ -2177,6 +2182,46 @@ func TestRunEndpointRunsFeedForwardExample(t *testing.T) {
 	}
 	if body.Result.Outputs["total_power_kw"] != 122 {
 		t.Fatalf("total_power_kw = %v", body.Result.Outputs["total_power_kw"])
+	}
+}
+
+func TestRunEndpointAppliesParameterSet(t *testing.T) {
+	server := newTestServer(t)
+	payload := []byte(`{
+		"project_path": "examples/005_chiller_plant_like_system/project.bcsproj",
+		"parameter_set_path": "parameter_sets/high_efficiency.json",
+		"inputs": {
+			"building_load_kw": 600,
+			"base_chw_setpoint_c": 7,
+			"condenser_entering_temp_c": 32
+		},
+		"context": {
+			"time": 0,
+			"dt": 60
+		}
+	}`)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/run", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Result struct {
+			ParameterSet string             `json:"parameter_set"`
+			Outputs      map[string]float64 `json:"outputs"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Result.ParameterSet != "parameter_sets/high_efficiency.json" {
+		t.Fatalf("parameter_set = %q", body.Result.ParameterSet)
+	}
+	if body.Result.Outputs["total_power_kw"] == 140.96 {
+		t.Fatalf("parameter set did not change total_power_kw")
 	}
 }
 
@@ -3517,7 +3562,7 @@ func TestRunRecordsRoundTrip(t *testing.T) {
 		Outputs: map[string]any{"result": 8.0},
 	}
 
-	summary, err := writeRunRecord(loaded, input, result)
+	summary, err := writeRunRecord(loaded, input, result, "")
 	if err != nil {
 		t.Fatal(err)
 	}

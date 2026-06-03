@@ -17,6 +17,16 @@ bcs-runner.exe run `
   --output output.json
 ```
 
+Run with a saved parameter set without changing `graph.json`:
+
+```powershell
+bcs-runner.exe run `
+  --project examples/005_chiller_plant_like_system/project.bcsproj `
+  --input examples/005_chiller_plant_like_system/inputs/case01.json `
+  --parameter-set parameter_sets/high_efficiency.json `
+  --output output.json
+```
+
 ## Schema
 
 ```powershell
@@ -33,10 +43,11 @@ bcs-runner.exe schema `
 bcs-runner.exe validate-data `
   --project examples/005_chiller_plant_like_system/project.bcsproj `
   --mapping validation/mappings/plant_validation.json `
+  --parameter-set parameter_sets/high_efficiency.json `
   --output validation-result.json
 ```
 
-The mapping path is project-relative. The result includes RMSE, MAE, MBE, CVRMSE, R2, row summaries, and inspect data for the highest-error rows.
+The mapping and parameter-set paths are project-relative. The result includes RMSE, MAE, MBE, CVRMSE, R2, row summaries, and inspect data for the highest-error rows.
 
 ## Serve
 

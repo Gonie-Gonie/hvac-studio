@@ -129,6 +129,7 @@ go run .\cmd\bcs-runner run --project ..\..\examples\001_scalar_component\projec
 '{ "id": "case-1", "inputs": { "value": 4 }, "context": { "time": 0, "dt": 60 } }' | go run .\cmd\bcs-runner serve --project ..\..\examples\001_scalar_component\project.bcsproj
 go run .\cmd\bcs-runner schema --project ..\..\examples\003_feedforward_system\project.bcsproj --output ..\..\examples\003_feedforward_system\outputs\schema.json
 go run .\cmd\bcs-runner validate-data --project ..\..\examples\005_chiller_plant_like_system\project.bcsproj --mapping validation\mappings\plant_validation.json
+go run .\cmd\bcs-runner run --project ..\..\examples\005_chiller_plant_like_system\project.bcsproj --input ..\..\examples\005_chiller_plant_like_system\inputs\case01.json --parameter-set parameter_sets\high_efficiency.json
 ```
 
 ## Component Contract

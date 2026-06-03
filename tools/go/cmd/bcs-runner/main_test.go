@@ -97,6 +97,59 @@ func TestRunReturnsPythonWorkerExitCodeForMissingDeclaredOutput(t *testing.T) {
 	}
 }
 
+func TestRunCommandAppliesParameterSetWithoutOverwritingGraph(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectRoot := filepath.Join(tmpDir, "project")
+	copyTree(t, examplePath("001_scalar_component"), projectRoot)
+	writeFile(t, filepath.Join(projectRoot, "parameter_sets", "triple.json"), `{
+  "id": "triple",
+  "components": {
+    "gain": {
+      "gain": 3
+    }
+  }
+}`)
+	outputPath := filepath.Join(tmpDir, "output.json")
+
+	err := run([]string{
+		"bcs-runner",
+		"run",
+		"--project",
+		filepath.Join(projectRoot, "project.bcsproj"),
+		"--input",
+		filepath.Join(projectRoot, "inputs", "case01.json"),
+		"--parameter-set",
+		filepath.Join("parameter_sets", "triple.json"),
+		"--output",
+		outputPath,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result struct {
+		ParameterSet string             `json:"parameter_set"`
+		Outputs      map[string]float64 `json:"outputs"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.ParameterSet != "parameter_sets/triple.json" || result.Outputs["result"] != 12 {
+		t.Fatalf("result = %#v", result)
+	}
+	graphBytes, err := os.ReadFile(filepath.Join(projectRoot, "graph.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(graphBytes, []byte(`"gain": 2.5`)) {
+		t.Fatalf("graph should keep baseline parameter, got:\n%s", string(graphBytes))
+	}
+}
+
 func TestSchemaCommandWritesPublicInterface(t *testing.T) {
 	tmpDir := t.TempDir()
 	outputPath := filepath.Join(tmpDir, "schema.json")

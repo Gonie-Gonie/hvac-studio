@@ -34,6 +34,7 @@ type Result struct {
 	OK                    bool                     `json:"ok"`
 	MappingID             string                   `json:"mapping_id"`
 	MappingName           string                   `json:"mapping_name,omitempty"`
+	ParameterSet          string                   `json:"parameter_set,omitempty"`
 	Dataset               string                   `json:"dataset"`
 	RowCount              int                      `json:"row_count"`
 	InputColumns          map[string]string        `json:"input_columns"`
