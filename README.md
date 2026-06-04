@@ -131,6 +131,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-runti
 ```
 
 See [docs/release.md](docs/release.md) for the GitHub Release process.
+See [docs/release-trust.md](docs/release-trust.md) for signing, checksum,
+license notice, dependency notice, support matrix, and release-note policy.
 
 Run the runner directly:
 

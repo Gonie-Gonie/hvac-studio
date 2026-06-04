@@ -36,6 +36,7 @@ $Documentation = Copy-DocumentationAssets -RepoRoot $RepoRoot -StageRoot $StageR
 Copy-Tree -Source (Join-Path $RepoRoot 'examples') -Destination (Join-Path $StageRoot 'examples')
 Copy-Tree -Source (Join-Path $RepoRoot 'README.md') -Destination (Join-Path $StageRoot 'README.md')
 Copy-Tree -Source (Join-Path $RepoRoot 'CHANGELOG.md') -Destination (Join-Path $StageRoot 'CHANGELOG.md')
+$Trust = Copy-ReleaseTrustAssets -RepoRoot $RepoRoot -StageRoot $StageRoot -PackageType 'runtime' -Version $ResolvedVersion
 
 $Commit = ''
 $GitCommand = Get-Command git -ErrorAction SilentlyContinue
@@ -55,6 +56,7 @@ $ReleaseManifest = [ordered]@{
   includes_embedded_python = $true
   provenance = 'release-provenance.json'
   documentation = $Documentation
+  trust = $Trust
   entrypoints = [ordered]@{
     runner = 'bin/bcs-runner.exe'
     env = 'bin/bcs-env.exe'

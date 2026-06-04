@@ -45,6 +45,7 @@ Copy-Tree -Source (Join-Path $RepoRoot 'examples') -Destination (Join-Path $Stag
 Copy-Tree -Source (Join-Path $RepoRoot 'templates') -Destination (Join-Path $StageRoot 'templates')
 Copy-Tree -Source (Join-Path $RepoRoot 'README.md') -Destination (Join-Path $StageRoot 'README.md')
 Copy-Tree -Source (Join-Path $RepoRoot 'CHANGELOG.md') -Destination (Join-Path $StageRoot 'CHANGELOG.md')
+$Trust = Copy-ReleaseTrustAssets -RepoRoot $RepoRoot -StageRoot $StageRoot -PackageType 'studio-portable' -Version $ResolvedVersion
 
 New-Item -ItemType Directory -Force -Path (Join-Path $StageRoot 'projects') | Out-Null
 @"
@@ -175,6 +176,7 @@ $ReleaseManifest = [ordered]@{
   built_at_utc = (Get-Date).ToUniversalTime().ToString('o')
   provenance = 'release-provenance.json'
   documentation = $Documentation
+  trust = $Trust
   entrypoints = [ordered]@{
     studio = 'HVAC Studio.exe'
     server = 'bin/studio.exe'

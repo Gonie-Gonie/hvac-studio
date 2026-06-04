@@ -148,6 +148,7 @@ $InstallerManifest = [ordered]@{
 }
 
 $InstallerManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $StageRoot 'installer\installer-manifest.json') -Encoding UTF8
+$Trust = Copy-ReleaseTrustAssets -RepoRoot $RepoRoot -StageRoot $StageRoot -PackageType 'studio-installer' -Version $ResolvedVersion
 
 @'
 param(
@@ -379,6 +380,7 @@ $ReleaseManifest = [ordered]@{
   uninstall_script = 'installer/uninstall.ps1'
   payload = $PayloadRelativePath
   update_channel = $UpdateChannel
+  trust = $Trust
 }
 $ReleaseManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $StageRoot 'release-manifest.json') -Encoding UTF8
 

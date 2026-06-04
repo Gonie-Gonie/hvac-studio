@@ -71,7 +71,19 @@ Studio desktop binaries are built through `scripts/release/build-studio.ps1` wit
 
 User documentation source lives under `docs/user/`. Package scripts include Markdown docs under `docs/` and must build offline HTML under `docs/site/`. The CI fast gate runs the same MkDocs build through `scripts/dev/test-docs.ps1`; package smoke tests fail if `docs/site/index.html` is missing. PDF manual generation remains a later release task.
 
-Each package also includes `release-provenance.json`, which records the package name, version, runtime id, git metadata, tool versions, documentation packaging status, and package file list. `release-checksums.json` stores SHA-256 hashes for package contents and is verified by package smoke tests.
+Each expanded runtime package also includes `release-provenance.json`, which records the package name, version, runtime id, git metadata, tool versions, documentation packaging status, and package file list. `release-checksums.json` stores SHA-256 hashes for package contents and is verified by package smoke tests.
+
+Every package includes release trust assets:
+
+- `release-trust.json`
+- `legal/license-notices.md`
+- `legal/dependency-notices.md`
+- `legal/support-matrix.md`
+- `legal/release-notes-policy.md`
+
+Current alpha, beta, release-candidate, and development packages may be unsigned.
+Stable public installer packages require documented signing and verification
+before release. See [Release Trust](release-trust.md).
 
 ## Local Release Test
 
@@ -179,9 +191,10 @@ The workflow:
 4. Builds and smoke-tests the Windows portable Studio package.
 5. Builds and smoke-tests the Windows installer bundle.
 6. Builds and smoke-tests the Windows runtime-only package.
-7. Writes `dist/SHA256SUMS.txt`.
-8. Uploads the package zips and checksums as workflow artifacts.
-9. Creates a GitHub Release for tag pushes.
+7. Verifies package trust assets, provenance, package checksums, and installer payload checksums.
+8. Writes `dist/SHA256SUMS.txt`.
+9. Uploads the package zips and checksums as workflow artifacts.
+10. Creates a GitHub Release for tag pushes.
 
 Manual dry runs are available through GitHub Actions `workflow_dispatch`. Manual runs upload artifacts; they only create a GitHub Release when `create_release` is selected.
 

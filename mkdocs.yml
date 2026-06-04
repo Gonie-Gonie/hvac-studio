@@ -27,5 +27,11 @@ nav:
   - Project Docs:
       - Setup: setup.md
       - Release Process: release.md
+      - Release Trust: release-trust.md
+      - Legal Notices:
+          - License Notices: legal/license-notices.md
+          - Dependency Notices: legal/dependency-notices.md
+          - Support Matrix: legal/support-matrix.md
+          - Release Notes Policy: legal/release-notes-policy.md
       - Development Plan: development-plan.md
       - Repository Design: repository-design.md

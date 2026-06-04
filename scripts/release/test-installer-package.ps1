@@ -32,19 +32,32 @@ try {
   }
 
   $ReleaseManifestPath = Join-Path $PackageDir.FullName 'release-manifest.json'
+  $TrustPath = Join-Path $PackageDir.FullName 'release-trust.json'
   $InstallerManifestPath = Join-Path $PackageDir.FullName 'installer\installer-manifest.json'
   $InstallScript = Join-Path $PackageDir.FullName 'installer\install.ps1'
   $UninstallScript = Join-Path $PackageDir.FullName 'installer\uninstall.ps1'
-  foreach ($RequiredPath in @($ReleaseManifestPath, $InstallerManifestPath, $InstallScript, $UninstallScript)) {
+  foreach ($RequiredPath in @($ReleaseManifestPath, $TrustPath, $InstallerManifestPath, $InstallScript, $UninstallScript)) {
     if (-not (Test-Path -LiteralPath $RequiredPath)) {
       throw "installer package is missing $RequiredPath"
     }
   }
+  foreach ($RequiredTrustPath in @('legal\license-notices.md', 'legal\dependency-notices.md', 'legal\support-matrix.md', 'legal\release-notes-policy.md')) {
+    if (-not (Test-Path -LiteralPath (Join-Path $PackageDir.FullName $RequiredTrustPath))) {
+      throw "installer package is missing trust asset $RequiredTrustPath"
+    }
+  }
 
   $ReleaseManifest = Get-Content -Raw -LiteralPath $ReleaseManifestPath | ConvertFrom-Json
+  $Trust = Get-Content -Raw -LiteralPath $TrustPath | ConvertFrom-Json
   $InstallerManifest = Get-Content -Raw -LiteralPath $InstallerManifestPath | ConvertFrom-Json
   if ($ReleaseManifest.package_type -ne 'studio-installer') {
     throw "release manifest package_type mismatch: $($ReleaseManifest.package_type)"
+  }
+  if ($Trust.schema -ne 'hvac-studio.release-trust.v1' -or $Trust.package_type -ne 'studio-installer') {
+    throw "release trust mismatch: $($Trust.schema) $($Trust.package_type)"
+  }
+  if (-not $ReleaseManifest.trust -or $ReleaseManifest.trust.schema -ne 'hvac-studio.release-trust.v1') {
+    throw 'installer release manifest is missing trust metadata'
   }
   if ($InstallerManifest.schema -ne 'hvac-studio.installer.v1') {
     throw "installer manifest schema mismatch: $($InstallerManifest.schema)"

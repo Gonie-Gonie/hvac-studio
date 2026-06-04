@@ -160,6 +160,47 @@ function Copy-DocumentationAssets {
   }
 }
 
+function Copy-ReleaseTrustAssets {
+  param(
+    [Parameter(Mandatory = $true)][string]$RepoRoot,
+    [Parameter(Mandatory = $true)][string]$StageRoot,
+    [Parameter(Mandatory = $true)][string]$PackageType,
+    [Parameter(Mandatory = $true)][string]$Version
+  )
+
+  $LegalSource = Join-Path $RepoRoot 'docs\legal'
+  $LegalRoot = Join-Path $StageRoot 'legal'
+  New-Item -ItemType Directory -Force -Path $LegalRoot | Out-Null
+  foreach ($Name in @('license-notices.md', 'dependency-notices.md', 'support-matrix.md', 'release-notes-policy.md')) {
+    Copy-Tree -Source (Join-Path $LegalSource $Name) -Destination (Join-Path $LegalRoot $Name)
+  }
+
+  $SigningStatus = if ($Version -match '-(alpha|beta|rc|dev)([.-]|$)') { 'unsigned-prerelease' } else { 'unsigned-stable-blocker' }
+  $Trust = [ordered]@{
+    schema = 'hvac-studio.release-trust.v1'
+    package_type = $PackageType
+    version = $Version
+    code_signing = [ordered]@{
+      status = $SigningStatus
+      stable_public_release_requires_signature = $true
+      verification = 'No Authenticode signature is promised unless release notes and this file say signed.'
+    }
+    checksums = [ordered]@{
+      package_internal = 'release-checksums.json when present'
+      workflow_artifact = 'SHA256SUMS.txt'
+      algorithm = 'SHA-256'
+    }
+    notices = [ordered]@{
+      license = 'legal/license-notices.md'
+      dependencies = 'legal/dependency-notices.md'
+      support_matrix = 'legal/support-matrix.md'
+      release_notes_policy = 'legal/release-notes-policy.md'
+    }
+  }
+  $Trust | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $StageRoot 'release-trust.json') -Encoding UTF8
+  return $Trust
+}
+
 function Get-GitOutputLine {
   param([Parameter(Mandatory = $true)][string[]]$Arguments)
 
@@ -365,8 +406,22 @@ function Assert-ReleaseProvenance {
   $Manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
   $Provenance = Get-Content -Raw -LiteralPath $ProvenancePath | ConvertFrom-Json
   $Checksums = Get-Content -Raw -LiteralPath $ChecksumsPath | ConvertFrom-Json
+  $TrustPath = Join-Path $PackageRoot 'release-trust.json'
+  if (-not (Test-Path -LiteralPath $TrustPath)) {
+    throw 'release package is missing release-trust.json'
+  }
+  $Trust = Get-Content -Raw -LiteralPath $TrustPath | ConvertFrom-Json
+  if ($Trust.schema -ne 'hvac-studio.release-trust.v1') {
+    throw "release trust schema mismatch: $($Trust.schema)"
+  }
+  if ($Trust.package_type -ne $PackageType) {
+    throw "release trust package type mismatch: $($Trust.package_type)"
+  }
   if ($Manifest.provenance -ne 'release-provenance.json') {
     throw "release manifest provenance path mismatch: $($Manifest.provenance)"
+  }
+  if (-not $Manifest.trust -or $Manifest.trust.schema -ne 'hvac-studio.release-trust.v1') {
+    throw 'release manifest is missing trust metadata'
   }
   if ($Provenance.schema -ne 'hvac-studio.release-provenance.v1') {
     throw "release provenance schema mismatch: $($Provenance.schema)"
@@ -392,7 +447,7 @@ function Assert-ReleaseProvenance {
   if (-not (Test-Path -LiteralPath (Join-Path $PackageRoot 'docs\site\index.html'))) {
     throw 'release package is missing required docs/site/index.html'
   }
-  foreach ($RequiredFile in @('release-manifest.json', 'release-provenance.json', 'release-checksums.json', 'PACKAGE_README.md')) {
+  foreach ($RequiredFile in @('release-manifest.json', 'release-provenance.json', 'release-checksums.json', 'release-trust.json', 'PACKAGE_README.md', 'legal/license-notices.md', 'legal/dependency-notices.md', 'legal/support-matrix.md', 'legal/release-notes-policy.md')) {
     if ($Provenance.files -notcontains $RequiredFile) {
       throw "release provenance file list is missing $RequiredFile"
     }
@@ -401,7 +456,7 @@ function Assert-ReleaseProvenance {
     throw "release checksums schema mismatch: $($Checksums.schema)"
   }
   $ChecksumPaths = @($Checksums.files | ForEach-Object { $_.path })
-  foreach ($RequiredFile in @('release-manifest.json', 'release-provenance.json', 'PACKAGE_README.md', 'docs/site/index.html')) {
+  foreach ($RequiredFile in @('release-manifest.json', 'release-provenance.json', 'release-trust.json', 'PACKAGE_README.md', 'docs/site/index.html', 'legal/license-notices.md', 'legal/dependency-notices.md', 'legal/support-matrix.md', 'legal/release-notes-policy.md')) {
     if ($ChecksumPaths -notcontains $RequiredFile) {
       throw "release checksums are missing $RequiredFile"
     }
