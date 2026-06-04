@@ -107,12 +107,13 @@ function renderBatchCases(state, tbody) {
   cases.forEach((item, index) => {
     const outputs = item.ok ? publicOutputSummary(item.result?.outputs || {}) : "";
     const status = item.ok ? "ok" : "failed";
+    const error = batchCaseErrorSummary(item);
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${escapeHTML(item.scenario_name || item.scenario_id || `case ${index + 1}`)}</td>
       <td><span class="case-status ${status}">${escapeHTML(status)}</span></td>
       <td>${escapeHTML(outputs)}</td>
-      <td>${escapeHTML(item.error || "")}</td>
+      <td class="case-error">${escapeHTML(error)}</td>
     `;
     tbody.append(row);
   });
@@ -123,27 +124,34 @@ function renderExecutionTrace(state, tbody) {
   tbody.innerHTML = "";
   const context = latestResultContext(state);
   const timings = context.result?.component_timings || [];
+  const maxDuration = Math.max(...timings.map((item) => Number(item.duration_ms) || 0), 0);
   const rows = timings.length
     ? timings.map((item) => ({
       component: item.component || "",
       stage: item.stage || "evaluate",
       duration: formatDuration(item.duration_ms),
+      durationMS: Number(item.duration_ms) || 0,
     }))
     : (context.result?.execution_order || []).map((component) => ({
       component,
       stage: "evaluate",
       duration: "",
+      durationMS: 0,
     }));
   if (!rows.length) {
     tbody.innerHTML = `<tr><td colspan="3" class="empty-cell">No execution trace yet</td></tr>`;
     return;
   }
   for (const item of rows) {
+    const width = maxDuration > 0 ? Math.max(3, (item.durationMS / maxDuration) * 100) : 0;
+    const duration = item.duration
+      ? `<div class="timing-cell"><span>${escapeHTML(item.duration)}</span><div class="timing-track"><div class="timing-fill" style="width: ${width}%"></div></div></div>`
+      : "";
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${escapeHTML(item.component)}</td>
       <td>${escapeHTML(item.stage)}</td>
-      <td>${escapeHTML(item.duration)}</td>
+      <td>${duration}</td>
     `;
     tbody.append(row);
   }
@@ -224,6 +232,7 @@ function latestSummaryRows(state) {
   if (state.latestBatchRecord) return batchSummaryRows(state.latestBatchRecord);
   if (state.latestRunRecord) return runRecordSummaryRows(state.latestRunRecord);
   if (state.latestResult) return resultSummaryRows(state.latestResult, "current run");
+  if (state.latestValidation?.error) return failureSummaryRows(state.latestValidation);
   return [];
 }
 
@@ -269,6 +278,42 @@ function resultSummaryRows(result, source) {
   }
   rows.push({ name: "Execution order", value: executionOrder || "n/a", source });
   return rows;
+}
+
+function failureSummaryRows(validation) {
+  const rows = [
+    { name: "Status", value: "failed", source: "latest failure" },
+    { name: "Error", value: validation.error || "run failed", source: "latest failure" },
+  ];
+  const firstProblem = (validation.problems || [])[0];
+  if (firstProblem) {
+    rows.push({
+      name: "First problem",
+      value: problemSummary(firstProblem),
+      source: "Problems",
+    });
+  }
+  return rows;
+}
+
+function batchCaseErrorSummary(item) {
+  const problems = item.problems || [];
+  const problemText = problems.map(problemSummary).filter(Boolean).join("; ");
+  return [item.error || "", problemText].filter(Boolean).join(" / ");
+}
+
+function problemSummary(problem) {
+  return [
+    problem.component_id || "",
+    problem.node_id ? `node ${problem.node_id}` : "",
+    problem.source ? sourceLocation(problem) : "",
+    problem.message || "",
+  ].filter(Boolean).join(" / ");
+}
+
+function sourceLocation(problem) {
+  const line = problem.line ? `:${problem.line}${problem.column ? `:${problem.column}` : ""}` : "";
+  return `${problem.source}${line}`;
 }
 
 function connectionLabel(trace) {

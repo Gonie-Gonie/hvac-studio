@@ -523,6 +523,15 @@ func TestStaticRunOutputModuleServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("case-status")) {
 		t.Fatalf("run output module did not render batch case status badges")
 	}
+	if !bytes.Contains(body, []byte("timing-cell")) {
+		t.Fatalf("run output module did not render component timing bars")
+	}
+	if !bytes.Contains(body, []byte("failureSummaryRows")) {
+		t.Fatalf("run output module did not render failed run summaries")
+	}
+	if !bytes.Contains(body, []byte("batchCaseErrorSummary")) {
+		t.Fatalf("run output module did not include batch failure problem summaries")
+	}
 	if !bytes.Contains(body, []byte("component_inputs")) {
 		t.Fatalf("run output module did not read component input snapshots")
 	}
