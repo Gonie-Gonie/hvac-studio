@@ -254,7 +254,7 @@ func topologicalOrder(componentIDs []string, connections []model.Connection) ([]
 			}
 		}
 		return nil, fmt.Errorf(
-			"algebraic loop detected among components: %s. Add a Delay component, define a solver boundary, or mark the system as iterative",
+			"algebraic loop detected among components: %s. Add a Delay component or wrap the feedback behavior in an explicit solver boundary component",
 			strings.Join(blocked, ", "),
 		)
 	}

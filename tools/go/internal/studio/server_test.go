@@ -535,7 +535,8 @@ func TestComponentTemplatesEndpointListsManifests(t *testing.T) {
 		!hasComponentTemplate(body.Templates, "data_sink") ||
 		!hasComponentTemplate(body.Templates, "utility") ||
 		!hasComponentTemplate(body.Templates, "external_executable") ||
-		!hasComponentTemplate(body.Templates, "vectorized") {
+		!hasComponentTemplate(body.Templates, "vectorized") ||
+		!hasComponentTemplate(body.Templates, "solver_boundary") {
 		t.Fatalf("expected beta component templates, got %#v", body.Templates)
 	}
 }

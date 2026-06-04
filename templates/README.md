@@ -13,5 +13,6 @@ Current templates:
 - `components/utility`: a two-input utility calculation.
 - `components/vectorized`: a vectorized generated-wrapper component using `evaluate_batch`.
 - `components/external_executable`: an external process component using stdin/stdout JSON.
+- `components/solver_boundary`: a generated-wrapper component that keeps iterative feedback behavior inside one explicit solver boundary.
 
 Templates are source artifacts, not marketing samples. Keep them valid, runnable, and aligned with the runtime schemas.

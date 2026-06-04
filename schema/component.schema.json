@@ -20,7 +20,7 @@
     },
     "category": {
       "type": "string",
-      "enum": ["physical_component", "controller", "data_source", "data_sink", "utility", "composite_wrapper"]
+      "enum": ["physical_component", "controller", "data_source", "data_sink", "utility", "solver", "composite_wrapper"]
     },
     "execution_mode": {
       "type": "string",
@@ -68,6 +68,9 @@
       "additionalProperties": {
         "$ref": "#/$defs/stateDefinition"
       }
+    },
+    "solver_boundary": {
+      "$ref": "#/$defs/solverBoundary"
     },
     "input_nodes": {
       "type": "object",
@@ -203,6 +206,26 @@
           "type": ["string", "null"]
         },
         "initial": true,
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "solverBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "max_iterations": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "tolerance": {
+          "type": "number",
+          "minimum": 0
+        },
         "description": {
           "type": "string"
         }

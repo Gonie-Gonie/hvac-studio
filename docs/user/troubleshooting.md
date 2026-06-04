@@ -26,7 +26,7 @@ Common causes:
 - public input references an unknown node
 - connection references an unknown node
 - input node has multiple incoming connections
-- algebraic loop detected
+- algebraic loop detected; wrap feedback behavior in a solver boundary component
 
 ## Python Worker Error
 

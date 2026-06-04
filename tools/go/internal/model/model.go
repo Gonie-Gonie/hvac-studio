@@ -61,6 +61,7 @@ type Component struct {
 	Parameters           map[string]any                 `json:"parameters"`
 	ParameterDefinitions map[string]ParameterDefinition `json:"parameter_defs,omitempty"`
 	StateDefinitions     map[string]StateDefinition     `json:"state_defs,omitempty"`
+	SolverBoundary       *SolverBoundary                `json:"solver_boundary,omitempty"`
 }
 
 type ComponentSource struct {
@@ -89,6 +90,13 @@ type StateDefinition struct {
 	Unit        string `json:"unit,omitempty"`
 	Initial     any    `json:"initial,omitempty"`
 	Description string `json:"description,omitempty"`
+}
+
+type SolverBoundary struct {
+	Method        string  `json:"method,omitempty"`
+	MaxIterations int     `json:"max_iterations,omitempty"`
+	Tolerance     float64 `json:"tolerance,omitempty"`
+	Description   string  `json:"description,omitempty"`
 }
 
 type ValueBounds struct {

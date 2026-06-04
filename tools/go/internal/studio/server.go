@@ -131,6 +131,7 @@ type componentTemplateManifest struct {
 	Parameters           map[string]any                       `json:"parameters"`
 	ParameterDefinitions map[string]model.ParameterDefinition `json:"parameter_defs"`
 	StateDefinitions     map[string]model.StateDefinition     `json:"state_defs"`
+	SolverBoundary       *model.SolverBoundary                `json:"solver_boundary,omitempty"`
 }
 
 type componentTemplateSource struct {
@@ -2258,6 +2259,7 @@ func createComponent(loaded *project.LoadedProject, req createComponentRequest, 
 		Parameters:           cloneMap(templateManifest.Parameters),
 		ParameterDefinitions: cloneParameterDefinitions(templateManifest.ParameterDefinitions),
 		StateDefinitions:     cloneStateDefinitions(templateManifest.StateDefinitions),
+		SolverBoundary:       cloneSolverBoundary(templateManifest.SolverBoundary),
 	}
 
 	componentsRoot := filepath.Join(loaded.Root, "components")
@@ -2324,6 +2326,7 @@ func duplicateComponent(loaded *project.LoadedProject, req duplicateComponentReq
 	}
 	component.ParameterDefinitions = cloneParameterDefinitions(source.ParameterDefinitions)
 	component.StateDefinitions = cloneStateDefinitions(source.StateDefinitions)
+	component.SolverBoundary = cloneSolverBoundary(source.SolverBoundary)
 	component.Source = cloneComponentSource(source.Source)
 	if component.Source.Layout == "" || component.Source.Layout == "single_file_class" {
 		component.Source.Layout = "single_file_class"
@@ -6590,6 +6593,7 @@ func writeComponentMetadataFile(path string, component model.Component, classNam
 		Parameters           map[string]any                       `json:"parameters"`
 		ParameterDefinitions map[string]model.ParameterDefinition `json:"parameter_defs,omitempty"`
 		StateDefinitions     map[string]model.StateDefinition     `json:"state_defs,omitempty"`
+		SolverBoundary       *model.SolverBoundary                `json:"solver_boundary,omitempty"`
 	}{
 		ID:                   component.ID,
 		Name:                 component.Name,
@@ -6602,6 +6606,7 @@ func writeComponentMetadataFile(path string, component model.Component, classNam
 		Parameters:           component.Parameters,
 		ParameterDefinitions: component.ParameterDefinitions,
 		StateDefinitions:     component.StateDefinitions,
+		SolverBoundary:       component.SolverBoundary,
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -6706,6 +6711,14 @@ func cloneStateDefinitions(values map[string]model.StateDefinition) map[string]m
 		out[key] = value
 	}
 	return out
+}
+
+func cloneSolverBoundary(value *model.SolverBoundary) *model.SolverBoundary {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 func defaultString(value, fallback string) string {

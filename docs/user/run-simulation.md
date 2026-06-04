@@ -2,7 +2,7 @@
 
 ## Validate
 
-Validation checks graph structure, public IO mappings, connection references, and execution constraints before running.
+Validation checks graph structure, public IO mappings, connection references, and execution constraints before running. Direct graph cycles are validation errors. Iterative feedback behavior should be owned by a solver boundary component so the outer execution order remains inspectable.
 
 ## Run One Case
 

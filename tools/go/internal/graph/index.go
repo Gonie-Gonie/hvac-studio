@@ -103,6 +103,7 @@ func validateComponent(component model.Component) error {
 		"data_source",
 		"data_sink",
 		"utility",
+		"solver",
 		"composite_wrapper",
 	); err != nil {
 		return err
@@ -130,6 +131,9 @@ func validateComponent(component model.Component) error {
 		return err
 	}
 	if err := validateStateDefinitions(component.ID, component.StateDefinitions); err != nil {
+		return err
+	}
+	if err := validateSolverBoundary(component.ID, component.SolverBoundary); err != nil {
 		return err
 	}
 	return nil
@@ -215,6 +219,22 @@ func validateStateDefinitions(componentID string, definitions map[string]model.S
 		if strings.TrimSpace(name) == "" {
 			return fmt.Errorf("component %s state_defs key is required", componentID)
 		}
+	}
+	return nil
+}
+
+func validateSolverBoundary(componentID string, boundary *model.SolverBoundary) error {
+	if boundary == nil {
+		return nil
+	}
+	if strings.TrimSpace(boundary.Method) == "" {
+		return fmt.Errorf("component %s solver_boundary method is required", componentID)
+	}
+	if boundary.MaxIterations < 0 {
+		return fmt.Errorf("component %s solver_boundary max_iterations must be non-negative", componentID)
+	}
+	if boundary.Tolerance < 0 {
+		return fmt.Errorf("component %s solver_boundary tolerance must be non-negative", componentID)
 	}
 	return nil
 }

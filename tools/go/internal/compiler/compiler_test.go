@@ -38,6 +38,9 @@ func TestCompileDetectsAlgebraicLoop(t *testing.T) {
 	if !strings.Contains(err.Error(), "algebraic loop detected") {
 		t.Fatalf("expected algebraic loop message, got %v", err)
 	}
+	if !strings.Contains(err.Error(), "explicit solver boundary component") {
+		t.Fatalf("expected solver boundary guidance, got %v", err)
+	}
 }
 
 func TestCompileOrdersFeedForwardGraph(t *testing.T) {
@@ -73,6 +76,53 @@ func TestCompileOrdersFeedForwardGraph(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := strings.Join(plan.Order, ","); got != "a,b" {
+		t.Fatalf("unexpected order: %s", got)
+	}
+}
+
+func TestCompileAllowsExplicitSolverBoundaryComponentInAcyclicGraph(t *testing.T) {
+	loaded := &project.LoadedProject{
+		Project: &model.Project{EntrySystem: "MainSystem"},
+		Graph: &model.Graph{
+			SchemaVersion: "0.1.0",
+			Systems: []model.System{
+				{
+					ID:          "MainSystem",
+					Components:  []string{"solver"},
+					Connections: []string{},
+					PublicInputs: []model.PublicNodeRef{
+						{ID: "target", Component: "solver", Node: "in"},
+					},
+					PublicOutputs: []model.PublicNodeRef{
+						{ID: "solution", Component: "solver", Node: "out"},
+					},
+				},
+			},
+			Components: []model.Component{
+				{
+					ID:       "solver",
+					Kind:     "user_python",
+					Category: "solver",
+					Nodes: model.NodeSet{
+						Inputs:  []model.Node{{ID: "in", Medium: "signal", ValueType: "float"}},
+						Outputs: []model.Node{{ID: "out", Medium: "signal", ValueType: "float"}},
+					},
+					SolverBoundary: &model.SolverBoundary{
+						Method:        "fixed_point",
+						MaxIterations: 10,
+						Tolerance:     0.001,
+					},
+				},
+			},
+			Connections: []model.Connection{},
+		},
+	}
+
+	plan, err := Compile(loaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(plan.Order, ","); got != "solver" {
 		t.Fatalf("unexpected order: %s", got)
 	}
 }

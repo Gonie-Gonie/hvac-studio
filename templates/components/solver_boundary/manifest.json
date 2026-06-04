@@ -1,0 +1,115 @@
+{
+  "id": "solver_boundary",
+  "name": "Solver Boundary",
+  "kind": "user_python",
+  "category": "solver",
+  "execution_mode": "step",
+  "class_name": "SolverBoundaryComponent",
+  "source": {
+    "layout": "generated_wrapper",
+    "metadata": "component.json",
+    "init": "user_init.py",
+    "step": "user_step.py",
+    "helpers": "helpers.py",
+    "wrapper": "wrapper.py"
+  },
+  "inputs": [
+    {
+      "id": "target",
+      "name": "Target",
+      "preset": "scalar_input",
+      "medium": "signal",
+      "value_type": "float",
+      "unit": "",
+      "required": true
+    },
+    {
+      "id": "initial",
+      "name": "Initial Guess",
+      "preset": "scalar_input",
+      "medium": "signal",
+      "value_type": "float",
+      "unit": "",
+      "required": false,
+      "default": 0.0
+    }
+  ],
+  "outputs": [
+    {
+      "id": "solution",
+      "name": "Solution",
+      "preset": "scalar_output",
+      "medium": "signal",
+      "value_type": "float",
+      "unit": ""
+    },
+    {
+      "id": "iterations",
+      "name": "Iterations",
+      "preset": "scalar_output",
+      "medium": "signal",
+      "value_type": "integer",
+      "unit": "count"
+    },
+    {
+      "id": "converged",
+      "name": "Converged",
+      "preset": "scalar_output",
+      "medium": "signal",
+      "value_type": "boolean",
+      "unit": ""
+    }
+  ],
+  "parameters": {
+    "relaxation": 0.5,
+    "max_iterations": 10,
+    "tolerance": 0.001
+  },
+  "parameter_defs": {
+    "relaxation": {
+      "display_name": "Relaxation",
+      "unit": "ratio",
+      "default": 0.5,
+      "current": 0.5,
+      "bounds": {
+        "min": 0.0,
+        "max": 1.0
+      },
+      "role": "fixed",
+      "group": "Solver",
+      "description": "Fraction of the target residual applied each iteration."
+    },
+    "max_iterations": {
+      "display_name": "Max Iterations",
+      "unit": "count",
+      "default": 10,
+      "current": 10,
+      "role": "fixed",
+      "group": "Solver",
+      "description": "Maximum internal iterations before returning the latest estimate."
+    },
+    "tolerance": {
+      "display_name": "Tolerance",
+      "unit": "",
+      "default": 0.001,
+      "current": 0.001,
+      "role": "fixed",
+      "group": "Solver",
+      "description": "Convergence threshold for the change in solution."
+    }
+  },
+  "state_defs": {
+    "last_solution": {
+      "display_name": "Last Solution",
+      "unit": "",
+      "initial": 0.0,
+      "description": "Previous solver estimate used as a warm start."
+    }
+  },
+  "solver_boundary": {
+    "method": "fixed_point",
+    "max_iterations": 10,
+    "tolerance": 0.001,
+    "description": "Feedback behavior is handled inside this component; the project graph remains acyclic."
+  }
+}

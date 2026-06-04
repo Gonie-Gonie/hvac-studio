@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "outputs": {
+    "solution": 9.375,
+    "iterations": 4.0,
+    "converged": false
+  },
+  "component_outputs": {
+    "solver_boundary": {
+      "solution": 9.375,
+      "iterations": 4.0,
+      "converged": false
+    }
+  },
+  "states": {
+    "solver_boundary": {
+      "last_solution": 9.375
+    }
+  },
+  "execution_order": [
+    "solver_boundary"
+  ]
+}

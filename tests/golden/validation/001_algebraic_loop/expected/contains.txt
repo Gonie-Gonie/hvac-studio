@@ -1,4 +1,4 @@
 error[validation]
 algebraic loop detected among components
-Add a Delay component, define a solver boundary, or mark the system as iterative
+Add a Delay component or wrap the feedback behavior in an explicit solver boundary component
 

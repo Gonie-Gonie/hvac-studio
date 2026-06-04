@@ -19,6 +19,7 @@ runtime-only delivery paths.
 | Generated wrapper authoring | `008_generated_wrapper_component` | Generated-wrapper component source layout and export coverage. |
 | Vectorized component | `009_vectorized_component` | Array input/output execution through the vectorized worker contract. |
 | External executable | `010_external_executable_component` | A component that calls an external process through stdin/stdout JSON. |
+| Solver boundary | `011_solver_boundary_component` | Internal iterative feedback inside one explicit solver boundary component. |
 
 ## Smoke Coverage
 
@@ -51,6 +52,10 @@ through `evaluate_batch`.
 Use `010_external_executable_component` for the external executable mode. It
 shows one component invoking a separate command and carrying state through the
 runner-managed request/response contract.
+
+Use `011_solver_boundary_component` for feedback behavior. It keeps the project
+graph acyclic and performs fixed-point iteration inside a declared solver
+boundary component.
 
 Use CSV data validation with an explicit `time_column` for
 measured-vs-simulated comparisons. Each validation row is still treated as one

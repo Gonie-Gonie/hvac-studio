@@ -18,6 +18,14 @@ The Inspector also supports the same operation with explicit source and target e
 
 Existing connections can also be selected from the canvas line or the Inspector. After a run, Inspector connection rows show the latest value carried by that connection. Removing a connection from the Inspector restores the target input as a public input and adds it back to the default input file, so the value can be edited again in Run Inputs.
 
+## Feedback Loops
+
+The runner executes the project graph as an acyclic component order. Direct
+component-to-component feedback cycles are rejected during validation. Put
+iterative feedback behavior inside a solver boundary component instead; the
+outer graph should still expose normal inputs, outputs, and feed-forward
+connections.
+
 The canvas shows node medium badges and labels each connection with its endpoint flow, medium, and latest value when a run result is available. Connection styling calls out medium warnings, explicit medium overrides, incompatible medium mismatches, long paths, and backtracking paths so large systems can be scanned without opening raw JSON.
 
 Workspace component positions can be adjusted on the canvas. Studio saves those positions in `studio/layout.json`; the layout file affects the authoring view only and does not change runtime execution. Auto Layout rebuilds the saved layout from the current system connections so connected components are arranged left-to-right. The canvas surface expands to cover saved, auto-laid-out, and dragged node positions so cards and connection lines remain scrollable.

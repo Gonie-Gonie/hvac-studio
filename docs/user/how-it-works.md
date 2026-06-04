@@ -52,6 +52,10 @@ External executable components run as separate processes. The runner sends one
 JSON request on stdin and reads one JSON response on stdout, while still owning
 graph validation, execution order, state carryover, logs, and public outputs.
 
+Solver boundary components are normal runner components with explicit
+`solver_boundary` metadata. They can perform internal iterations, but the outer
+project graph is still compiled and inspected as an acyclic graph.
+
 ## SDK Wraps Serve Mode
 
 The Python SDK is a client for `bcs-runner serve`. `RunnerClient.start(...)` keeps the runner process alive and sends repeated JSON requests to the same compiled project/session:

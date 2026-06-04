@@ -14,6 +14,10 @@ A node is a component connection point or public interface point. Nodes can repr
 
 A connection links one output node to one input node.
 
+Component graphs are feed-forward at the system level. Feedback behavior should
+be represented inside an explicit solver boundary component rather than by
+creating a graph cycle.
+
 ```text
 Controller.control -> Chiller.control
 Chiller.power_kw -> OutputAggregator.chiller_power_kw
@@ -40,4 +44,3 @@ A scenario records inputs and context for a repeatable run. Studio currently sav
 ## Runner And Worker
 
 The runner validates and executes a project. The Python worker executes user-defined Python component code behind a stable process boundary.
-
