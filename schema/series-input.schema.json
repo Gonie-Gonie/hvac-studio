@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hvac-studio.local/schema/series-input.schema.json",
+  "title": "Time-Series Run Input",
+  "type": "object",
+  "required": ["steps"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^0\\.1\\.[0-9]+$"
+    },
+    "context": {
+      "type": "object",
+      "description": "Base context used for component initialization and merged into every step."
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["inputs"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "inputs": {
+            "type": "object"
+          },
+          "context": {
+            "type": "object",
+            "description": "Per-step context, commonly including time and timestep metadata."
+          }
+        }
+      }
+    }
+  }
+}

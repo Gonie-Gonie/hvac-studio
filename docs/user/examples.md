@@ -10,7 +10,7 @@ learning path and gives releases repeatable smoke assets.
 | 1 | `examples/001_scalar_component` | Public inputs, public outputs, Python component calls, and expected outputs. |
 | 2 | `examples/003_feedforward_system` | Feed-forward system composition and connection validation. |
 | 3 | `examples/008_generated_wrapper_component` | Generated-wrapper component authoring and export-safe source layout. |
-| 4 | `examples/004_stateful_controller` | Controller state and serve-mode repeated evaluations. |
+| 4 | `examples/004_stateful_controller` | Controller state, native `run-series`, and serve-mode repeated evaluations. |
 | 5 | `examples/005_chiller_plant_like_system` | Plant composition, dataset validation, parameter sets, calibration, and time-column validation rows. |
 | 6 | `examples/006_optimization_case` | Grid-search optimization and SDK-style external search scripting. |
 | 7 | `examples/007_runtime_only_package` | Runtime-only delivery shape and exported-package command style. |
@@ -21,8 +21,9 @@ custom inlet/outlet authoring notes and is not part of the runnable smoke set.
 ## Regression Role
 
 The example smoke gate validates every runnable project, runs its default case,
-and compares the result against the expected output. It also runs the plant data
-validation mapping, the plant calibration setup, and the optimization setup:
+compares the result against the expected output, and runs native time-series
+goldens when an example provides `inputs/series01.json`. It also runs the plant
+data validation mapping, the plant calibration setup, and the optimization setup:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-examples.ps1
@@ -38,5 +39,6 @@ The plant example includes `datasets/plant_validation.csv` and
 so validation results preserve each row's time value while still treating each
 row as an independent case.
 
-Use this as the current time-indexed validation pattern. Native sequential
-time-series execution with state carryover is a separate post-1.0 engine item.
+Use this as the measured-vs-simulated validation pattern. For sequential stateful
+timestep execution, use `bcs-runner run-series` with a series input artifact such
+as `examples/004_stateful_controller/inputs/series01.json`.

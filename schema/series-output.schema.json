@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hvac-studio.local/schema/series-output.schema.json",
+  "title": "Time-Series Run Output",
+  "type": "object",
+  "required": ["ok", "step_count", "outputs", "series", "final_states"],
+  "additionalProperties": true,
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "parameter_set": {
+      "type": "string"
+    },
+    "step_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "outputs": {
+      "type": "object",
+      "description": "Public outputs aggregated as arrays in step order."
+    },
+    "series": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["index", "inputs", "context", "outputs", "states"],
+        "additionalProperties": true,
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string"
+          },
+          "time": {},
+          "inputs": {
+            "type": "object"
+          },
+          "context": {
+            "type": "object"
+          },
+          "outputs": {
+            "type": "object"
+          },
+          "states": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "final_states": {
+      "type": "object"
+    },
+    "execution_order": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

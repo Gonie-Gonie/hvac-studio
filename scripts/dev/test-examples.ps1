@@ -18,6 +18,9 @@ function Invoke-Example {
   $InputPath = Join-Path $ExampleRoot 'inputs\case01.json'
   $ExpectedPath = Join-Path $ExampleRoot 'expected\output.json'
   $OutputPath = Join-Path ([IO.Path]::GetTempPath()) "hvac-studio-$ExampleName-output.json"
+  $SeriesInputPath = Join-Path $ExampleRoot 'inputs\series01.json'
+  $SeriesExpectedPath = Join-Path $ExampleRoot 'expected\series_output.json'
+  $SeriesOutputPath = Join-Path ([IO.Path]::GetTempPath()) "hvac-studio-$ExampleName-series-output.json"
 
   if (-not (Test-Path -LiteralPath $InputPath)) {
     throw "$ExampleName is missing inputs/case01.json"
@@ -39,6 +42,23 @@ function Invoke-Example {
   $Actual = Get-Content -Raw -LiteralPath $OutputPath | ConvertFrom-Json
   Assert-JsonSubset -Expected $Expected -Actual $Actual -Path '$'
   Remove-Item -LiteralPath $OutputPath -Force -ErrorAction SilentlyContinue
+
+  if (Test-Path -LiteralPath $SeriesInputPath) {
+    if (-not (Test-Path -LiteralPath $SeriesExpectedPath)) {
+      throw "$ExampleName is missing expected/series_output.json"
+    }
+    Write-Host "example series: $ExampleName"
+    Push-Location (Join-Path $RepoRoot 'tools\go')
+    try {
+      Invoke-Checked $env:HVAC_STUDIO_GO @('run', '.\cmd\bcs-runner', 'run-series', '--project', $ProjectPath, '--input', $SeriesInputPath, '--output', $SeriesOutputPath)
+    } finally {
+      Pop-Location
+    }
+    $SeriesExpected = Get-Content -Raw -LiteralPath $SeriesExpectedPath | ConvertFrom-Json
+    $SeriesActual = Get-Content -Raw -LiteralPath $SeriesOutputPath | ConvertFrom-Json
+    Assert-JsonSubset -Expected $SeriesExpected -Actual $SeriesActual -Path '$'
+    Remove-Item -LiteralPath $SeriesOutputPath -Force -ErrorAction SilentlyContinue
+  }
 }
 
 function Invoke-WorkflowSmoke {

@@ -80,6 +80,8 @@ func run(args []string) error {
 		return validate(args[2:])
 	case "run":
 		return runProject(args[2:])
+	case "run-series":
+		return runSeriesProject(args[2:])
 	case "serve":
 		return serveProject(args[2:], os.Stdin, os.Stdout)
 	case "schema":
@@ -179,6 +181,45 @@ func runProject(args []string) error {
 		resolvedOutput = resolveProjectPath(loaded.Root, resolvedOutput)
 	}
 	return apperror.Wrap(apperror.CodeRuntime, runtimecore.WriteResult(resolvedOutput, result))
+}
+
+func runSeriesProject(args []string) error {
+	flags := flag.NewFlagSet("run-series", flag.ContinueOnError)
+	projectPath := flags.String("project", "", "path to project.bcsproj")
+	inputPath := flags.String("input", "", "path to time-series input JSON")
+	outputPath := flags.String("output", "", "path to output JSON")
+	parameterSetPath := flags.String("parameter-set", "", "project-relative parameter set JSON")
+	if err := flags.Parse(args); err != nil {
+		return apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if *projectPath == "" {
+		return apperror.Errorf(apperror.CodeValidation, "--project is required")
+	}
+	if *inputPath == "" {
+		return apperror.Errorf(apperror.CodeInput, "--input is required")
+	}
+
+	loaded, err := project.Load(*projectPath)
+	if err != nil {
+		return apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if *parameterSetPath != "" {
+		if _, err := parameterset.ApplyFile(loaded, *parameterSetPath); err != nil {
+			return err
+		}
+	}
+	input, err := runtimecore.LoadSeriesInput(resolveProjectPath(loaded.Root, *inputPath))
+	if err != nil {
+		return err
+	}
+	result, err := runtimecore.RunSeries(context.Background(), loaded, input)
+	if err != nil {
+		return apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	if *parameterSetPath != "" {
+		result.ParameterSet = filepath.ToSlash(*parameterSetPath)
+	}
+	return apperror.Wrap(apperror.CodeRuntime, runtimecore.WriteSeriesResult(resolveProjectPath(loaded.Root, *outputPath), result))
 }
 
 type serveRequest struct {
@@ -446,5 +487,5 @@ func resolveProjectPath(projectRoot string, path string) string {
 }
 
 func usage() error {
-	return apperror.Errorf(apperror.CodeValidation, "usage: bcs-runner <validate|run|serve|schema|validate-data|calibrate|optimize|migrate> --project project.bcsproj")
+	return apperror.Errorf(apperror.CodeValidation, "usage: bcs-runner <validate|run|run-series|serve|schema|validate-data|calibrate|optimize|migrate> --project project.bcsproj")
 }

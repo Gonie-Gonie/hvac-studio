@@ -234,6 +234,60 @@ func TestRunCommandAppliesParameterSetWithoutOverwritingGraph(t *testing.T) {
 	}
 }
 
+func TestRunSeriesCommandCarriesStateAcrossSteps(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectRoot := filepath.Join(tmpDir, "project")
+	copyTree(t, examplePath("004_stateful_controller"), projectRoot)
+	outputPath := filepath.Join(tmpDir, "series-output.json")
+
+	err := run([]string{
+		"bcs-runner",
+		"run-series",
+		"--project",
+		filepath.Join(projectRoot, "project.bcsproj"),
+		"--input",
+		filepath.Join(projectRoot, "inputs", "series01.json"),
+		"--output",
+		outputPath,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var result struct {
+		OK        bool                 `json:"ok"`
+		StepCount int                  `json:"step_count"`
+		Outputs   map[string][]float64 `json:"outputs"`
+		Series    []struct {
+			ID      string                        `json:"id"`
+			Time    float64                       `json:"time"`
+			Outputs map[string]float64            `json:"outputs"`
+			States  map[string]map[string]float64 `json:"states"`
+		} `json:"series"`
+		FinalStates map[string]map[string]float64 `json:"final_states"`
+	}
+	readJSONFile(t, outputPath, &result)
+	if !result.OK || result.StepCount != 3 || len(result.Series) != 3 {
+		t.Fatalf("series result = %#v", result)
+	}
+	if result.Outputs["chw_setpoint_c"][0] != 6.5 ||
+		result.Outputs["chw_setpoint_c"][1] != 6.4 ||
+		result.Outputs["chw_setpoint_c"][2] != 6.55 {
+		t.Fatalf("setpoint series = %#v", result.Outputs["chw_setpoint_c"])
+	}
+	if result.Series[1].ID != "minute-1" || result.Series[1].Time != 60 {
+		t.Fatalf("second point identity = %#v", result.Series[1])
+	}
+	if result.Series[1].States["controller"]["calls"] != 2 {
+		t.Fatalf("second point state = %#v", result.Series[1].States)
+	}
+	if result.FinalStates["controller"]["calls"] != 3 ||
+		result.FinalStates["controller"]["integral_error"] != 2.5 ||
+		result.FinalStates["controller"]["last_error"] != 0.5 {
+		t.Fatalf("final states = %#v", result.FinalStates)
+	}
+}
+
 func TestSchemaCommandWritesPublicInterface(t *testing.T) {
 	tmpDir := t.TempDir()
 	outputPath := filepath.Join(tmpDir, "schema.json")

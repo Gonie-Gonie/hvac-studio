@@ -11,7 +11,15 @@ go run .\cmd\bcs-runner validate `
 go run .\cmd\bcs-runner run `
   --project ..\..\examples\004_stateful_controller\project.bcsproj `
   --input ..\..\examples\004_stateful_controller\inputs\case01.json
+go run .\cmd\bcs-runner run-series `
+  --project ..\..\examples\004_stateful_controller\project.bcsproj `
+  --input ..\..\examples\004_stateful_controller\inputs\series01.json `
+  --output ..\..\artifacts\004_stateful_controller-series.json
 Pop-Location
 ```
 
-For repeated evaluations with state preserved inside one process, use `bcs-runner serve`.
+`run-series` evaluates the steps in `inputs/series01.json` inside one runtime
+session. The output aggregates each public output into arrays and reports
+step-level state plus `final_states`, so the PI controller's integral term can
+be inspected across timesteps. For lower-level repeated evaluations, use
+`bcs-runner serve`.

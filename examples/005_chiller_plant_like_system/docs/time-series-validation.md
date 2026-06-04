@@ -1,7 +1,7 @@
 # Time-Column Validation Tutorial
 
-This example uses the current stable time-indexed workflow: CSV validation rows
-with an explicit `time_column`.
+This example uses the measured-vs-simulated time-column workflow: CSV validation
+rows with an explicit `time_column`.
 
 ## Files
 
@@ -46,11 +46,10 @@ The result JSON includes:
 
 ## Boundary
 
-`validate-data` currently evaluates each CSV row independently. It is the right
-tool for measured-vs-simulated checks, calibration setup data, and time-indexed
-reporting. It is not yet a native sequential time-series runner with hidden state
-carryover between rows.
+`validate-data` evaluates each CSV row independently. It is the right tool for
+measured-vs-simulated checks, calibration setup data, and time-indexed reporting.
+It does not carry hidden state between rows.
 
-For repeated calls where an external script owns the loop, use `bcs-runner serve`
-or the Python SDK. Native sequential time-series execution is tracked separately
-as a post-1.0 engine item.
+For sequential stateful timestep execution, use `bcs-runner run-series` with a
+series input artifact. For repeated calls where an external script owns the loop,
+use `bcs-runner serve` or the Python SDK.

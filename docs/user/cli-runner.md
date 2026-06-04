@@ -27,6 +27,24 @@ bcs-runner.exe run `
   --output output.json
 ```
 
+## Run Time Series
+
+`run-series` evaluates ordered steps inside one runtime session, so component
+state carries from one step to the next. Put shared context such as `dt` at the
+top level and per-step context such as `time` inside each step:
+
+```powershell
+bcs-runner.exe run-series `
+  --project examples/004_stateful_controller/project.bcsproj `
+  --input examples/004_stateful_controller/inputs/series01.json `
+  --output series-output.json
+```
+
+The result contains `series[]` step records, `final_states`, and `outputs`
+aggregated as arrays for plotting or export. This is the native sequential path
+for stateful timestep studies; `validate-data` remains the measured-vs-simulated
+workflow for dataset rows.
+
 ## Schema
 
 ```powershell
@@ -114,7 +132,7 @@ Serve mode keeps the graph compiled and Python components loaded for repeated ev
 '@ | bcs-runner.exe serve --project project.bcsproj
 ```
 
-Each input line is a JSON request. Each output line is a JSON response with `ok`, `id`, and either `result` or `error`. Component state is preserved inside the live serve session until shutdown.
+Each input line is a JSON request. Each output line is a JSON response with `ok`, `id`, and either `result` or `error`. Component state is preserved inside the live serve session until shutdown. Use `run-series` when the repeated evaluations are a saved time-indexed artifact.
 
 ## Exit Codes
 

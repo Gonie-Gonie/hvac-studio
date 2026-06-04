@@ -12,7 +12,7 @@ runtime-only delivery paths.
 | First scalar run | `001_scalar_component` | A minimal public input, Python component, public output, and expected output. |
 | Custom component placeholder | `002_custom_component` | Reserved design notes for richer custom inlet/outlet authoring. |
 | Feed-forward system | `003_feedforward_system` | Multiple connected components and system-level public IO. |
-| Stateful controller | `004_stateful_controller` | Step component state, controller logic, and serve-mode repeated evaluations. |
+| Stateful controller | `004_stateful_controller` | Step component state, controller logic, native `run-series`, and serve-mode repeated evaluations. |
 | Plant workflow | `005_chiller_plant_like_system` | Plant-like composition, dataset validation, parameter sets, calibration, and CSV time columns. |
 | Optimization | `006_optimization_case` | Grid-search optimization and SDK-style external search scripting. |
 | Runtime-only delivery | `007_runtime_only_package` | A packaged delivery layout with a runnable model and CLI guide. |
@@ -31,14 +31,18 @@ The smoke script:
 - validates every `project.bcsproj` under `examples/`
 - runs each example's `inputs/case01.json`
 - compares the run result against `expected/output.json`
+- runs native time-series examples when `inputs/series01.json` exists
 - runs the plant validation mapping from `005_chiller_plant_like_system`
 - runs the plant calibration setup from `005_chiller_plant_like_system`
 - runs the optimization setup from `006_optimization_case`
 
 ## Time-Series Boundary
 
-The current stable time-indexed workflow is CSV data validation with an explicit
-`time_column`. Each row is treated as one independent model evaluation and the
-time value is preserved in validation rows. Native sequential time-series state
-carryover is planned separately under PM-301, so examples should not imply hidden
-stateful iteration through `validate-data`.
+Use `bcs-runner run-series` for native sequential timestep runs with state
+carryover. The `004_stateful_controller` example includes `inputs/series01.json`
+and a golden `expected/series_output.json`.
+
+Use CSV data validation with an explicit `time_column` for
+measured-vs-simulated comparisons. Each validation row is still treated as one
+independent model evaluation, and `validate-data` does not carry hidden state
+between rows.

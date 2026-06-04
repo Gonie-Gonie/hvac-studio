@@ -1,0 +1,38 @@
+{
+  "schema_version": "0.1.0",
+  "context": {
+    "dt": 60
+  },
+  "steps": [
+    {
+      "id": "minute-0",
+      "inputs": {
+        "measured_supply_temp_c": 8.0,
+        "target_supply_temp_c": 7.0
+      },
+      "context": {
+        "time": 0
+      }
+    },
+    {
+      "id": "minute-1",
+      "inputs": {
+        "measured_supply_temp_c": 8.0,
+        "target_supply_temp_c": 7.0
+      },
+      "context": {
+        "time": 60
+      }
+    },
+    {
+      "id": "minute-2",
+      "inputs": {
+        "measured_supply_temp_c": 7.5,
+        "target_supply_temp_c": 7.0
+      },
+      "context": {
+        "time": 120
+      }
+    }
+  ]
+}

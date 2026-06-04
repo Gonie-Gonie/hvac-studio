@@ -1,0 +1,77 @@
+{
+  "ok": true,
+  "step_count": 3,
+  "outputs": {
+    "chw_setpoint_c": [6.5, 6.4, 6.55],
+    "control_effort_k": [0.5, 0.6, 0.45]
+  },
+  "series": [
+    {
+      "index": 0,
+      "id": "minute-0",
+      "time": 0,
+      "context": {
+        "dt": 60,
+        "time": 0
+      },
+      "outputs": {
+        "chw_setpoint_c": 6.5,
+        "control_effort_k": 0.5
+      },
+      "states": {
+        "controller": {
+          "calls": 1,
+          "integral_error": 1.0,
+          "last_error": 1.0
+        }
+      }
+    },
+    {
+      "index": 1,
+      "id": "minute-1",
+      "time": 60,
+      "context": {
+        "dt": 60,
+        "time": 60
+      },
+      "outputs": {
+        "chw_setpoint_c": 6.4,
+        "control_effort_k": 0.6
+      },
+      "states": {
+        "controller": {
+          "calls": 2,
+          "integral_error": 2.0,
+          "last_error": 1.0
+        }
+      }
+    },
+    {
+      "index": 2,
+      "id": "minute-2",
+      "time": 120,
+      "context": {
+        "dt": 60,
+        "time": 120
+      },
+      "outputs": {
+        "chw_setpoint_c": 6.55,
+        "control_effort_k": 0.45
+      },
+      "states": {
+        "controller": {
+          "calls": 3,
+          "integral_error": 2.5,
+          "last_error": 0.5
+        }
+      }
+    }
+  ],
+  "final_states": {
+    "controller": {
+      "calls": 3,
+      "integral_error": 2.5,
+      "last_error": 0.5
+    }
+  }
+}
