@@ -634,6 +634,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/optimization/run", s.handleOptimizationRun)
 	s.mux.HandleFunc("POST /api/schema", s.handleSchema)
 	s.mux.HandleFunc("POST /api/export", s.handleExport)
+	s.mux.Handle("/docs/", http.StripPrefix("/docs/", http.FileServer(http.Dir(filepath.Join(s.repoRoot, "docs")))))
 	s.mux.Handle("/", staticHandler)
 }
 

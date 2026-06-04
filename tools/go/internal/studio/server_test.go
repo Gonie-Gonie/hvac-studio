@@ -111,6 +111,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("artifactRows")) {
 		t.Fatalf("index did not include artifact browser rows")
 	}
+	if !bytes.Contains(body, []byte("workspaceHelpLink")) {
+		t.Fatalf("index did not include workspace help link")
+	}
 	if !bytes.Contains(body, []byte("runComparisonRows")) {
 		t.Fatalf("index did not include run comparison rows")
 	}
@@ -137,6 +140,21 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("autoLayoutButton")) {
 		t.Fatalf("index did not include canvas auto layout control")
+	}
+}
+
+func TestDocsRouteServesUserGuide(t *testing.T) {
+	server := newTestServer(t)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/docs/user/run-simulation.md", nil)
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	if !bytes.Contains(response.Body.Bytes(), []byte("# Run Simulation")) {
+		t.Fatalf("docs route did not serve the run simulation guide")
 	}
 }
 
@@ -225,6 +243,15 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("latestRuntimeResult")) {
 		t.Fatalf("module entrypoint did not share latest runtime result state")
+	}
+	if !bytes.Contains(body, []byte("WORKSPACE_HELP")) {
+		t.Fatalf("module entrypoint did not define workspace help links")
+	}
+	if !bytes.Contains(body, []byte("updateWorkspaceHelp")) {
+		t.Fatalf("module entrypoint did not update contextual help links")
+	}
+	if !bytes.Contains(body, []byte("result-help-button")) {
+		t.Fatalf("module entrypoint did not render result help links")
 	}
 	if !bytes.Contains(body, []byte("latestRuntimeComparisonContext")) {
 		t.Fatalf("module entrypoint did not include runtime comparison baseline capture")

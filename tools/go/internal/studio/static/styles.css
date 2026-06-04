@@ -294,6 +294,25 @@ h2,
   border-color: #8bbce8;
 }
 
+.help-button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.help-button:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
 .view {
   display: none;
   min-height: 0;
@@ -385,6 +404,19 @@ h2,
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.result-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.result-help-button {
+  width: 28px;
+  height: 28px;
+  margin-left: 0;
+  font-size: 12px;
 }
 
 .result-grid {

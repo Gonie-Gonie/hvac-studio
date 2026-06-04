@@ -19,6 +19,15 @@ const CANVAS_NODE_PORT_GAP = 42;
 const CANVAS_COLUMN_GAP = 370;
 const CANVAS_ROW_GAP = 250;
 const CANVAS_PADDING = 96;
+const WORKSPACE_HELP = {
+  start: "/docs/user/quick-start.md",
+  canvas: "/docs/user/build-system.md",
+  code: "/docs/user/edit-python-function.md",
+  parameters: "/docs/user/parameter-management.md",
+  artifacts: "/docs/user/how-it-works.md",
+  run: "/docs/user/run-simulation.md",
+  export: "/docs/user/export-runtime.md",
+};
 
 function log(message) {
   const time = new Date().toLocaleTimeString();
@@ -2163,12 +2172,12 @@ function structuredResultView(value) {
   const wrapper = document.createElement("div");
   wrapper.className = "result-structured";
   if (value.kind === "dataset" && value.dataset) {
-    wrapper.append(resultHeader("Dataset Preview", value.dataset.summary?.relative_path || "", `${value.dataset.summary?.row_count || 0} rows`));
+    wrapper.append(resultHeader("Dataset Preview", value.dataset.summary?.relative_path || "", `${value.dataset.summary?.row_count || 0} rows`, "/docs/user/data-validation.md"));
     wrapper.append(datasetResultSection(value.dataset));
     return wrapper;
   }
   if (value.kind === "parameter_set" && value.parameter_set) {
-    wrapper.append(resultHeader("Parameter Set", value.parameter_set.summary?.relative_path || "", `${value.parameter_set.summary?.parameter_count || 0} values`));
+    wrapper.append(resultHeader("Parameter Set", value.parameter_set.summary?.relative_path || "", `${value.parameter_set.summary?.parameter_count || 0} values`, "/docs/user/parameter-management.md"));
     wrapper.append(parameterSetResultSection(value.parameter_set));
     return wrapper;
   }
@@ -2180,27 +2189,27 @@ function structuredResultView(value) {
 
   const validation = value.result?.metrics ? value.result : value.metrics ? value : null;
   if (validation) {
-    wrapper.append(resultHeader("Validation Result", validation.mapping_name || validation.mapping_id || "", `${validation.row_count || 0} rows`));
+    wrapper.append(resultHeader("Validation Result", validation.mapping_name || validation.mapping_id || "", `${validation.row_count || 0} rows`, "/docs/user/data-validation.md"));
     wrapper.append(validationResultSection(validation));
     return wrapper;
   }
 
   const calibration = value.result?.candidates && value.result?.saved_parameter_set !== undefined ? value.result : value.candidates && value.saved_parameter_set !== undefined ? value : null;
   if (calibration) {
-    wrapper.append(resultHeader("Calibration Result", calibration.setup_name || calibration.setup_id || "", `best ${shortNumber(calibration.best_objective)}`));
+    wrapper.append(resultHeader("Calibration Result", calibration.setup_name || calibration.setup_id || "", `best ${shortNumber(calibration.best_objective)}`, "/docs/user/calibration.md"));
     wrapper.append(candidateResultSection(calibration, "Saved parameter set", calibration.saved_parameter_set));
     return wrapper;
   }
 
   const optimization = value.result?.candidates && value.result?.saved_scenario !== undefined ? value.result : value.candidates && value.saved_scenario !== undefined ? value : null;
   if (optimization) {
-    wrapper.append(resultHeader("Optimization Result", optimization.setup_name || optimization.setup_id || "", `best ${shortNumber(optimization.best_objective)}`));
+    wrapper.append(resultHeader("Optimization Result", optimization.setup_name || optimization.setup_id || "", `best ${shortNumber(optimization.best_objective)}`, "/docs/user/optimization.md"));
     wrapper.append(candidateResultSection(optimization, "Saved scenario", optimization.saved_scenario));
     return wrapper;
   }
 
   if (value.cases) {
-    wrapper.append(resultHeader("Batch Result", value.id || "", `${(value.cases || []).filter((item) => item.ok).length}/${(value.cases || []).length} ok`));
+    wrapper.append(resultHeader("Batch Result", value.id || "", `${(value.cases || []).filter((item) => item.ok).length}/${(value.cases || []).length} ok`, "/docs/user/run-simulation.md"));
     wrapper.append(resultTable("Cases", (value.cases || []).map((item) => [
       item.scenario_name || item.scenario_id || "",
       item.ok ? "ok" : "failed",
@@ -2211,14 +2220,14 @@ function structuredResultView(value) {
 
   const run = value.result?.outputs ? value.result : value.outputs ? value : null;
   if (run) {
-    wrapper.append(resultHeader("Run Result", value.id || "current run", `${Object.keys(run.outputs || {}).length} outputs`));
+    wrapper.append(resultHeader("Run Result", value.id || "current run", `${Object.keys(run.outputs || {}).length} outputs`, "/docs/user/run-simulation.md"));
     wrapper.append(resultTable("Public Outputs", Object.entries(run.outputs || {}).map(([name, output]) => [name, formatValue(output)]), ["Output", "Value"]));
     return wrapper;
   }
   return null;
 }
 
-function resultHeader(title, subtitle, status) {
+function resultHeader(title, subtitle, status, helpPath = "") {
   const header = document.createElement("div");
   header.className = "result-header";
   header.innerHTML = `
@@ -2226,7 +2235,10 @@ function resultHeader(title, subtitle, status) {
       <div class="result-title">${escapeHTML(title)}</div>
       <div class="result-subtitle">${escapeHTML(subtitle || "")}</div>
     </div>
-    <div class="result-status">${escapeHTML(status || "")}</div>
+    <div class="result-header-actions">
+      <div class="result-status">${escapeHTML(status || "")}</div>
+      ${helpPath ? `<a class="help-button result-help-button" href="${escapeAttr(helpPath)}" target="_blank" rel="noopener" title="Open related help" aria-label="Open related help">?</a>` : ""}
+    </div>
   `;
   return header;
 }
@@ -4757,6 +4769,15 @@ function setMode(mode) {
   document.querySelectorAll(".view").forEach((view) => {
     view.classList.toggle("active", view.id === `${mode}View`);
   });
+  updateWorkspaceHelp(mode);
+}
+
+function updateWorkspaceHelp(mode) {
+  const link = el("workspaceHelpLink");
+  if (!link) return;
+  const href = WORKSPACE_HELP[mode] || "/docs/user/index.md";
+  link.href = href;
+  link.title = `Open ${displayNameFromIdentifier(mode || "workspace")} help`;
 }
 
 function setBottomTab(name) {
