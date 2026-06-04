@@ -193,6 +193,34 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-fast.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1 -Version 0.1.0-alpha.3 -SkipSetup
 ```
 
+Current post-MVP release candidate after closing PM-301 through PM-308:
+
+```text
+v0.1.0-alpha.4
+Windows portable zip
+Windows installer preview zip
+Windows runtime-only zip
+Experimental macOS support zip
+Pooled Python SDK evaluation
+Composite, unit-conversion, solver-boundary, external executable, and vectorized examples
+Hardened release candidate gate with package smoke failure propagation
+```
+
+Release artifacts produced by the post-MVP release gate:
+
+```text
+dist/hvac-studio-0.1.0-alpha.4-windows-amd64-portable.zip
+dist/hvac-studio-0.1.0-alpha.4-windows-amd64-installer.zip
+dist/hvac-studio-runtime-0.1.0-alpha.4-windows-amd64.zip
+dist/hvac-studio-0.1.0-alpha.4-macos-universal-experimental.zip
+```
+
+Post-MVP release verification command:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1 -Version 0.1.0-alpha.4 -SkipSetup
+```
+
 ## Milestone Status Summary
 
 MVP is closed as of `v0.1.0-alpha.3`. Do not add new scope to the MVP. New work belongs in the post-MVP backlog and should be scheduled through alpha hardening, beta usability, 1.0 readiness, or post-1.0 expansion.
