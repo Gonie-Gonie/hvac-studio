@@ -2897,6 +2897,59 @@ func TestRunEndpointReturnsComponentLinkedRuntimeProblem(t *testing.T) {
 	}
 }
 
+func TestRunEndpointMapsPythonTracebackToSourceLine(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Traceback Line Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+	sourcePath := filepath.Join(root, "projects", "traceback-line-project", "components", "scalar.py")
+	source := "class ScalarComponent:\n    def evaluate(self, inputs, state, params, context):\n        scale = 1 / 0\n        return {\"result\": scale}, state\n"
+	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"inputs":       map[string]any{"value": 5},
+		"context":      map[string]any{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/run", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body apiError
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Problems) != 1 {
+		t.Fatalf("problems = %#v", body.Problems)
+	}
+	problem := body.Problems[0]
+	if problem.ComponentID != "scalar" || problem.Source != "components/scalar.py" || problem.Line != 3 {
+		t.Fatalf("problem location = %#v", problem)
+	}
+	if len(body.Error.Problems) != 1 || body.Error.Problems[0].Source != "components/scalar.py" || body.Error.Problems[0].Line != 3 {
+		t.Fatalf("structured error problems = %#v", body.Error.Problems)
+	}
+	if !strings.Contains(problem.Message, "ZeroDivisionError") {
+		t.Fatalf("problem message = %s", problem.Message)
+	}
+}
+
 func TestRunEndpointRejectsSavedSourceContractErrors(t *testing.T) {
 	_, server := newIsolatedTestServer(t)
 	project := createWorkspaceProject(t, server, "Run Source Gate Project")

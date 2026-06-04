@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -551,6 +552,7 @@ type Problem struct {
 	Message     string `json:"message"`
 	ComponentID string `json:"component_id,omitempty"`
 	NodeID      string `json:"node_id,omitempty"`
+	Source      string `json:"source,omitempty"`
 	Line        int    `json:"line,omitempty"`
 	Column      int    `json:"column,omitempty"`
 }
@@ -1536,7 +1538,7 @@ func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
 	}
 	plan, err := compiler.Compile(loaded)
 	if err != nil {
-		writeErrorWithProblems(w, apperror.Wrap(apperror.CodeValidation, err), inferProblems(loaded.Graph, err))
+		writeErrorWithProblems(w, apperror.Wrap(apperror.CodeValidation, err), inferProblems(loaded, err))
 		return
 	}
 	problems := compilerDiagnosticsProblems(plan.Diagnostics)
@@ -1598,7 +1600,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	result, err := runtimecore.Run(ctx, loaded, input)
 	if err != nil {
-		writeErrorWithProblems(w, err, inferProblems(loaded.Graph, err))
+		writeErrorWithProblems(w, err, inferProblems(loaded, err))
 		return
 	}
 	if req.ParameterSetPath != "" {
@@ -1669,7 +1671,7 @@ func (s *Server) handleBatch(w http.ResponseWriter, r *http.Request) {
 		result, err := runtimecore.Run(ctx, loaded, input)
 		if err != nil {
 			caseRecord.Error = err.Error()
-			caseRecord.Problems = inferProblems(loaded.Graph, err)
+			caseRecord.Problems = inferProblems(loaded, err)
 		} else {
 			if req.ParameterSetPath != "" {
 				result.ParameterSet = filepath.ToSlash(req.ParameterSetPath)
@@ -1731,7 +1733,7 @@ func (s *Server) handleDataValidation(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	result, err := modelvalidation.Run(ctx, loaded, mapping, modelvalidation.Options{HighErrorRows: req.HighErrorRows})
 	if err != nil {
-		writeErrorWithProblems(w, err, inferProblems(loaded.Graph, err))
+		writeErrorWithProblems(w, err, inferProblems(loaded, err))
 		return
 	}
 	if req.ParameterSetPath != "" {
@@ -1790,7 +1792,7 @@ func (s *Server) handleCalibrationRun(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	result, err := calibration.Run(ctx, loaded.Path, setup, calibration.Options{SaveParameterSet: req.SaveParameterSet})
 	if err != nil {
-		writeErrorWithProblems(w, err, inferProblems(loaded.Graph, err))
+		writeErrorWithProblems(w, err, inferProblems(loaded, err))
 		return
 	}
 	response := map[string]any{"ok": true, "calibration_result": result}
@@ -1846,7 +1848,7 @@ func (s *Server) handleOptimizationRun(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	result, err := optimization.Run(ctx, loaded.Path, setup, optimization.Options{SaveScenario: req.SaveScenario})
 	if err != nil {
-		writeErrorWithProblems(w, err, inferProblems(loaded.Graph, err))
+		writeErrorWithProblems(w, err, inferProblems(loaded, err))
 		return
 	}
 	response := map[string]any{"ok": true, "optimization_result": result}
@@ -4087,6 +4089,7 @@ func toAppProblems(problems []Problem) []apperror.Problem {
 			Message:     problem.Message,
 			ComponentID: problem.ComponentID,
 			NodeID:      problem.NodeID,
+			Source:      problem.Source,
 			Line:        problem.Line,
 			Column:      problem.Column,
 		})
@@ -4094,10 +4097,13 @@ func toAppProblems(problems []Problem) []apperror.Problem {
 	return out
 }
 
-func inferProblems(graph *model.Graph, err error) []Problem {
+func inferProblems(loaded *project.LoadedProject, err error) []Problem {
 	message := fmt.Sprint(err)
 	problem := Problem{Severity: "error", Message: message}
-	for _, component := range graph.Components {
+	if loaded == nil || loaded.Graph == nil {
+		return []Problem{problem}
+	}
+	for _, component := range loaded.Graph.Components {
 		if strings.Contains(message, component.ID) {
 			problem.ComponentID = component.ID
 			for _, node := range component.Nodes.Inputs {
@@ -4117,7 +4123,127 @@ func inferProblems(graph *model.Graph, err error) []Problem {
 			break
 		}
 	}
+	if location, ok := tracebackSourceLocation(loaded, message, problem.ComponentID); ok {
+		problem.ComponentID = location.ComponentID
+		problem.Source = location.Source
+		problem.Line = location.Line
+	}
 	return []Problem{problem}
+}
+
+type sourceLocation struct {
+	ComponentID string
+	Source      string
+	Line        int
+}
+
+type tracebackFrame struct {
+	Path string
+	Line int
+}
+
+func tracebackSourceLocation(loaded *project.LoadedProject, message string, preferredComponentID string) (sourceLocation, bool) {
+	frames := tracebackFrames(message)
+	if len(frames) == 0 {
+		return sourceLocation{}, false
+	}
+	paths := componentEditableSourcePaths(loaded)
+	for index := len(frames) - 1; index >= 0; index-- {
+		frame := frames[index]
+		if frame.Line <= 0 {
+			continue
+		}
+		for _, candidate := range paths {
+			if preferredComponentID != "" && candidate.ComponentID != preferredComponentID {
+				continue
+			}
+			if sameTracebackPath(frame.Path, candidate.AbsPath) {
+				return sourceLocation{
+					ComponentID: candidate.ComponentID,
+					Source:      candidate.Source,
+					Line:        frame.Line,
+				}, true
+			}
+		}
+	}
+	for index := len(frames) - 1; index >= 0; index-- {
+		frame := frames[index]
+		if frame.Line <= 0 {
+			continue
+		}
+		for _, candidate := range paths {
+			if sameTracebackPath(frame.Path, candidate.AbsPath) {
+				return sourceLocation{
+					ComponentID: candidate.ComponentID,
+					Source:      candidate.Source,
+					Line:        frame.Line,
+				}, true
+			}
+		}
+	}
+	return sourceLocation{}, false
+}
+
+func tracebackFrames(message string) []tracebackFrame {
+	pattern := regexp.MustCompile(`(?m)^\s*File "([^"]+)", line ([0-9]+)`)
+	matches := pattern.FindAllStringSubmatch(message, -1)
+	frames := make([]tracebackFrame, 0, len(matches))
+	for _, match := range matches {
+		if len(match) != 3 {
+			continue
+		}
+		line, err := strconv.Atoi(match[2])
+		if err != nil {
+			continue
+		}
+		frames = append(frames, tracebackFrame{Path: filepath.Clean(match[1]), Line: line})
+	}
+	return frames
+}
+
+type componentSourcePathCandidate struct {
+	ComponentID string
+	Source      string
+	AbsPath     string
+}
+
+func componentEditableSourcePaths(loaded *project.LoadedProject) []componentSourcePathCandidate {
+	paths := []componentSourcePathCandidate{}
+	for _, component := range loaded.Graph.Components {
+		sourcePath, err := componentSourcePath(loaded, component.ID)
+		if err != nil {
+			continue
+		}
+		rel, err := filepath.Rel(loaded.Root, sourcePath)
+		if err != nil {
+			rel = sourcePath
+		}
+		paths = append(paths, componentSourcePathCandidate{
+			ComponentID: component.ID,
+			Source:      filepath.ToSlash(rel),
+			AbsPath:     filepath.Clean(sourcePath),
+		})
+	}
+	return paths
+}
+
+func sameTracebackPath(tracebackPath string, sourcePath string) bool {
+	tracebackPath = filepath.Clean(filepath.FromSlash(strings.TrimSpace(tracebackPath)))
+	sourcePath = filepath.Clean(filepath.FromSlash(strings.TrimSpace(sourcePath)))
+	if filepath.IsAbs(tracebackPath) {
+		if tracebackAbs, err := filepath.Abs(tracebackPath); err == nil {
+			tracebackPath = tracebackAbs
+		}
+	}
+	if sourceAbs, err := filepath.Abs(sourcePath); err == nil {
+		sourcePath = sourceAbs
+	}
+	if strings.EqualFold(tracebackPath, sourcePath) {
+		return true
+	}
+	tracebackSlash := filepath.ToSlash(tracebackPath)
+	sourceSlash := filepath.ToSlash(sourcePath)
+	return strings.HasSuffix(sourceSlash, tracebackSlash)
 }
 
 func compilerDiagnosticsProblems(diagnostics []compiler.Diagnostic) []Problem {

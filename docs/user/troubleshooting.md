@@ -32,6 +32,8 @@ Common causes:
 
 Python worker errors happen while loading, initializing, or evaluating user Python code.
 
+When a worker traceback points into a project component source file, Studio includes `component_id`, `source`, and `line` in the structured problem payload. Open the Problems panel or Code workspace to jump to that line.
+
 Common causes:
 
 - syntax error
