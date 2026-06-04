@@ -26,6 +26,7 @@ It is not a fixed HVAC component library. Users define components, nodes, parame
 - Use [Screenshot Tutorials](tutorials.md) when you want a guided map of the current Studio screens.
 - Use [Examples](examples.md) when you want runnable learning projects that also serve as regression assets.
 - Read [Core Concepts](core-concepts.md) before creating custom components.
+- Read [Concept Map](concept-map.md) to see how project files connect to Studio, CLI, SDK, and exports.
 - Read [How It Works](how-it-works.md) to understand why project files, the runner, and Python worker exist.
 - Read [Artifact Compatibility](artifact-compatibility.md) before depending on saved project files across releases.
 - Use [CLI Runner](cli-runner.md) and [Export Runtime](export-runtime.md) when integrating with external tools.

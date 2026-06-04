@@ -85,6 +85,20 @@ Current alpha, beta, release-candidate, and development packages may be unsigned
 Stable public installer packages require documented signing and verification
 before release. See [Release Trust](release-trust.md).
 
+Package documentation is versioned with:
+
+- `docs/version.json`
+- `docs/site/version.json`
+
+Build the consolidated manual source, and a PDF when `pandoc` is installed:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\build-docs-manual.ps1 -Version 0.1.0-dev
+```
+
+The Markdown manual is always written under `dist/docs/manual/`. PDF generation
+is optional until the release environment includes a PDF toolchain.
+
 ## Local Release Test
 
 From a clean checkout:

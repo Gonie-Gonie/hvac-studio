@@ -143,18 +143,32 @@ function Invoke-MkDocsBuild {
 function Copy-DocumentationAssets {
   param(
     [Parameter(Mandatory = $true)][string]$RepoRoot,
-    [Parameter(Mandatory = $true)][string]$StageRoot
+    [Parameter(Mandatory = $true)][string]$StageRoot,
+    [string]$Version = ''
   )
 
   $DocsRoot = Join-Path $StageRoot 'docs'
   Copy-Tree -Source (Join-Path $RepoRoot 'docs') -Destination $DocsRoot
+  $DocsVersion = [ordered]@{
+    schema = 'hvac-studio.docs.v1'
+    version = $Version
+    source = 'docs'
+    html = 'docs/site'
+    manual = 'docs/manual/hvac-studio-manual.md'
+    pdf = 'docs/manual/hvac-studio-manual.pdf'
+    pdf_status = 'optional'
+  }
+  $DocsVersion | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $DocsRoot 'version.json') -Encoding UTF8
 
   $SiteRoot = Join-Path $DocsRoot 'site'
   Invoke-MkDocsBuild -RepoRoot $RepoRoot -SiteRoot $SiteRoot
+  $DocsVersion | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $SiteRoot 'version.json') -Encoding UTF8
 
   return [ordered]@{
     source = 'docs'
     html = 'docs/site'
+    version = 'docs/version.json'
+    html_version = 'docs/site/version.json'
     html_status = 'built'
     html_reason = ''
   }
@@ -444,10 +458,12 @@ function Assert-ReleaseProvenance {
   if ($Provenance.documentation.html_status -ne 'built') {
     throw "release provenance documentation html_status mismatch: $($Provenance.documentation.html_status)"
   }
-  if (-not (Test-Path -LiteralPath (Join-Path $PackageRoot 'docs\site\index.html'))) {
-    throw 'release package is missing required docs/site/index.html'
+  foreach ($RequiredDocPath in @('docs\site\index.html', 'docs\version.json', 'docs\site\version.json')) {
+    if (-not (Test-Path -LiteralPath (Join-Path $PackageRoot $RequiredDocPath))) {
+      throw "release package is missing required $RequiredDocPath"
+    }
   }
-  foreach ($RequiredFile in @('release-manifest.json', 'release-provenance.json', 'release-checksums.json', 'release-trust.json', 'PACKAGE_README.md', 'legal/license-notices.md', 'legal/dependency-notices.md', 'legal/support-matrix.md', 'legal/release-notes-policy.md')) {
+  foreach ($RequiredFile in @('release-manifest.json', 'release-provenance.json', 'release-checksums.json', 'release-trust.json', 'PACKAGE_README.md', 'docs/version.json', 'docs/site/version.json', 'legal/license-notices.md', 'legal/dependency-notices.md', 'legal/support-matrix.md', 'legal/release-notes-policy.md')) {
     if ($Provenance.files -notcontains $RequiredFile) {
       throw "release provenance file list is missing $RequiredFile"
     }
@@ -456,7 +472,7 @@ function Assert-ReleaseProvenance {
     throw "release checksums schema mismatch: $($Checksums.schema)"
   }
   $ChecksumPaths = @($Checksums.files | ForEach-Object { $_.path })
-  foreach ($RequiredFile in @('release-manifest.json', 'release-provenance.json', 'release-trust.json', 'PACKAGE_README.md', 'docs/site/index.html', 'legal/license-notices.md', 'legal/dependency-notices.md', 'legal/support-matrix.md', 'legal/release-notes-policy.md')) {
+  foreach ($RequiredFile in @('release-manifest.json', 'release-provenance.json', 'release-trust.json', 'PACKAGE_README.md', 'docs/site/index.html', 'docs/version.json', 'docs/site/version.json', 'legal/license-notices.md', 'legal/dependency-notices.md', 'legal/support-matrix.md', 'legal/release-notes-policy.md')) {
     if ($ChecksumPaths -notcontains $RequiredFile) {
       throw "release checksums are missing $RequiredFile"
     }

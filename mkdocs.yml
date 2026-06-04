@@ -10,6 +10,7 @@ nav:
       - Examples: user/examples.md
       - Quick Start: user/quick-start.md
       - Core Concepts: user/core-concepts.md
+      - Concept Map: user/concept-map.md
       - How It Works: user/how-it-works.md
       - Create Component: user/create-component.md
       - Edit Python Function: user/edit-python-function.md

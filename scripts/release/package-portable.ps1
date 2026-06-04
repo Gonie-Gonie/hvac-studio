@@ -40,7 +40,7 @@ Copy-Tree -Source (Join-Path $RepoRoot 'python\bcs_sdk') -Destination (Join-Path
 Copy-Tree -Source (Join-Path $RepoRoot 'schema') -Destination (Join-Path $StageRoot 'schema')
 Copy-Tree -Source (Join-Path $RepoRoot 'runtime') -Destination (Join-Path $StageRoot 'runtime')
 Copy-PackagedPythonRuntime -RepoRoot $RepoRoot -Destination (Join-Path $StageRoot 'runtime\python')
-$Documentation = Copy-DocumentationAssets -RepoRoot $RepoRoot -StageRoot $StageRoot
+$Documentation = Copy-DocumentationAssets -RepoRoot $RepoRoot -StageRoot $StageRoot -Version $ResolvedVersion
 Copy-Tree -Source (Join-Path $RepoRoot 'examples') -Destination (Join-Path $StageRoot 'examples')
 Copy-Tree -Source (Join-Path $RepoRoot 'templates') -Destination (Join-Path $StageRoot 'templates')
 Copy-Tree -Source (Join-Path $RepoRoot 'README.md') -Destination (Join-Path $StageRoot 'README.md')
