@@ -136,6 +136,16 @@ Build and smoke-test only the runtime-only release package:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-runtime-package.ps1 -Version 0.1.0-dev
 ```
 
+Build and smoke-test the experimental macOS support package:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-macos-package.ps1 -Version 0.1.0-dev
+```
+
+The macOS package is a support bundle with a package plan, prerequisite checks,
+docs, schemas, examples, and signing/notarization caveats. It is not a signed
+or notarized public macOS app.
+
 See [docs/release.md](docs/release.md) for the GitHub Release process.
 See [docs/release-trust.md](docs/release-trust.md) for signing, checksum,
 license notice, dependency notice, support matrix, and release-note policy.

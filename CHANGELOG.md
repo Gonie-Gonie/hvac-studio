@@ -137,3 +137,5 @@
 - Add a shared Studio parameter-set selector for Run, Batch, and Data validation workflows.
 - Include datasets, parameter sets, validation mappings, calibration setups, and optimization setups in Studio runtime exports.
 - Refresh the post-MVP development plan around alpha hardening, beta usability, 1.0 readiness, and later expansion.
+- Add pooled and asyncio-friendly Python SDK evaluation helpers for high-volume independent candidate runs.
+- Add an experimental macOS support package with prerequisite checks, package plan, provenance, checksums, and signing/notarization caveats.

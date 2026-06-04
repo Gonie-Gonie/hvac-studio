@@ -8,12 +8,13 @@
 | Windows installer bundle | Beta readiness path | PowerShell installer bundle wraps the portable payload and is smoke-tested with `-PlanOnly`. |
 | Runtime-only Windows package | Supported automation path | Contains runner, environment checker, SDK/worker sources, schemas, examples, docs, and bundled Python. |
 | Runtime exports from Studio | Supported project delivery path | Exported folders include runner tools when package support files are available. |
+| Experimental macOS support package | Experimental planning path | Contains package plan, prereq checks, docs, schemas, examples, SDK/worker sources, and explicit signing/notarization caveats. It is not a signed app. |
 
 ## Not Yet Supported
 
 | Surface | Status | Notes |
 | --- | --- | --- |
-| macOS package | Experimental future work | Requires separate signing/notarization and platform smoke tests. |
+| Signed/notarized macOS app | Not yet supported | Requires native macOS build, Developer ID signing, notarization, stapling, and clean-machine platform smoke tests. |
 | Linux package | Not planned for 1.0 | Engine code should remain OS-independent, but packaging is Windows-first. |
 | Automatic updater | Not implemented | Release notes and checksums are the update mechanism for now. |
 | `.bcsproj` file association | Policy only | Disabled until Studio supports project-file launch arguments. |

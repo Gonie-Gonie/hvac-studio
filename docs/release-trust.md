@@ -18,3 +18,8 @@ Required release trust assets:
 Code signing status is recorded in `release-trust.json`. Current development,
 alpha, beta, and release-candidate packages may be unsigned. Stable public
 installer packages require signing and documented verification.
+
+The experimental macOS support package also records explicit unsigned and
+not-notarized status in `release-manifest.json` and
+`macos/package-plan.json`. It is a packaging contract, not a Gatekeeper-ready
+macOS application.

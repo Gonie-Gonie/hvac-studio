@@ -17,12 +17,14 @@ Development policy:
 
 ## Release Artifacts
 
-Current release scripts produce three Windows artifacts:
+Current release scripts produce three supported Windows artifacts and one
+experimental macOS support artifact:
 
 ```text
 dist/hvac-studio-<version>-windows-amd64-portable.zip
 dist/hvac-studio-<version>-windows-amd64-installer.zip
 dist/hvac-studio-runtime-<version>-windows-amd64.zip
+dist/hvac-studio-<version>-macos-universal-experimental.zip
 ```
 
 Package scripts now keep `dist/` focused on final zip artifacts by default. The expanded staging folders are removed after compression; pass `-KeepStage` to `scripts/release/package-portable.ps1` or `scripts/release/package-runtime.ps1` when an expanded package folder is needed for manual inspection.
@@ -63,6 +65,12 @@ hvac-studio-<version>-windows-amd64-portable/
 ```
 
 The runtime-only package is for delivery/external-engine integration and does not include the Studio GUI.
+
+The macOS artifact is experimental. It is a packaging contract and support
+bundle with project/source artifacts, schemas, docs, `macos/package-plan.json`,
+and prerequisite checks. It is not a signed or notarized public macOS
+application. Native macOS binaries must be built, signed, notarized, stapled,
+and smoke-tested on macOS before any user-facing macOS release.
 
 Both MVP packages include `bin/bcs-env.exe` and a bundled Python runtime under `runtime/python`, copied from the repo-local setup toolchain. Included examples run without system Python on `PATH`. Projects can declare `environment.lockfile` in `project.bcsproj`; package and export flows preserve that lockfile, and `bcs-env.exe check` reports missing declared lockfiles.
 
@@ -121,6 +129,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-upgra
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-portable-package.ps1 -Version 0.1.0-dev
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-installer-package.ps1 -Version 0.1.0-dev
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-runtime-package.ps1 -Version 0.1.0-dev
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-macos-package.ps1 -Version 0.1.0-dev
 ```
 
 The upgrade rehearsal copies a golden example to a temporary test root, rewrites
@@ -153,6 +162,11 @@ The root-level `HVAC Studio.exe` opens the Wails desktop app without launching a
 Studio-created projects are written under `projects/` by default. Workspace project runs are saved as `runs/run-*.json` inside each project.
 
 The runtime package smoke test expands the zip, constrains `PATH`, and verifies each runnable example against `expected/output.json`.
+
+The experimental macOS package smoke test expands the zip, verifies release
+provenance/checksums, checks `macos/package-plan.json`, confirms signing and
+notarization caveats, and runs the PowerShell prerequisite checker in JSON mode.
+It does not pretend to build or validate a native macOS app on Windows.
 
 ## Installer Scope
 
@@ -214,10 +228,11 @@ The workflow:
 5. Builds and smoke-tests the Windows portable Studio package.
 6. Builds and smoke-tests the Windows installer bundle.
 7. Builds and smoke-tests the Windows runtime-only package.
-8. Verifies package trust assets, provenance, package checksums, and installer payload checksums.
-9. Writes `dist/SHA256SUMS.txt`.
-10. Uploads the package zips and checksums as workflow artifacts.
-11. Creates a GitHub Release for tag pushes.
+8. Builds and smoke-tests the experimental macOS support package.
+9. Verifies package trust assets, provenance, package checksums, and installer payload checksums.
+10. Writes `dist/SHA256SUMS.txt`.
+11. Uploads the package zips and checksums as workflow artifacts.
+12. Creates a GitHub Release for tag pushes.
 
 Manual dry runs are available through GitHub Actions `workflow_dispatch`. Manual runs upload artifacts; they only create a GitHub Release when `create_release` is selected.
 
@@ -299,4 +314,4 @@ The runner uses stable exit code categories for external engines:
 - Run `scripts/release/test-release-candidate.ps1 -Version <version>`.
 - Commit and push all changes.
 - Create and push a version tag.
-- Confirm the GitHub Release contains portable, installer, runtime, and checksum assets.
+- Confirm the GitHub Release contains portable, installer, runtime, experimental macOS, and checksum assets.

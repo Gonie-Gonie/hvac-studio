@@ -449,7 +449,8 @@ function Assert-ReleaseProvenance {
   if (-not $Provenance.git.commit) {
     throw 'release provenance is missing git.commit'
   }
-  if (-not $Provenance.tools.packaged_python) {
+  $RequiresPackagedPython = $PackageType -notin @('studio-macos-experimental')
+  if ($RequiresPackagedPython -and -not $Provenance.tools.packaged_python) {
     throw 'release provenance is missing tools.packaged_python'
   }
   if (-not $Provenance.documentation.source) {
