@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import os
 import subprocess
-import tempfile
+import threading
 import uuid
+from contextlib import contextmanager
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
 
 class RunnerError(RuntimeError):
@@ -24,34 +28,48 @@ class RunnerClient:
     calls the runner, and returns the runner output for research workflows.
     """
 
-    def __init__(self, project: str | Path, runner: str | Path = "bcs-runner.exe", persistent: bool = True) -> None:
+    def __init__(
+        self,
+        project: str | Path,
+        runner: str | Path = "bcs-runner.exe",
+        persistent: bool = True,
+        request_timeout: float | None = None,
+    ) -> None:
         self.project = Path(project)
         self.runner = str(runner)
         self.persistent = persistent
+        self.request_timeout = request_timeout
         self._process: subprocess.Popen[str] | None = None
+        self._serve_lock = threading.RLock()
 
     @classmethod
-    def start(cls, project: str | Path, runner: str | Path = "bcs-runner.exe") -> "RunnerClient":
-        client = cls(project=project, runner=runner, persistent=True)
+    def start(
+        cls,
+        project: str | Path,
+        runner: str | Path = "bcs-runner.exe",
+        request_timeout: float | None = None,
+    ) -> "RunnerClient":
+        client = cls(project=project, runner=runner, persistent=True, request_timeout=request_timeout)
         client.connect()
         return client
 
     def connect(self) -> None:
-        if self._process is not None and self._process.poll() is None:
-            return
-        self._process = subprocess.Popen(
-            [
-                self.runner,
-                "serve",
-                "--project",
-                str(self.project),
-            ],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
-        )
+        with self._serve_lock:
+            if self._process is not None and self._process.poll() is None:
+                return
+            self._process = subprocess.Popen(
+                [
+                    self.runner,
+                    "serve",
+                    "--project",
+                    str(self.project),
+                ],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
 
     def evaluate(
         self,
@@ -63,6 +81,16 @@ class RunnerClient:
             return self._evaluate_serve(inputs, context or {})
         return self.run_once(inputs, context, parameter_set=parameter_set)
 
+    async def evaluate_async(
+        self,
+        inputs: dict[str, Any],
+        context: dict[str, Any] | None = None,
+        parameter_set: str | Path | None = None,
+    ) -> dict[str, Any]:
+        """Evaluate from an asyncio workflow without reimplementing the runner."""
+
+        return await asyncio.to_thread(self.evaluate, inputs, context, parameter_set)
+
     def run_once(
         self,
         inputs: dict[str, Any],
@@ -71,7 +99,7 @@ class RunnerClient:
         output: str | Path | None = None,
     ) -> dict[str, Any]:
         payload = {"inputs": inputs, "context": context or {}}
-        with tempfile.TemporaryDirectory() as tmp:
+        with sdk_temporary_directory() as tmp:
             tmp_path = Path(tmp)
             input_path = tmp_path / "input.json"
             input_path.write_text(json.dumps(payload), encoding="utf-8")
@@ -181,43 +209,60 @@ class RunnerClient:
         }
 
     def close(self) -> None:
-        process = self._process
-        if process is None:
-            return
-        try:
-            if process.poll() is None and process.stdin is not None:
-                request = {"id": "shutdown", "type": "shutdown"}
-                process.stdin.write(json.dumps(request) + "\n")
-                process.stdin.flush()
-                if process.stdout is not None:
-                    process.stdout.readline()
-                process.wait(timeout=5)
-        finally:
-            if process.poll() is None:
-                process.kill()
-            self._process = None
+        with self._serve_lock:
+            process = self._process
+            if process is None:
+                return
+            try:
+                if process.poll() is None and process.stdin is not None:
+                    request = {"id": "shutdown", "type": "shutdown"}
+                    process.stdin.write(json.dumps(request) + "\n")
+                    process.stdin.flush()
+                    if process.stdout is not None:
+                        process.stdout.readline()
+                    process.wait(timeout=5)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                self._process = None
 
     def _evaluate_serve(self, inputs: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
-        self.connect()
-        process = self._process
-        if process is None or process.stdin is None or process.stdout is None:
-            raise RunnerError("runner serve process is not available")
+        with self._serve_lock:
+            self.connect()
+            process = self._process
+            if process is None or process.stdin is None or process.stdout is None:
+                raise RunnerError("runner serve process is not available")
 
-        request_id = str(uuid.uuid4())
-        request = {"id": request_id, "inputs": inputs, "context": context}
-        process.stdin.write(json.dumps(request) + "\n")
-        process.stdin.flush()
+            request_id = str(uuid.uuid4())
+            request = {"id": request_id, "inputs": inputs, "context": context}
+            process.stdin.write(json.dumps(request) + "\n")
+            process.stdin.flush()
 
-        line = process.stdout.readline()
-        if not line:
-            stderr = process.stderr.read() if process.stderr is not None else ""
-            raise RunnerError(f"runner serve closed without a response: {stderr.strip()}")
-        response = json.loads(line)
-        if not response.get("ok"):
-            error = response.get("error") or {}
-            message = error.get("message") or "runner serve request failed"
-            raise RunnerError(message, error=error)
-        return response["result"]
+            line = self._read_serve_line(process)
+            if not line:
+                stderr = process.stderr.read() if process.stderr is not None else ""
+                raise RunnerError(f"runner serve closed without a response: {stderr.strip()}")
+            response = json.loads(line)
+            if not response.get("ok"):
+                error = response.get("error") or {}
+                message = error.get("message") or "runner serve request failed"
+                raise RunnerError(message, error=error)
+            return response["result"]
+
+    def _read_serve_line(self, process: subprocess.Popen[str]) -> str:
+        if process.stdout is None:
+            raise RunnerError("runner serve stdout is not available")
+        if self.request_timeout is None:
+            return process.stdout.readline()
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(process.stdout.readline)
+            try:
+                return future.result(timeout=self.request_timeout)
+            except FutureTimeoutError as exc:
+                if process.poll() is None:
+                    process.kill()
+                self._process = None
+                raise RunnerError(f"runner serve request timed out after {self.request_timeout:g} seconds") from exc
 
     def _run_workflow_json(self, args: list[str], output: str | Path | None) -> dict[str, Any]:
         if output is not None:
@@ -263,3 +308,19 @@ class RunnerClient:
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
         self.close()
+
+
+@contextmanager
+def sdk_temporary_directory() -> Iterator[str]:
+    root = os.environ.get("HVAC_STUDIO_TMP")
+    if root:
+        tmp_root = Path(root) / "bcs-sdk"
+    elif os.environ.get("HVAC_STUDIO_REPO_ROOT"):
+        tmp_root = Path(os.environ["HVAC_STUDIO_REPO_ROOT"]) / ".tmp" / "bcs-sdk"
+    else:
+        tmp_root = Path.cwd() / ".tmp" / "bcs-sdk"
+
+    tmp_root.mkdir(parents=True, exist_ok=True)
+    tmp_dir = tmp_root / f"tmp-{uuid.uuid4().hex}"
+    tmp_dir.mkdir(parents=True, exist_ok=False)
+    yield str(tmp_dir)

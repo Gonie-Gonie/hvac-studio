@@ -64,6 +64,7 @@ Add-PathFirst $UvRoot
 
 $env:HVAC_STUDIO_REPO_ROOT = $RepoRoot
 $env:HVAC_STUDIO_TOOLS_ROOT = $ToolsRoot
+$env:HVAC_STUDIO_TMP = Join-Path $RepoRoot '.tmp'
 $env:GOMODCACHE = Join-Path $GoCacheRoot 'pkg\mod'
 $env:GOCACHE = Join-Path $GoCacheRoot 'build'
 $env:UV_CACHE_DIR = $UvCacheRoot
@@ -71,7 +72,7 @@ $env:UV_TOOL_DIR = $UvToolRoot
 $env:UV_PYTHON_INSTALL_DIR = $UvPythonInstallDir
 $env:UV_MANAGED_PYTHON = '1'
 
-New-Item -ItemType Directory -Force -Path $env:GOMODCACHE, $env:GOCACHE | Out-Null
+New-Item -ItemType Directory -Force -Path $env:GOMODCACHE, $env:GOCACHE, $env:HVAC_STUDIO_TMP | Out-Null
 
 $env:HVAC_STUDIO_GO = Resolve-Executable `
   -Preferred (Join-Path $GoRoot 'bin\go.exe') `

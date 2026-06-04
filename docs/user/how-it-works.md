@@ -67,6 +67,24 @@ with RunnerClient.start("project.bcsproj", runner="bcs-runner.exe") as client:
     result = client.evaluate({"value": 4}, {"time": 0, "dt": 60})
 ```
 
+Async scripts can call `await client.evaluate_async(...)`; the request still
+goes through the same `RunnerClient` and runner process. For independent
+high-volume cases, use `RunnerPool` to keep a bounded number of serve sessions
+alive:
+
+```python
+from bcs_sdk import RunnerPool
+
+cases = [{"inputs": {"value": value}} for value in [1, 2, 3]]
+
+with RunnerPool.start("project.bcsproj", runner="bcs-runner.exe", workers=2, request_timeout=30) as pool:
+    results = pool.evaluate_many(cases)
+```
+
+Each pool worker owns one runner session and sends requests serially to that
+session. Use `run-series` for sequential stateful timestep runs; pooled
+evaluation is intended for independent candidate evaluations.
+
 For file-backed workflows, `RunnerClient` also provides helpers such as `run_validation`, `run_calibration`, `run_optimization`, `run_batch`, and `export_schema`. Model helpers can load parameter sets, scenarios, and runtime export manifests without hand-writing project-relative JSON path plumbing. These helpers still shell out to `bcs-runner`; the SDK is not a second execution engine.
 
 ## Public IO Is The Contract

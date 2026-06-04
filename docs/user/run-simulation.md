@@ -89,3 +89,10 @@ Batch runs execute saved scenarios and write `runs/batch-*.json` records. The Ru
 ```
 
 Each successful response includes the same structured result fields used by Studio. Request errors return a JSON error object and do not stop the serve process unless initialization failed before the loop started.
+
+The Python SDK wraps serve mode with `RunnerClient`. Use
+`RunnerClient.evaluate_async(...)` for asyncio workflows and `RunnerPool` for a
+bounded pool of independent candidate evaluations. A single serve session is
+stateful, so use `run-series` for ordered timestep state carryover and use
+pooled evaluation for independent cases such as external optimization
+candidates.

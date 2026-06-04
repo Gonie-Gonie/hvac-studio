@@ -37,4 +37,9 @@ The result includes each candidate objective, the best inputs, best outputs, and
 
 ## SDK Path
 
-Advanced optimization can use Python SDK scripts that call the same runner as Studio. `examples/006_optimization_case/scripts/grid_search.py` keeps a `bcs-runner serve` session alive through `RunnerClient.start(...)` and evaluates candidate setpoints from Python.
+Advanced optimization can use Python SDK scripts that call the same runner as
+Studio. `examples/006_optimization_case/scripts/grid_search.py` uses
+`RunnerPool.start(...)` to keep a bounded number of `bcs-runner serve` sessions
+alive and evaluate independent candidate setpoints from Python. Use
+`request_timeout` on the client or pool so an external search loop does not wait
+forever on an unresponsive runner process.

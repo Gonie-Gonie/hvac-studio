@@ -14,7 +14,7 @@ The first stable slice is the runtime core plus a real Studio workspace shell:
 - User-defined Python components with `initialize(params, context)` and `evaluate(inputs, state, params, context)`.
 - A persistent Python worker using JSONL over stdio.
 - A Go `bcs-runner` CLI with `validate`, `run`, `run-series`, `serve`, `schema`, `migrate`, `validate-data`, `calibrate`, and `optimize`.
-- A Python `bcs_sdk` client that wraps `bcs-runner serve` for repeated evaluations and provides helpers for validation, calibration, optimization, batches, schemas, and export manifests.
+- A Python `bcs_sdk` client that wraps `bcs-runner serve` for repeated evaluations, async/pool evaluation, and helpers for validation, calibration, optimization, batches, schemas, and export manifests.
 - Golden examples that behave as regression assets, including scalar, generated-wrapper, stateful time-series, plant workflow, optimization, runtime-only, vectorized, external executable, solver boundary, unit conversion, and composite system cases.
 - A Wails-based Studio desktop UI that opens examples, creates workspace projects, edits parameters/default inputs/Python source, adds components, validates, runs, saves scenarios/run records, and exports public schema/runtime manifests.
 

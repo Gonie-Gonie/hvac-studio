@@ -1,26 +1,30 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import os
 import subprocess
-import tempfile
 import unittest
+import uuid
+from contextlib import contextmanager
 from io import StringIO
 from pathlib import Path
+from typing import Iterator
 from unittest.mock import patch
 
-from bcs_sdk import RunnerClient, RunnerError
+from bcs_sdk import RunnerClient, RunnerError, RunnerPool
 from bcs_sdk.model import load_export_manifest, load_parameter_set, load_project, load_scenario
 
 
 class ModelTests(unittest.TestCase):
     def test_load_project(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with test_temp_dir() as tmp:
             path = Path(tmp) / "project.bcsproj"
             path.write_text(json.dumps({"project_name": "case"}), encoding="utf-8")
             self.assertEqual(load_project(path)["project_name"], "case")
 
     def test_load_project_artifacts(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with test_temp_dir() as tmp:
             root = Path(tmp)
             project = root / "project.bcsproj"
             project.write_text(json.dumps({"project_name": "case"}), encoding="utf-8")
@@ -81,6 +85,45 @@ class RunnerClientTests(unittest.TestCase):
         self.assertEqual(raised.exception.kind, "input")
         self.assertEqual(raised.exception.code, 3)
         self.assertIn("missing required public input", str(raised.exception))
+
+    def test_evaluate_async_uses_runner_client(self) -> None:
+        process = FakeProcess([
+            {"id": "case-1", "ok": True, "result": {"outputs": {"result": 14}}},
+            {"id": "shutdown", "ok": True, "message": "shutdown"},
+        ])
+
+        with patch("subprocess.Popen", return_value=process):
+            client = RunnerClient.start(project="project.bcsproj", runner="bcs-runner")
+            result = asyncio.run(client.evaluate_async({"value": 7}, {"time": 0}))
+            client.close()
+
+        self.assertEqual(result["outputs"]["result"], 14)
+
+    def test_runner_pool_reuses_persistent_session(self) -> None:
+        process = FakeProcess([
+            {"id": "case-1", "ok": True, "result": {"outputs": {"result": 10}}},
+            {"id": "case-2", "ok": True, "result": {"outputs": {"result": 12}}},
+            {"id": "shutdown", "ok": True, "message": "shutdown"},
+        ])
+
+        with patch("subprocess.Popen", return_value=process) as popen:
+            with RunnerPool.start(project="project.bcsproj", runner="bcs-runner", workers=1) as pool:
+                results = pool.evaluate_many([
+                    {"inputs": {"value": 4}, "context": {"time": 0}},
+                    {"inputs": {"value": 5}, "context": {"time": 60}},
+                ])
+
+        popen.assert_called_once()
+        self.assertEqual([result["outputs"]["result"] for result in results], [10, 12])
+        self.assertEqual(process.stdin.getvalue().count('"inputs"'), 2)
+        self.assertIn('"type": "shutdown"', process.stdin.getvalue())
+
+    def test_runner_pool_rejects_submit_after_close(self) -> None:
+        pool = RunnerPool.start(project="project.bcsproj", runner="bcs-runner", workers=1)
+        pool.close()
+
+        with self.assertRaises(RunnerError):
+            pool.submit({"value": 4})
 
     def test_run_once_uses_runner_json_mode_and_parameter_set(self) -> None:
         completed = subprocess.CompletedProcess(
@@ -182,6 +225,15 @@ class FakeProcess:
 
     def kill(self) -> None:
         self.returncode = -9
+
+
+@contextmanager
+def test_temp_dir() -> Iterator[str]:
+    root = Path(os.environ.get("HVAC_STUDIO_TMP", Path.cwd() / ".tmp")) / "bcs-sdk-tests"
+    root.mkdir(parents=True, exist_ok=True)
+    tmp_dir = root / f"tmp-{uuid.uuid4().hex}"
+    tmp_dir.mkdir(parents=True, exist_ok=False)
+    yield str(tmp_dir)
 
 
 if __name__ == "__main__":
