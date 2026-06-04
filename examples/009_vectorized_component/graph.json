@@ -1,0 +1,97 @@
+{
+  "schema_version": "0.1.0",
+  "systems": [
+    {
+      "id": "MainSystem",
+      "name": "Main System",
+      "components": ["vectorized_gain"],
+      "connections": [],
+      "public_inputs": [
+        {
+          "id": "values",
+          "name": "Values",
+          "component": "vectorized_gain",
+          "node": "values",
+          "medium": "signal",
+          "value_type": "array",
+          "unit": "",
+          "required": true
+        }
+      ],
+      "public_outputs": [
+        {
+          "id": "results",
+          "name": "Results",
+          "component": "vectorized_gain",
+          "node": "results",
+          "medium": "signal",
+          "value_type": "array",
+          "unit": ""
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "vectorized_gain",
+      "name": "Vectorized Gain",
+      "kind": "user_python",
+      "category": "utility",
+      "execution_mode": "vectorized",
+      "class": "components.vectorized_gain.wrapper.VectorizedGain",
+      "source": {
+        "layout": "generated_wrapper",
+        "metadata": "components/vectorized_gain/component.json",
+        "init": "components/vectorized_gain/user_init.py",
+        "step": "components/vectorized_gain/user_step.py",
+        "helpers": "components/vectorized_gain/helpers.py",
+        "wrapper": "components/vectorized_gain/wrapper.py"
+      },
+      "nodes": {
+        "inputs": [
+          {
+            "id": "values",
+            "name": "Values",
+            "preset": "time_series_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "array",
+            "unit": "",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "results",
+            "name": "Results",
+            "preset": "scalar_output",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "array",
+            "unit": ""
+          }
+        ]
+      },
+      "parameters": {
+        "gain": 2.0
+      },
+      "parameter_defs": {
+        "gain": {
+          "display_name": "Gain",
+          "unit": "ratio",
+          "default": 2.0,
+          "current": 2.0,
+          "bounds": {
+            "min": 0.0,
+            "max": 100.0
+          },
+          "role": "calibration_target",
+          "group": "Vectorized",
+          "description": "Multiplier applied to each value."
+        }
+      },
+      "state_defs": {}
+    }
+  ],
+  "connections": []
+}

@@ -153,6 +153,22 @@ func (c *Client) EvaluateComponent(componentID string, inputs map[string]any, st
 	return response.Outputs, response.State, response.Logs, nil
 }
 
+func (c *Client) EvaluateComponentBatch(componentID string, inputs map[string]any, state map[string]any, params map[string]any, context map[string]any) (map[string]any, map[string]any, []LogEntry, error) {
+	var response Response
+	err := c.request(map[string]any{
+		"type":         "evaluate_component_batch",
+		"component_id": componentID,
+		"inputs":       inputs,
+		"state":        state,
+		"params":       params,
+		"context":      context,
+	}, &response)
+	if err != nil {
+		return nil, nil, response.Logs, err
+	}
+	return response.Outputs, response.State, response.Logs, nil
+}
+
 func (c *Client) Close() error {
 	if c == nil {
 		return nil

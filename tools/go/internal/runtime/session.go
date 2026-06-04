@@ -106,17 +106,17 @@ func (s *Session) Evaluate(input RunInput) (*RunResult, error) {
 		nodeValues = append(nodeValues, nodeValueTraces(component.ID, "input", component.Nodes.Inputs, componentInputs)...)
 
 		componentStarted := time.Now()
-		outputs, nextState, evalLogs, err := s.client.EvaluateComponent(
-			component.ID,
-			componentInputs,
-			s.states[component.ID],
-			component.Parameters,
-			input.Context,
-		)
+		evaluate := s.client.EvaluateComponent
+		stage := "evaluate"
+		if component.ExecutionMode == "vectorized" {
+			evaluate = s.client.EvaluateComponentBatch
+			stage = "evaluate_batch"
+		}
+		outputs, nextState, evalLogs, err := evaluate(component.ID, componentInputs, s.states[component.ID], component.Parameters, input.Context)
 		logs = append(logs, componentLogsFromWorker(evalLogs)...)
 		timings = append(timings, ComponentTiming{
 			Component:  component.ID,
-			Stage:      "evaluate",
+			Stage:      stage,
 			DurationMS: durationMilliseconds(time.Since(componentStarted)),
 		})
 		if err != nil {

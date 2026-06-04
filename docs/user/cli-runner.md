@@ -27,6 +27,17 @@ bcs-runner.exe run `
   --output output.json
 ```
 
+Vectorized components use the same `run` command. The runner dispatches
+components with `execution_mode: "vectorized"` through the worker's
+`evaluate_batch` contract:
+
+```powershell
+bcs-runner.exe run `
+  --project examples/009_vectorized_component/project.bcsproj `
+  --input examples/009_vectorized_component/inputs/case01.json `
+  --output vectorized-output.json
+```
+
 ## Run Time Series
 
 `run-series` evaluates ordered steps inside one runtime session, so component

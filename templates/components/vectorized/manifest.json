@@ -1,6 +1,6 @@
 {
   "id": "vectorized",
-  "name": "Vectorized Placeholder",
+  "name": "Vectorized Component",
   "kind": "user_python",
   "category": "utility",
   "execution_mode": "vectorized",

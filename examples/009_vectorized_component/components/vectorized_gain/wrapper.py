@@ -1,12 +1,7 @@
 from . import user_init, user_step
 
 
-class VectorizedComponent:
-    input_nodes = {}
-    output_nodes = {}
-    parameter_schema = {}
-    state_schema = {}
-
+class VectorizedGain:
     def initialize(self, params, context):
         state = user_init.initialize(params, context)
         if state is None:

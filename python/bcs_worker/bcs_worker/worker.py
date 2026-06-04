@@ -80,24 +80,53 @@ class ComponentHost:
             raise WorkerError("InvalidComponent", f"{component_id} does not define evaluate")
 
         result = instance.evaluate(inputs or {}, state or {}, params or {}, context or {})
+        return self._validated_evaluate_result(component_id, "evaluate", result)
+
+    def evaluate_component_batch(
+        self,
+        component_id: str,
+        inputs: dict[str, Any] | None,
+        state: dict[str, Any] | None,
+        params: dict[str, Any] | None,
+        context: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        instance = self._component(component_id)
+        method_name = "evaluate_batch"
+        if hasattr(instance, method_name):
+            method = instance.evaluate_batch
+        elif hasattr(instance, "evaluate"):
+            method_name = "evaluate"
+            method = instance.evaluate
+        else:
+            raise WorkerError("InvalidComponent", f"{component_id} does not define evaluate_batch")
+
+        result = method(inputs or {}, state or {}, params or {}, context or {})
+        return self._validated_evaluate_result(component_id, method_name, result)
+
+    def _validated_evaluate_result(
+        self,
+        component_id: str,
+        method_name: str,
+        result: Any,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         if not isinstance(result, tuple) or len(result) != 2:
             raise WorkerError(
                 "InvalidComponentReturn",
-                f"{component_id}.evaluate must return (outputs, state)",
+                f"{component_id}.{method_name} must return (outputs, state)",
             )
 
         outputs, next_state = result
         if not isinstance(outputs, dict):
             raise WorkerError(
                 "InvalidComponentReturn",
-                f"{component_id}.evaluate outputs must be a dict, got {type(outputs).__name__}",
+                f"{component_id}.{method_name} outputs must be a dict, got {type(outputs).__name__}",
             )
         if next_state is None:
             next_state = {}
         if not isinstance(next_state, dict):
             raise WorkerError(
                 "InvalidComponentReturn",
-                f"{component_id}.evaluate state must be a dict, got {type(next_state).__name__}",
+                f"{component_id}.{method_name} state must be a dict, got {type(next_state).__name__}",
             )
 
         return to_jsonable(outputs), to_jsonable(next_state)
@@ -158,6 +187,20 @@ def handle_request(host: ComponentHost, request: dict[str, Any]) -> dict[str, An
                 component_id=component_id,
                 stage="evaluate",
                 callback=lambda: host.evaluate_component(
+                    component_id=component_id,
+                    inputs=request.get("inputs") or {},
+                    state=request.get("state") or {},
+                    params=request.get("params") or {},
+                    context=request.get("context") or {},
+                ),
+            )
+            return {"id": request_id, "ok": True, "outputs": outputs, "state": state, "logs": logs}
+        if request_type == "evaluate_component_batch":
+            component_id = str(request.get("component_id", ""))
+            (outputs, state), logs = captured_component_call(
+                component_id=component_id,
+                stage="evaluate_batch",
+                callback=lambda: host.evaluate_component_batch(
                     component_id=component_id,
                     inputs=request.get("inputs") or {},
                     state=request.get("state") or {},

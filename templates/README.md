@@ -11,7 +11,7 @@ Current templates:
 - `components/data_source`: a context-backed source placeholder.
 - `components/data_sink`: a sink placeholder for consuming connected values.
 - `components/utility`: a two-input utility calculation.
-- `components/vectorized`: a vectorized execution placeholder for the P3 runner mode.
+- `components/vectorized`: a vectorized generated-wrapper component using `evaluate_batch`.
 - `components/external_executable`: an external executable placeholder for the P3 runner mode.
 
 Templates are source artifacts, not marketing samples. Keep them valid, runnable, and aligned with the runtime schemas.

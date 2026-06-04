@@ -299,7 +299,7 @@ Post-MVP backlog:
 
 - Make the generated-wrapper layout the default new-component path while retaining migration support for existing single-file components.
 - Add Studio controls for source layout selection, state definitions, parameter roles, bounds, units, defaults, and visibility.
-- Add templates for controller, stateful component, data source, data sink, utility component, external executable placeholder, and vectorized placeholder.
+- Add templates for controller, stateful component, data source, data sink, utility component, vectorized execution, and external executable placeholder.
 - Generate clearer docstrings and contract comments that explain what the user may edit and what Studio owns.
 - Add authoring checks that compare component metadata, function signatures, defaults, and generated wrapper assumptions.
 
@@ -616,12 +616,12 @@ These items make the existing workflows feel like a product rather than a set of
 | --- | --- | --- | --- |
 | PM-101 | Component authoring | Done: new Studio components default to generated-wrapper source directories while existing single-file components continue to load, edit, duplicate, delete, and export | Keep compatibility coverage as schemas evolve |
 | PM-102 | Component authoring | Done: Studio exposes template/source layout metadata and Inspector controls for state definitions plus parameter roles, bounds, units, defaults, current values, groups, descriptions, and visibility | Component contracts can be authored in Studio without direct graph editing |
-| PM-103 | Component templates | Done: controller, stateful, data source, data sink, utility, external executable placeholder, vectorized placeholder, and scalar generated-wrapper templates are selectable and smoke-tested | Keep templates packaged and aligned with runtime support boundaries |
+| PM-103 | Component templates | Done: controller, stateful, data source, data sink, utility, vectorized, external executable placeholder, and scalar generated-wrapper templates are selectable and smoke-tested | Keep templates packaged and aligned with runtime support boundaries |
 | PM-104 | Canvas | Done: medium badges, override/warning/mismatch markers, connection annotations, fan-in/fan-out anchor spreading, and long/backtracking path markers | Keep screenshot-based readability checks as canvas density grows |
 | PM-105 | Python editor | Done: lightweight formatting, hover text, contract/state/context completions, common source-check quick fixes, gutter problem markers, generated-wrapper `step` snippets, and Python traceback-to-line mapping | Keep diagnostics aligned as worker/runtime protocols evolve |
 | PM-106 | Run/inspect | Done: component timing bars, run-to-run public output comparison, component stdout/stderr logs, configurable run/batch timeout/cancel controls, and failed-run/batch problem summaries are in place | Keep time-indexed trace timelines aligned with PM-301 native time-series work |
 | PM-107 | Documentation | Done: Studio serves local docs, links major workspaces plus workflow result headers to relevant user-guide pages, and ships screenshot-backed walkthroughs for the main authoring, workflow, SDK, and delivery paths | Keep docs links and screenshots current as UI changes |
-| PM-108 | Examples | Done: examples now document the learning path for dataset validation, calibration, optimization, runtime-only delivery, controller, plant, generated-wrapper, and current CSV time-column workflows, with smoke coverage for run, validation, calibration, and optimization paths | Keep examples current as runtime contracts and tutorials evolve |
+| PM-108 | Examples | Done: examples now document the learning path for dataset validation, calibration, optimization, runtime-only delivery, controller, plant, generated-wrapper, vectorized execution, and current CSV time-column workflows, with smoke coverage for run, validation, calibration, optimization, and series paths | Keep examples current as runtime contracts and tutorials evolve |
 
 ### P2: 1.0 Readiness
 
@@ -642,7 +642,7 @@ These items broaden the engine. They should not block beta or 1.0 unless a real 
 | ID | Area | Unimplemented item | Done when |
 | --- | --- | --- | --- |
 | PM-301 | Time-series | Done: native `bcs-runner run-series`, `/api/run-series`, timestep/context merging, state carryover, series result shape, stateful controller golden coverage, and Studio Run workspace series preview plots | Keep richer artifact editors and saved series records as future workflow depth |
-| PM-302 | Execution modes | Vectorized component execution mode | Component contract, worker protocol, examples, and Studio metadata support vectorized calls |
+| PM-302 | Execution modes | Done: vectorized components dispatch through the worker `evaluate_batch` contract, keep the standard `(outputs, state)` return shape, expose metadata in Studio, and are covered by template, docs, and `009_vectorized_component` smoke coverage | Keep deeper batching/vector algebra helpers as future workflow depth |
 | PM-303 | Execution modes | External executable component mode | External process lifecycle, IO schema, errors, packaging, and examples are defined |
 | PM-304 | Solvers | Feedback-loop ADR and solver-boundary implementation | Loop behavior exists only behind explicit solver components/boundaries |
 | PM-305 | Units | Optional unit conversion and richer value-type validation | Compatibility checks remain helpful without interpreting user physics |

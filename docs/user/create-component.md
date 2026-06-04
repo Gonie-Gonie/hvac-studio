@@ -17,7 +17,7 @@ components/<component_id>/helpers.py
 
 New components use the generated-wrapper layout by default. Studio and the runner own the wrapper contract, while the Code workspace opens `user_step.py` as the primary editable function body. Existing single-file components still load and can be edited for compatibility with older projects.
 
-Available component templates include scalar, controller, stateful, data source, data sink, utility, vectorized placeholder, and external executable placeholder. The vectorized and external executable templates are authoring placeholders until the matching post-1.0 execution modes are implemented.
+Available component templates include scalar, controller, stateful, data source, data sink, utility, vectorized, and external executable placeholder. Vectorized components use `execution_mode: "vectorized"` and may implement `evaluate_batch(inputs, state, params, context)` with the same `(outputs, state)` return contract as `evaluate`. The external executable template remains an authoring placeholder until that post-1.0 execution mode is implemented.
 
 New components are not silently added to the runnable system. Adding a component to a system is an explicit action. Components that are not currently in the entry system are marked as unused in the Project tree and can be added with Use.
 
@@ -47,6 +47,11 @@ A component contract includes:
 - parameter definitions
 - state definitions
 - source layout metadata
+
+Step components implement `evaluate(inputs, state, params, context)`.
+Vectorized components implement `evaluate_batch(inputs, state, params, context)`
+when one worker call should process array-shaped inputs and return
+array-shaped outputs.
 
 ## Authoring Direction
 
