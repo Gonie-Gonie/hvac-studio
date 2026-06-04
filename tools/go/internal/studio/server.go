@@ -89,6 +89,7 @@ type apiRequest struct {
 	Context          map[string]any `json:"context"`
 	Save             bool           `json:"save"`
 	ParameterSetPath string         `json:"parameter_set_path"`
+	TimeoutMS        int            `json:"timeout_ms"`
 }
 
 type createProjectRequest struct {
@@ -1596,10 +1597,19 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	timeout, err := requestTimeout(req, 30*time.Second)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
 	result, err := runtimecore.Run(ctx, loaded, input)
 	if err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			writeTimeoutError(w, "run", timeout)
+			return
+		}
 		writeErrorWithProblems(w, err, inferProblems(loaded, err))
 		return
 	}
@@ -1649,7 +1659,12 @@ func (s *Server) handleBatch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(len(scenarios))*30*time.Second)
+	timeout, err := requestTimeout(req, time.Duration(len(scenarios))*30*time.Second)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
 	cases := make([]BatchCaseRecord, 0, len(scenarios))
 	for index := len(scenarios) - 1; index >= 0; index-- {
@@ -1670,6 +1685,10 @@ func (s *Server) handleBatch(w http.ResponseWriter, r *http.Request) {
 		}
 		result, err := runtimecore.Run(ctx, loaded, input)
 		if err != nil {
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				writeTimeoutError(w, "batch", timeout)
+				return
+			}
 			caseRecord.Error = err.Error()
 			caseRecord.Problems = inferProblems(loaded, err)
 		} else {
@@ -4046,6 +4065,20 @@ func decodeRequest(r *http.Request) (apiRequest, error) {
 	return req, nil
 }
 
+func requestTimeout(req apiRequest, fallback time.Duration) (time.Duration, error) {
+	if req.TimeoutMS == 0 {
+		return fallback, nil
+	}
+	if req.TimeoutMS < 100 {
+		return 0, apperror.Errorf(apperror.CodeInput, "timeout_ms must be at least 100")
+	}
+	timeout := time.Duration(req.TimeoutMS) * time.Millisecond
+	if timeout > 30*time.Minute {
+		return 0, apperror.Errorf(apperror.CodeInput, "timeout_ms must be at most 1800000")
+	}
+	return timeout, nil
+}
+
 func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -4054,6 +4087,18 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 
 func writeError(w http.ResponseWriter, err error) {
 	writeErrorWithProblems(w, err, nil)
+}
+
+func writeTimeoutError(w http.ResponseWriter, workflow string, timeout time.Duration) {
+	err := apperror.Errorf(apperror.CodeRuntime, "%s timed out after %s", workflow, formatTimeoutDuration(timeout))
+	payload := apperror.PayloadFor(err, nil)
+	writeJSON(w, http.StatusGatewayTimeout, apiError{
+		OK:      false,
+		Error:   payload,
+		Code:    payload.Code,
+		Kind:    payload.Kind,
+		Message: payload.Message,
+	})
 }
 
 func writeErrorWithProblems(w http.ResponseWriter, err error, problems []Problem) {
@@ -4076,6 +4121,13 @@ func writeErrorWithProblems(w http.ResponseWriter, err error, problems []Problem
 		Message:  payload.Message,
 		Problems: problems,
 	})
+}
+
+func formatTimeoutDuration(timeout time.Duration) string {
+	if timeout%time.Second == 0 {
+		return fmt.Sprintf("%.0f seconds", timeout.Seconds())
+	}
+	return timeout.String()
 }
 
 func toAppProblems(problems []Problem) []apperror.Problem {

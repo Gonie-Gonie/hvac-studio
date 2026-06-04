@@ -18,6 +18,7 @@ export const state = {
   latestWorkflowRecord: null,
   activeParameterSetPath: "",
   activeRunInput: null,
+  runTimeoutMS: 30000,
   selectedConnectionId: "",
   sourceByComponent: {},
   sourceDraftByComponent: {},

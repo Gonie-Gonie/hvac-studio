@@ -639,6 +639,7 @@ function renderRunInputs() {
   const inputs = currentSystem()?.public_inputs || [];
   const savedInputs = state.activeRunInput?.inputs || state.detail?.default_run_input?.inputs || {};
   container.append(parameterSetField());
+  container.append(runTimeoutField());
   for (const input of inputs) {
     const field = document.createElement("div");
     field.className = "input-field";
@@ -2993,7 +2994,7 @@ async function runProject() {
     const save = currentProject()?.source === "workspace";
     const body = await api("/api/run", {
       method: "POST",
-      body: JSON.stringify({ project_path: state.currentProjectPath, inputs, context: currentRunContext(), parameter_set_path: state.activeParameterSetPath, save }),
+      body: JSON.stringify({ project_path: state.currentProjectPath, inputs, context: currentRunContext(), parameter_set_path: state.activeParameterSetPath, timeout_ms: state.runTimeoutMS, save }),
     });
     state.latestResult = body.result;
     state.latestRunSource = runSource;
@@ -3040,7 +3041,7 @@ async function runBatch() {
   try {
     const body = await api("/api/batch", {
       method: "POST",
-      body: JSON.stringify({ project_path: state.currentProjectPath, parameter_set_path: state.activeParameterSetPath }),
+      body: JSON.stringify({ project_path: state.currentProjectPath, parameter_set_path: state.activeParameterSetPath, timeout_ms: state.runTimeoutMS }),
     });
     state.latestBatchRecord = body.batch;
     state.runComparisonBaseline = comparisonBaseline;
@@ -3207,6 +3208,24 @@ function parameterSetField() {
     renderProjectTree();
     renderRunInputs();
     log(`Parameter set selected: ${state.activeParameterSetPath || "baseline"}`);
+  });
+  return field;
+}
+
+function runTimeoutField() {
+  const field = document.createElement("div");
+  field.className = "input-field timeout-field";
+  const seconds = Math.max(1, Math.round((state.runTimeoutMS || 30000) / 1000));
+  field.innerHTML = `
+    <label for="runTimeoutInput">
+      <span class="input-label">Timeout</span>
+      <span class="input-meta">seconds per request</span>
+    </label>
+    <input id="runTimeoutInput" type="number" min="1" max="1800" step="1" value="${escapeAttr(seconds)}" />
+  `;
+  field.querySelector("input").addEventListener("input", (event) => {
+    const value = Math.max(1, Math.min(1800, Number(event.target.value) || 30));
+    state.runTimeoutMS = value * 1000;
   });
   return field;
 }

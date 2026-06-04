@@ -232,6 +232,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("runComparisonBaseline")) {
 		t.Fatalf("module entrypoint did not preserve run comparison baselines")
 	}
+	if !bytes.Contains(body, []byte("runTimeoutField")) {
+		t.Fatalf("module entrypoint did not include run timeout control rendering")
+	}
+	if !bytes.Contains(body, []byte("timeout_ms")) {
+		t.Fatalf("module entrypoint did not send run timeout requests")
+	}
 	if !bytes.Contains(body, []byte("runInputMeta")) {
 		t.Fatalf("module entrypoint did not include run input metadata rendering")
 	}
@@ -2898,6 +2904,50 @@ class ScalarComponent:
 	}
 	if !hasComponentLog(body.Result.ComponentLogs, "scalar", "evaluate", "error", "stderr from scalar") {
 		t.Fatalf("stderr log missing from %#v", body.Result.ComponentLogs)
+	}
+}
+
+func TestRunEndpointHonorsTimeout(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	project := createWorkspaceProject(t, server, "Slow Run Project")
+	sourcePath := filepath.Join(filepath.Dir(project.ProjectPath), "components", "scalar.py")
+	source := strings.TrimLeft(`
+import time
+
+class ScalarComponent:
+    def initialize(self, params, context):
+        return {}
+
+    def evaluate(self, inputs, state, params, context):
+        time.sleep(2)
+        return {"result": float(inputs["value"])}, state
+`, "\n")
+	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path": project.ProjectPath,
+		"inputs":       map[string]any{"value": 4},
+		"timeout_ms":   200,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/run", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusGatewayTimeout {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body apiError
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Kind != "runtime" || !strings.Contains(body.Message, "run timed out after 200ms") {
+		t.Fatalf("timeout body = %#v", body)
 	}
 }
 

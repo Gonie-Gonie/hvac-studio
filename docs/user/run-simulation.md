@@ -10,6 +10,8 @@ Studio runs the current public inputs and context through the same runtime path 
 
 The Run Inputs toolbar shows each public input's display name, stable ID when different, value type, unit, and required/optional status. The Default control resets a field to the saved default input value or the graph node default.
 
+The Timeout control sets the maximum wall-clock time for Run and Batch requests. The default is 30 seconds, matching the runner's previous fixed timeout. If a run exceeds the selected timeout, Studio reports a timeout failure instead of saving a partial run record.
+
 Workspace runs are saved as:
 
 ```text

@@ -874,6 +874,11 @@ h2,
   min-width: 300px;
 }
 
+.timeout-field {
+  grid-template-columns: minmax(78px, auto) 76px;
+  min-width: 172px;
+}
+
 .run-select {
   width: 100%;
   min-width: 0;
