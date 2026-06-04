@@ -92,6 +92,9 @@ async function ensureEditableProject(preferredProjectPath) {
 }
 
 async function loadProject(projectPath) {
+  if (state.activeRunAbortController) {
+    state.activeRunAbortController.abort();
+  }
   state.currentProjectPath = projectPath;
   state.selectedComponentId = "";
   state.latestResult = null;
@@ -108,6 +111,8 @@ async function loadProject(projectPath) {
   state.latestWorkflowRecord = null;
   state.activeParameterSetPath = "";
   state.activeRunInput = null;
+  state.activeRunAbortController = null;
+  state.activeRunLabel = "";
   state.sourceByComponent = {};
   state.sourceDraftByComponent = {};
   state.sourceCheckByComponent = {};
@@ -2990,10 +2995,13 @@ async function runProject() {
   const inputs = collectRunInputs();
   const comparisonBaseline = latestRuntimeComparisonContext();
   const runSource = currentRunSourceLabel();
+  const controller = beginRuntimeRequest("Run");
+  if (!controller) return;
   try {
     const save = currentProject()?.source === "workspace";
     const body = await api("/api/run", {
       method: "POST",
+      signal: controller.signal,
       body: JSON.stringify({ project_path: state.currentProjectPath, inputs, context: currentRunContext(), parameter_set_path: state.activeParameterSetPath, timeout_ms: state.runTimeoutMS, save }),
     });
     state.latestResult = body.result;
@@ -3015,16 +3023,24 @@ async function runProject() {
     setMode("run");
     setBottomTab("results");
   } catch (error) {
-    log(`Run failed: ${error.message}`);
-    state.latestResult = null;
-    state.latestRunSource = "";
-    state.latestResultStale = false;
-    state.latestRunRecord = null;
-    state.latestBatchRecord = null;
-    state.latestDataValidation = null;
-    state.latestWorkflowRecord = null;
-    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
-    setBottomTab("problems");
+    if (isAbortError(error)) {
+      log("Run canceled");
+      state.latestValidation = { error: "Run canceled", problems: [] };
+      setBottomTab("problems");
+    } else {
+      log(`Run failed: ${error.message}`);
+      state.latestResult = null;
+      state.latestRunSource = "";
+      state.latestResultStale = false;
+      state.latestRunRecord = null;
+      state.latestBatchRecord = null;
+      state.latestDataValidation = null;
+      state.latestWorkflowRecord = null;
+      state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+      setBottomTab("problems");
+    }
+  } finally {
+    finishRuntimeRequest(controller);
   }
   renderSystemHeader();
   renderCanvas();
@@ -3038,9 +3054,12 @@ async function runProject() {
 async function runBatch() {
   if (!(await saveModelEditsBeforeExecution())) return;
   const comparisonBaseline = latestRuntimeComparisonContext();
+  const controller = beginRuntimeRequest("Batch");
+  if (!controller) return;
   try {
     const body = await api("/api/batch", {
       method: "POST",
+      signal: controller.signal,
       body: JSON.stringify({ project_path: state.currentProjectPath, parameter_set_path: state.activeParameterSetPath, timeout_ms: state.runTimeoutMS }),
     });
     state.latestBatchRecord = body.batch;
@@ -3066,11 +3085,49 @@ async function runBatch() {
     setBottomTab(batchProblems.length ? "problems" : "results");
     log(`Batch saved: ${body.summary.relative_path}`);
   } catch (error) {
-    log(`Batch failed: ${error.message}`);
-    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    if (isAbortError(error)) {
+      log("Batch canceled");
+      state.latestValidation = { error: "Batch canceled", problems: [] };
+    } else {
+      log(`Batch failed: ${error.message}`);
+      state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    }
     renderProblems();
     setBottomTab("problems");
+  } finally {
+    finishRuntimeRequest(controller);
   }
+}
+
+function beginRuntimeRequest(label) {
+  if (state.activeRunAbortController) {
+    log(`${state.activeRunLabel || "Run"} is already running`);
+    return null;
+  }
+  const controller = new AbortController();
+  state.activeRunAbortController = controller;
+  state.activeRunLabel = label;
+  updateCommandState();
+  return controller;
+}
+
+function finishRuntimeRequest(controller) {
+  if (state.activeRunAbortController !== controller) return;
+  state.activeRunAbortController = null;
+  state.activeRunLabel = "";
+  updateCommandState();
+}
+
+function cancelActiveRun() {
+  if (!state.activeRunAbortController) return;
+  const label = state.activeRunLabel || "Run";
+  state.activeRunAbortController.abort();
+  log(`${label} cancel requested`);
+  updateCommandState();
+}
+
+function isAbortError(error) {
+  return error?.name === "AbortError";
 }
 
 async function runDataValidation() {
@@ -4713,11 +4770,13 @@ function setBottomTab(name) {
 
 function updateCommandState() {
   const hasProject = Boolean(state.detail);
+  const runtimeBusy = Boolean(state.activeRunAbortController);
   el("validateButton").disabled = !hasProject;
   el("dataValidateButton").disabled = !hasProject || !(state.detail?.validation_mappings || []).length;
-  el("runButton").disabled = !hasProject;
+  el("runButton").disabled = !hasProject || runtimeBusy;
   el("scenarioButton").disabled = !hasProject || !isWorkspaceProject();
-  el("batchButton").disabled = !hasProject || !isWorkspaceProject();
+  el("batchButton").disabled = !hasProject || !isWorkspaceProject() || runtimeBusy;
+  el("cancelRunButton").disabled = !runtimeBusy;
   el("schemaButton").disabled = !hasProject;
   el("serveButton").disabled = true;
   el("exportButton").disabled = !hasProject || !isWorkspaceProject();
@@ -4884,6 +4943,7 @@ function bindEvents() {
   el("runButton").addEventListener("click", runProject);
   el("scenarioButton").addEventListener("click", createScenario);
   el("batchButton").addEventListener("click", runBatch);
+  el("cancelRunButton").addEventListener("click", cancelActiveRun);
   el("schemaButton").addEventListener("click", exportSchema);
   el("exportButton").addEventListener("click", exportProject);
   el("sourceComponentSelect").addEventListener("change", (event) => selectComponent(event.target.value));

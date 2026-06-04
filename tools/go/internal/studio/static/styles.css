@@ -61,6 +61,12 @@ button.dirty:not(:disabled) {
   color: var(--accent);
 }
 
+button.danger-action:not(:disabled) {
+  border-color: #d92d20;
+  background: #fff1f0;
+  color: var(--danger);
+}
+
 select,
 input {
   border: 1px solid var(--line-strong);

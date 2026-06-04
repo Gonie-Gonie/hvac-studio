@@ -19,6 +19,8 @@ export const state = {
   activeParameterSetPath: "",
   activeRunInput: null,
   runTimeoutMS: 30000,
+  activeRunAbortController: null,
+  activeRunLabel: "",
   selectedConnectionId: "",
   sourceByComponent: {},
   sourceDraftByComponent: {},

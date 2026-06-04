@@ -120,6 +120,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("batchCaseRows")) {
 		t.Fatalf("index did not include batch case rows")
 	}
+	if !bytes.Contains(body, []byte("cancelRunButton")) {
+		t.Fatalf("index did not include run cancellation control")
+	}
 	if !bytes.Contains(body, []byte("executionTraceRows")) {
 		t.Fatalf("index did not include execution trace rows")
 	}
@@ -237,6 +240,15 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("timeout_ms")) {
 		t.Fatalf("module entrypoint did not send run timeout requests")
+	}
+	if !bytes.Contains(body, []byte("AbortController")) {
+		t.Fatalf("module entrypoint did not create abort controllers for runtime requests")
+	}
+	if !bytes.Contains(body, []byte("cancelActiveRun")) {
+		t.Fatalf("module entrypoint did not bind runtime cancellation")
+	}
+	if !bytes.Contains(body, []byte("activeRunAbortController")) {
+		t.Fatalf("module entrypoint did not track active runtime requests")
 	}
 	if !bytes.Contains(body, []byte("runInputMeta")) {
 		t.Fatalf("module entrypoint did not include run input metadata rendering")
