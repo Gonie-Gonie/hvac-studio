@@ -573,6 +573,39 @@ h2,
   border-right: 1px solid #1d2a3a;
 }
 
+.source-line-number {
+  position: relative;
+  display: block;
+  min-height: 18px;
+  padding-left: 10px;
+  border-right: 3px solid transparent;
+}
+
+.source-line-number.has-marker::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #f6ad55;
+}
+
+.source-line-number.has-marker.error {
+  border-right-color: #f87171;
+  color: #fecaca;
+}
+
+.source-line-number.has-marker.error::before {
+  background: #f87171;
+}
+
+.source-line-number.has-marker.warning {
+  border-right-color: #f6ad55;
+  color: #fde68a;
+}
+
 .source-code-layer {
   position: relative;
   min-width: 0;
@@ -746,6 +779,10 @@ h2,
 
 .source-issue.linked:hover {
   background: #f8fafc;
+}
+
+.source-quick-fix {
+  min-width: 42px;
 }
 
 .contract-row:last-child {

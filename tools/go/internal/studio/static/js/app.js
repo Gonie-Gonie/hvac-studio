@@ -2088,13 +2088,16 @@ function renderProblems() {
   const problems = state.latestValidation?.problems || [];
   if (problems.length) {
     for (const problem of problems) panel.append(problemRow(problem));
+    refreshSourceProblemMarkers();
     return;
   }
   if (state.latestValidation?.error) {
     panel.append(problemRow({ severity: "error", message: state.latestValidation.error }));
+    refreshSourceProblemMarkers();
     return;
   }
   panel.append(problemRow({ severity: "ok", message: "No problems" }));
+  refreshSourceProblemMarkers();
 }
 
 function setProblems(problems = []) {
@@ -2693,12 +2696,14 @@ function sourceReferenceBlock(title, rows, component) {
   for (const item of rows) {
     const rowEl = document.createElement("div");
     rowEl.className = "contract-row";
+    rowEl.title = [item.name, item.meta].filter(Boolean).join(" / ");
     rowEl.innerHTML = `<span>${escapeHTML(item.name)}</span><span class="contract-meta">${escapeHTML(item.meta || "")}</span>`;
     if (editable) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "contract-insert";
       button.textContent = "Insert";
+      button.title = `Insert ${item.name}`;
       button.addEventListener("click", () => insertSourceText(item.snippet));
       rowEl.append(button);
     }
@@ -2760,11 +2765,59 @@ function sourceIssueRow(problem) {
     <span>${escapeHTML(problem.message)}${escapeHTML(line)}</span>
     <span class="contract-meta">${escapeHTML(problem.severity || "")}</span>
   `;
+  const quickFix = sourceQuickFixForProblem(problem, componentById(problem.component_id || state.selectedComponentId));
+  if (quickFix) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "contract-insert source-quick-fix";
+    button.textContent = "Fix";
+    button.title = quickFix.title;
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      insertSourceText(quickFix.snippet);
+    });
+    row.append(button);
+  }
   if (problem.line) {
     row.classList.add("linked");
     row.addEventListener("click", () => focusSourceIssue(problem));
   }
   return row;
+}
+
+function sourceQuickFixForProblem(problem, component) {
+  if (!component || !canEditSource(component)) return null;
+  const message = String(problem.message || "");
+  let match = message.match(/^required input node is not referenced in source: (.+)$/);
+  if (match) {
+    const nodeID = match[1];
+    const variable = pythonIdentifier(nodeID) || "value";
+    return {
+      title: `Insert input read for ${nodeID}`,
+      snippet: `${variable} = inputs.get(${pythonStringLiteral(nodeID)}, 0.0)`,
+    };
+  }
+  match = message.match(/^output node is not obviously returned by source: (.+)$/);
+  if (match) {
+    const nodeID = match[1];
+    return {
+      title: `Insert output entry for ${nodeID}`,
+      snippet: `${pythonStringLiteral(nodeID)}: value`,
+    };
+  }
+  if (message === "evaluate method is missing") {
+    return {
+      title: "Insert evaluate method scaffold",
+      snippet: evaluateSnippet(component, pythonInputBindings(component)),
+    };
+  }
+  if (message === "step function is missing") {
+    return {
+      title: "Insert step function scaffold",
+      snippet: stepSnippet(component, pythonInputBindings(component)),
+    };
+  }
+  return null;
 }
 
 function focusSourceIssue(problem) {
@@ -2782,7 +2835,64 @@ function updateLineNumbers(value) {
   const gutter = el("sourceLineNumbers");
   if (!gutter) return;
   const lines = Math.max(1, (value.match(/\n/g) || []).length + 1);
-  gutter.textContent = Array.from({ length: lines }, (_, index) => String(index + 1)).join("\n");
+  const markers = sourceLineProblemMap(state.selectedComponentId);
+  gutter.innerHTML = Array.from({ length: lines }, (_, index) => {
+    const line = index + 1;
+    const marker = markers.get(line);
+    const classes = ["source-line-number"];
+    if (marker) {
+      classes.push("has-marker", marker.severity === "error" ? "error" : "warning");
+    }
+    const title = marker ? marker.messages.join(" / ") : `Line ${line}`;
+    return `<span class="${classes.join(" ")}" title="${escapeAttr(title)}">${line}</span>`;
+  }).join("");
+}
+
+function refreshSourceProblemMarkers() {
+  const editor = el("sourceEditor");
+  if (!editor) return;
+  updateLineNumbers(editor.value || "");
+}
+
+function sourceLineProblemMap(componentID) {
+  const markers = new Map();
+  if (!componentID) return markers;
+  for (const problem of sourceMarkerProblems(componentID)) {
+    const line = Number(problem.line) || 0;
+    if (line <= 0) continue;
+    const existing = markers.get(line) || { severity: "info", messages: [] };
+    const severity = strongestProblemSeverity(existing.severity, problem.severity);
+    existing.severity = severity;
+    existing.messages.push(problem.message || problem.severity || "source issue");
+    markers.set(line, existing);
+  }
+  return markers;
+}
+
+function sourceMarkerProblems(componentID) {
+  const problems = [];
+  const check = state.sourceCheckByComponent[componentID];
+  if (check?.problems) problems.push(...check.problems);
+  const source = state.sourceByComponent[componentID];
+  const draft = sourceDraft(componentID);
+  const dirty = source && draft !== source.content;
+  if (!dirty) {
+    for (const problem of state.latestValidation?.problems || []) {
+      if (problem.component_id === componentID) problems.push(problem);
+    }
+  }
+  const seen = new Set();
+  return problems.filter((problem) => {
+    const key = [problem.severity, problem.message, problem.line, problem.column].join("\x00");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function strongestProblemSeverity(current, next) {
+  const rank = { error: 3, warning: 2, info: 1, ok: 0 };
+  return (rank[next] || 0) > (rank[current] || 0) ? next : current;
 }
 
 function focusPendingSourceLine(componentID) {
@@ -3351,8 +3461,21 @@ function sourceSnippet(kind, component) {
     case "parameter":
       return `params.get(${pythonStringLiteral(firstParam)}, 1.0)`;
     default:
-      return evaluateSnippet(component, inputBindings);
+      return component.source?.layout === "generated_wrapper"
+        ? stepSnippet(component, inputBindings)
+        : evaluateSnippet(component, inputBindings);
   }
+}
+
+function stepSnippet(component, inputBindings) {
+  const bindings = inputBindings.length ? inputBindings : [{ id: "value", varName: "value" }];
+  const inputLines = bindings.map((item) => `    ${item.varName} = float(inputs.get(${pythonStringLiteral(item.id)}, 0.0))`).join("\n");
+  const primaryValue = bindings[0].varName;
+  const outputs = component.nodes.outputs || [];
+  const outputLines = (outputs.length ? outputs : [{ id: "result" }])
+    .map((node) => `        ${pythonStringLiteral(node.id)}: ${primaryValue},`)
+    .join("\n");
+  return `\ndef step(inputs, state, params, context):\n${inputLines}\n    return {\n${outputLines}\n    }, state\n`;
 }
 
 function evaluateSnippet(component, inputBindings) {
@@ -3455,6 +3578,7 @@ function showSourceCompletionPanel() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "source-completion-item";
+    button.title = [item.name, item.meta].filter(Boolean).join(" / ");
     button.innerHTML = `
       <span class="source-completion-label">${escapeHTML(item.name)}</span>
       <span class="source-completion-meta">${escapeHTML(item.meta || "")}</span>

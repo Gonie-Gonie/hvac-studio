@@ -14,11 +14,11 @@ After a successful run, the Code workspace contract panel shows the selected com
 
 The source checker validates the expected Python class name, the presence of `evaluate`, basic return-shape hints, graph input/output name references, Python syntax, and draft source load/import errors when a Python runtime is available.
 
-Line-specific source-check rows can be clicked from the Code workspace or Problems panel to focus the editor line.
+Line-specific source-check rows can be clicked from the Code workspace or Problems panel to focus the editor line. The editor gutter marks checked or runtime-reported source lines with warning/error dots so line metadata remains visible while editing. Common source-check hints such as missing input references, missing output entries, and missing `evaluate` or generated-wrapper `step` scaffolds expose a Fix action that inserts the matching contract snippet at the current cursor.
 
 The editor supports lightweight Python syntax highlighting, line numbers, bracket status, Enter auto indentation, and tab indentation/outdent for selected Python lines. `Ctrl+S` saves the current source, `Ctrl+Enter` runs the source check, and `Ctrl+Space` opens contract-derived completions. The Code workspace can also save the current workspace source and run the project through the normal execution path.
 
-The completion panel and contract rows can insert:
+The completion panel and contract rows include hover text and can insert:
 
 - input reads such as `inputs.get("value", 0.0)`
 - output dictionary entries such as `"result": value`

@@ -181,6 +181,15 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("handleSourceNewline")) {
 		t.Fatalf("module entrypoint did not include source auto indentation")
 	}
+	if !bytes.Contains(body, []byte("sourceLineProblemMap")) {
+		t.Fatalf("module entrypoint did not include source gutter problem markers")
+	}
+	if !bytes.Contains(body, []byte("sourceQuickFixForProblem")) {
+		t.Fatalf("module entrypoint did not include source quick fixes")
+	}
+	if !bytes.Contains(body, []byte("stepSnippet")) {
+		t.Fatalf("module entrypoint did not include generated-wrapper step snippets")
+	}
 	if !bytes.Contains(body, []byte("Runtime Contract")) {
 		t.Fatalf("module entrypoint did not render protected runtime contract context")
 	}
