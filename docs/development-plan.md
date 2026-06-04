@@ -621,7 +621,7 @@ These items make the existing workflows feel like a product rather than a set of
 | PM-105 | Python editor | Done: lightweight formatting, hover text, contract/state/context completions, common source-check quick fixes, gutter problem markers, generated-wrapper `step` snippets, and Python traceback-to-line mapping | Keep diagnostics aligned as worker/runtime protocols evolve |
 | PM-106 | Run/inspect | Done: component timing bars, run-to-run public output comparison, component stdout/stderr logs, configurable run/batch timeout/cancel controls, and failed-run/batch problem summaries are in place | Keep time-indexed trace timelines aligned with PM-301 native time-series work |
 | PM-107 | Documentation | Done: Studio serves local docs, links major workspaces plus workflow result headers to relevant user-guide pages, and ships screenshot-backed walkthroughs for the main authoring, workflow, SDK, and delivery paths | Keep docs links and screenshots current as UI changes |
-| PM-108 | Examples | Dataset validation, calibration, optimization, runtime-only delivery, controller, plant, and time-series tutorials | Examples double as smoke/regression assets and user learning paths |
+| PM-108 | Examples | Done: examples now document the learning path for dataset validation, calibration, optimization, runtime-only delivery, controller, plant, generated-wrapper, and current CSV time-column workflows, with smoke coverage for run, validation, calibration, and optimization paths | Keep examples current as runtime contracts and tutorials evolve |
 
 ### P2: 1.0 Readiness
 

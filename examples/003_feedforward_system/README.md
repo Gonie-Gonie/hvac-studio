@@ -23,3 +23,15 @@ Expected public outputs for `inputs/case01.json`:
   "chw_supply_temp_c": 7.15
 }
 ```
+
+Run it from the repository root:
+
+```powershell
+Push-Location .\tools\go
+go run .\cmd\bcs-runner validate `
+  --project ..\..\examples\003_feedforward_system\project.bcsproj
+go run .\cmd\bcs-runner run `
+  --project ..\..\examples\003_feedforward_system\project.bcsproj `
+  --input ..\..\examples\003_feedforward_system\inputs\case01.json
+Pop-Location
+```

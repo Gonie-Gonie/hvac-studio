@@ -5,8 +5,13 @@ This example shows a step-based Python controller whose state is carried through
 Run it with:
 
 ```powershell
-go run ./tools/go/cmd/bcs-runner validate --project examples/004_stateful_controller/project.bcsproj
-go run ./tools/go/cmd/bcs-runner run --project examples/004_stateful_controller/project.bcsproj --input examples/004_stateful_controller/inputs/case01.json
+Push-Location .\tools\go
+go run .\cmd\bcs-runner validate `
+  --project ..\..\examples\004_stateful_controller\project.bcsproj
+go run .\cmd\bcs-runner run `
+  --project ..\..\examples\004_stateful_controller\project.bcsproj `
+  --input ..\..\examples\004_stateful_controller\inputs\case01.json
+Pop-Location
 ```
 
 For repeated evaluations with state preserved inside one process, use `bcs-runner serve`.
