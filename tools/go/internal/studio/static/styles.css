@@ -77,6 +77,15 @@ input {
   color: var(--text);
 }
 
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 2px solid #4f9ed8;
+  outline-offset: 2px;
+}
+
 .app-shell {
   display: grid;
   grid-template-rows: 52px minmax(0, 1fr) 230px;
@@ -595,6 +604,10 @@ h2,
   min-height: 0;
   overflow: hidden;
   background: #0b1726;
+}
+
+.source-editor-shell:focus-within {
+  box-shadow: inset 0 0 0 2px #4f9ed8;
 }
 
 .source-line-numbers {
@@ -1908,6 +1921,9 @@ td {
 
   .command-bar {
     grid-column: 1 / -1;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    row-gap: 6px;
     padding-bottom: 8px;
   }
 
