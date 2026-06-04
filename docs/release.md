@@ -17,10 +17,11 @@ Development policy:
 
 ## Release Artifacts
 
-Current release scripts produce two Windows artifacts:
+Current release scripts produce three Windows artifacts:
 
 ```text
 dist/hvac-studio-<version>-windows-amd64-portable.zip
+dist/hvac-studio-<version>-windows-amd64-installer.zip
 dist/hvac-studio-runtime-<version>-windows-amd64.zip
 ```
 
@@ -116,9 +117,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-relea
 For debugging one package path at a time:
 
 ```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-upgrade-rehearsal.ps1 -Version 0.1.0-dev
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-portable-package.ps1 -Version 0.1.0-dev
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-installer-package.ps1 -Version 0.1.0-dev
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-runtime-package.ps1 -Version 0.1.0-dev
 ```
+
+The upgrade rehearsal copies a golden example to a temporary test root, rewrites
+the project and graph schema versions to the compatible `0.1.x` patch line,
+runs `bcs-runner migrate`, validates the copied project, runs it, and compares
+the result against the golden output. It does not start the Studio server.
 
 The portable package smoke test expands the zip, verifies `HVAC Studio.exe`, `bin/studio.exe`, `bcs-runner.exe`, `bcs-env.exe`, and `runtime/python/python.exe`, constrains `PATH` so system Python is not used, runs `bcs-env.exe check --json`, briefly launches the Wails desktop entrypoint, runs the feed-forward example through the CLI, starts `bin/studio.exe --server`, and exercises the Studio API workflow.
 
@@ -202,13 +210,14 @@ The workflow:
 1. Checks out the repository with tags.
 2. Runs repo-local setup.
 3. Runs `test-fast`.
-4. Builds and smoke-tests the Windows portable Studio package.
-5. Builds and smoke-tests the Windows installer bundle.
-6. Builds and smoke-tests the Windows runtime-only package.
-7. Verifies package trust assets, provenance, package checksums, and installer payload checksums.
-8. Writes `dist/SHA256SUMS.txt`.
-9. Uploads the package zips and checksums as workflow artifacts.
-10. Creates a GitHub Release for tag pushes.
+4. Runs the upgrade rehearsal against a compatible prior patch-line project.
+5. Builds and smoke-tests the Windows portable Studio package.
+6. Builds and smoke-tests the Windows installer bundle.
+7. Builds and smoke-tests the Windows runtime-only package.
+8. Verifies package trust assets, provenance, package checksums, and installer payload checksums.
+9. Writes `dist/SHA256SUMS.txt`.
+10. Uploads the package zips and checksums as workflow artifacts.
+11. Creates a GitHub Release for tag pushes.
 
 Manual dry runs are available through GitHub Actions `workflow_dispatch`. Manual runs upload artifacts; they only create a GitHub Release when `create_release` is selected.
 
@@ -290,4 +299,4 @@ The runner uses stable exit code categories for external engines:
 - Run `scripts/release/test-release-candidate.ps1 -Version <version>`.
 - Commit and push all changes.
 - Create and push a version tag.
-- Confirm the GitHub Release contains both Windows zips.
+- Confirm the GitHub Release contains portable, installer, runtime, and checksum assets.

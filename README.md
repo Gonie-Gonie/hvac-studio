@@ -101,6 +101,12 @@ Build and smoke-test a full local release candidate:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1 -Version 0.1.0-dev
 ```
 
+Run only the release upgrade rehearsal:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-upgrade-rehearsal.ps1 -Version 0.1.0-dev
+```
+
 Build and smoke-test only the portable Studio release package:
 
 ```powershell

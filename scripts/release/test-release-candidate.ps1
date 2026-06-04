@@ -42,6 +42,10 @@ if (-not $SkipFast) {
   }
 }
 
+Invoke-ReleaseStep 'Run upgrade rehearsal' {
+  powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot 'scripts\release\test-upgrade-rehearsal.ps1') -Version $ResolvedVersion
+}
+
 Invoke-ReleaseStep 'Build and smoke-test portable Studio package' {
   powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot 'scripts\release\test-portable-package.ps1') -Version $ResolvedVersion
 }

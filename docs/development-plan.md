@@ -625,7 +625,7 @@ These items make the existing workflows feel like a product rather than a set of
 
 ### P2: 1.0 Readiness
 
-These items are about support promises, installation, and compatibility rather than new modeling power.
+Status: closed in the current post-MVP 1.0-readiness branch. These items make support promises, installation, compatibility, release trust, docs packaging, and release rehearsal reproducible enough to move expansion work to P3.
 
 | ID | Area | Unimplemented item | Done when |
 | --- | --- | --- | --- |
@@ -633,7 +633,7 @@ These items are about support promises, installation, and compatibility rather t
 | PM-202 | Distribution | Done: Windows installer bundle wraps the portable payload with manifest-driven WebView2 checks, Start Menu install plan, optional user PATH registration, disabled `.bcsproj` association policy, update-channel metadata, and separate installer smoke coverage | Replace script bundle with signed MSI/MSIX only after signing/provenance policy is complete |
 | PM-203 | Release trust | Done: packages include release-trust metadata, license/dependency notices, support matrix, release-note policy, checksum/provenance verification, installer payload checksum checks, and unsigned prerelease/stable signing boundaries | Add real Authenticode signing and generated third-party notice bundles before stable public installer release |
 | PM-204 | Documentation | Done: offline HTML docs are required package assets, docs carry version metadata, a concept map ties artifacts to Studio/CLI/SDK/export surfaces, and a consolidated manual/PDF build script is available with optional PDF generation | Make PDF generation mandatory only when the release environment includes a stable PDF toolchain |
-| PM-205 | Rehearsal | Clean-machine setup, package smoke, installer smoke, runtime export smoke, and upgrade rehearsal | A release candidate can be reproduced from a clean Windows machine |
+| PM-205 | Rehearsal | Done: the release candidate gate runs fast checks, upgrade rehearsal, portable smoke, installer smoke, runtime smoke, runtime export smoke, docs/provenance/checksum checks, and clean package artifact verification | Keep bounded server smoke tests and clean-machine release rehearsals green as packaging evolves |
 
 ### P3: Post-1.0 Expansion
 
@@ -670,6 +670,10 @@ For release candidates:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1 -Version <version> -SkipSetup
 ```
+
+The release candidate gate includes a server-free upgrade rehearsal and bounded
+package smoke tests. Server-based checks must use readiness loops, request
+timeouts, and cleanup blocks so automation never waits indefinitely.
 
 For GUI readability changes:
 

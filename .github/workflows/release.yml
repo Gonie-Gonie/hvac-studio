@@ -53,6 +53,11 @@ jobs:
           }
           "version=$Version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
+      - name: Run upgrade rehearsal
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-upgrade-rehearsal.ps1 -Version "${{ steps.version.outputs.version }}"
+
       - name: Package portable Studio
         id: portable
         shell: powershell
