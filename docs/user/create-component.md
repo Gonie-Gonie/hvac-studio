@@ -23,6 +23,8 @@ New components are not silently added to the runnable system. Adding a component
 
 Workspace component input and output nodes can be added, edited, or deleted from the Inspector. New nodes can be created with display names, media, value types, units, required flags, and input defaults. Node IDs remain stable after creation, but the Inspector can edit the same metadata later. If the component is already in the runnable system, new input nodes are exposed as public inputs and added to the default input file; new output nodes are exposed as public outputs. Editing node metadata updates related public IO, and editing an input default updates the default input file. Deleting a node removes related public IO and connection references.
 
+Workspace component parameter definitions and state definitions can also be edited from the Inspector. Parameter definitions carry workflow-facing metadata such as role, bounds, units, defaults, groups, descriptions, and visibility. State definitions document state keys used by generated-wrapper bodies and Code workspace completions.
+
 Workspace component display names can be edited from the Inspector. Component IDs and Python class paths remain stable because connections, run records, and source files reference those IDs.
 
 The Inspector can open the selected workspace component in the Code workspace so its Python source can be edited without losing the current component selection.

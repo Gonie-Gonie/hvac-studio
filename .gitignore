@@ -19,6 +19,7 @@ dist/
 build/
 
 # Go
+.cache/
 *.exe
 *.test
 coverage.out

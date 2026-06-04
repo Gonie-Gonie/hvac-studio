@@ -81,6 +81,7 @@ type ParameterDefinition struct {
 	Role        string       `json:"role,omitempty"`
 	Group       string       `json:"group,omitempty"`
 	Description string       `json:"description,omitempty"`
+	Visible     *bool        `json:"visible,omitempty"`
 }
 
 type StateDefinition struct {

@@ -65,7 +65,8 @@ function renderComponentTemplateSelect() {
     const option = document.createElement("option");
     option.value = template.id;
     const contract = `${template.input_count || 0} in / ${template.output_count || 0} out`;
-    option.textContent = `${template.name || template.id} (${contract})`;
+    const layout = template.source_layout ? ` / ${String(template.source_layout).replace(/_/g, " ")}` : "";
+    option.textContent = `${template.name || template.id} (${contract}${layout})`;
     select.append(option);
   }
 }
@@ -1100,6 +1101,8 @@ function renderInspector() {
     ["ID", component.id],
     ["Name", component.name || ""],
     ["Kind", component.kind],
+    ["Mode", component.execution_mode || "step"],
+    ["Source", component.source?.layout || "single_file_class"],
     ["Class", component.class || ""],
   ]));
   if (isWorkspaceProject()) container.append(componentEditor(component));
@@ -1107,6 +1110,10 @@ function renderInspector() {
   container.append(nodeListBlock("Outputs", component, component.nodes.outputs || [], "output"));
   if (isWorkspaceProject()) container.append(nodeEditor(component));
   container.append(parameterInspectorBlock(component));
+  if (isWorkspaceProject()) {
+    container.append(parameterDefinitionBlock(component));
+    container.append(stateDefinitionBlock(component));
+  }
   container.append(connectionEditor(component));
   const result = latestRuntimeResult();
   const latestInputs = result?.component_inputs?.[component.id];
@@ -1320,6 +1327,173 @@ function parameterInspectorBlock(component) {
   form.append(nameInput, valueInput, button);
   block.append(form);
   return block;
+}
+
+function parameterDefinitionBlock(component) {
+  const block = document.createElement("div");
+  block.className = "inspector-block";
+  block.innerHTML = `<div class="inspector-title">Parameter Definitions</div>`;
+  const definitions = component.parameter_defs || {};
+  const names = [...new Set([...Object.keys(component.parameters || {}), ...Object.keys(definitions)])].sort();
+  if (!names.length) {
+    const row = document.createElement("div");
+    row.className = "kv";
+    row.innerHTML = `<span class="kv-key">empty</span><span></span>`;
+    block.append(row);
+  }
+  for (const name of names) {
+    block.append(parameterDefinitionRow(component, name, definitions[name] || {}));
+  }
+  return block;
+}
+
+function parameterDefinitionRow(component, name, definition) {
+  const row = document.createElement("div");
+  row.className = "kv contract-edit-row";
+  row.dataset.parameterDefinition = name;
+
+  const key = document.createElement("span");
+  key.className = "kv-key node-id-label";
+  key.textContent = name;
+
+  const controls = document.createElement("span");
+  controls.className = "contract-meta-controls parameter-definition-controls";
+
+  const displayName = contractInput("display", definition.display_name || "");
+  const current = contractInput("value", parameterInputValue(component.parameters?.[name] ?? definition.current ?? definition.default ?? ""));
+  const defaultValue = contractInput("default", parameterInputValue(definition.default));
+  const unit = contractInput("unit", definition.unit || "");
+  const group = contractInput("group", definition.group || "");
+  const description = contractInput("description", definition.description || "");
+  const min = contractInput("min", parameterInputValue(definition.bounds?.min));
+  const max = contractInput("max", parameterInputValue(definition.bounds?.max));
+  const role = document.createElement("select");
+  role.className = "inspector-input";
+  role.dataset.contractField = "role";
+  role.setAttribute("aria-label", `${component.id}.${name} role`);
+  for (const value of ["fixed", "scenario_input", "calibration_target", "optimization_variable", "derived"]) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = roleLabel(value);
+    role.append(option);
+  }
+  role.value = definition.role || "fixed";
+
+  const visibleLabel = document.createElement("label");
+  visibleLabel.className = "node-required-toggle contract-toggle";
+  const visible = document.createElement("input");
+  visible.type = "checkbox";
+  visible.checked = definition.visible !== false;
+  visible.dataset.contractField = "visible";
+  visible.setAttribute("aria-label", `${component.id}.${name} visible`);
+  visibleLabel.append(visible, document.createTextNode("Visible"));
+
+  const saveButton = document.createElement("button");
+  saveButton.type = "button";
+  saveButton.className = "small-action";
+  saveButton.textContent = "Save";
+  saveButton.addEventListener("click", () => saveParameterDefinition(component.id, name, row));
+
+  const clearButton = document.createElement("button");
+  clearButton.type = "button";
+  clearButton.className = "small-action";
+  clearButton.textContent = "Clear Meta";
+  clearButton.addEventListener("click", () => deleteParameterDefinition(component.id, name));
+
+  for (const input of [displayName, current, defaultValue, unit, group, description, min, max, role, visible]) {
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") saveParameterDefinition(component.id, name, row);
+    });
+  }
+  controls.append(displayName, current, defaultValue, unit, role, min, max, group, description, visibleLabel, saveButton, clearButton);
+  row.append(key, controls);
+  return row;
+}
+
+function stateDefinitionBlock(component) {
+  const block = document.createElement("div");
+  block.className = "inspector-block";
+  block.innerHTML = `<div class="inspector-title">State Definitions</div>`;
+  const entries = Object.entries(component.state_defs || {}).sort(([left], [right]) => left.localeCompare(right));
+  if (!entries.length) {
+    const row = document.createElement("div");
+    row.className = "kv";
+    row.innerHTML = `<span class="kv-key">empty</span><span></span>`;
+    block.append(row);
+  }
+  for (const [name, definition] of entries) {
+    block.append(stateDefinitionRow(component, name, definition || {}));
+  }
+
+  const form = document.createElement("div");
+  form.className = "connection-form state-form";
+  const name = document.createElement("input");
+  name.placeholder = "state name";
+  name.setAttribute("aria-label", "State name");
+  const initial = document.createElement("input");
+  initial.placeholder = "initial";
+  initial.setAttribute("aria-label", "State initial value");
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = "Add State";
+  button.addEventListener("click", () => addStateDefinition(component.id, name.value, initial.value));
+  for (const input of [name, initial]) {
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") addStateDefinition(component.id, name.value, initial.value);
+    });
+  }
+  form.append(name, initial, button);
+  block.append(form);
+  return block;
+}
+
+function stateDefinitionRow(component, name, definition) {
+  const row = document.createElement("div");
+  row.className = "kv contract-edit-row";
+  row.dataset.stateDefinition = name;
+
+  const key = document.createElement("span");
+  key.className = "kv-key node-id-label";
+  key.textContent = name;
+
+  const controls = document.createElement("span");
+  controls.className = "contract-meta-controls state-definition-controls";
+
+  const displayName = contractInput("display", definition.display_name || "");
+  const initial = contractInput("initial", parameterInputValue(definition.initial));
+  const unit = contractInput("unit", definition.unit || "");
+  const description = contractInput("description", definition.description || "");
+
+  const saveButton = document.createElement("button");
+  saveButton.type = "button";
+  saveButton.className = "small-action";
+  saveButton.textContent = "Save";
+  saveButton.addEventListener("click", () => saveStateDefinition(component.id, name, row));
+
+  const deleteButton = document.createElement("button");
+  deleteButton.type = "button";
+  deleteButton.className = "small-action";
+  deleteButton.textContent = "Delete";
+  deleteButton.addEventListener("click", () => deleteStateDefinition(component.id, name));
+
+  for (const input of [displayName, initial, unit, description]) {
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") saveStateDefinition(component.id, name, row);
+    });
+  }
+  controls.append(displayName, initial, unit, description, saveButton, deleteButton);
+  row.append(key, controls);
+  return row;
+}
+
+function contractInput(placeholder, value) {
+  const input = document.createElement("input");
+  input.className = "inspector-input";
+  input.placeholder = placeholder;
+  input.value = value ?? "";
+  input.dataset.contractField = placeholder;
+  input.setAttribute("aria-label", placeholder);
+  return input;
 }
 
 function componentEditor(component) {
@@ -3739,6 +3913,164 @@ async function addParameter(componentID, name, value) {
     renderProblems();
     setBottomTab("problems");
   }
+}
+
+async function saveParameterDefinition(componentID, name, row) {
+  if (!componentID || !name || !row || !isWorkspaceProject()) return;
+  const fields = contractFields(row);
+  const value = coerceParameter(fields.value || "");
+  const definition = {
+    display_name: fields.display || "",
+    unit: fields.unit || "",
+    role: fields.role || "fixed",
+    group: fields.group || "",
+    description: fields.description || "",
+    current: value,
+    visible: fields.visible !== false,
+  };
+  if ((fields.default || "").trim() !== "") definition.default = coerceParameter(fields.default);
+  const min = (fields.min || "").trim();
+  const max = (fields.max || "").trim();
+  if (min !== "" || max !== "") {
+    definition.bounds = {};
+    if (min !== "") definition.bounds.min = coerceParameter(min);
+    if (max !== "") definition.bounds.max = coerceParameter(max);
+  }
+  try {
+    const body = await api("/api/project/component-contract", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        component_id: componentID,
+        parameters: { [name]: value },
+        parameter_defs: { [name]: definition },
+      }),
+    });
+    state.detail = body.project;
+    markRunResultStale(false);
+    renderAll();
+    log(`Parameter definition saved: ${componentID}.${name}`);
+  } catch (error) {
+    log(`Save parameter definition failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
+async function deleteParameterDefinition(componentID, name) {
+  if (!componentID || !name || !isWorkspaceProject()) return;
+  try {
+    const body = await api("/api/project/component-contract", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        component_id: componentID,
+        delete_parameter_defs: [name],
+      }),
+    });
+    state.detail = body.project;
+    renderAll();
+    log(`Parameter metadata cleared: ${componentID}.${name}`);
+  } catch (error) {
+    log(`Clear parameter metadata failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
+async function addStateDefinition(componentID, name, initial) {
+  name = (name || "").trim();
+  if (!componentID || !name || !isWorkspaceProject()) {
+    showInlineProblem("Select a component and state name");
+    return;
+  }
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+    showInlineProblem("State name must start with a letter or underscore and contain only letters, numbers, and underscores");
+    return;
+  }
+  await saveStateDefinitionPayload(componentID, name, {
+    display_name: displayNameFromIdentifier(name),
+    initial: (initial || "").trim() === "" ? 0.0 : coerceParameter(initial),
+  }, `State definition added: ${componentID}.${name}`);
+}
+
+async function saveStateDefinition(componentID, name, row) {
+  if (!componentID || !name || !row || !isWorkspaceProject()) return;
+  const fields = contractFields(row);
+  const definition = {
+    display_name: fields.display || "",
+    unit: fields.unit || "",
+    description: fields.description || "",
+  };
+  if ((fields.initial || "").trim() !== "") definition.initial = coerceParameter(fields.initial);
+  await saveStateDefinitionPayload(componentID, name, definition, `State definition saved: ${componentID}.${name}`);
+}
+
+async function saveStateDefinitionPayload(componentID, name, definition, successMessage) {
+  try {
+    const body = await api("/api/project/component-contract", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        component_id: componentID,
+        state_defs: { [name]: definition },
+      }),
+    });
+    state.detail = body.project;
+    markRunResultStale(false);
+    renderAll();
+    log(successMessage);
+  } catch (error) {
+    log(`Save state definition failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
+async function deleteStateDefinition(componentID, name) {
+  if (!componentID || !name || !isWorkspaceProject()) return;
+  try {
+    const body = await api("/api/project/component-contract", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        component_id: componentID,
+        delete_state_defs: [name],
+      }),
+    });
+    state.detail = body.project;
+    markRunResultStale(false);
+    renderAll();
+    log(`State definition deleted: ${componentID}.${name}`);
+  } catch (error) {
+    log(`Delete state definition failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
+function contractFields(row) {
+  const fields = {};
+  for (const input of row.querySelectorAll("[data-contract-field]")) {
+    if (input.type === "checkbox") {
+      fields[input.dataset.contractField] = input.checked;
+    } else {
+      fields[input.dataset.contractField] = input.value;
+    }
+  }
+  return fields;
+}
+
+function displayNameFromIdentifier(value) {
+  return String(value || "")
+    .split(/[_\-\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function syncParameterInputs(componentID, name, value, source) {

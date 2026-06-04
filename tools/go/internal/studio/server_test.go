@@ -280,6 +280,15 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("parameterInspectorBlock")) {
 		t.Fatalf("module entrypoint did not include inspector parameter editing")
 	}
+	if !bytes.Contains(body, []byte("parameterDefinitionBlock")) {
+		t.Fatalf("module entrypoint did not include inspector parameter definition editing")
+	}
+	if !bytes.Contains(body, []byte("stateDefinitionBlock")) {
+		t.Fatalf("module entrypoint did not include inspector state definition editing")
+	}
+	if !bytes.Contains(body, []byte("/api/project/component-contract")) {
+		t.Fatalf("module entrypoint did not call component contract endpoint")
+	}
 	if !bytes.Contains(body, []byte("syncParameterInputs")) {
 		t.Fatalf("module entrypoint did not include synchronized parameter input editing")
 	}
@@ -1983,6 +1992,151 @@ func TestUpdateParametersEndpointWritesWorkspaceGraph(t *testing.T) {
 	}
 	if got := loaded.Graph.Components[0].Parameters["offset"]; got != 2.0 {
 		t.Fatalf("offset after delete = %v, want 2", got)
+	}
+}
+
+func TestUpdateComponentContractEndpointWritesDefinitionsAndMetadata(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Contract Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	componentPayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"name":         "Second Gain",
+		"template":     "scalar",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	componentResponse := httptest.NewRecorder()
+	componentRequest := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(componentPayload))
+	server.Handler().ServeHTTP(componentResponse, componentRequest)
+	if componentResponse.Code != http.StatusCreated {
+		t.Fatalf("component status = %d body=%s", componentResponse.Code, componentResponse.Body.String())
+	}
+
+	visible := false
+	payload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "second_gain",
+		"parameters": map[string]any{
+			"gain": 4.5,
+		},
+		"parameter_defs": map[string]model.ParameterDefinition{
+			"gain": {
+				DisplayName: "Test Gain",
+				Unit:        "ratio",
+				Default:     2.0,
+				Current:     4.5,
+				Bounds:      &model.ValueBounds{Min: 0.5, Max: 10.0},
+				Role:        "optimization_variable",
+				Group:       "Tuning",
+				Description: "Edited from Studio",
+				Visible:     &visible,
+			},
+		},
+		"state_defs": map[string]model.StateDefinition{
+			"accumulator": {
+				DisplayName: "Accumulator",
+				Unit:        "count",
+				Initial:     1.0,
+				Description: "Editable state",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/component-contract", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("contract status = %d body=%s", response.Code, response.Body.String())
+	}
+
+	loaded, err := project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	component, found := findComponent(loaded.Graph, "second_gain")
+	if !found {
+		t.Fatal("second_gain missing")
+	}
+	if got := component.Parameters["gain"]; got != 4.5 {
+		t.Fatalf("gain = %v, want 4.5", got)
+	}
+	gainDefinition := component.ParameterDefinitions["gain"]
+	if gainDefinition.DisplayName != "Test Gain" || gainDefinition.Role != "optimization_variable" || gainDefinition.Group != "Tuning" {
+		t.Fatalf("gain definition = %#v", gainDefinition)
+	}
+	if gainDefinition.Visible == nil || *gainDefinition.Visible {
+		t.Fatalf("gain visible = %#v, want false", gainDefinition.Visible)
+	}
+	if gainDefinition.Bounds == nil || gainDefinition.Bounds.Min != 0.5 || gainDefinition.Bounds.Max != 10.0 {
+		t.Fatalf("gain bounds = %#v", gainDefinition.Bounds)
+	}
+	if component.StateDefinitions["accumulator"].Initial != 1.0 {
+		t.Fatalf("state definitions = %#v", component.StateDefinitions)
+	}
+
+	metadataPath := filepath.Join(root, "projects", "contract-project", "components", "second_gain", "component.json")
+	metadataBytes, err := os.ReadFile(metadataPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var metadata struct {
+		Parameters           map[string]any                       `json:"parameters"`
+		ParameterDefinitions map[string]model.ParameterDefinition `json:"parameter_defs"`
+		StateDefinitions     map[string]model.StateDefinition     `json:"state_defs"`
+	}
+	if err := json.Unmarshal(metadataBytes, &metadata); err != nil {
+		t.Fatal(err)
+	}
+	if metadata.Parameters["gain"] != 4.5 {
+		t.Fatalf("metadata gain = %v, want 4.5", metadata.Parameters["gain"])
+	}
+	if metadata.ParameterDefinitions["gain"].Visible == nil || *metadata.ParameterDefinitions["gain"].Visible {
+		t.Fatalf("metadata visible = %#v", metadata.ParameterDefinitions["gain"].Visible)
+	}
+	if metadata.StateDefinitions["accumulator"].Unit != "count" {
+		t.Fatalf("metadata state definitions = %#v", metadata.StateDefinitions)
+	}
+
+	deletePayload, err := json.Marshal(map[string]any{
+		"project_path":          createBody.Project.ProjectPath,
+		"component_id":          "second_gain",
+		"delete_state_defs":     []string{"accumulator"},
+		"delete_parameter_defs": []string{"gain"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deleteResponse := httptest.NewRecorder()
+	deleteRequest := httptest.NewRequest(http.MethodPost, "/api/project/component-contract", bytes.NewReader(deletePayload))
+	server.Handler().ServeHTTP(deleteResponse, deleteRequest)
+	if deleteResponse.Code != http.StatusOK {
+		t.Fatalf("delete contract status = %d body=%s", deleteResponse.Code, deleteResponse.Body.String())
+	}
+	loaded, err = project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	component, _ = findComponent(loaded.Graph, "second_gain")
+	if _, exists := component.StateDefinitions["accumulator"]; exists {
+		t.Fatalf("state definition should be deleted: %#v", component.StateDefinitions)
+	}
+	if _, exists := component.ParameterDefinitions["gain"]; exists {
+		t.Fatalf("parameter definition should be cleared: %#v", component.ParameterDefinitions)
 	}
 }
 

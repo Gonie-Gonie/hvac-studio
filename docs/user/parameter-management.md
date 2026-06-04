@@ -6,6 +6,8 @@ Parameters are model values used by component logic.
 
 Workspace component parameters can be added, edited, or deleted in the Parameter Manager and saved to `graph.json`. Component selectors show display names with stable IDs when they differ. Bundled examples are read-only through Studio write APIs.
 
+The Inspector edits parameter definitions for the selected component. Definition fields include display name, current value, default, unit, role, bounds, group, description, and visibility. For generated-wrapper components, Studio also keeps `components/<component_id>/component.json` synchronized with the edited contract.
+
 Parameter names should be Python-friendly identifiers because component source usually reads them through `params`.
 
 ## Parameter Roles
@@ -17,6 +19,8 @@ Component parameter definitions use roles so workflows can filter meaningful can
 - `calibration_target`
 - `optimization_variable`
 - `derived`
+
+Visibility controls whether a parameter is meant to appear in Studio authoring surfaces. Hidden parameters remain part of the component contract and can still be used by source code or parameter sets.
 
 ## Parameter Sets
 

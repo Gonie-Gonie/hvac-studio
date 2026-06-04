@@ -293,6 +293,16 @@ type updateParametersRequest struct {
 	Parameters  map[string]map[string]any `json:"parameters"`
 }
 
+type updateComponentContractRequest struct {
+	ProjectPath                string                               `json:"project_path"`
+	ComponentID                string                               `json:"component_id"`
+	Parameters                 map[string]any                       `json:"parameters"`
+	ParameterDefinitions       map[string]model.ParameterDefinition `json:"parameter_defs"`
+	DeleteParameterDefinitions []string                             `json:"delete_parameter_defs"`
+	StateDefinitions           map[string]model.StateDefinition     `json:"state_defs"`
+	DeleteStateDefinitions     []string                             `json:"delete_state_defs"`
+}
+
 type applyParameterSetRequest struct {
 	ProjectPath string `json:"project_path"`
 	Path        string `json:"path"`
@@ -607,6 +617,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/project/layout", s.handleUpdateLayout)
 	s.mux.HandleFunc("POST /api/project/input", s.handleUpdateInput)
 	s.mux.HandleFunc("POST /api/project/parameters", s.handleUpdateParameters)
+	s.mux.HandleFunc("POST /api/project/component-contract", s.handleUpdateComponentContract)
 	s.mux.HandleFunc("POST /api/project/parameter-set/apply", s.handleApplyParameterSet)
 	s.mux.HandleFunc("POST /api/project/parameters/delete", s.handleDeleteParameter)
 	s.mux.HandleFunc("POST /api/project/source", s.handleUpdateSource)
@@ -1290,6 +1301,16 @@ func (s *Server) handleUpdateParameters(w http.ResponseWriter, r *http.Request) 
 					return
 				}
 				component.Parameters[name] = value
+				if component.ParameterDefinitions != nil {
+					if definition, exists := component.ParameterDefinitions[name]; exists {
+						definition.Current = value
+						component.ParameterDefinitions[name] = definition
+					}
+				}
+			}
+			if err := syncComponentMetadataFile(loaded, *component); err != nil {
+				writeError(w, err)
+				return
 			}
 			break
 		}
@@ -1309,6 +1330,34 @@ func (s *Server) handleUpdateParameters(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleUpdateComponentContract(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeUpdateComponentContractRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	component, err := updateComponentContract(loaded, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "project": projectDetail(reloaded), "component": component})
 }
 
 func (s *Server) handleApplyParameterSet(w http.ResponseWriter, r *http.Request) {
@@ -2235,6 +2284,9 @@ func updateComponent(loaded *project.LoadedProject, req updateComponentRequest) 
 			continue
 		}
 		loaded.Graph.Components[index].Name = componentName
+		if err := syncComponentMetadataFile(loaded, loaded.Graph.Components[index]); err != nil {
+			return model.Component{}, err
+		}
 		if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
 			return model.Component{}, err
 		}
@@ -2590,6 +2642,9 @@ func createNode(loaded *project.LoadedProject, req createNodeRequest) (model.Nod
 	if _, err := compiler.Compile(loaded); err != nil {
 		return model.Node{}, apperror.Wrap(apperror.CodeValidation, err)
 	}
+	if err := syncComponentMetadataFile(loaded, *component); err != nil {
+		return model.Node{}, err
+	}
 	if err := writeJSONFile(inputPath, input); err != nil {
 		return model.Node{}, err
 	}
@@ -2714,6 +2769,9 @@ func updateNode(loaded *project.LoadedProject, req updateNodeRequest) (model.Nod
 	if _, err := compiler.Compile(loaded); err != nil {
 		return model.Node{}, apperror.Wrap(apperror.CodeValidation, err)
 	}
+	if err := syncComponentMetadataFile(loaded, *component); err != nil {
+		return model.Node{}, err
+	}
 	if inputDirty {
 		if err := writeJSONFile(inputPath, input); err != nil {
 			return model.Node{}, err
@@ -2818,6 +2876,9 @@ func deleteNode(loaded *project.LoadedProject, req deleteNodeRequest) (model.Nod
 	if _, err := compiler.Compile(loaded); err != nil {
 		return model.Node{}, apperror.Wrap(apperror.CodeValidation, err)
 	}
+	if err := syncComponentMetadataFile(loaded, *component); err != nil {
+		return model.Node{}, err
+	}
 	if err := writeJSONFile(inputPath, input); err != nil {
 		return model.Node{}, err
 	}
@@ -2845,9 +2906,124 @@ func deleteParameter(loaded *project.LoadedProject, req deleteParameterRequest) 
 			return apperror.Errorf(apperror.CodeValidation, "parameter not found: %s.%s", componentID, name)
 		}
 		delete(component.Parameters, name)
+		if component.ParameterDefinitions != nil {
+			delete(component.ParameterDefinitions, name)
+		}
+		if err := syncComponentMetadataFile(loaded, *component); err != nil {
+			return err
+		}
 		return writeJSONFile(loaded.GraphPath, loaded.Graph)
 	}
 	return apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
+}
+
+func updateComponentContract(loaded *project.LoadedProject, req updateComponentContractRequest) (model.Component, error) {
+	componentID := strings.TrimSpace(req.ComponentID)
+	if componentID == "" {
+		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "component_id is required")
+	}
+	componentIndex := -1
+	for index := range loaded.Graph.Components {
+		if loaded.Graph.Components[index].ID == componentID {
+			componentIndex = index
+			break
+		}
+	}
+	if componentIndex < 0 {
+		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
+	}
+	component := &loaded.Graph.Components[componentIndex]
+
+	if req.Parameters != nil && component.Parameters == nil {
+		component.Parameters = map[string]any{}
+	}
+	for name, value := range req.Parameters {
+		name = strings.TrimSpace(name)
+		if !isIdentifierLike(name) {
+			return model.Component{}, apperror.Errorf(apperror.CodeValidation, "parameter name must start with a letter or underscore and contain only letters, numbers, and underscores")
+		}
+		component.Parameters[name] = value
+	}
+
+	if len(req.ParameterDefinitions) > 0 && component.ParameterDefinitions == nil {
+		component.ParameterDefinitions = map[string]model.ParameterDefinition{}
+	}
+	for name, definition := range req.ParameterDefinitions {
+		name = strings.TrimSpace(name)
+		if !isIdentifierLike(name) {
+			return model.Component{}, apperror.Errorf(apperror.CodeValidation, "parameter definition name must start with a letter or underscore and contain only letters, numbers, and underscores")
+		}
+		current, hasCurrent := component.Parameters[name]
+		definition = normalizeParameterDefinition(name, definition, current, hasCurrent)
+		component.ParameterDefinitions[name] = definition
+		if component.Parameters == nil {
+			component.Parameters = map[string]any{}
+		}
+		if _, exists := component.Parameters[name]; !exists {
+			if definition.Current != nil {
+				component.Parameters[name] = definition.Current
+			} else if definition.Default != nil {
+				component.Parameters[name] = definition.Default
+			}
+		}
+	}
+	for _, name := range req.DeleteParameterDefinitions {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		if component.ParameterDefinitions != nil {
+			delete(component.ParameterDefinitions, name)
+		}
+	}
+
+	if len(req.StateDefinitions) > 0 && component.StateDefinitions == nil {
+		component.StateDefinitions = map[string]model.StateDefinition{}
+	}
+	for name, definition := range req.StateDefinitions {
+		name = strings.TrimSpace(name)
+		if !isIdentifierLike(name) {
+			return model.Component{}, apperror.Errorf(apperror.CodeValidation, "state definition name must start with a letter or underscore and contain only letters, numbers, and underscores")
+		}
+		component.StateDefinitions[name] = normalizeStateDefinition(name, definition)
+	}
+	for _, name := range req.DeleteStateDefinitions {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		if component.StateDefinitions != nil {
+			delete(component.StateDefinitions, name)
+		}
+	}
+
+	if err := syncComponentMetadataFile(loaded, *component); err != nil {
+		return model.Component{}, err
+	}
+	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
+		return model.Component{}, err
+	}
+	return *component, nil
+}
+
+func normalizeParameterDefinition(name string, definition model.ParameterDefinition, current any, hasCurrent bool) model.ParameterDefinition {
+	if strings.TrimSpace(definition.DisplayName) == "" {
+		definition.DisplayName = displayNameFromID(name)
+	}
+	if definition.Current == nil && hasCurrent {
+		definition.Current = current
+	}
+	if definition.Default == nil && hasCurrent {
+		definition.Default = current
+	}
+	return definition
+}
+
+func normalizeStateDefinition(name string, definition model.StateDefinition) model.StateDefinition {
+	if strings.TrimSpace(definition.DisplayName) == "" {
+		definition.DisplayName = displayNameFromID(name)
+	}
+	return definition
 }
 
 func createConnection(loaded *project.LoadedProject, req createConnectionRequest) (model.Connection, error) {
@@ -3808,6 +3984,15 @@ func decodeCreateScenarioRequest(r *http.Request) (createScenarioRequest, error)
 func decodeUpdateParametersRequest(r *http.Request) (updateParametersRequest, error) {
 	defer r.Body.Close()
 	var req updateParametersRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeUpdateComponentContractRequest(r *http.Request) (updateComponentContractRequest, error) {
+	defer r.Body.Close()
+	var req updateComponentContractRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}
@@ -6164,6 +6349,17 @@ func writeComponentMetadataFile(path string, component model.Component, classNam
 	return writeJSONFile(path, metadata)
 }
 
+func syncComponentMetadataFile(loaded *project.LoadedProject, component model.Component) error {
+	if strings.TrimSpace(component.Source.Metadata) == "" {
+		return nil
+	}
+	metadataPath, err := resolveProjectOwnedFile(loaded.Root, component.Source.Metadata)
+	if err != nil {
+		return err
+	}
+	return writeComponentMetadataFile(metadataPath, component, classNameFromPath(component.Class))
+}
+
 func componentTemplateNodes(nodes []model.Node, direction string) []model.Node {
 	out := make([]model.Node, 0, len(nodes))
 	for _, node := range nodes {
@@ -6231,6 +6427,10 @@ func cloneParameterDefinitions(values map[string]model.ParameterDefinition) map[
 		if value.Bounds != nil {
 			bounds := *value.Bounds
 			value.Bounds = &bounds
+		}
+		if value.Visible != nil {
+			visible := *value.Visible
+			value.Visible = &visible
 		}
 		out[key] = value
 	}

@@ -1520,6 +1520,10 @@ td {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
 }
 
+.state-form {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+}
+
 .node-form {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -1540,6 +1544,27 @@ td {
   border-radius: 5px;
   padding: 0 8px;
   background: #fff;
+}
+
+.contract-edit-row {
+  align-items: start;
+}
+
+.contract-meta-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+}
+
+.parameter-definition-controls .inspector-input[data-contract-field="description"],
+.state-definition-controls .inspector-input[data-contract-field="description"] {
+  grid-column: 1 / -1;
+}
+
+.contract-toggle {
+  align-self: center;
+  min-height: 26px;
 }
 
 .problem-row {
