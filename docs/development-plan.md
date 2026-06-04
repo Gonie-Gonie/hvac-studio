@@ -641,7 +641,7 @@ These items broaden the engine. They should not block beta or 1.0 unless a real 
 
 | ID | Area | Unimplemented item | Done when |
 | --- | --- | --- | --- |
-| PM-301 | Time-series | In progress: native `bcs-runner run-series` contract, timestep/context merging, state carryover, and series result shape are implemented with a stateful controller golden example; Studio/API plots remain next | Time-indexed runs do not depend on ad hoc CSV validation loops |
+| PM-301 | Time-series | Done: native `bcs-runner run-series`, `/api/run-series`, timestep/context merging, state carryover, series result shape, stateful controller golden coverage, and Studio Run workspace series preview plots | Keep richer artifact editors and saved series records as future workflow depth |
 | PM-302 | Execution modes | Vectorized component execution mode | Component contract, worker protocol, examples, and Studio metadata support vectorized calls |
 | PM-303 | Execution modes | External executable component mode | External process lifecycle, IO schema, errors, packaging, and examples are defined |
 | PM-304 | Solvers | Feedback-loop ADR and solver-boundary implementation | Loop behavior exists only behind explicit solver components/boundaries |

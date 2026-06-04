@@ -42,7 +42,12 @@ type SeriesPoint struct {
 	Inputs           map[string]any            `json:"inputs"`
 	Context          map[string]any            `json:"context"`
 	Outputs          map[string]any            `json:"outputs"`
+	ComponentInputs  map[string]map[string]any `json:"component_inputs,omitempty"`
+	ComponentOutputs map[string]map[string]any `json:"component_outputs,omitempty"`
+	NodeValues       []NodeValueTrace          `json:"node_values,omitempty"`
+	ConnectionValues []ConnectionValueTrace    `json:"connection_values,omitempty"`
 	States           map[string]map[string]any `json:"states"`
+	ExecutionOrder   []string                  `json:"execution_order,omitempty"`
 	ComponentTimings []ComponentTiming         `json:"component_timings,omitempty"`
 	ComponentLogs    []ComponentLog            `json:"component_logs,omitempty"`
 	DurationMS       float64                   `json:"duration_ms,omitempty"`
@@ -96,7 +101,12 @@ func RunSeries(ctx context.Context, loaded *project.LoadedProject, input SeriesI
 			Inputs:           stepInputs,
 			Context:          stepResult.Context,
 			Outputs:          stepResult.Outputs,
+			ComponentInputs:  stepResult.ComponentInputs,
+			ComponentOutputs: stepResult.ComponentOutputs,
+			NodeValues:       stepResult.NodeValues,
+			ConnectionValues: stepResult.ConnectionValues,
 			States:           stepResult.States,
+			ExecutionOrder:   stepResult.ExecutionOrder,
 			ComponentTimings: stepResult.ComponentTimings,
 			ComponentLogs:    stepResult.ComponentLogs,
 			DurationMS:       stepResult.DurationMS,

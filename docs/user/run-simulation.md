@@ -41,11 +41,11 @@ After a run, the system canvas shows the latest values on component input and ou
 
 ## Run Time Series
 
-Native time-series runs use `bcs-runner run-series`. The input artifact contains
-ordered `steps`; each step has public inputs and per-step context. Top-level
-context is merged into every step and is also used when components initialize.
-The runner keeps one session alive across the series, so stateful components can
-carry state across timesteps.
+Native time-series runs use `bcs-runner run-series` or the Studio Series command
+in the Run toolbar. The input artifact contains ordered `steps`; each step has
+public inputs and per-step context. Top-level context is merged into every step
+and is also used when components initialize. The runner keeps one session alive
+across the series, so stateful components can carry state across timesteps.
 
 The output includes:
 
@@ -55,6 +55,10 @@ The output includes:
 
 Use this for sequential stateful studies. Use Data validation when the workflow
 is comparing model outputs against measured dataset rows.
+
+In Studio, Series uses the current Run input fields as a seed and evaluates a
+short timestep preview. The Run workspace plots numeric public output arrays and
+uses the final step as the latest canvas/Inspector value.
 
 ## Scenarios
 

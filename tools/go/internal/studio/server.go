@@ -92,6 +92,16 @@ type apiRequest struct {
 	TimeoutMS        int            `json:"timeout_ms"`
 }
 
+type seriesRunRequest struct {
+	ProjectPath      string                   `json:"project_path"`
+	InputPath        string                   `json:"input_path"`
+	SchemaVersion    string                   `json:"schema_version,omitempty"`
+	Context          map[string]any           `json:"context"`
+	Steps            []runtimecore.SeriesStep `json:"steps"`
+	ParameterSetPath string                   `json:"parameter_set_path"`
+	TimeoutMS        int                      `json:"timeout_ms"`
+}
+
 type createProjectRequest struct {
 	Name     string `json:"name"`
 	Template string `json:"template"`
@@ -628,6 +638,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/project/scenarios", s.handleCreateScenario)
 	s.mux.HandleFunc("POST /api/validate", s.handleValidate)
 	s.mux.HandleFunc("POST /api/run", s.handleRun)
+	s.mux.HandleFunc("POST /api/run-series", s.handleRunSeries)
 	s.mux.HandleFunc("POST /api/batch", s.handleBatch)
 	s.mux.HandleFunc("POST /api/validation/run", s.handleDataValidation)
 	s.mux.HandleFunc("POST /api/calibration/run", s.handleCalibrationRun)
@@ -1627,6 +1638,67 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		response["run_record"] = runRecord
 	}
 	writeJSON(w, http.StatusOK, response)
+}
+
+func (s *Server) handleRunSeries(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeSeriesRunRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if problems := projectSourceErrorProblems(r.Context(), loaded); len(problems) > 0 {
+		writeErrorWithProblems(w, apperror.Errorf(apperror.CodeValidation, "project source validation failed"), problems)
+		return
+	}
+	if req.ParameterSetPath != "" {
+		if _, err := parameterset.ApplyFile(loaded, req.ParameterSetPath); err != nil {
+			writeError(w, err)
+			return
+		}
+	}
+
+	input := runtimecore.SeriesInput{
+		SchemaVersion: req.SchemaVersion,
+		Context:       req.Context,
+		Steps:         req.Steps,
+	}
+	if req.InputPath != "" {
+		input, err = runtimecore.LoadSeriesInput(resolveProjectFile(loaded.Root, req.InputPath))
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+	}
+	if len(input.Steps) == 0 {
+		writeError(w, apperror.Errorf(apperror.CodeInput, "series input requires steps"))
+		return
+	}
+
+	timeout, err := requestTimeout(apiRequest{TimeoutMS: req.TimeoutMS}, time.Duration(len(input.Steps))*30*time.Second)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), timeout)
+	defer cancel()
+	result, err := runtimecore.RunSeries(ctx, loaded, input)
+	if err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			writeTimeoutError(w, "series", timeout)
+			return
+		}
+		writeErrorWithProblems(w, err, inferProblems(loaded, err))
+		return
+	}
+	if req.ParameterSetPath != "" {
+		result.ParameterSet = filepath.ToSlash(req.ParameterSetPath)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "result": result})
 }
 
 func (s *Server) handleBatch(w http.ResponseWriter, r *http.Request) {
@@ -4060,6 +4132,15 @@ func decodeUpdateInputRequest(r *http.Request) (updateInputRequest, error) {
 func decodeRequest(r *http.Request) (apiRequest, error) {
 	defer r.Body.Close()
 	var req apiRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeSeriesRunRequest(r *http.Request) (seriesRunRequest, error) {
+	defer r.Body.Close()
+	var req seriesRunRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}

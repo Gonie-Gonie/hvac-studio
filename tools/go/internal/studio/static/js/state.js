@@ -5,6 +5,7 @@ export const state = {
   detail: null,
   selectedComponentId: "",
   latestResult: null,
+  latestSeriesResult: null,
   latestRunSource: "",
   runComparisonBaseline: null,
   latestResultStale: false,

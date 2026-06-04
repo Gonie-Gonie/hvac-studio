@@ -126,6 +126,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("cancelRunButton")) {
 		t.Fatalf("index did not include run cancellation control")
 	}
+	if !bytes.Contains(body, []byte("seriesButton")) {
+		t.Fatalf("index did not include time-series run control")
+	}
 	if !bytes.Contains(body, []byte("executionTraceRows")) {
 		t.Fatalf("index did not include execution trace rows")
 	}
@@ -4059,6 +4062,51 @@ func TestBatchEndpointRunsSavedScenarios(t *testing.T) {
 	}
 	if recordBody.BatchRecord.ParameterSet != "parameter_sets/triple_gain.json" {
 		t.Fatalf("opened batch parameter set = %q", recordBody.BatchRecord.ParameterSet)
+	}
+}
+
+func TestRunSeriesEndpointReturnsPlotReadyResult(t *testing.T) {
+	server := newTestServer(t)
+	payload, err := json.Marshal(map[string]any{
+		"project_path": "examples/004_stateful_controller/project.bcsproj",
+		"input_path":   "inputs/series01.json",
+		"timeout_ms":   30000,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/run-series", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Result runtimecore.SeriesResult `json:"result"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !body.Result.OK || body.Result.StepCount != 3 || len(body.Result.Series) != 3 {
+		t.Fatalf("series result = %#v", body.Result)
+	}
+	if got := body.Result.Outputs["chw_setpoint_c"][1]; got != 6.4 {
+		t.Fatalf("second setpoint = %v, want 6.4", got)
+	}
+	last := body.Result.Series[2]
+	if got := last.Outputs["chw_setpoint_c"]; got != 6.55 {
+		t.Fatalf("last setpoint = %v, want 6.55", got)
+	}
+	if got := last.ComponentOutputs["controller"]["control_effort_k"]; got != 0.45 {
+		t.Fatalf("last component output = %v, want 0.45", got)
+	}
+	if got := body.Result.FinalStates["controller"]["calls"]; got != 3.0 {
+		t.Fatalf("final calls = %v, want 3", got)
+	}
+	if len(last.NodeValues) == 0 {
+		t.Fatalf("series point should include node traces")
 	}
 }
 

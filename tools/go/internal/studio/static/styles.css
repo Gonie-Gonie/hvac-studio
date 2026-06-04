@@ -1485,6 +1485,14 @@ td {
   min-height: 30px;
 }
 
+.series-row {
+  display: grid;
+  grid-template-columns: minmax(92px, 1fr) minmax(120px, 1.4fr) minmax(56px, auto);
+  align-items: center;
+  gap: 10px;
+  min-height: 64px;
+}
+
 .bar-label,
 .bar-value,
 .chart-empty {
@@ -1520,6 +1528,28 @@ td {
 
 .bar-fill.negative {
   background: #b25f5f;
+}
+
+.series-track {
+  display: flex;
+  align-items: end;
+  gap: 4px;
+  height: 50px;
+  min-width: 0;
+  padding: 5px 6px;
+  border: 1px solid #d8e2ee;
+  border-radius: 6px;
+  background:
+    linear-gradient(#eef3f8 1px, transparent 1px),
+    #fbfdff;
+  background-size: 100% 24px;
+}
+
+.series-point {
+  flex: 1 1 0;
+  min-width: 5px;
+  border-radius: 4px 4px 2px 2px;
+  background: var(--accent);
 }
 
 .chart-empty {

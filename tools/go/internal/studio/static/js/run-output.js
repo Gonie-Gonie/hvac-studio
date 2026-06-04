@@ -264,6 +264,11 @@ function publicOutputSummary(outputs) {
 function renderOutputChart(state, chart) {
   chart.innerHTML = "";
 
+  if (state.latestSeriesResult) {
+    renderSeriesChart(state.latestSeriesResult, chart);
+    return;
+  }
+
   const outputs = latestNumericOutputs(state);
   if (!outputs.length) {
     chart.innerHTML = `<div class="chart-empty">Run a case to preview numeric public outputs.</div>`;
@@ -287,11 +292,58 @@ function renderOutputChart(state, chart) {
 }
 
 function latestSummaryRows(state) {
+  if (state.latestSeriesResult) return seriesSummaryRows(state.latestSeriesResult);
   if (state.latestBatchRecord) return batchSummaryRows(state.latestBatchRecord);
   if (state.latestRunRecord) return runRecordSummaryRows(state.latestRunRecord);
   if (state.latestResult) return resultSummaryRows(state.latestResult, "current run");
   if (state.latestValidation?.error) return failureSummaryRows(state.latestValidation);
   return [];
+}
+
+function seriesSummaryRows(series) {
+  const source = seriesSource(series);
+  const rows = [
+    { name: "Series", value: `${series.step_count || 0} steps`, source },
+  ];
+  if (typeof series.duration_ms === "number") {
+    rows.push({ name: "Duration", value: formatDuration(series.duration_ms), source });
+  }
+  rows.push({ name: "Final states", value: String(Object.keys(series.final_states || {}).length), source });
+  rows.push({ name: "Execution order", value: (series.execution_order || []).join(" -> ") || "n/a", source });
+  return rows;
+}
+
+function renderSeriesChart(series, chart) {
+  const rows = Object.entries(series.outputs || {})
+    .map(([id, values]) => ({ id, values: Array.isArray(values) ? values.map((value) => Number(value)) : [] }))
+    .filter((item) => item.values.length && item.values.every((value) => Number.isFinite(value)));
+  if (!rows.length) {
+    chart.innerHTML = `<div class="chart-empty">Series has no numeric public output arrays.</div>`;
+    return;
+  }
+  const allValues = rows.flatMap((item) => item.values);
+  const min = Math.min(...allValues);
+  const max = Math.max(...allValues);
+  const range = Math.max(max - min, 1e-9);
+  for (const output of rows) {
+    const points = output.values.map((value, index) => {
+      const height = max === min ? 50 : 12 + ((value - min) / range) * 88;
+      return `<span class="series-point" style="height:${height}%" title="step ${index + 1}: ${escapeHTML(formatValue(value))}"></span>`;
+    }).join("");
+    const last = output.values[output.values.length - 1];
+    const row = document.createElement("div");
+    row.className = "series-row";
+    row.innerHTML = `
+      <div class="bar-label">${escapeHTML(output.id)}</div>
+      <div class="series-track">${points}</div>
+      <div class="bar-value">${escapeHTML(formatValue(last))}</div>
+    `;
+    chart.append(row);
+  }
+}
+
+function seriesSource(series) {
+  return series.parameter_set ? `series / ${series.parameter_set}` : "series";
 }
 
 function runRecordSummaryRows(record) {
@@ -409,10 +461,30 @@ function latestNumericOutputs(state) {
 }
 
 function latestResultContext(state) {
+  if (state.latestSeriesResult) return { result: seriesLastResult(state.latestSeriesResult), source: "last series step" };
   if (state.latestBatchRecord) return { result: firstBatchResult(state), source: "first ok case" };
   if (state.latestRunRecord) return { result: state.latestRunRecord.result, source: "saved run" };
   if (state.latestResult) return { result: state.latestResult, source: state.latestRunSource || "current run" };
   return { result: null, source: "" };
+}
+
+function seriesLastResult(series) {
+  const points = series?.series || [];
+  const point = points[points.length - 1];
+  if (!point) return null;
+  return {
+    outputs: point.outputs || {},
+    component_inputs: point.component_inputs || {},
+    component_outputs: point.component_outputs || {},
+    node_values: point.node_values || [],
+    connection_values: point.connection_values || [],
+    states: point.states || {},
+    context: point.context || {},
+    execution_order: series.execution_order || point.execution_order || [],
+    component_timings: point.component_timings || [],
+    component_logs: point.component_logs || [],
+    duration_ms: point.duration_ms,
+  };
 }
 
 function firstBatchResult(state) {

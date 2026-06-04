@@ -107,6 +107,7 @@ async function loadProject(projectPath) {
   state.currentProjectPath = projectPath;
   state.selectedComponentId = "";
   state.latestResult = null;
+  state.latestSeriesResult = null;
   state.latestRunSource = "";
   state.runComparisonBaseline = null;
   state.latestResultStale = false;
@@ -2160,7 +2161,7 @@ function renderLogs() {
 }
 
 function renderResults() {
-  const value = state.latestWorkflowRecord || state.latestDataValidation || state.latestBatchRecord || state.latestRunRecord || state.latestResult;
+  const value = state.latestWorkflowRecord || state.latestDataValidation || state.latestSeriesResult || state.latestBatchRecord || state.latestRunRecord || state.latestResult;
   const panel = el("resultsPanel");
   panel.innerHTML = "";
   if (!value) return;
@@ -2189,6 +2190,14 @@ function structuredResultView(value) {
   }
 
   const validation = value.result?.metrics ? value.result : value.metrics ? value : null;
+  const series = value.series && value.outputs && value.step_count !== undefined ? value : null;
+  if (series) {
+    wrapper.append(resultHeader("Time Series", `${series.step_count || 0} steps`, series.parameter_set || "baseline", "/docs/user/run-simulation.md"));
+    wrapper.append(resultTable("Public Output Series", seriesOutputRows(series), ["Output", "Values"]));
+    wrapper.append(resultTable("Final States", Object.keys(series.final_states || {}).map((component) => [component, formatValue(series.final_states[component])]), ["Component", "State"]));
+    return wrapper;
+  }
+
   if (validation) {
     wrapper.append(resultHeader("Validation Result", validation.mapping_name || validation.mapping_id || "", `${validation.row_count || 0} rows`, "/docs/user/data-validation.md"));
     wrapper.append(validationResultSection(validation));
@@ -2466,6 +2475,14 @@ function resultPublicOutputSummary(outputs) {
   return entries.map(([name, value]) => `${name}: ${formatValue(value)}`).join(", ");
 }
 
+function seriesOutputRows(series) {
+  return Object.entries(series.outputs || {}).map(([name, values]) => {
+    const list = Array.isArray(values) ? values : [];
+    const last = list.length ? list[list.length - 1] : "";
+    return [name, `${list.length} values / last ${formatValue(last)}`];
+  });
+}
+
 function resultTable(title, rows, headers = ["Item", "Value"]) {
   const block = document.createElement("div");
   block.className = "result-block";
@@ -2508,6 +2525,7 @@ function rawJSONBlock(value) {
 }
 
 function latestRuntimeResult() {
+  if (state.latestSeriesResult) return seriesLastResult(state.latestSeriesResult);
   if (state.latestBatchRecord) {
     const found = (state.latestBatchRecord.cases || []).find((item) => item.ok && item.result);
     return found?.result || null;
@@ -2517,6 +2535,9 @@ function latestRuntimeResult() {
 }
 
 function latestRuntimeComparisonContext() {
+  if (state.latestSeriesResult) {
+    return { result: seriesLastResult(state.latestSeriesResult), source: seriesSourceLabel(state.latestSeriesResult) };
+  }
   if (state.latestBatchRecord) {
     const found = (state.latestBatchRecord.cases || []).find((item) => item.ok && item.result);
     if (found?.result) {
@@ -2530,6 +2551,34 @@ function latestRuntimeComparisonContext() {
     return { result: state.latestResult, source: state.latestRunSource || currentRunSourceLabel() };
   }
   return null;
+}
+
+function seriesLastResult(series) {
+  const points = series?.series || [];
+  const point = points[points.length - 1];
+  if (!point) return null;
+  return {
+    ok: true,
+    parameter_set: series.parameter_set || "",
+    outputs: point.outputs || {},
+    component_inputs: point.component_inputs || {},
+    component_outputs: point.component_outputs || {},
+    node_values: point.node_values || [],
+    connection_values: point.connection_values || [],
+    states: point.states || {},
+    context: point.context || {},
+    execution_order: series.execution_order || point.execution_order || [],
+    component_timings: point.component_timings || [],
+    component_logs: point.component_logs || [],
+    duration_ms: point.duration_ms,
+  };
+}
+
+function seriesSourceLabel(series) {
+  const parts = ["series preview"];
+  if (series?.step_count) parts.push(`${series.step_count} steps`);
+  parts.push(series?.parameter_set ? `parameter set ${series.parameter_set}` : "baseline");
+  return parts.join(" / ");
 }
 
 function currentRunSourceLabel() {
@@ -3018,6 +3067,7 @@ async function runProject() {
       body: JSON.stringify({ project_path: state.currentProjectPath, inputs, context: currentRunContext(), parameter_set_path: state.activeParameterSetPath, timeout_ms: state.runTimeoutMS, save }),
     });
     state.latestResult = body.result;
+    state.latestSeriesResult = null;
     state.latestRunSource = runSource;
     state.runComparisonBaseline = comparisonBaseline;
     state.latestResultStale = false;
@@ -3043,6 +3093,7 @@ async function runProject() {
     } else {
       log(`Run failed: ${error.message}`);
       state.latestResult = null;
+      state.latestSeriesResult = null;
       state.latestRunSource = "";
       state.latestResultStale = false;
       state.latestRunRecord = null;
@@ -3064,6 +3115,70 @@ async function runProject() {
   renderRunWorkspace();
 }
 
+async function runSeries() {
+  if (!(await saveModelEditsBeforeExecution())) return;
+  const seriesInput = buildSeriesInput();
+  const comparisonBaseline = latestRuntimeComparisonContext();
+  const controller = beginRuntimeRequest("Series");
+  if (!controller) return;
+  try {
+    const body = await api("/api/run-series", {
+      method: "POST",
+      signal: controller.signal,
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        schema_version: "0.1.0",
+        context: seriesInput.context,
+        steps: seriesInput.steps,
+        parameter_set_path: state.activeParameterSetPath,
+        timeout_ms: state.runTimeoutMS,
+      }),
+    });
+    state.latestSeriesResult = body.result;
+    state.latestResult = null;
+    state.latestRunSource = "";
+    state.runComparisonBaseline = comparisonBaseline;
+    state.latestResultStale = false;
+    state.latestRunRecord = null;
+    state.latestBatchRecord = null;
+    state.latestDataValidation = null;
+    state.latestWorkflowRecord = null;
+    setProblems();
+    renderSystemHeader();
+    renderCanvas();
+    renderInspector();
+    renderPythonPanel();
+    renderResults();
+    renderRunWorkspace();
+    renderProblems();
+    setMode("run");
+    setBottomTab("results");
+    log(`Series complete: ${body.result.step_count || 0} steps`);
+  } catch (error) {
+    if (isAbortError(error)) {
+      log("Series canceled");
+      state.latestValidation = { error: "Series canceled", problems: [] };
+    } else {
+      log(`Series failed: ${error.message}`);
+      state.latestSeriesResult = null;
+      state.latestResult = null;
+      state.latestRunSource = "";
+      state.latestResultStale = false;
+      state.latestRunRecord = null;
+      state.latestBatchRecord = null;
+      state.latestDataValidation = null;
+      state.latestWorkflowRecord = null;
+      state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    }
+    renderProblems();
+    renderResults();
+    renderRunWorkspace();
+    setBottomTab("problems");
+  } finally {
+    finishRuntimeRequest(controller);
+  }
+}
+
 async function runBatch() {
   if (!(await saveModelEditsBeforeExecution())) return;
   const comparisonBaseline = latestRuntimeComparisonContext();
@@ -3076,6 +3191,7 @@ async function runBatch() {
       body: JSON.stringify({ project_path: state.currentProjectPath, parameter_set_path: state.activeParameterSetPath, timeout_ms: state.runTimeoutMS }),
     });
     state.latestBatchRecord = body.batch;
+    state.latestSeriesResult = null;
     state.runComparisonBaseline = comparisonBaseline;
     state.latestRunRecord = null;
     state.latestResult = null;
@@ -3165,6 +3281,7 @@ async function runDataValidation() {
       }),
     });
     state.latestDataValidation = body.validation_result;
+    state.latestSeriesResult = null;
     state.latestWorkflowRecord = null;
     if (body.validation_record) {
       state.detail.validation_runs = [body.validation_record, ...(state.detail.validation_runs || [])];
@@ -3177,6 +3294,7 @@ async function runDataValidation() {
     log(`Data validation complete: ${mapping.name || mapping.id}`);
   } catch (error) {
     state.latestDataValidation = null;
+    state.latestSeriesResult = null;
     state.latestWorkflowRecord = null;
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderResults();
@@ -3198,6 +3316,7 @@ async function runCalibrationSetup(setup) {
       }),
     });
     state.latestWorkflowRecord = body.calibration_result;
+    state.latestSeriesResult = null;
     state.latestDataValidation = null;
     setProblems();
     await refreshCurrentProjectDetail();
@@ -3208,6 +3327,7 @@ async function runCalibrationSetup(setup) {
     log(`Calibration complete: ${setup.name || setup.id}`);
   } catch (error) {
     state.latestWorkflowRecord = null;
+    state.latestSeriesResult = null;
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderResults();
     renderProblems();
@@ -3228,6 +3348,7 @@ async function runOptimizationSetup(setup) {
       }),
     });
     state.latestWorkflowRecord = body.optimization_result;
+    state.latestSeriesResult = null;
     state.latestDataValidation = null;
     setProblems();
     await refreshCurrentProjectDetail();
@@ -3238,6 +3359,7 @@ async function runOptimizationSetup(setup) {
     log(`Optimization complete: ${setup.name || setup.id}`);
   } catch (error) {
     state.latestWorkflowRecord = null;
+    state.latestSeriesResult = null;
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderResults();
     renderProblems();
@@ -3298,6 +3420,20 @@ function runTimeoutField() {
     state.runTimeoutMS = value * 1000;
   });
   return field;
+}
+
+function buildSeriesInput() {
+  const inputs = collectRunInputs();
+  const baseContext = { ...(currentRunContext() || {}) };
+  const dt = Number.isFinite(Number(baseContext.dt)) ? Number(baseContext.dt) : 60;
+  const start = Number.isFinite(Number(baseContext.time)) ? Number(baseContext.time) : 0;
+  const context = { ...baseContext, dt };
+  const steps = [0, 1, 2].map((offset) => ({
+    id: `step-${offset + 1}`,
+    inputs: { ...inputs },
+    context: { time: start + offset * dt, dt },
+  }));
+  return { context, steps };
 }
 
 function collectBatchProblems(record) {
@@ -3362,6 +3498,7 @@ async function loadRunRecord(runID) {
     state.latestRunRecord = body.run_record;
     state.runComparisonBaseline = comparisonBaseline;
     state.latestBatchRecord = null;
+    state.latestSeriesResult = null;
     state.latestDataValidation = null;
     state.latestWorkflowRecord = null;
     state.activeParameterSetPath = body.run_record.parameter_set || "";
@@ -3391,6 +3528,7 @@ async function loadBatchRecord(batchID) {
   try {
     const body = await api(`/api/project/batch?project_path=${encodeURIComponent(state.currentProjectPath)}&batch_id=${encodeURIComponent(batchID)}`);
     state.latestBatchRecord = body.batch_record;
+    state.latestSeriesResult = null;
     state.runComparisonBaseline = comparisonBaseline;
     state.latestRunRecord = null;
     state.latestDataValidation = null;
@@ -3439,6 +3577,7 @@ async function loadWorkflowRecord(kind, recordID) {
     state.latestWorkflowRecord = body[responseKey];
     state.latestDataValidation = null;
     state.latestBatchRecord = null;
+    state.latestSeriesResult = null;
     state.latestRunRecord = null;
     state.latestResult = null;
     state.latestRunSource = "";
@@ -4805,6 +4944,7 @@ function updateCommandState() {
   el("validateButton").disabled = !hasProject;
   el("dataValidateButton").disabled = !hasProject || !(state.detail?.validation_mappings || []).length;
   el("runButton").disabled = !hasProject || runtimeBusy;
+  el("seriesButton").disabled = !hasProject || runtimeBusy;
   el("scenarioButton").disabled = !hasProject || !isWorkspaceProject();
   el("batchButton").disabled = !hasProject || !isWorkspaceProject() || runtimeBusy;
   el("cancelRunButton").disabled = !runtimeBusy;
@@ -4972,6 +5112,7 @@ function bindEvents() {
   el("validateButton").addEventListener("click", validateProject);
   el("dataValidateButton").addEventListener("click", runDataValidation);
   el("runButton").addEventListener("click", runProject);
+  el("seriesButton").addEventListener("click", runSeries);
   el("scenarioButton").addEventListener("click", createScenario);
   el("batchButton").addEventListener("click", runBatch);
   el("cancelRunButton").addEventListener("click", cancelActiveRun);
