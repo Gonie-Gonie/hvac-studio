@@ -629,7 +629,7 @@ These items are about support promises, installation, and compatibility rather t
 
 | ID | Area | Unimplemented item | Done when |
 | --- | --- | --- | --- |
-| PM-201 | Compatibility | Artifact schema freeze, migration tooling, migration docs, and compatibility policy | Users can upgrade alpha/beta projects with documented behavior |
+| PM-201 | Compatibility | Done: project and graph schema compatibility are frozen to the documented `0.1.x` line, `bcs-runner migrate` emits machine-readable compatibility reports, and docs define migration/freeze behavior | Add concrete rewrite migrations only when a future incompatible schema exists |
 | PM-202 | Distribution | Windows installer, WebView2/runtime checks, Start menu integration, optional PATH registration, `.bcsproj` association policy, and update channels | Installer behavior is tested separately from portable zip behavior |
 | PM-203 | Release trust | Code signing, checksums, license notices, dependency notices, support matrix, and release-note discipline | Release assets are verifiable and support boundaries are explicit |
 | PM-204 | Documentation | Required offline HTML docs, PDF manual, versioned docs, and concept map tying artifacts to Studio/CLI/SDK/export surfaces | Docs can be shipped and reviewed as release assets |

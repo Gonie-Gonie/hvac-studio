@@ -18,6 +18,90 @@ func TestRunReturnsValidationExitCodeForUsage(t *testing.T) {
 	}
 }
 
+func TestMigrateCommandWritesCompatibleReport(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectRoot := filepath.Join(tmpDir, "project")
+	copyTree(t, examplePath("001_scalar_component"), projectRoot)
+	outputPath := filepath.Join(tmpDir, "migration-report.json")
+
+	if err := run([]string{
+		"bcs-runner",
+		"migrate",
+		"--project",
+		filepath.Join(projectRoot, "project.bcsproj"),
+		"--output",
+		outputPath,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var report struct {
+		OK        bool `json:"ok"`
+		Artifacts []struct {
+			Kind           string `json:"kind"`
+			Compatible     bool   `json:"compatible"`
+			NeedsMigration bool   `json:"needs_migration"`
+		} `json:"artifacts"`
+		Actions []struct {
+			Kind string `json:"kind"`
+		} `json:"actions"`
+	}
+	readJSONFile(t, outputPath, &report)
+	if !report.OK || len(report.Artifacts) != 2 {
+		t.Fatalf("report = %#v", report)
+	}
+	for _, artifact := range report.Artifacts {
+		if !artifact.Compatible || artifact.NeedsMigration {
+			t.Fatalf("artifact = %#v", artifact)
+		}
+	}
+	if len(report.Actions) != 1 || report.Actions[0].Kind != "no_migration_needed" {
+		t.Fatalf("actions = %#v", report.Actions)
+	}
+}
+
+func TestMigrateCommandFailsForIncompatibleProject(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeFile(t, filepath.Join(tmpDir, "project.bcsproj"), `{
+  "project_name": "future",
+  "schema_version": "0.2.0",
+  "entry_system": "MainSystem",
+  "graph": "graph.json"
+}
+`)
+	writeFile(t, filepath.Join(tmpDir, "graph.json"), `{
+  "schema_version": "0.1.0",
+  "systems": [],
+  "components": [],
+  "connections": []
+}
+`)
+	outputPath := filepath.Join(tmpDir, "migration-report.json")
+
+	err := run([]string{
+		"bcs-runner",
+		"migrate",
+		"--project",
+		filepath.Join(tmpDir, "project.bcsproj"),
+		"--output",
+		outputPath,
+	})
+	if got := apperror.ExitCode(err); got != int(apperror.CodeValidation) {
+		t.Fatalf("exit code = %d, want %d; error=%v", got, apperror.CodeValidation, err)
+	}
+	var report struct {
+		OK        bool `json:"ok"`
+		Artifacts []struct {
+			Kind           string `json:"kind"`
+			NeedsMigration bool   `json:"needs_migration"`
+		} `json:"artifacts"`
+	}
+	readJSONFile(t, outputPath, &report)
+	if report.OK || len(report.Artifacts) != 2 || !report.Artifacts[0].NeedsMigration {
+		t.Fatalf("report = %#v", report)
+	}
+}
+
 func TestRunReturnsInputExitCodeForMissingPublicInput(t *testing.T) {
 	tmpDir := t.TempDir()
 	inputPath := filepath.Join(tmpDir, "missing-input.json")
@@ -580,6 +664,17 @@ func writeFile(t *testing.T, path string, content string) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func readJSONFile(t *testing.T, path string, target any) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, target); err != nil {
 		t.Fatal(err)
 	}
 }

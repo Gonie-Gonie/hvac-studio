@@ -10,10 +10,29 @@ The current artifact schema line is `0.1.x`.
 - `0.1.x` project and graph files are load-compatible.
 - Other major or minor versions are rejected until a migration path exists.
 - Unknown JSON fields are rejected for project and graph files so spelling mistakes do not silently change behavior.
+- Patch-level additions must be optional and must not require rewriting existing `0.1.x` projects.
+- Release candidates must keep compatibility checks and migration reports green for bundled examples.
 
 ## Migration Notes
 
-There are no automatic migrations yet. During the alpha line, compatible patch-level changes may add optional fields, but they must not require rewriting existing `0.1.x` projects.
+Use `bcs-runner migrate` before upgrading or shipping a project:
+
+```powershell
+bcs-runner.exe migrate `
+  --project project.bcsproj `
+  --output migration-report.json
+```
+
+The report lists each checked artifact, its version, the current compatibility
+line, whether it is compatible, and the action required. The command exits with:
+
+- success when no migration is needed
+- validation error when a required version is missing or outside the supported major/minor line
+
+There are no automatic rewrites yet. During the alpha line, compatible
+patch-level changes may add optional fields, but they must not require rewriting
+existing `0.1.x` projects. `--write` is reserved for future documented
+migrations and currently writes no changes for already-compatible artifacts.
 
 When an incompatible schema appears, migration work should produce:
 
@@ -21,6 +40,15 @@ When an incompatible schema appears, migration work should produce:
 - a command or tool action that rewrites files intentionally
 - before and after fixtures
 - tests that prove old fixtures either load unchanged or fail with a migration message
+
+## Freeze Rules
+
+For the 1.0 readiness line:
+
+- `project.bcsproj` and `graph.json` are the first frozen artifacts.
+- A patch release may add optional fields only when older `0.1.x` files keep loading.
+- A major or minor schema change must include migration docs, before/after fixtures, tests, and a `bcs-runner migrate --write` implementation before users are asked to upgrade.
+- Runtime, Studio, SDK, and exports must all report the same compatibility boundary.
 
 ## Artifact Status
 
@@ -35,4 +63,3 @@ When an incompatible schema appears, migration work should produce:
 | optimization setups | Project-owned JSON; no separate persisted schema version yet | Saved optimization records include provenance checksums |
 | export manifests | Export-owned JSON; no separate compatibility gate yet | Release/export provenance is checked by package smoke tests |
 | workflow records | Include `provenance.schema` | Saved validation, calibration, and optimization records use `hvac-studio.workflow-provenance.v1` |
-

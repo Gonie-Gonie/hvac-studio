@@ -35,6 +35,24 @@ bcs-runner.exe schema `
   --output schema.json
 ```
 
+## Migration Report
+
+`migrate` checks artifact schema compatibility and writes a machine-readable
+report. For the current `0.1.x` line, compatible projects do not need rewriting.
+
+```powershell
+bcs-runner.exe migrate `
+  --project project.bcsproj `
+  --output migration-report.json
+```
+
+The command exits successfully when `project.bcsproj` and `graph.json` are inside
+the supported compatibility line. It exits with a validation error when an
+artifact is missing `schema_version`, has an invalid version, or uses an
+unsupported major/minor version. The report still records which artifact needs a
+manual migration. `--write` is accepted for future migrations, but currently
+writes no changes when no migration is needed.
+
 ## Data Validation
 
 `validate-data` runs a saved dataset mapping and writes metrics plus high-error rows:

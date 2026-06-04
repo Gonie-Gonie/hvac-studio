@@ -14,6 +14,7 @@ import (
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/calibration"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/migration"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/modelvalidation"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/optimization"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/parameterset"
@@ -89,6 +90,8 @@ func run(args []string) error {
 		return calibrate(args[2:])
 	case "optimize":
 		return optimize(args[2:])
+	case "migrate":
+		return migrateProject(args[2:])
 	default:
 		return usage()
 	}
@@ -393,6 +396,30 @@ func optimize(args []string) error {
 	return writeJSONOutput(resolveProjectPath(loaded.Root, *outputPath), result)
 }
 
+func migrateProject(args []string) error {
+	flags := flag.NewFlagSet("migrate", flag.ContinueOnError)
+	projectPath := flags.String("project", "", "path to project.bcsproj")
+	outputPath := flags.String("output", "", "path to migration report JSON")
+	writeRequested := flags.Bool("write", false, "apply an available migration instead of only reporting")
+	if err := flags.Parse(args); err != nil {
+		return apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if *projectPath == "" {
+		return apperror.Errorf(apperror.CodeValidation, "--project is required")
+	}
+	report, err := migration.InspectProject(*projectPath, *writeRequested)
+	if err != nil {
+		return apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if err := writeJSONOutput(*outputPath, report); err != nil {
+		return err
+	}
+	if !report.OK {
+		return apperror.Errorf(apperror.CodeValidation, "project requires migration; see docs/user/artifact-compatibility.md")
+	}
+	return nil
+}
+
 func writeJSONOutput(outputPath string, value any) error {
 	output, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
@@ -419,5 +446,5 @@ func resolveProjectPath(projectRoot string, path string) string {
 }
 
 func usage() error {
-	return apperror.Errorf(apperror.CodeValidation, "usage: bcs-runner <validate|run|serve|schema|validate-data|calibrate|optimize> --project project.bcsproj")
+	return apperror.Errorf(apperror.CodeValidation, "usage: bcs-runner <validate|run|serve|schema|validate-data|calibrate|optimize|migrate> --project project.bcsproj")
 }
