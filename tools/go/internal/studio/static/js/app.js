@@ -2598,7 +2598,7 @@ function updateSourceChrome(component, source, draft) {
     }
   }
   renderSourceEditorMeta(component && source ? draft || "" : null);
-  for (const id of ["saveSourceButton", "saveRunSourceButton", "revertSourceButton", "checkSourceButton", "insertSnippetButton", "sourceSnippetSelect"]) {
+  for (const id of ["saveSourceButton", "saveRunSourceButton", "revertSourceButton", "checkSourceButton", "insertSnippetButton", "formatSourceButton", "sourceSnippetSelect"]) {
     const control = el(id);
     if (control) control.disabled = !component || !source || (id !== "checkSourceButton" && !editable);
   }
@@ -3430,6 +3430,38 @@ function insertSourceSnippet() {
   if (!component || !source || source.read_only || !isWorkspaceProject()) return;
   const snippet = sourceSnippet(el("sourceSnippetSelect")?.value || "evaluate", component);
   insertSourceText(snippet);
+}
+
+function formatCurrentSource() {
+  const component = componentById(state.selectedComponentId);
+  const source = component ? state.sourceByComponent[component.id] : null;
+  const editor = el("sourceEditor") || el("pythonPanel");
+  if (!component || !source || source.read_only || !isWorkspaceProject() || !editor || editor.readOnly) return;
+  const formatted = formatPythonSource(sourceDraft(component.id));
+  if (formatted === editor.value) {
+    log(`Source already formatted: ${component.id}`);
+    return;
+  }
+  const previousStart = editor.selectionStart ?? formatted.length;
+  editor.value = formatted;
+  const position = Math.min(previousStart, formatted.length);
+  editor.selectionStart = editor.selectionEnd = position;
+  updateSourceDraftFromEditor(editor);
+  hideSourceCompletionPanel();
+  editor.focus();
+  log(`Source formatted: ${component.id}`);
+}
+
+function formatPythonSource(value) {
+  const normalized = String(value || "").replace(/\r\n?/g, "\n");
+  const lines = normalized.split("\n").map((line) => {
+    const withoutTrailing = line.replace(/[ \t]+$/g, "");
+    return withoutTrailing.replace(/^\t+/, (tabs) => "    ".repeat(tabs.length));
+  });
+  while (lines.length > 1 && lines[lines.length - 1] === "") {
+    lines.pop();
+  }
+  return `${lines.join("\n")}\n`;
 }
 
 function insertSourceText(snippet) {
@@ -4687,6 +4719,11 @@ function handleSourceEditorKeydown(event) {
     checkCurrentSource();
     return;
   }
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "f") {
+    event.preventDefault();
+    formatCurrentSource();
+    return;
+  }
   if (event.key === "Tab") {
     event.preventDefault();
     handleSourceIndent(event.target, event.shiftKey);
@@ -4776,6 +4813,7 @@ function bindEvents() {
   el("saveSourceButton").addEventListener("click", saveCurrentSource);
   el("saveRunSourceButton").addEventListener("click", runProject);
   el("checkSourceButton").addEventListener("click", checkCurrentSource);
+  el("formatSourceButton").addEventListener("click", formatCurrentSource);
   el("revertSourceButton").addEventListener("click", revertCurrentSource);
   el("insertSnippetButton").addEventListener("click", insertSourceSnippet);
   for (const editor of sourceEditors()) {

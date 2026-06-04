@@ -494,7 +494,7 @@ h2,
 
 .source-toolbar {
   display: grid;
-  grid-template-columns: minmax(120px, 180px) minmax(90px, 1fr) auto auto minmax(92px, 120px) repeat(5, auto);
+  grid-template-columns: minmax(120px, 180px) minmax(90px, 1fr) auto auto minmax(92px, 120px) repeat(6, auto);
   gap: 6px;
   align-items: center;
   min-width: 0;

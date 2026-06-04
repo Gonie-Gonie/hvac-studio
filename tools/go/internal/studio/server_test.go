@@ -75,6 +75,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("sourceHighlight")) {
 		t.Fatalf("index did not include the source syntax highlight layer")
 	}
+	if !bytes.Contains(body, []byte("formatSourceButton")) {
+		t.Fatalf("index did not include the source formatting control")
+	}
 	if !bytes.Contains(body, []byte("projectNameInput")) {
 		t.Fatalf("index did not include the project name field")
 	}
@@ -180,6 +183,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("handleSourceNewline")) {
 		t.Fatalf("module entrypoint did not include source auto indentation")
+	}
+	if !bytes.Contains(body, []byte("formatCurrentSource")) {
+		t.Fatalf("module entrypoint did not include source formatting")
+	}
+	if !bytes.Contains(body, []byte("formatPythonSource")) {
+		t.Fatalf("module entrypoint did not include Python source formatting rules")
 	}
 	if !bytes.Contains(body, []byte("sourceLineProblemMap")) {
 		t.Fatalf("module entrypoint did not include source gutter problem markers")
