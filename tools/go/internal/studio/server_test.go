@@ -156,6 +156,17 @@ func TestDocsRouteServesUserGuide(t *testing.T) {
 	if !bytes.Contains(response.Body.Bytes(), []byte("# Run Simulation")) {
 		t.Fatalf("docs route did not serve the run simulation guide")
 	}
+
+	tutorialResponse := httptest.NewRecorder()
+	tutorialRequest := httptest.NewRequest(http.MethodGet, "/docs/user/tutorials.md", nil)
+	server.Handler().ServeHTTP(tutorialResponse, tutorialRequest)
+
+	if tutorialResponse.Code != http.StatusOK {
+		t.Fatalf("tutorial status = %d body=%s", tutorialResponse.Code, tutorialResponse.Body.String())
+	}
+	if !bytes.Contains(tutorialResponse.Body.Bytes(), []byte("assets/tutorials/studio-canvas.png")) {
+		t.Fatalf("docs route did not serve screenshot tutorial references")
+	}
 }
 
 func TestStaticModuleEntrypointServes(t *testing.T) {
@@ -249,6 +260,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("updateWorkspaceHelp")) {
 		t.Fatalf("module entrypoint did not update contextual help links")
+	}
+	if !bytes.Contains(body, []byte("workspaceModeFromHash")) {
+		t.Fatalf("module entrypoint did not support workspace hash links")
+	}
+	if !bytes.Contains(body, []byte("hashchange")) {
+		t.Fatalf("module entrypoint did not react to workspace hash changes")
 	}
 	if !bytes.Contains(body, []byte("result-help-button")) {
 		t.Fatalf("module entrypoint did not render result help links")

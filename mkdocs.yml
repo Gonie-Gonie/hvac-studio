@@ -6,6 +6,7 @@ nav:
   - Home: index.md
   - User Guide:
       - Overview: user/index.md
+      - Screenshot Tutorials: user/tutorials.md
       - Quick Start: user/quick-start.md
       - Core Concepts: user/core-concepts.md
       - How It Works: user/how-it-works.md

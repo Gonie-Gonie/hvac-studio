@@ -23,6 +23,7 @@ It is not a fixed HVAC component library. Users define components, nodes, parame
 ## How To Read This Guide
 
 - Start with [Quick Start](quick-start.md) if you want to run a model immediately.
+- Use [Screenshot Tutorials](tutorials.md) when you want a guided map of the current Studio screens.
 - Read [Core Concepts](core-concepts.md) before creating custom components.
 - Read [How It Works](how-it-works.md) to understand why project files, the runner, and Python worker exist.
 - Read [Artifact Compatibility](artifact-compatibility.md) before depending on saved project files across releases.

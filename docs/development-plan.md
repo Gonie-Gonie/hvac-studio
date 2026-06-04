@@ -562,6 +562,7 @@ Completed:
 
 - Markdown guide under `docs/user/`.
 - Quick start, concepts, internals, authoring, Python editing, system building, parameters, run/inspect, validation, calibration, optimization, CLI, export, troubleshooting, glossary.
+- Screenshot-backed Studio tutorial map for component authoring, system building, validation, parameter sets, calibration, optimization, SDK use, and runtime-only delivery.
 - `mkdocs.yml` source configuration.
 - Runtime-only example CLI guide.
 - Package scripts include Markdown docs and optionally build MkDocs HTML when `mkdocs` is available.
@@ -571,7 +572,7 @@ Post-MVP backlog:
 - Make offline MkDocs HTML docs a required release asset once `mkdocs` is installed in CI/release environments.
 - Add PDF manual generation once the Markdown guide structure is stable.
 - Add in-app help links from Start, Project tree, System canvas, Inspector, Code, Run, Data, Parameters, Calibration, Optimization, Export, and Settings.
-- Add screenshot-backed tutorials for component authoring, system building, validation, parameter sets, calibration, optimization, SDK use, and runtime-only delivery.
+- Keep screenshot-backed tutorials current as Studio workspaces change.
 - Add a "concept map" page that explains how project artifacts relate to Studio screens, CLI commands, SDK calls, and exported packages.
 - Keep docs versioned with releases and record behavior differences for alpha/beta/stable builds.
 
@@ -619,7 +620,7 @@ These items make the existing workflows feel like a product rather than a set of
 | PM-104 | Canvas | Done: medium badges, override/warning/mismatch markers, connection annotations, fan-in/fan-out anchor spreading, and long/backtracking path markers | Keep screenshot-based readability checks as canvas density grows |
 | PM-105 | Python editor | Done: lightweight formatting, hover text, contract/state/context completions, common source-check quick fixes, gutter problem markers, generated-wrapper `step` snippets, and Python traceback-to-line mapping | Keep diagnostics aligned as worker/runtime protocols evolve |
 | PM-106 | Run/inspect | Done: component timing bars, run-to-run public output comparison, component stdout/stderr logs, configurable run/batch timeout/cancel controls, and failed-run/batch problem summaries are in place | Keep time-indexed trace timelines aligned with PM-301 native time-series work |
-| PM-107 | Documentation | In progress: Studio serves local docs and links major workspaces plus workflow result headers to relevant user-guide pages; screenshot-backed tutorials still need captured walkthroughs | Major workspaces link to local docs and tutorials match current UI |
+| PM-107 | Documentation | Done: Studio serves local docs, links major workspaces plus workflow result headers to relevant user-guide pages, and ships screenshot-backed walkthroughs for the main authoring, workflow, SDK, and delivery paths | Keep docs links and screenshots current as UI changes |
 | PM-108 | Examples | Dataset validation, calibration, optimization, runtime-only delivery, controller, plant, and time-series tutorials | Examples double as smoke/regression assets and user learning paths |
 
 ### P2: 1.0 Readiness

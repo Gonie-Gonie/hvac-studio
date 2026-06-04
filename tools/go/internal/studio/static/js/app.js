@@ -137,6 +137,7 @@ async function loadProject(projectPath) {
     state.selectedComponentId = components[0].id;
   }
   renderAll();
+  setMode(workspaceModeFromHash());
   log(`Opened ${state.detail.project.project_name}`);
 }
 
@@ -4763,6 +4764,7 @@ function parameterUpdatesExcluding(componentID, name) {
 }
 
 function setMode(mode) {
+  if (!WORKSPACE_HELP[mode]) mode = "canvas";
   document.querySelectorAll(".mode-button").forEach((button) => {
     button.classList.toggle("active", button.dataset.mode === mode);
   });
@@ -4770,6 +4772,9 @@ function setMode(mode) {
     view.classList.toggle("active", view.id === `${mode}View`);
   });
   updateWorkspaceHelp(mode);
+  if (window.location.hash !== `#${mode}`) {
+    window.history.replaceState(null, "", `#${mode}`);
+  }
 }
 
 function updateWorkspaceHelp(mode) {
@@ -4778,6 +4783,11 @@ function updateWorkspaceHelp(mode) {
   const href = WORKSPACE_HELP[mode] || "/docs/user/index.md";
   link.href = href;
   link.title = `Open ${displayNameFromIdentifier(mode || "workspace")} help`;
+}
+
+function workspaceModeFromHash() {
+  const mode = window.location.hash.replace(/^#/, "");
+  return WORKSPACE_HELP[mode] ? mode : "canvas";
 }
 
 function setBottomTab(name) {
@@ -4985,6 +4995,7 @@ function bindEvents() {
   document.querySelectorAll(".bottom-tab").forEach((button) => {
     button.addEventListener("click", () => setBottomTab(button.dataset.bottom));
   });
+  window.addEventListener("hashchange", () => setMode(workspaceModeFromHash()));
 }
 
 bindEvents();
