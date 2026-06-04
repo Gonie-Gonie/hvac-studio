@@ -29,6 +29,11 @@ Connections are stored in `graph.json`. They are not just canvas lines.
 
 A system is a runnable collection of components, connections, public inputs, and public outputs.
 
+A system can also be used as a child system through a composite component. The
+outer component exposes input/output nodes whose IDs match the child system's
+public IO IDs, so nested composition stays explicit instead of relying on name
+guessing.
+
 ## Public Input And Public Output
 
 Public inputs and outputs are the external execution contract. GUI runs, CLI runs, SDK calls, dataset mapping, validation, calibration, optimization, and runtime packages should all use the same public interface.

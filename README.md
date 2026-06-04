@@ -15,7 +15,7 @@ The first stable slice is the runtime core plus a real Studio workspace shell:
 - A persistent Python worker using JSONL over stdio.
 - A Go `bcs-runner` CLI with `validate`, `run`, `run-series`, `serve`, `schema`, `migrate`, `validate-data`, `calibrate`, and `optimize`.
 - A Python `bcs_sdk` client that wraps `bcs-runner serve` for repeated evaluations and provides helpers for validation, calibration, optimization, batches, schemas, and export manifests.
-- Golden examples that behave as regression assets, including scalar, generated-wrapper, stateful time-series, plant workflow, optimization, runtime-only, vectorized, external executable, solver boundary, and unit conversion component cases.
+- Golden examples that behave as regression assets, including scalar, generated-wrapper, stateful time-series, plant workflow, optimization, runtime-only, vectorized, external executable, solver boundary, unit conversion, and composite system cases.
 - A Wails-based Studio desktop UI that opens examples, creates workspace projects, edits parameters/default inputs/Python source, adds components, validates, runs, saves scenarios/run records, and exports public schema/runtime manifests.
 
 The Studio UI is intentionally built as the full product workspace first. Individual panels can be wired up gradually without changing the source-of-truth files or inventing a separate simulation engine.
@@ -150,7 +150,9 @@ go run .\cmd\bcs-runner run --project ..\..\examples\009_vectorized_component\pr
 go run .\cmd\bcs-runner run --project ..\..\examples\010_external_executable_component\project.bcsproj --input ..\..\examples\010_external_executable_component\inputs\case01.json
 go run .\cmd\bcs-runner run --project ..\..\examples\011_solver_boundary_component\project.bcsproj --input ..\..\examples\011_solver_boundary_component\inputs\case01.json
 go run .\cmd\bcs-runner run --project ..\..\examples\012_unit_conversion_component\project.bcsproj --input ..\..\examples\012_unit_conversion_component\inputs\case01.json
+go run .\cmd\bcs-runner run --project ..\..\examples\013_composite_system\project.bcsproj --input ..\..\examples\013_composite_system\inputs\case01.json
 go run .\cmd\bcs-runner run-series --project ..\..\examples\004_stateful_controller\project.bcsproj --input ..\..\examples\004_stateful_controller\inputs\series01.json --output ..\..\artifacts\series-output.json
+go run .\cmd\bcs-runner run-series --project ..\..\examples\013_composite_system\project.bcsproj --input ..\..\examples\013_composite_system\inputs\series01.json --output ..\..\artifacts\composite-series-output.json
 '{ "id": "case-1", "inputs": { "value": 4 }, "context": { "time": 0, "dt": 60 } }' | go run .\cmd\bcs-runner serve --project ..\..\examples\001_scalar_component\project.bcsproj
 go run .\cmd\bcs-runner schema --project ..\..\examples\003_feedforward_system\project.bcsproj --output ..\..\examples\003_feedforward_system\outputs\schema.json
 go run .\cmd\bcs-runner migrate --project ..\..\examples\001_scalar_component\project.bcsproj --output ..\..\artifacts\migration-report.json
@@ -181,3 +183,8 @@ Vectorized components declare `"execution_mode": "vectorized"` and can implement
 Graph-level feedback loops are not solved implicitly. Iterative behavior belongs inside an explicit solver boundary component that still exposes normal public inputs and outputs to the outer acyclic graph.
 
 Connection-level unit conversion is explicit. Use `unit_conversion` on a connection for linear numeric conversions; the runtime also validates common `value_type` contracts such as float, integer, boolean, string, array, and object.
+
+Composite components declare `kind: "composite"` and `composite.system`.
+Their node IDs must match the child system public input/output IDs. The runner
+evaluates the child system through the same public IO contract and stores nested
+child state under the wrapper component state.

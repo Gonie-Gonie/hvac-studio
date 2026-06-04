@@ -127,6 +127,40 @@ func TestCompileAllowsExplicitSolverBoundaryComponentInAcyclicGraph(t *testing.T
 	}
 }
 
+func TestCompileAllowsCompositeBoundaryWithMatchingPublicIO(t *testing.T) {
+	loaded := compositeLoadedProject()
+
+	plan, err := Compile(loaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(plan.Order, ","); got != "wrapped_gain" {
+		t.Fatalf("unexpected order: %s", got)
+	}
+}
+
+func TestCompileRejectsCompositeBoundaryMismatch(t *testing.T) {
+	loaded := compositeLoadedProject()
+	loaded.Graph.Systems[1].PublicOutputs[0].ID = "child_result"
+
+	_, err := Compile(loaded)
+
+	if err == nil || !strings.Contains(err.Error(), "composite output node missing child public output: child_result") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestCompileRejectsCompositeRecursion(t *testing.T) {
+	loaded := compositeLoadedProject()
+	loaded.Graph.Components[0].Composite.System = "MainSystem"
+
+	_, err := Compile(loaded)
+
+	if err == nil || !strings.Contains(err.Error(), "composite system recursion detected: MainSystem -> MainSystem") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestCompileWarnsForSignalToPhysicalMediumConnection(t *testing.T) {
 	loaded := compileProjectWithConnection(
 		componentWithMedia("controller", "signal", "signal"),
@@ -288,6 +322,61 @@ func componentWithMedia(id string, inputMedium string, outputMedium string) mode
 			Outputs: []model.Node{
 				{ID: "out", Medium: outputMedium, ValueType: "float"},
 			},
+		},
+	}
+}
+
+func compositeLoadedProject() *project.LoadedProject {
+	return &project.LoadedProject{
+		Project: &model.Project{EntrySystem: "MainSystem"},
+		Graph: &model.Graph{
+			SchemaVersion: "0.1.0",
+			Systems: []model.System{
+				{
+					ID:          "MainSystem",
+					Components:  []string{"wrapped_gain"},
+					Connections: []string{},
+					PublicInputs: []model.PublicNodeRef{
+						{ID: "value", Component: "wrapped_gain", Node: "value"},
+					},
+					PublicOutputs: []model.PublicNodeRef{
+						{ID: "result", Component: "wrapped_gain", Node: "result"},
+					},
+				},
+				{
+					ID:          "GainSystem",
+					Components:  []string{"gain"},
+					Connections: []string{},
+					PublicInputs: []model.PublicNodeRef{
+						{ID: "value", Component: "gain", Node: "value"},
+					},
+					PublicOutputs: []model.PublicNodeRef{
+						{ID: "result", Component: "gain", Node: "result"},
+					},
+				},
+			},
+			Components: []model.Component{
+				{
+					ID:   "wrapped_gain",
+					Kind: "composite",
+					Composite: &model.CompositeReference{
+						System: "GainSystem",
+					},
+					Nodes: model.NodeSet{
+						Inputs:  []model.Node{{ID: "value", Medium: "signal", ValueType: "float"}},
+						Outputs: []model.Node{{ID: "result", Medium: "signal", ValueType: "float"}},
+					},
+				},
+				{
+					ID:   "gain",
+					Kind: "user_python",
+					Nodes: model.NodeSet{
+						Inputs:  []model.Node{{ID: "value", Medium: "signal", ValueType: "float"}},
+						Outputs: []model.Node{{ID: "result", Medium: "signal", ValueType: "float"}},
+					},
+				},
+			},
+			Connections: []model.Connection{},
 		},
 	}
 }

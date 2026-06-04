@@ -1,0 +1,138 @@
+{
+  "schema_version": "0.1.0",
+  "systems": [
+    {
+      "id": "MainSystem",
+      "name": "Main System",
+      "components": ["wrapped_gain"],
+      "connections": [],
+      "public_inputs": [
+        {
+          "id": "value",
+          "name": "Value",
+          "component": "wrapped_gain",
+          "node": "value",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "ratio",
+          "required": true
+        }
+      ],
+      "public_outputs": [
+        {
+          "id": "result",
+          "name": "Result",
+          "component": "wrapped_gain",
+          "node": "result",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "ratio"
+        }
+      ]
+    },
+    {
+      "id": "GainSystem",
+      "name": "Gain System",
+      "components": ["gain"],
+      "connections": [],
+      "public_inputs": [
+        {
+          "id": "value",
+          "name": "Value",
+          "component": "gain",
+          "node": "value",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "ratio",
+          "required": true
+        }
+      ],
+      "public_outputs": [
+        {
+          "id": "result",
+          "name": "Result",
+          "component": "gain",
+          "node": "result",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "ratio"
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "wrapped_gain",
+      "name": "Wrapped Gain",
+      "kind": "composite",
+      "category": "composite_wrapper",
+      "execution_mode": "step",
+      "composite": {
+        "system": "GainSystem"
+      },
+      "nodes": {
+        "inputs": [
+          {
+            "id": "value",
+            "name": "Value",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "ratio",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "result",
+            "name": "Result",
+            "preset": "scalar_output",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "ratio"
+          }
+        ]
+      },
+      "parameters": {}
+    },
+    {
+      "id": "gain",
+      "name": "Gain",
+      "kind": "user_python",
+      "category": "utility",
+      "execution_mode": "step",
+      "class": "components.gain.Gain",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "value",
+            "name": "Value",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "ratio",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "result",
+            "name": "Result",
+            "preset": "scalar_output",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "ratio"
+          }
+        ]
+      },
+      "parameters": {
+        "gain": 2.5
+      }
+    }
+  ],
+  "connections": []
+}

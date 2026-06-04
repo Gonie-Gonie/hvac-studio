@@ -35,6 +35,20 @@ target input use different units, declare `unit_conversion` on the connection.
 The current runtime supports explicit linear conversion with `factor` and
 optional `offset` for numeric values.
 
+## Composite Systems
+
+A composite component wraps another system behind an explicit public IO
+boundary. Declare the wrapper component with `kind: "composite"` and
+`composite.system`. The wrapper input node IDs must exactly match the child
+system `public_inputs[].id`, and wrapper output node IDs must exactly match the
+child system `public_outputs[].id`.
+
+At runtime, the outer system still sees one normal DAG component. The runner
+evaluates the child system through its public inputs and returns the child
+public outputs as wrapper outputs. Nested child states are stored under the
+wrapper component state, so repeated session and `run-series` evaluations can
+carry child state forward.
+
 Workspace component positions can be adjusted on the canvas. Studio saves those positions in `studio/layout.json`; the layout file affects the authoring view only and does not change runtime execution. Auto Layout rebuilds the saved layout from the current system connections so connected components are arranged left-to-right. The canvas surface expands to cover saved, auto-laid-out, and dragged node positions so cards and connection lines remain scrollable.
 
 ## Public IO Mapping

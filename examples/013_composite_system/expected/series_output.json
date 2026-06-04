@@ -1,0 +1,20 @@
+{
+  "ok": true,
+  "step_count": 2,
+  "outputs": {
+    "result": [10.0, 15.0]
+  },
+  "final_states": {
+    "wrapped_gain": {
+      "system": "GainSystem",
+      "states": {
+        "gain": {
+          "calls": 2.0
+        }
+      }
+    }
+  },
+  "execution_order": [
+    "wrapped_gain"
+  ]
+}

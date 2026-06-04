@@ -240,7 +240,7 @@ func collectInputs(component model.Component, plan *compiler.Plan, publicInputs 
 
 func validateOutputs(component model.Component, outputs map[string]any) error {
 	code := apperror.CodePythonWorker
-	if component.Kind == "external_exe" {
+	if component.Kind == "external_exe" || component.Kind == "composite" {
 		code = apperror.CodeRuntime
 	}
 	declared := map[string]bool{}

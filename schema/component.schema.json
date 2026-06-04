@@ -16,7 +16,7 @@
     },
     "kind": {
       "type": "string",
-      "enum": ["user_python", "builtin_go", "external_exe", "future_compiled"]
+      "enum": ["user_python", "builtin_go", "external_exe", "future_compiled", "composite"]
     },
     "category": {
       "type": "string",
@@ -71,6 +71,9 @@
     },
     "solver_boundary": {
       "$ref": "#/$defs/solverBoundary"
+    },
+    "composite": {
+      "$ref": "#/$defs/compositeReference"
     },
     "input_nodes": {
       "type": "object",
@@ -228,6 +231,17 @@
         },
         "description": {
           "type": "string"
+        }
+      }
+    },
+    "compositeReference": {
+      "type": "object",
+      "required": ["system"],
+      "additionalProperties": false,
+      "properties": {
+        "system": {
+          "type": "string",
+          "minLength": 1
         }
       }
     },

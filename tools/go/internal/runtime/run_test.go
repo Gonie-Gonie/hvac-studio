@@ -82,6 +82,17 @@ func TestValidateOutputsUsesRuntimeCodeForExternalExecutable(t *testing.T) {
 	}
 }
 
+func TestValidateOutputsUsesRuntimeCodeForComposite(t *testing.T) {
+	component := contractComponent()
+	component.Kind = "composite"
+
+	err := validateOutputs(component, map[string]any{})
+
+	if apperror.ErrorCode(err) != apperror.CodeRuntime {
+		t.Fatalf("error code = %v, want runtime", apperror.ErrorCode(err))
+	}
+}
+
 func TestValidateOutputsAcceptsDeclaredOutputs(t *testing.T) {
 	component := contractComponent()
 
@@ -189,6 +200,23 @@ func TestConnectionValueTracesIncludeEndpointMetadata(t *testing.T) {
 	}
 	if trace.Value != 550.0 {
 		t.Fatalf("trace value = %v, want 550", trace.Value)
+	}
+}
+
+func TestNestedCompositeStatesClonesChildState(t *testing.T) {
+	state := map[string]any{
+		"system": "ChildSystem",
+		"states": map[string]map[string]any{
+			"gain": {"calls": 2},
+		},
+	}
+
+	cloned := nestedCompositeStates(state)
+	cloned["gain"]["calls"] = 3
+
+	original := state["states"].(map[string]map[string]any)["gain"]["calls"]
+	if original != 2 {
+		t.Fatalf("original state mutated: %v", original)
 	}
 }
 

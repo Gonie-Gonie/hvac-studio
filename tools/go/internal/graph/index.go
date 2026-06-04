@@ -88,7 +88,7 @@ func validateSystem(system model.System) error {
 
 func validateComponent(component model.Component) error {
 	switch component.Kind {
-	case "user_python", "builtin_go", "external_exe", "future_compiled":
+	case "user_python", "builtin_go", "external_exe", "future_compiled", "composite":
 	default:
 		if strings.TrimSpace(component.Kind) == "" {
 			return fmt.Errorf("component %s kind is required", component.ID)
@@ -134,6 +134,9 @@ func validateComponent(component model.Component) error {
 		return err
 	}
 	if err := validateSolverBoundary(component.ID, component.SolverBoundary); err != nil {
+		return err
+	}
+	if err := validateCompositeReference(component.ID, component.Kind, component.Composite); err != nil {
 		return err
 	}
 	return nil
@@ -235,6 +238,16 @@ func validateSolverBoundary(componentID string, boundary *model.SolverBoundary) 
 	}
 	if boundary.Tolerance < 0 {
 		return fmt.Errorf("component %s solver_boundary tolerance must be non-negative", componentID)
+	}
+	return nil
+}
+
+func validateCompositeReference(componentID string, kind string, composite *model.CompositeReference) error {
+	if kind != "composite" {
+		return nil
+	}
+	if composite == nil || strings.TrimSpace(composite.System) == "" {
+		return fmt.Errorf("component %s kind composite requires composite.system", componentID)
 	}
 	return nil
 }

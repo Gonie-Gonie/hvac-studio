@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "outputs": {
+    "result": 10.0
+  },
+  "component_outputs": {
+    "wrapped_gain": {
+      "result": 10.0
+    }
+  },
+  "states": {
+    "wrapped_gain": {
+      "system": "GainSystem",
+      "states": {
+        "gain": {
+          "calls": 1.0
+        }
+      }
+    }
+  },
+  "execution_order": [
+    "wrapped_gain"
+  ]
+}

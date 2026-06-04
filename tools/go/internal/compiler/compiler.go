@@ -83,6 +83,9 @@ func Compile(loaded *project.LoadedProject) (*Plan, error) {
 	if err := validatePublicIO(idx, plan); err != nil {
 		return nil, err
 	}
+	if err := validateCompositeBoundaries(idx, system); err != nil {
+		return nil, err
+	}
 
 	order, err := topologicalOrder(system.Components, selectedConnections)
 	if err != nil {
@@ -231,6 +234,76 @@ func validatePublicIO(idx *graphindex.Index, plan *Plan) error {
 	return nil
 }
 
+func validateCompositeBoundaries(idx *graphindex.Index, system model.System) error {
+	return validateCompositeBoundariesRecursive(idx, system, []string{system.ID}, map[string]bool{})
+}
+
+func validateCompositeBoundariesRecursive(idx *graphindex.Index, system model.System, path []string, visited map[string]bool) error {
+	if visited[system.ID] {
+		return nil
+	}
+	visited[system.ID] = true
+	for _, componentID := range system.Components {
+		component := idx.Components[componentID]
+		if component.Kind != "composite" {
+			continue
+		}
+		if component.Composite == nil || strings.TrimSpace(component.Composite.System) == "" {
+			return fmt.Errorf("component %s kind composite requires composite.system", component.ID)
+		}
+		childSystemID := strings.TrimSpace(component.Composite.System)
+		if systemPathContains(path, childSystemID) {
+			return fmt.Errorf("component %s composite system recursion detected: %s -> %s", component.ID, strings.Join(path, " -> "), childSystemID)
+		}
+		child, ok := idx.Systems[childSystemID]
+		if !ok {
+			return fmt.Errorf("component %s references unknown composite system: %s", component.ID, childSystemID)
+		}
+		if err := validateCompositePublicInputs(component, child); err != nil {
+			return err
+		}
+		if err := validateCompositePublicOutputs(component, child); err != nil {
+			return err
+		}
+		if err := validateCompositeBoundariesRecursive(idx, child, appendSystemPath(path, childSystemID), visited); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateCompositePublicInputs(component model.Component, child model.System) error {
+	nodes := inputNodeSet(component)
+	for _, publicInput := range child.PublicInputs {
+		if !nodes[publicInput.ID] {
+			return fmt.Errorf("component %s composite input node missing child public input: %s", component.ID, publicInput.ID)
+		}
+	}
+	public := publicInputSet(child)
+	for _, node := range component.Nodes.Inputs {
+		if !public[node.ID] {
+			return fmt.Errorf("component %s composite input node has no child public input: %s", component.ID, node.ID)
+		}
+	}
+	return nil
+}
+
+func validateCompositePublicOutputs(component model.Component, child model.System) error {
+	nodes := outputNodeSet(component)
+	for _, publicOutput := range child.PublicOutputs {
+		if !nodes[publicOutput.ID] {
+			return fmt.Errorf("component %s composite output node missing child public output: %s", component.ID, publicOutput.ID)
+		}
+	}
+	public := publicOutputSet(child)
+	for _, node := range component.Nodes.Outputs {
+		if !public[node.ID] {
+			return fmt.Errorf("component %s composite output node has no child public output: %s", component.ID, node.ID)
+		}
+	}
+	return nil
+}
+
 func topologicalOrder(componentIDs []string, connections []model.Connection) ([]string, error) {
 	componentSet := map[string]bool{}
 	inDegree := map[string]int{}
@@ -308,6 +381,52 @@ func normalizedMedium(value string) string {
 
 func normalizedUnit(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func inputNodeSet(component model.Component) map[string]bool {
+	nodes := map[string]bool{}
+	for _, node := range component.Nodes.Inputs {
+		nodes[node.ID] = true
+	}
+	return nodes
+}
+
+func outputNodeSet(component model.Component) map[string]bool {
+	nodes := map[string]bool{}
+	for _, node := range component.Nodes.Outputs {
+		nodes[node.ID] = true
+	}
+	return nodes
+}
+
+func publicInputSet(system model.System) map[string]bool {
+	inputs := map[string]bool{}
+	for _, input := range system.PublicInputs {
+		inputs[input.ID] = true
+	}
+	return inputs
+}
+
+func publicOutputSet(system model.System) map[string]bool {
+	outputs := map[string]bool{}
+	for _, output := range system.PublicOutputs {
+		outputs[output.ID] = true
+	}
+	return outputs
+}
+
+func systemPathContains(path []string, systemID string) bool {
+	for _, value := range path {
+		if value == systemID {
+			return true
+		}
+	}
+	return false
+}
+
+func appendSystemPath(path []string, systemID string) []string {
+	next := append([]string(nil), path...)
+	return append(next, systemID)
 }
 
 func endpointKey(componentID string, nodeID string) string {

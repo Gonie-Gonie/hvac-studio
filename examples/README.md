@@ -21,6 +21,7 @@ runtime-only delivery paths.
 | External executable | `010_external_executable_component` | A component that calls an external process through stdin/stdout JSON. |
 | Solver boundary | `011_solver_boundary_component` | Internal iterative feedback inside one explicit solver boundary component. |
 | Unit conversion | `012_unit_conversion_component` | Explicit connection-level linear unit conversion and value-type checks. |
+| Composite system | `013_composite_system` | A nested system wrapped behind explicit public input/output IDs. |
 
 ## Smoke Coverage
 
@@ -60,6 +61,10 @@ boundary component.
 
 Use `012_unit_conversion_component` for unit conversion. It shows a connection
 converting W to kW before the target component receives its input.
+
+Use `013_composite_system` for nested public IO boundaries. It shows a
+`kind: "composite"` wrapper component evaluating a child system while keeping
+the outer graph acyclic and preserving nested state during `run-series`.
 
 Use CSV data validation with an explicit `time_column` for
 measured-vs-simulated comparisons. Each validation row is still treated as one

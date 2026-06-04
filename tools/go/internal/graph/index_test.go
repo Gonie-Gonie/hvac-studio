@@ -159,6 +159,18 @@ func TestNewIndexRejectsInvalidNodePreset(t *testing.T) {
 	}
 }
 
+func TestNewIndexRejectsCompositeWithoutSystemReference(t *testing.T) {
+	graph := validGraph()
+	graph.Components[0].Kind = "composite"
+	graph.Components[0].Category = "composite_wrapper"
+
+	_, err := NewIndex(graph)
+
+	if err == nil || !strings.Contains(err.Error(), "component gain kind composite requires composite.system") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func validGraph() *model.Graph {
 	return &model.Graph{
 		SchemaVersion: "0.1.0",

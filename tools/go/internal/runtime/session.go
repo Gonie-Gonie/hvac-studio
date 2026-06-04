@@ -19,6 +19,7 @@ type Session struct {
 	client *pythonworker.Client
 	states map[string]map[string]any
 	logs   []ComponentLog
+	stack  []string
 }
 
 func NewSession(ctx context.Context, loaded *project.LoadedProject) (*Session, error) {
@@ -26,6 +27,10 @@ func NewSession(ctx context.Context, loaded *project.LoadedProject) (*Session, e
 }
 
 func newSession(ctx context.Context, loaded *project.LoadedProject, initContext map[string]any) (*Session, error) {
+	return newSessionWithStack(ctx, loaded, initContext, []string{loaded.Project.EntrySystem})
+}
+
+func newSessionWithStack(ctx context.Context, loaded *project.LoadedProject, initContext map[string]any, stack []string) (*Session, error) {
 	plan, err := compiler.Compile(loaded)
 	if err != nil {
 		return nil, apperror.Wrap(apperror.CodeValidation, err)
@@ -36,6 +41,7 @@ func newSession(ctx context.Context, loaded *project.LoadedProject, initContext 
 		loaded: loaded,
 		plan:   plan,
 		states: map[string]map[string]any{},
+		stack:  append([]string(nil), stack...),
 	}
 	if session.requiresPythonWorker() {
 		pythonExe := resolvePython(loaded.Root, loaded.Project.Environment)
@@ -98,6 +104,11 @@ func (s *Session) loadComponents(initContext map[string]any) error {
 				return apperror.Errorf(apperror.CodeValidation, "component %s kind external_exe requires external_executable mode", component.ID)
 			}
 			if err := validateExternalComponentConfig(component); err != nil {
+				return err
+			}
+			s.states[component.ID] = map[string]any{}
+		case "composite":
+			if err := validateCompositeComponentConfig(component); err != nil {
 				return err
 			}
 			s.states[component.ID] = map[string]any{}
@@ -205,6 +216,13 @@ func (s *Session) evaluateComponent(
 	case "external_exe":
 		stage := "external_executable"
 		outputs, nextState, logs, err := s.evaluateExternalComponent(component, inputs, context)
+		if err != nil {
+			return nil, nil, logs, stage, apperror.Wrap(apperror.CodeRuntime, fmt.Errorf("evaluate component %s: %w", component.ID, err))
+		}
+		return outputs, nextState, logs, stage, nil
+	case "composite":
+		stage := "composite"
+		outputs, nextState, logs, err := s.evaluateCompositeComponent(component, inputs, context)
 		if err != nil {
 			return nil, nil, logs, stage, apperror.Wrap(apperror.CodeRuntime, fmt.Errorf("evaluate component %s: %w", component.ID, err))
 		}

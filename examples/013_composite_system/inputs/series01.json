@@ -1,0 +1,25 @@
+{
+  "context": {
+    "dt": 60
+  },
+  "steps": [
+    {
+      "id": "t0",
+      "inputs": {
+        "value": 4.0
+      },
+      "context": {
+        "time": 0
+      }
+    },
+    {
+      "id": "t1",
+      "inputs": {
+        "value": 6.0
+      },
+      "context": {
+        "time": 60
+      }
+    }
+  ]
+}

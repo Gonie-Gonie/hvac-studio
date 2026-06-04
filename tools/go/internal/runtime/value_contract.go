@@ -48,7 +48,7 @@ func validateInputValue(componentID string, node model.Node, value any, code app
 func validateOutputValue(component model.Component, node model.Node, value any) error {
 	if err := validateValueType(value, node.ValueType); err != nil {
 		code := apperror.CodePythonWorker
-		if component.Kind == "external_exe" {
+		if component.Kind == "external_exe" || component.Kind == "composite" {
 			code = apperror.CodeRuntime
 		}
 		return apperror.Errorf(code, "component %s output %s expects %s, got %T", component.ID, node.ID, node.ValueType, value)

@@ -40,7 +40,7 @@ Execution follows this shape:
 4. Build an execution order.
 5. Start the Python worker when the project contains user Python components.
 6. Initialize components.
-7. Evaluate components in order, including external executable calls when a component declares that mode.
+7. Evaluate components in order, including vectorized calls, external executable calls, and nested composite system calls when a component declares those modes.
 8. Collect public outputs.
 9. Return or save structured results.
 
