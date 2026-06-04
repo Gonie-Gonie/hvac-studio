@@ -14,6 +14,8 @@ import { state } from "./state.js";
 const CANVAS_NODE_WIDTH = 300;
 const CANVAS_NODE_HEIGHT = 220;
 const CANVAS_NODE_ANCHOR_Y = 92;
+const CANVAS_NODE_FIRST_PORT_Y = 84;
+const CANVAS_NODE_PORT_GAP = 42;
 const CANVAS_COLUMN_GAP = 370;
 const CANVAS_ROW_GAP = 250;
 const CANVAS_PADDING = 96;
@@ -962,8 +964,14 @@ function canvasNodePill(componentID, node, direction) {
   const displayName = node.name || node.id;
   const meta = canvasNodeMeta(node, displayName);
   const metaMarkup = meta ? `<span class="node-meta">${escapeHTML(meta)}</span>` : "";
-  const title = latest.hasValue ? `${state.latestResultStale ? "stale " : ""}${displayName}: ${formattedValue}` : `${displayName}${meta ? ` / ${meta}` : ""}`;
-  return `<span class="${classes}" data-node-endpoint="true" data-component-id="${escapeAttr(componentID)}" data-node-id="${escapeAttr(node.id)}" data-direction="${escapeAttr(direction)}" title="${escapeAttr(title)}"><span class="node-label">${escapeHTML(displayName)}</span>${metaMarkup}${valueMarkup}</span>`;
+  const mediumMarkup = node.medium ? `<span class="node-medium">${escapeHTML(node.medium)}</span>` : "";
+  const titleParts = [
+    displayName,
+    node.medium ? `medium: ${node.medium}` : "",
+    meta,
+    latest.hasValue ? `${state.latestResultStale ? "stale " : ""}value: ${formattedValue}` : "",
+  ].filter(Boolean);
+  return `<span class="${classes}" data-node-endpoint="true" data-component-id="${escapeAttr(componentID)}" data-node-id="${escapeAttr(node.id)}" data-direction="${escapeAttr(direction)}" title="${escapeAttr(titleParts.join(" / "))}"><span class="node-label">${escapeHTML(displayName)}</span>${mediumMarkup}${metaMarkup}${valueMarkup}</span>`;
 }
 
 function canvasNodeMeta(node, displayName) {
@@ -1047,31 +1055,254 @@ function drawConnections(positions) {
   if (!graph || !system) return;
   layer.innerHTML = "";
   const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
-  defs.innerHTML = `<marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#617d98"></path></marker>`;
+  defs.innerHTML = `
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#617d98"></path></marker>
+    <marker id="arrow-selected" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1864ab"></path></marker>
+    <marker id="arrow-warning" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b7791f"></path></marker>
+    <marker id="arrow-danger" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b42318"></path></marker>
+  `;
   layer.append(defs);
+  const fanOffsets = canvasConnectionFanOffsets(system, graph);
 
-  for (const connectionId of system.connections) {
+  system.connections.forEach((connectionId, index) => {
     const connection = graph.connections.find((item) => item.id === connectionId);
-    if (!connection) continue;
+    if (!connection) return;
     const from = positions[connection.from.component];
     const to = positions[connection.to.component];
-    if (!from || !to) continue;
+    if (!from || !to) return;
+    const fromComponent = componentById(connection.from.component);
+    const toComponent = componentById(connection.to.component);
     const x1 = from.x + CANVAS_NODE_WIDTH;
-    const y1 = from.y + CANVAS_NODE_ANCHOR_Y;
+    const y1 = from.y + canvasNodeAnchorY(fromComponent, connection.from.node, "output");
     const x2 = to.x;
-    const y2 = to.y + CANVAS_NODE_ANCHOR_Y;
-    const mid = Math.max(40, (x2 - x1) / 2);
+    const y2 = to.y + canvasNodeAnchorY(toComponent, connection.to.node, "input");
+    const mediumState = connectionMediumState(connection);
+    const fanOffset = fanOffsets.get(connection.id) || 0;
+    const route = canvasConnectionRoute(x1, y1, x2, y2, fanOffset, index);
+    const annotation = connectionAnnotation(connection, mediumState, route);
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("class", `connection-line ${state.selectedConnectionId === connection.id ? "selected" : ""}`);
+    path.setAttribute("class", connectionClassList(connection, mediumState, route).join(" "));
     path.dataset.connectionId = connection.id;
-    path.setAttribute("marker-end", "url(#arrow)");
-    path.setAttribute("d", `M ${x1} ${y1} C ${x1 + mid} ${y1}, ${x2 - mid} ${y2}, ${x2} ${y2}`);
+    path.setAttribute("marker-end", `url(#${connectionMarkerID(connection, mediumState)})`);
+    path.setAttribute("d", route.path);
+    path.append(svgTitle(annotation.title));
     path.addEventListener("click", (event) => {
       event.stopPropagation();
       selectConnection(connection.id);
     });
     layer.append(path);
+    drawConnectionLabel(layer, connection, annotation, route, mediumState);
+  });
+}
+
+function canvasNodeAnchorY(component, nodeID, direction) {
+  const nodes = direction === "output" ? component?.nodes?.outputs || [] : component?.nodes?.inputs || [];
+  const index = nodes.findIndex((node) => node.id === nodeID);
+  if (index < 0) return CANVAS_NODE_ANCHOR_Y;
+  return CANVAS_NODE_FIRST_PORT_Y + index * CANVAS_NODE_PORT_GAP;
+}
+
+function canvasConnectionFanOffsets(system, graph) {
+  const groups = new Map();
+  for (const connectionId of system.connections || []) {
+    const connection = graph.connections.find((item) => item.id === connectionId);
+    if (!connection) continue;
+    const key = `${connection.from.component}->${connection.to.component}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(connection.id);
   }
+  const offsets = new Map();
+  for (const ids of groups.values()) {
+    const center = (ids.length - 1) / 2;
+    ids.forEach((id, index) => offsets.set(id, (index - center) * 18));
+  }
+  return offsets;
+}
+
+function canvasConnectionRoute(x1, y1, x2, y2, fanOffset, index) {
+  const backtracking = x2 <= x1 + 24;
+  const longPath = x2 - x1 > CANVAS_COLUMN_GAP * 1.4;
+  if (backtracking) {
+    const lift = 76 + Math.abs(fanOffset) + (index % 4) * 18;
+    const control = Math.max(90, Math.abs(x2 - x1) * 0.45);
+    return {
+      path: `M ${x1} ${y1} C ${x1 + control} ${y1 - lift}, ${x2 - control} ${y2 - lift}, ${x2} ${y2}`,
+      labelX: (x1 + x2) / 2,
+      labelY: Math.max(24, Math.min(y1, y2) - lift + 12),
+      backtracking,
+      longPath,
+      fanOffset,
+    };
+  }
+  const mid = Math.max(60, (x2 - x1) / 2);
+  return {
+    path: `M ${x1} ${y1} C ${x1 + mid} ${y1 + fanOffset}, ${x2 - mid} ${y2 + fanOffset}, ${x2} ${y2}`,
+    labelX: (x1 + x2) / 2,
+    labelY: Math.max(18, (y1 + y2) / 2 + fanOffset - 14),
+    backtracking,
+    longPath,
+    fanOffset,
+  };
+}
+
+function connectionClassList(connection, mediumState, route) {
+  return [
+    "connection-line",
+    state.selectedConnectionId === connection.id ? "selected" : "",
+    mediumState.status === "warning" ? "medium-warning" : "",
+    mediumState.status === "override" ? "medium-override" : "",
+    mediumState.status === "error" ? "medium-mismatch" : "",
+    route.backtracking ? "backtracking" : "",
+    route.longPath ? "long-path" : "",
+    route.fanOffset ? "connection-fan" : "",
+  ].filter(Boolean);
+}
+
+function connectionMarkerID(connection, mediumState) {
+  if (state.selectedConnectionId === connection.id) return "arrow-selected";
+  if (mediumState.status === "error") return "arrow-danger";
+  if (mediumState.status === "warning" || mediumState.status === "override") return "arrow-warning";
+  return "arrow";
+}
+
+function connectionMediumState(connection) {
+  const sourceNode = canvasEndpointNode(connection.from, "output");
+  const targetNode = canvasEndpointNode(connection.to, "input");
+  const sourceMedium = sourceNode?.medium || "";
+  const targetMedium = targetNode?.medium || "";
+  const normalizedSource = normalizedCanvasMedium(sourceMedium);
+  const normalizedTarget = normalizedCanvasMedium(targetMedium);
+  let status = "ok";
+  if (!canvasMediumCompatible(sourceMedium, targetMedium)) {
+    if (connection.allow_medium_mismatch) {
+      status = "override";
+    } else if (normalizedSource === "signal" && normalizedTarget && normalizedTarget !== "signal") {
+      status = "warning";
+    } else {
+      status = "error";
+    }
+  }
+  const label = sourceMedium && targetMedium && normalizedSource !== normalizedTarget
+    ? `${sourceMedium}->${targetMedium}`
+    : sourceMedium || targetMedium || "";
+  return { sourceNode, targetNode, sourceMedium, targetMedium, label, status };
+}
+
+function canvasEndpointNode(endpoint, direction) {
+  const component = componentById(endpoint.component);
+  const nodes = direction === "output" ? component?.nodes?.outputs || [] : component?.nodes?.inputs || [];
+  return nodes.find((node) => node.id === endpoint.node) || null;
+}
+
+function canvasMediumCompatible(source, target) {
+  const normalizedSource = normalizedCanvasMedium(source);
+  const normalizedTarget = normalizedCanvasMedium(target);
+  if (!normalizedSource || !normalizedTarget) return true;
+  if (normalizedSource === "generic" || normalizedTarget === "generic") return true;
+  return normalizedSource === normalizedTarget;
+}
+
+function normalizedCanvasMedium(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function connectionAnnotation(connection, mediumState, route) {
+  const latest = latestConnectionValue(connection);
+  const sourceName = mediumState.sourceNode?.name || connection.from.node;
+  const targetName = mediumState.targetNode?.name || connection.to.node;
+  const status = connectionStatusLabel(connection, mediumState, route);
+  const latestValue = latest.hasValue ? formatValue(latest.value) : "";
+  const secondary = [
+    mediumState.label,
+    latestValue ? `value ${latestValue}` : "",
+    status,
+  ].filter(Boolean).join(" / ");
+  const title = [
+    connection.id,
+    `${connection.from.component}.${connection.from.node} -> ${connection.to.component}.${connection.to.node}`,
+    mediumState.label ? `medium ${mediumState.label}` : "",
+    latestValue ? `${state.latestResultStale ? "stale " : ""}value ${latestValue}` : "",
+    status,
+    connection.medium_override_reason || "",
+  ].filter(Boolean).join(" / ");
+  return {
+    primary: shortCanvasText(`${sourceName} -> ${targetName}`, 32),
+    secondary: shortCanvasText(secondary, 42),
+    title,
+  };
+}
+
+function connectionStatusLabel(connection, mediumState, route) {
+  if (mediumState.status === "error") return "medium mismatch";
+  if (mediumState.status === "override") return connection.medium_override_reason ? "override" : "medium override";
+  if (mediumState.status === "warning") return "signal warning";
+  if (route.backtracking) return "backtracking";
+  if (route.longPath) return "long path";
+  return "";
+}
+
+function shortCanvasText(value, maxLength) {
+  const text = String(value || "");
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 3))}...`;
+}
+
+function drawConnectionLabel(layer, connection, annotation, route, mediumState) {
+  const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  group.setAttribute("class", connectionLabelClassList(connection, mediumState, route).join(" "));
+  group.dataset.connectionId = connection.id;
+  const lines = [annotation.primary, annotation.secondary].filter(Boolean);
+  const maxLength = Math.max(12, ...lines.map((line) => line.length));
+  const width = Math.min(230, Math.max(92, maxLength * 6.4 + 18));
+  const height = lines.length > 1 ? 36 : 24;
+  const x = Math.max(width / 2 + 8, route.labelX);
+  const y = Math.max(height / 2 + 8, route.labelY);
+  const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  rect.setAttribute("class", "connection-label-bg");
+  rect.setAttribute("x", String(x - width / 2));
+  rect.setAttribute("y", String(y - height / 2));
+  rect.setAttribute("width", String(width));
+  rect.setAttribute("height", String(height));
+  rect.setAttribute("rx", "5");
+  const primary = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  primary.setAttribute("class", "connection-label-text");
+  primary.setAttribute("x", String(x));
+  primary.setAttribute("y", String(lines.length > 1 ? y - 3 : y + 4));
+  primary.setAttribute("text-anchor", "middle");
+  primary.textContent = annotation.primary;
+  group.append(svgTitle(annotation.title), rect, primary);
+  if (annotation.secondary) {
+    const secondary = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    secondary.setAttribute("class", "connection-label-meta");
+    secondary.setAttribute("x", String(x));
+    secondary.setAttribute("y", String(y + 11));
+    secondary.setAttribute("text-anchor", "middle");
+    secondary.textContent = annotation.secondary;
+    group.append(secondary);
+  }
+  group.addEventListener("click", (event) => {
+    event.stopPropagation();
+    selectConnection(connection.id);
+  });
+  layer.append(group);
+}
+
+function connectionLabelClassList(connection, mediumState, route) {
+  return [
+    "connection-label",
+    state.selectedConnectionId === connection.id ? "selected" : "",
+    mediumState.status === "warning" ? "medium-warning" : "",
+    mediumState.status === "override" ? "medium-override" : "",
+    mediumState.status === "error" ? "medium-mismatch" : "",
+    route.backtracking ? "backtracking" : "",
+    route.longPath ? "long-path" : "",
+  ].filter(Boolean);
+}
+
+function svgTitle(text) {
+  const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+  title.textContent = text;
+  return title;
 }
 
 function selectConnection(connectionID) {

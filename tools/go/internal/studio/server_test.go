@@ -277,6 +277,27 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("canvasNodeMeta")) {
 		t.Fatalf("module entrypoint did not include readable canvas node metadata")
 	}
+	if !bytes.Contains(body, []byte("canvasNodeAnchorY")) {
+		t.Fatalf("module entrypoint did not spread canvas connection anchors by node")
+	}
+	if !bytes.Contains(body, []byte("connectionMediumState")) {
+		t.Fatalf("module entrypoint did not include canvas connection medium state markers")
+	}
+	if !bytes.Contains(body, []byte("connectionAnnotation")) {
+		t.Fatalf("module entrypoint did not include canvas connection annotations")
+	}
+	if !bytes.Contains(body, []byte("node-medium")) {
+		t.Fatalf("module entrypoint did not include canvas node medium badges")
+	}
+	if !bytes.Contains(body, []byte("medium-override")) {
+		t.Fatalf("module entrypoint did not mark explicit canvas medium overrides")
+	}
+	if !bytes.Contains(body, []byte("long-path")) {
+		t.Fatalf("module entrypoint did not mark long canvas connection paths")
+	}
+	if !bytes.Contains(body, []byte("backtracking")) {
+		t.Fatalf("module entrypoint did not mark backtracking canvas connection paths")
+	}
 	if !bytes.Contains(body, []byte("parameterInspectorBlock")) {
 		t.Fatalf("module entrypoint did not include inspector parameter editing")
 	}

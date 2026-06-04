@@ -33,7 +33,7 @@ Run results include:
 - per-component timing
 - total duration
 
-After a run, the system canvas shows the latest values on component input and output node endpoints. Selecting a component also shows its latest inputs and outputs in the Run workspace and the Inspector. The Run workspace includes an execution trace, connection-value table, and node-value table so the data flow can be inspected without reading raw JSON. If project inputs, parameters, Python source, or graph connections change after the run, Studio keeps the previous values visible but marks them stale until the next successful run.
+After a run, the system canvas shows the latest values on component input and output node endpoints. Connection labels also show the latest carried value when available, alongside medium and compatibility markers. Selecting a component also shows its latest inputs and outputs in the Run workspace and the Inspector. The Run workspace includes an execution trace, connection-value table, and node-value table so the data flow can be inspected without reading raw JSON. If project inputs, parameters, Python source, or graph connections change after the run, Studio keeps the previous values visible but marks them stale until the next successful run.
 
 ## Scenarios
 
