@@ -110,14 +110,18 @@ func validateConnection(idx *graphindex.Index, systemContains map[string]bool, c
 		return nil, fmt.Errorf("connection %s target input node not found: %s.%s", connection.ID, connection.To.Component, connection.To.Node)
 	}
 
+	diagnostics := []Diagnostic{}
 	diagnostic, err := connectionMediumDiagnostic(connection, sourceNode, targetNode)
 	if err != nil {
 		return nil, err
 	}
-	if diagnostic == nil {
-		return nil, nil
+	if diagnostic != nil {
+		diagnostics = append(diagnostics, *diagnostic)
 	}
-	return []Diagnostic{*diagnostic}, nil
+	if diagnostic := connectionUnitDiagnostic(connection, sourceNode, targetNode); diagnostic != nil {
+		diagnostics = append(diagnostics, *diagnostic)
+	}
+	return diagnostics, nil
 }
 
 func connectionMediumDiagnostic(connection model.Connection, sourceNode model.Node, targetNode model.Node) (*Diagnostic, error) {
@@ -162,6 +166,30 @@ func connectionMediumDiagnostic(connection model.Connection, sourceNode model.No
 		connection.To.Node,
 		targetNode.Medium,
 	)
+}
+
+func connectionUnitDiagnostic(connection model.Connection, sourceNode model.Node, targetNode model.Node) *Diagnostic {
+	sourceUnit := normalizedUnit(sourceNode.Unit)
+	targetUnit := normalizedUnit(targetNode.Unit)
+	if sourceUnit == "" || targetUnit == "" || sourceUnit == targetUnit || connection.UnitConversion != nil {
+		return nil
+	}
+	return &Diagnostic{
+		Severity: "warning",
+		Message: fmt.Sprintf(
+			"connection %s unit mismatch without conversion: %s.%s=%s -> %s.%s=%s",
+			connection.ID,
+			connection.From.Component,
+			connection.From.Node,
+			sourceNode.Unit,
+			connection.To.Component,
+			connection.To.Node,
+			targetNode.Unit,
+		),
+		ConnectionID: connection.ID,
+		From:         connection.From,
+		To:           connection.To,
+	}
 }
 
 func validatePublicIO(idx *graphindex.Index, plan *Plan) error {
@@ -275,6 +303,10 @@ func compatibleMedium(source string, target string) bool {
 }
 
 func normalizedMedium(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func normalizedUnit(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 

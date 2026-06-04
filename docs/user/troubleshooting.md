@@ -27,6 +27,8 @@ Common causes:
 - connection references an unknown node
 - input node has multiple incoming connections
 - algebraic loop detected; wrap feedback behavior in a solver boundary component
+- value does not match the node `value_type`
+- source and target units differ without an explicit `unit_conversion`
 
 ## Python Worker Error
 

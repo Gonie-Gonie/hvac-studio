@@ -113,15 +113,25 @@ func connectionValueTraces(plan *compiler.Plan, componentOutputs map[string]map[
 		}
 		sourceNode, _ := plan.Index.OutputNode(connection.From.Component, connection.From.Node)
 		targetNode, _ := plan.Index.InputNode(connection.To.Component, connection.To.Node)
+		traceValue := value
+		traceValueType := sourceNode.ValueType
+		traceUnit := sourceNode.Unit
+		if connection.UnitConversion != nil {
+			if converted, err := applyConnectionUnitConversion(connection, value); err == nil {
+				traceValue = converted
+				traceValueType = targetNode.ValueType
+				traceUnit = targetNode.Unit
+			}
+		}
 		traces = append(traces, ConnectionValueTrace{
 			ID:           connection.ID,
 			From:         connection.From,
 			To:           connection.To,
 			SourceMedium: sourceNode.Medium,
 			TargetMedium: targetNode.Medium,
-			ValueType:    sourceNode.ValueType,
-			Unit:         sourceNode.Unit,
-			Value:        value,
+			ValueType:    traceValueType,
+			Unit:         traceUnit,
+			Value:        traceValue,
 		})
 	}
 	return traces
@@ -180,6 +190,13 @@ func collectInputs(component model.Component, plan *compiler.Plan, publicInputs 
 			if !exists {
 				return nil, apperror.Errorf(apperror.CodeRuntime, "connection %s source output is missing: %s.%s", connection.ID, connection.From.Component, connection.From.Node)
 			}
+			value, err := applyConnectionUnitConversion(connection, value)
+			if err != nil {
+				return nil, err
+			}
+			if err := validateInputValue(component.ID, node, value, apperror.CodeRuntime); err != nil {
+				return nil, err
+			}
 			inputs[node.ID] = value
 			continue
 		}
@@ -187,10 +204,16 @@ func collectInputs(component model.Component, plan *compiler.Plan, publicInputs 
 		if publicInput, ok := publicByEndpoint[key]; ok {
 			value, exists := publicInputs[publicInput.ID]
 			if exists {
+				if err := validateInputValue(component.ID, node, value, apperror.CodeInput); err != nil {
+					return nil, err
+				}
 				inputs[node.ID] = value
 				continue
 			}
 			if publicInput.Default != nil {
+				if err := validateInputValue(component.ID, node, publicInput.Default, apperror.CodeValidation); err != nil {
+					return nil, err
+				}
 				inputs[node.ID] = publicInput.Default
 				continue
 			}
@@ -201,6 +224,9 @@ func collectInputs(component model.Component, plan *compiler.Plan, publicInputs 
 		}
 
 		if node.Default != nil {
+			if err := validateInputValue(component.ID, node, node.Default, apperror.CodeValidation); err != nil {
+				return nil, err
+			}
 			inputs[node.ID] = node.Default
 			continue
 		}
@@ -220,8 +246,12 @@ func validateOutputs(component model.Component, outputs map[string]any) error {
 	declared := map[string]bool{}
 	for _, node := range component.Nodes.Outputs {
 		declared[node.ID] = true
-		if _, ok := outputs[node.ID]; !ok {
+		value, ok := outputs[node.ID]
+		if !ok {
 			return apperror.Errorf(code, "component %s did not return declared output node: %s", component.ID, node.ID)
+		}
+		if err := validateOutputValue(component, node, value); err != nil {
+			return err
 		}
 	}
 	for name := range outputs {

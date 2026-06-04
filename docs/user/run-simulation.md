@@ -3,6 +3,8 @@
 ## Validate
 
 Validation checks graph structure, public IO mappings, connection references, and execution constraints before running. Direct graph cycles are validation errors. Iterative feedback behavior should be owned by a solver boundary component so the outer execution order remains inspectable.
+Runtime execution validates common node `value_type` contracts and applies only
+explicit connection `unit_conversion` metadata.
 
 ## Run One Case
 

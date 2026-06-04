@@ -1,0 +1,122 @@
+{
+  "schema_version": "0.1.0",
+  "systems": [
+    {
+      "id": "MainSystem",
+      "name": "Main System",
+      "components": ["watt_source", "kw_load"],
+      "connections": ["watts_to_kw"],
+      "public_inputs": [
+        {
+          "id": "power_w",
+          "name": "Power",
+          "component": "watt_source",
+          "node": "power_w",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "W",
+          "required": true
+        }
+      ],
+      "public_outputs": [
+        {
+          "id": "load_kw",
+          "name": "Load",
+          "component": "kw_load",
+          "node": "load_kw",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "kW"
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "watt_source",
+      "name": "Watt Source",
+      "kind": "user_python",
+      "category": "data_source",
+      "execution_mode": "step",
+      "class": "components.watt_source.WattSource",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "power_w",
+            "name": "Power",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "W",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "power_w",
+            "name": "Power",
+            "preset": "scalar_output",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "W"
+          }
+        ]
+      },
+      "parameters": {}
+    },
+    {
+      "id": "kw_load",
+      "name": "kW Load",
+      "kind": "user_python",
+      "category": "data_sink",
+      "execution_mode": "step",
+      "class": "components.kw_load.KWLoad",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "power_kw",
+            "name": "Power",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "load_kw",
+            "name": "Load",
+            "preset": "scalar_output",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "kW"
+          }
+        ]
+      },
+      "parameters": {}
+    }
+  ],
+  "connections": [
+    {
+      "id": "watts_to_kw",
+      "from": {
+        "component": "watt_source",
+        "node": "power_w"
+      },
+      "to": {
+        "component": "kw_load",
+        "node": "power_kw"
+      },
+      "unit_conversion": {
+        "mode": "linear",
+        "factor": 0.001,
+        "description": "Convert W to kW for the target component."
+      }
+    }
+  ]
+}

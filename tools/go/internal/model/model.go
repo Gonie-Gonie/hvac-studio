@@ -126,11 +126,19 @@ func (n Node) IsRequired() bool {
 }
 
 type Connection struct {
-	ID                   string   `json:"id"`
-	From                 Endpoint `json:"from"`
-	To                   Endpoint `json:"to"`
-	AllowMediumMismatch  bool     `json:"allow_medium_mismatch,omitempty"`
-	MediumOverrideReason string   `json:"medium_override_reason,omitempty"`
+	ID                   string          `json:"id"`
+	From                 Endpoint        `json:"from"`
+	To                   Endpoint        `json:"to"`
+	AllowMediumMismatch  bool            `json:"allow_medium_mismatch,omitempty"`
+	MediumOverrideReason string          `json:"medium_override_reason,omitempty"`
+	UnitConversion       *UnitConversion `json:"unit_conversion,omitempty"`
+}
+
+type UnitConversion struct {
+	Mode        string   `json:"mode,omitempty"`
+	Factor      *float64 `json:"factor,omitempty"`
+	Offset      *float64 `json:"offset,omitempty"`
+	Description string   `json:"description,omitempty"`
 }
 
 type Endpoint struct {

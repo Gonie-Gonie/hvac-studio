@@ -28,6 +28,13 @@ connections.
 
 The canvas shows node medium badges and labels each connection with its endpoint flow, medium, and latest value when a run result is available. Connection styling calls out medium warnings, explicit medium overrides, incompatible medium mismatches, long paths, and backtracking paths so large systems can be scanned without opening raw JSON.
 
+## Unit Conversion
+
+Connections do not infer unit conversion from labels. If a source output and
+target input use different units, declare `unit_conversion` on the connection.
+The current runtime supports explicit linear conversion with `factor` and
+optional `offset` for numeric values.
+
 Workspace component positions can be adjusted on the canvas. Studio saves those positions in `studio/layout.json`; the layout file affects the authoring view only and does not change runtime execution. Auto Layout rebuilds the saved layout from the current system connections so connected components are arranged left-to-right. The canvas surface expands to cover saved, auto-laid-out, and dragged node positions so cards and connection lines remain scrollable.
 
 ## Public IO Mapping

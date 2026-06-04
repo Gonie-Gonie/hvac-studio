@@ -1,0 +1,30 @@
+{
+  "ok": true,
+  "outputs": {
+    "load_kw": 2.5
+  },
+  "component_inputs": {
+    "kw_load": {
+      "power_kw": 2.5
+    }
+  },
+  "component_outputs": {
+    "watt_source": {
+      "power_w": 2500.0
+    },
+    "kw_load": {
+      "load_kw": 2.5
+    }
+  },
+  "connection_values": [
+    {
+      "id": "watts_to_kw",
+      "unit": "kW",
+      "value": 2.5
+    }
+  ],
+  "execution_order": [
+    "watt_source",
+    "kw_load"
+  ]
+}

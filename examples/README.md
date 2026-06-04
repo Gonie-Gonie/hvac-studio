@@ -20,6 +20,7 @@ runtime-only delivery paths.
 | Vectorized component | `009_vectorized_component` | Array input/output execution through the vectorized worker contract. |
 | External executable | `010_external_executable_component` | A component that calls an external process through stdin/stdout JSON. |
 | Solver boundary | `011_solver_boundary_component` | Internal iterative feedback inside one explicit solver boundary component. |
+| Unit conversion | `012_unit_conversion_component` | Explicit connection-level linear unit conversion and value-type checks. |
 
 ## Smoke Coverage
 
@@ -56,6 +57,9 @@ runner-managed request/response contract.
 Use `011_solver_boundary_component` for feedback behavior. It keeps the project
 graph acyclic and performs fixed-point iteration inside a declared solver
 boundary component.
+
+Use `012_unit_conversion_component` for unit conversion. It shows a connection
+converting W to kW before the target component receives its input.
 
 Use CSV data validation with an explicit `time_column` for
 measured-vs-simulated comparisons. Each validation row is still treated as one

@@ -196,6 +196,59 @@ func TestCompileWarnsForExplicitMediumOverride(t *testing.T) {
 	}
 }
 
+func TestCompileWarnsForUnitMismatchWithoutConversion(t *testing.T) {
+	source := componentWithMedia("meter", "signal", "signal")
+	source.Nodes.Outputs[0].Unit = "W"
+	target := componentWithMedia("load", "signal", "signal")
+	target.Nodes.Inputs[0].Unit = "kW"
+	loaded := compileProjectWithConnection(
+		source,
+		target,
+		model.Connection{
+			ID:   "meter_to_load",
+			From: model.Endpoint{Component: "meter", Node: "out"},
+			To:   model.Endpoint{Component: "load", Node: "in"},
+		},
+	)
+
+	plan, err := Compile(loaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Diagnostics) != 1 {
+		t.Fatalf("diagnostics = %#v", plan.Diagnostics)
+	}
+	if !strings.Contains(plan.Diagnostics[0].Message, "unit mismatch without conversion") {
+		t.Fatalf("diagnostic message = %s", plan.Diagnostics[0].Message)
+	}
+}
+
+func TestCompileAcceptsExplicitUnitConversion(t *testing.T) {
+	source := componentWithMedia("meter", "signal", "signal")
+	source.Nodes.Outputs[0].Unit = "W"
+	target := componentWithMedia("load", "signal", "signal")
+	target.Nodes.Inputs[0].Unit = "kW"
+	factor := 0.001
+	loaded := compileProjectWithConnection(
+		source,
+		target,
+		model.Connection{
+			ID:             "meter_to_load",
+			From:           model.Endpoint{Component: "meter", Node: "out"},
+			To:             model.Endpoint{Component: "load", Node: "in"},
+			UnitConversion: &model.UnitConversion{Mode: "linear", Factor: &factor},
+		},
+	)
+
+	plan, err := Compile(loaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Diagnostics) != 0 {
+		t.Fatalf("diagnostics = %#v", plan.Diagnostics)
+	}
+}
+
 func compileProjectWithConnection(source model.Component, target model.Component, connection model.Connection) *project.LoadedProject {
 	return &project.LoadedProject{
 		Project: &model.Project{EntrySystem: "MainSystem"},

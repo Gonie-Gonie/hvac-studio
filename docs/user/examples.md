@@ -13,10 +13,11 @@ learning path and gives releases repeatable smoke assets.
 | 4 | `examples/009_vectorized_component` | Vectorized array input/output execution through `evaluate_batch`. |
 | 5 | `examples/010_external_executable_component` | External process execution through stdin/stdout JSON. |
 | 6 | `examples/011_solver_boundary_component` | Internal iterative feedback inside an explicit solver boundary. |
-| 7 | `examples/004_stateful_controller` | Controller state, native `run-series`, and serve-mode repeated evaluations. |
-| 8 | `examples/005_chiller_plant_like_system` | Plant composition, dataset validation, parameter sets, calibration, and time-column validation rows. |
-| 9 | `examples/006_optimization_case` | Grid-search optimization and SDK-style external search scripting. |
-| 10 | `examples/007_runtime_only_package` | Runtime-only delivery shape and exported-package command style. |
+| 7 | `examples/012_unit_conversion_component` | Explicit connection-level linear unit conversion and value-type checks. |
+| 8 | `examples/004_stateful_controller` | Controller state, native `run-series`, and serve-mode repeated evaluations. |
+| 9 | `examples/005_chiller_plant_like_system` | Plant composition, dataset validation, parameter sets, calibration, and time-column validation rows. |
+| 10 | `examples/006_optimization_case` | Grid-search optimization and SDK-style external search scripting. |
+| 11 | `examples/007_runtime_only_package` | Runtime-only delivery shape and exported-package command style. |
 
 `examples/002_custom_component` is intentionally reserved for future richer
 custom inlet/outlet authoring notes and is not part of the runnable smoke set.
@@ -58,3 +59,7 @@ separate process on stdin.
 For feedback behavior, use `examples/011_solver_boundary_component`. That
 example declares `solver_boundary` metadata and performs fixed-point iteration
 inside one component while the project graph remains acyclic.
+
+For explicit unit conversion, use `examples/012_unit_conversion_component`. That
+example declares `unit_conversion` on a connection and validates the target
+component receives the converted value.

@@ -252,6 +252,14 @@ func validateConnectionShape(connection model.Connection) error {
 	if strings.TrimSpace(connection.To.Node) == "" {
 		return fmt.Errorf("connection %s target node is required", connection.ID)
 	}
+	if conversion := connection.UnitConversion; conversion != nil {
+		if strings.TrimSpace(conversion.Mode) == "" {
+			conversion.Mode = "linear"
+		}
+		if conversion.Mode != "linear" {
+			return fmt.Errorf("connection %s unit_conversion mode is unsupported: %s", connection.ID, conversion.Mode)
+		}
+	}
 	return nil
 }
 

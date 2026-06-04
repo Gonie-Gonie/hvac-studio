@@ -90,6 +90,35 @@ func TestValidateOutputsAcceptsDeclaredOutputs(t *testing.T) {
 	}
 }
 
+func TestValidateOutputsRejectsValueTypeMismatch(t *testing.T) {
+	component := contractComponent()
+	component.Nodes.Outputs[0].ValueType = "float"
+
+	err := validateOutputs(component, map[string]any{"result": "not-a-number"})
+
+	if err == nil || !strings.Contains(err.Error(), "component scalar output result expects float") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestApplyConnectionUnitConversionUsesLinearFactorAndOffset(t *testing.T) {
+	factor := 0.001
+	offset := 2.0
+	connection := model.Connection{
+		ID:             "watts_to_kw_bias",
+		UnitConversion: &model.UnitConversion{Mode: "linear", Factor: &factor, Offset: &offset},
+	}
+
+	value, err := applyConnectionUnitConversion(connection, 3000.0)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value != 5.0 {
+		t.Fatalf("converted value = %v, want 5", value)
+	}
+}
+
 func TestNodeValueTracesIncludeContractMetadata(t *testing.T) {
 	traces := nodeValueTraces("coil", "input", []model.Node{
 		{ID: "chw_in", Medium: "water", ValueType: "float", Unit: "degC"},
