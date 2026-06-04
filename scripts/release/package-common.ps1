@@ -430,14 +430,27 @@ function Get-MinimalPackagePath {
 function New-PackageTestRoot {
   param([Parameter(Mandatory = $true)][string]$Prefix)
 
-  $Base = 'C:\tmp'
+  $Candidates = @()
+  if ($env:HVAC_STUDIO_TEST_ROOT) {
+    $Candidates += $env:HVAC_STUDIO_TEST_ROOT
+  }
+  $Candidates += 'C:\tmp'
+  $Candidates += [IO.Path]::GetTempPath()
   try {
-    New-Item -ItemType Directory -Force -Path $Base | Out-Null
+    $Candidates += (Join-Path (Resolve-Path -LiteralPath '.').Path 'artifacts\package-tests')
   } catch {
-    $Base = [IO.Path]::GetTempPath()
   }
 
-  $Root = Join-Path $Base ($Prefix + '-' + [Guid]::NewGuid().ToString('N'))
-  New-Item -ItemType Directory -Force -Path $Root | Out-Null
-  return $Root
+  foreach ($Base in @($Candidates | Where-Object { $_ } | Select-Object -Unique)) {
+    try {
+      New-Item -ItemType Directory -Force -Path $Base | Out-Null
+      $Root = Join-Path $Base ($Prefix + '-' + [Guid]::NewGuid().ToString('N'))
+      New-Item -ItemType Directory -Force -Path $Root | Out-Null
+      return $Root
+    } catch {
+      continue
+    }
+  }
+
+  throw 'could not create a package test root'
 }

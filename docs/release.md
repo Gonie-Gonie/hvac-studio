@@ -122,22 +122,42 @@ The runtime package smoke test expands the zip, constrains `PATH`, and verifies 
 
 ## Installer Scope
 
-Installer packaging is intentionally later than portable zip packaging.
+Installer packaging is now a Windows PowerShell installer bundle layered on top
+of the portable Studio zip. The installer package is:
 
-Portable zip first:
+```text
+dist/hvac-studio-<version>-windows-amd64-installer.zip
+```
 
-- easier internal research distribution
-- easier debugging
-- no Program Files or start-menu assumptions
-- suitable for MVP and lab testing
+The bundle contains:
 
-Installer later:
+- `payload/<portable>.zip`
+- `installer/installer-manifest.json`
+- `installer/install.ps1`
+- `installer/uninstall.ps1`
+- `release-manifest.json`
+- `README.md`
 
-- Program Files installation
-- Start Menu registration
-- optional project folder association
-- WebView2/runtime checks
-- code signing policy
+Current installer behavior:
+
+- per-user install default under `%LOCALAPPDATA%\Programs\HVAC Studio`
+- optional custom install directory, including administrator-managed Program Files use
+- WebView2 Evergreen Runtime detection with remediation warning
+- Start Menu shortcut by default
+- optional user PATH registration for the installed `bin` folder
+- `.bcsproj` association policy recorded but disabled until Studio supports project-file launch
+- update channel recorded from version tags: alpha portable baseline, beta installer preview, release candidate, development, or stable
+
+Smoke-test only the installer bundle:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-installer-package.ps1 -Version 0.1.0-dev
+```
+
+The smoke test expands the installer package, validates the installer manifest,
+verifies the portable payload checksum, runs `install.ps1 -PlanOnly`, and expands
+the payload to prove the expected portable executables are present. It does not
+write Start Menu, PATH, registry, or install-directory changes.
 
 ## GitHub Release
 
@@ -157,10 +177,11 @@ The workflow:
 2. Runs repo-local setup.
 3. Runs `test-fast`.
 4. Builds and smoke-tests the Windows portable Studio package.
-5. Builds and smoke-tests the Windows runtime-only package.
-6. Writes `dist/SHA256SUMS.txt`.
-7. Uploads both zips and checksums as workflow artifacts.
-8. Creates a GitHub Release for tag pushes.
+5. Builds and smoke-tests the Windows installer bundle.
+6. Builds and smoke-tests the Windows runtime-only package.
+7. Writes `dist/SHA256SUMS.txt`.
+8. Uploads the package zips and checksums as workflow artifacts.
+9. Creates a GitHub Release for tag pushes.
 
 Manual dry runs are available through GitHub Actions `workflow_dispatch`. Manual runs upload artifacts; they only create a GitHub Release when `create_release` is selected.
 
@@ -197,9 +218,11 @@ v0.1
 - simple example project
 
 v0.2
-- Windows installer
+- Windows installer bundle
 - WebView2/runtime checks
-- optional project folder association
+- Start Menu integration
+- optional PATH registration
+- `.bcsproj` association policy
 
 v0.3
 - Runtime-only export

@@ -630,7 +630,7 @@ These items are about support promises, installation, and compatibility rather t
 | ID | Area | Unimplemented item | Done when |
 | --- | --- | --- | --- |
 | PM-201 | Compatibility | Done: project and graph schema compatibility are frozen to the documented `0.1.x` line, `bcs-runner migrate` emits machine-readable compatibility reports, and docs define migration/freeze behavior | Add concrete rewrite migrations only when a future incompatible schema exists |
-| PM-202 | Distribution | Windows installer, WebView2/runtime checks, Start menu integration, optional PATH registration, `.bcsproj` association policy, and update channels | Installer behavior is tested separately from portable zip behavior |
+| PM-202 | Distribution | Done: Windows installer bundle wraps the portable payload with manifest-driven WebView2 checks, Start Menu install plan, optional user PATH registration, disabled `.bcsproj` association policy, update-channel metadata, and separate installer smoke coverage | Replace script bundle with signed MSI/MSIX only after signing/provenance policy is complete |
 | PM-203 | Release trust | Code signing, checksums, license notices, dependency notices, support matrix, and release-note discipline | Release assets are verifiable and support boundaries are explicit |
 | PM-204 | Documentation | Required offline HTML docs, PDF manual, versioned docs, and concept map tying artifacts to Studio/CLI/SDK/export surfaces | Docs can be shipped and reviewed as release assets |
 | PM-205 | Rehearsal | Clean-machine setup, package smoke, installer smoke, runtime export smoke, and upgrade rehearsal | A release candidate can be reproduced from a clean Windows machine |

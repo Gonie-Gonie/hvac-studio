@@ -12,6 +12,7 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $ResolvedVersion = Resolve-Version -Version $Version
 $RuntimeId = 'windows-amd64'
 $PortableZip = Join-Path $RepoRoot "dist\hvac-studio-$ResolvedVersion-$RuntimeId-portable.zip"
+$InstallerZip = Join-Path $RepoRoot "dist\hvac-studio-$ResolvedVersion-$RuntimeId-installer.zip"
 $RuntimeZip = Join-Path $RepoRoot "dist\hvac-studio-runtime-$ResolvedVersion-$RuntimeId.zip"
 
 function Invoke-ReleaseStep {
@@ -45,11 +46,15 @@ Invoke-ReleaseStep 'Build and smoke-test portable Studio package' {
   powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot 'scripts\release\test-portable-package.ps1') -Version $ResolvedVersion
 }
 
+Invoke-ReleaseStep 'Build and smoke-test Windows installer bundle' {
+  powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot 'scripts\release\test-installer-package.ps1') -Version $ResolvedVersion -PortableZip $PortableZip
+}
+
 Invoke-ReleaseStep 'Build and smoke-test runtime package' {
   powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot 'scripts\release\test-runtime-package.ps1') -Version $ResolvedVersion
 }
 
-foreach ($Artifact in @($PortableZip, $RuntimeZip)) {
+foreach ($Artifact in @($PortableZip, $InstallerZip, $RuntimeZip)) {
   if (-not (Test-Path -LiteralPath $Artifact)) {
     throw "release candidate artifact was not written: $Artifact"
   }
@@ -58,6 +63,8 @@ foreach ($Artifact in @($PortableZip, $RuntimeZip)) {
 Write-Host ""
 Write-Host 'release candidate ok'
 Write-Host "portable: $PortableZip"
+Write-Host "installer: $InstallerZip"
 Write-Host "runtime:  $RuntimeZip"
 Write-Output $PortableZip
+Write-Output $InstallerZip
 Write-Output $RuntimeZip

@@ -113,6 +113,17 @@ Use `bin\bcs-env.exe check` inside a package to verify the bundled Python runtim
 Studio-created projects live under `projects/`; workspace edits persist to project artifacts such as `graph.json`, `inputs/`, `components/`, `scenarios/`, `runs/`, and `exports/`.
 Runtime exports under `projects/<name>/exports/runtime_package/` include workflow scripts such as `run-default.ps1`, `run-batch.ps1`, `validate-data.ps1`, `calibrate.ps1`, and `optimize.ps1` when those artifacts exist, and can be checked with `bin\bcs-env.exe check --root .`.
 
+Build and smoke-test the Windows installer bundle:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-installer-package.ps1 -Version 0.1.0-dev
+```
+
+The installer bundle wraps the portable zip, checks WebView2 runtime presence,
+creates a Start Menu shortcut by default, supports optional user PATH
+registration, and records the `.bcsproj` association policy without enabling it
+until Studio supports project-file launch.
+
 Build and smoke-test only the runtime-only release package:
 
 ```powershell
