@@ -29,6 +29,45 @@ function Get-FreePort {
   }
 }
 
+function Get-ComponentSourcePaths {
+  param(
+    [Parameter(Mandatory = $true)][string]$ProjectPath,
+    [Parameter(Mandatory = $true)]$Component
+  )
+
+  $ProjectRoot = Split-Path -Parent $ProjectPath
+  $Source = $Component.source
+  $Required = @()
+  if ($Source -and $Source.layout -eq 'generated_wrapper') {
+    foreach ($RelativePath in @($Source.step, $Source.wrapper, $Source.metadata)) {
+      if ($RelativePath) {
+        $Required += $RelativePath
+      }
+    }
+  } elseif ($Source -and $Source.step) {
+    $Required += $Source.step
+  } else {
+    $Required += "components\$($Component.id).py"
+  }
+  foreach ($RelativePath in $Required) {
+    Join-Path $ProjectRoot (($RelativePath -as [string]) -replace '/', '\')
+  }
+}
+
+function Assert-ComponentSourceWritten {
+  param(
+    [Parameter(Mandatory = $true)][string]$ProjectPath,
+    [Parameter(Mandatory = $true)]$Component,
+    [Parameter(Mandatory = $true)][string]$Label
+  )
+
+  foreach ($SourcePath in (Get-ComponentSourcePaths -ProjectPath $ProjectPath -Component $Component)) {
+    if (-not (Test-Path -LiteralPath $SourcePath)) {
+      throw "$Label source was not written: $SourcePath"
+    }
+  }
+}
+
 $TestRoot = New-PackageTestRoot -Prefix 'hvac-portable-test'
 
 $StudioProcess = $null
@@ -243,10 +282,7 @@ try {
   if ($DuplicateJson.component.id -ne 'portable_scalar_duplicate') {
     throw "duplicated component id mismatch: $($DuplicateJson.component.id)"
   }
-  $DuplicateSourcePath = Join-Path (Split-Path -Parent $CreatedProject.project_path) "components\$($DuplicateJson.component.id).py"
-  if (-not (Test-Path -LiteralPath $DuplicateSourcePath)) {
-    throw "duplicated component source was not written: $DuplicateSourcePath"
-  }
+  Assert-ComponentSourceWritten -ProjectPath $CreatedProject.project_path -Component $DuplicateJson.component -Label 'duplicated component'
   if ($DuplicateJson.project.graph.systems[0].components | Where-Object { $_ -eq $DuplicateJson.component.id }) {
     throw "duplicated component should not be added to the entry system"
   }
@@ -254,10 +290,7 @@ try {
   $ComponentBody = @{ project_path = $CreatedProject.project_path; name = 'Portable Extra Component'; template = 'scalar' } | ConvertTo-Json -Depth 4
   $ComponentResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/components" -Method POST -ContentType 'application/json' -Body $ComponentBody -TimeoutSec 20
   $CreatedComponent = ($ComponentResponse.Content | ConvertFrom-Json).component
-  $ComponentSourcePath = Join-Path (Split-Path -Parent $CreatedProject.project_path) "components\$($CreatedComponent.id).py"
-  if (-not (Test-Path -LiteralPath $ComponentSourcePath)) {
-    throw "created component source was not written: $ComponentSourcePath"
-  }
+  Assert-ComponentSourceWritten -ProjectPath $CreatedProject.project_path -Component $CreatedComponent -Label 'created component'
   $IncludeBody = @{ project_path = $CreatedProject.project_path; component_id = $CreatedComponent.id } | ConvertTo-Json -Depth 4
   $IncludeResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/system/components" -Method POST -ContentType 'application/json' -Body $IncludeBody -TimeoutSec 20
   $IncludeJson = $IncludeResponse.Content | ConvertFrom-Json
@@ -528,8 +561,10 @@ try {
   if ($DeleteComponentJson.project.graph.components | Where-Object { $_.id -eq $CreatedComponent.id }) {
     throw "deleted component should be removed from the graph"
   }
-  if (Test-Path -LiteralPath $ComponentSourcePath) {
-    throw "deleted component source should be removed: $ComponentSourcePath"
+  foreach ($SourcePath in (Get-ComponentSourcePaths -ProjectPath $CreatedProject.project_path -Component $CreatedComponent)) {
+    if (Test-Path -LiteralPath $SourcePath) {
+      throw "deleted component source should be removed: $SourcePath"
+    }
   }
 
   $DeleteNodeBody = @{

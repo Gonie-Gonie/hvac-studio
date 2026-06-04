@@ -97,9 +97,11 @@ func TestCollectStatusForPortableRoot(t *testing.T) {
 	defer restoreVersionCommand()
 
 	root := t.TempDir()
+	t.Setenv("HVAC_STUDIO_PYTHON", filepath.Join(root, ".venv", "Scripts", "python.exe"))
 	writeFile(t, filepath.Join(root, "release-manifest.json"), "{}\n")
 	writeFile(t, filepath.Join(root, "runtime", "manifest.json"), "{}\n")
 	writeFile(t, filepath.Join(root, "runtime", "python", "python.exe"), "fake python\n")
+	writeFile(t, filepath.Join(root, ".venv", "Scripts", "python.exe"), "host python\n")
 	writeFile(t, filepath.Join(root, "bin", "bcs-runner.exe"), "runner\n")
 	writeFile(t, filepath.Join(root, "bin", "studio.exe"), "studio\n")
 	writeFile(t, filepath.Join(root, "HVAC Studio.exe"), "desktop\n")
@@ -115,6 +117,9 @@ func TestCollectStatusForPortableRoot(t *testing.T) {
 	}
 	if status.Mode != "portable-studio" {
 		t.Fatalf("mode = %s, want portable-studio", status.Mode)
+	}
+	if status.Python.Path != filepath.Join(root, "runtime", "python", "python.exe") {
+		t.Fatalf("python path = %s, want packaged runtime", status.Python.Path)
 	}
 }
 
@@ -215,11 +220,51 @@ func TestCollectStatusReportsInvalidComponentTemplate(t *testing.T) {
 	}
 }
 
+func TestCollectStatusAcceptsGeneratedWrapperComponentTemplate(t *testing.T) {
+	restoreVersionCommand := stubVersionCommand()
+	defer restoreVersionCommand()
+
+	root := t.TempDir()
+	seedRepositoryRoot(t, root)
+	seedGeneratedWrapperTemplates(t, root)
+
+	status := collectStatus(root)
+	if !status.OK {
+		t.Fatalf("status should be ok: %#v", status.Problems)
+	}
+	if !hasCheck(status.Checks, "component_template_scalar_source", filepath.Join(root, "templates", "components", "scalar", "wrapper.py")) {
+		t.Fatalf("wrapper source check missing from %#v", status.Checks)
+	}
+	if !hasCheck(status.Checks, "component_template_scalar_source", filepath.Join(root, "templates", "components", "scalar", "user_step.py")) {
+		t.Fatalf("step source check missing from %#v", status.Checks)
+	}
+}
+
 func seedTemplates(t *testing.T, root string) {
 	t.Helper()
 	writeFile(t, filepath.Join(root, "templates", "projects", "scalar", "project.bcsproj"), "{}\n")
 	writeFile(t, filepath.Join(root, "templates", "components", "scalar", "manifest.json"), `{"class_name":"ScalarComponent","source":"scalar.py"}`)
 	writeFile(t, filepath.Join(root, "templates", "components", "scalar", "scalar.py"), "class ScalarComponent:\n    pass\n")
+}
+
+func seedGeneratedWrapperTemplates(t *testing.T, root string) {
+	t.Helper()
+	writeFile(t, filepath.Join(root, "templates", "components", "scalar", "manifest.json"), `{
+  "class_name": "ScalarComponent",
+  "source": {
+    "layout": "generated_wrapper",
+    "metadata": "component.json",
+    "init": "user_init.py",
+    "step": "user_step.py",
+    "helpers": "helpers.py",
+    "wrapper": "wrapper.py"
+  }
+}`)
+	writeFile(t, filepath.Join(root, "templates", "components", "scalar", "component.json"), "{}\n")
+	writeFile(t, filepath.Join(root, "templates", "components", "scalar", "user_init.py"), "def initialize(params, context):\n    return {}\n")
+	writeFile(t, filepath.Join(root, "templates", "components", "scalar", "user_step.py"), "def step(inputs, state, params, context):\n    return {}, state\n")
+	writeFile(t, filepath.Join(root, "templates", "components", "scalar", "helpers.py"), "def apply_gain(value, gain):\n    return value * gain\n")
+	writeFile(t, filepath.Join(root, "templates", "components", "scalar", "wrapper.py"), "class ScalarComponent:\n    pass\n")
 }
 
 func seedRepositoryRoot(t *testing.T, root string) {

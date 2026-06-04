@@ -496,7 +496,8 @@ function Get-MinimalPackagePath {
   $WindowsSystem = Join-Path $env:SystemRoot 'System32'
   $WindowsRoot = $env:SystemRoot
   $PackageBin = Join-Path $PackageRoot 'bin'
-  return (@($PackageBin, $WindowsSystem, $WindowsRoot) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }) -join [IO.Path]::PathSeparator
+  $PackagePython = Join-Path $PackageRoot 'runtime\python'
+  return (@($PackagePython, $PackageBin, $WindowsSystem, $WindowsRoot) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }) -join [IO.Path]::PathSeparator
 }
 
 function New-PackageTestRoot {

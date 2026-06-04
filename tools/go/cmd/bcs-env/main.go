@@ -41,8 +41,23 @@ type checkStatus struct {
 }
 
 type componentTemplateManifest struct {
-	ClassName string `json:"class_name"`
-	Source    string `json:"source"`
+	ClassName string          `json:"class_name"`
+	Source    json.RawMessage `json:"source"`
+}
+
+type generatedWrapperSource struct {
+	Layout   string `json:"layout"`
+	Metadata string `json:"metadata"`
+	Init     string `json:"init"`
+	Step     string `json:"step"`
+	Helpers  string `json:"helpers"`
+	Wrapper  string `json:"wrapper"`
+}
+
+type templateSourcePath struct {
+	Rel           string
+	Label         string
+	DeclaresClass bool
 }
 
 type projectManifest struct {
@@ -122,7 +137,7 @@ func collectStatus(root string) envStatus {
 	checks = append(checks, lockfileChecks...)
 	problems = append(problems, lockfileProblems...)
 
-	pythonPath := resolvePython(root)
+	pythonPath := resolvePython(root, mode)
 	python := toolStatus{
 		Path:    pythonPath,
 		Present: pythonPath != "",
@@ -191,21 +206,54 @@ func requiredChecks(root string, mode string) []checkStatus {
 			check("templates", "templates", filepath.Join(root, "templates"), true),
 			check("project_template_scalar", "scalar project template", filepath.Join(root, "templates", "projects", "scalar", "project.bcsproj"), true),
 			check("component_template_scalar_manifest", "scalar component template manifest", filepath.Join(root, "templates", "components", "scalar", "manifest.json"), true),
-			check("component_template_scalar_source", "scalar component template source", filepath.Join(root, "templates", "components", "scalar", "scalar.py"), true),
+		)
+		checks = append(checks, scalarComponentTemplateSourceChecks(root)...)
+		checks = append(checks,
 			check("runner", "runner executable", platform.BinExecutable(root, "bcs-runner"), true),
 			check("studio_server", "Studio server executable", platform.BinExecutable(root, "studio"), true),
 			check("studio_desktop", "Studio desktop executable", filepath.Join(root, "HVAC Studio.exe"), true),
+			check("runtime_python", "packaged Python runtime", platform.RuntimePythonPath(root), true),
 		)
 	case "runtime-package":
-		checks = append(checks, check("runner", "runner executable", platform.BinExecutable(root, "bcs-runner"), true))
+		checks = append(checks,
+			check("runner", "runner executable", platform.BinExecutable(root, "bcs-runner"), true),
+			check("runtime_python", "packaged Python runtime", platform.RuntimePythonPath(root), true),
+		)
 	case "repository":
 		checks = append(checks,
 			check("templates", "templates", filepath.Join(root, "templates"), true),
 			check("project_template_scalar", "scalar project template", filepath.Join(root, "templates", "projects", "scalar", "project.bcsproj"), true),
 			check("component_template_scalar_manifest", "scalar component template manifest", filepath.Join(root, "templates", "components", "scalar", "manifest.json"), true),
-			check("component_template_scalar_source", "scalar component template source", filepath.Join(root, "templates", "components", "scalar", "scalar.py"), true),
-			check("go_module", "Go module", filepath.Join(root, "tools", "go", "go.mod"), true),
 		)
+		checks = append(checks, scalarComponentTemplateSourceChecks(root)...)
+		checks = append(checks, check("go_module", "Go module", filepath.Join(root, "tools", "go", "go.mod"), true))
+	}
+	return checks
+}
+
+func scalarComponentTemplateSourceChecks(root string) []checkStatus {
+	manifest, err := readScalarComponentTemplateManifest(root)
+	if err != nil {
+		return nil
+	}
+	paths, problems := componentTemplateSourcePaths(manifest)
+	if len(problems) > 0 {
+		return nil
+	}
+	checks := []checkStatus{}
+	seen := map[string]bool{}
+	for _, source := range paths {
+		cleanSource, err := cleanTemplateSource(source.Rel)
+		if err != nil || seen[cleanSource] {
+			continue
+		}
+		seen[cleanSource] = true
+		checks = append(checks, check(
+			"component_template_scalar_source",
+			"scalar component template "+source.Label,
+			filepath.Join(root, "templates", "components", "scalar", cleanSource),
+			true,
+		))
 	}
 	return checks
 }
@@ -214,34 +262,112 @@ func validateTemplates(root string, mode string) []string {
 	if mode != "repository" && mode != "portable-studio" {
 		return nil
 	}
-	manifestPath := filepath.Join(root, "templates", "components", "scalar", "manifest.json")
-	manifestBytes, err := os.ReadFile(manifestPath)
+	manifest, err := readScalarComponentTemplateManifest(root)
 	if err != nil {
-		return nil
-	}
-	var manifest componentTemplateManifest
-	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
 		return []string{fmt.Sprintf("invalid scalar component template manifest: %s", err)}
 	}
 	if strings.TrimSpace(manifest.ClassName) == "" {
 		return []string{"invalid scalar component template manifest: class_name is required"}
 	}
-	if strings.TrimSpace(manifest.Source) == "" {
-		return []string{"invalid scalar component template manifest: source is required"}
+	sources, sourceProblems := componentTemplateSourcePaths(manifest)
+	if len(sourceProblems) > 0 {
+		return sourceProblems
 	}
-	cleanSource := filepath.Clean(manifest.Source)
-	if filepath.IsAbs(cleanSource) || strings.HasPrefix(cleanSource, "..") {
-		return []string{fmt.Sprintf("invalid scalar component template source path: %s", manifest.Source)}
-	}
-	sourcePath := filepath.Join(root, "templates", "components", "scalar", cleanSource)
-	sourceBytes, err := os.ReadFile(sourcePath)
-	if err != nil {
-		return []string{fmt.Sprintf("missing scalar component template source: %s", sourcePath)}
-	}
-	if !strings.Contains(string(sourceBytes), "class "+manifest.ClassName+":") {
-		return []string{fmt.Sprintf("scalar component template source does not declare %s", manifest.ClassName)}
+	templateRoot := filepath.Join(root, "templates", "components", "scalar")
+	for _, source := range sources {
+		cleanSource, err := cleanTemplateSource(source.Rel)
+		if err != nil {
+			return []string{fmt.Sprintf("invalid scalar component template source path: %s", source.Rel)}
+		}
+		sourcePath := filepath.Join(templateRoot, cleanSource)
+		sourceBytes, err := os.ReadFile(sourcePath)
+		if err != nil {
+			return []string{fmt.Sprintf("missing scalar component template source: %s", sourcePath)}
+		}
+		if source.DeclaresClass && !strings.Contains(string(sourceBytes), "class "+manifest.ClassName+":") {
+			return []string{fmt.Sprintf("scalar component template source does not declare %s", manifest.ClassName)}
+		}
 	}
 	return nil
+}
+
+func readScalarComponentTemplateManifest(root string) (componentTemplateManifest, error) {
+	manifestPath := filepath.Join(root, "templates", "components", "scalar", "manifest.json")
+	manifestBytes, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return componentTemplateManifest{}, err
+	}
+	var manifest componentTemplateManifest
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		return componentTemplateManifest{}, err
+	}
+	return manifest, nil
+}
+
+func componentTemplateSourcePaths(manifest componentTemplateManifest) ([]templateSourcePath, []string) {
+	sourceRaw := strings.TrimSpace(string(manifest.Source))
+	if sourceRaw == "" || sourceRaw == "null" {
+		return nil, []string{"invalid scalar component template manifest: source is required"}
+	}
+	var sourceString string
+	if err := json.Unmarshal(manifest.Source, &sourceString); err == nil {
+		if strings.TrimSpace(sourceString) == "" {
+			return nil, []string{"invalid scalar component template manifest: source is required"}
+		}
+		return []templateSourcePath{{
+			Rel:           sourceString,
+			Label:         "source",
+			DeclaresClass: true,
+		}}, nil
+	}
+
+	var source generatedWrapperSource
+	if err := json.Unmarshal(manifest.Source, &source); err != nil {
+		return nil, []string{fmt.Sprintf("invalid scalar component template manifest source: %s", err)}
+	}
+	if strings.TrimSpace(source.Layout) != "generated_wrapper" {
+		return nil, []string{"invalid scalar component template manifest: generated_wrapper source layout is required"}
+	}
+	if strings.TrimSpace(source.Wrapper) == "" {
+		return nil, []string{"invalid scalar component template manifest: generated_wrapper wrapper is required"}
+	}
+	if strings.TrimSpace(source.Step) == "" {
+		return nil, []string{"invalid scalar component template manifest: generated_wrapper step is required"}
+	}
+	if strings.TrimSpace(source.Metadata) != "" {
+		if _, err := cleanTemplateSource(source.Metadata); err != nil {
+			return nil, []string{fmt.Sprintf("invalid scalar component template source path: %s", source.Metadata)}
+		}
+	}
+
+	sources := []templateSourcePath{
+		{Rel: source.Wrapper, Label: "wrapper", DeclaresClass: true},
+		{Rel: source.Step, Label: "step"},
+	}
+	for _, optional := range []templateSourcePath{
+		{Rel: source.Init, Label: "init"},
+		{Rel: source.Helpers, Label: "helpers"},
+	} {
+		if strings.TrimSpace(optional.Rel) != "" {
+			sources = append(sources, optional)
+		}
+	}
+	return sources, nil
+}
+
+func cleanTemplateSource(source string) (string, error) {
+	source = strings.TrimSpace(source)
+	if source == "" {
+		return "", errors.New("path is required")
+	}
+	cleanSource := filepath.Clean(source)
+	if filepath.IsAbs(cleanSource) || cleanSource == ".." || strings.HasPrefix(cleanSource, ".."+string(filepath.Separator)) {
+		return "", errors.New("path must stay inside the scalar template")
+	}
+	return cleanSource, nil
 }
 
 func projectLockfileChecks(root string, mode string) ([]checkStatus, []string) {
@@ -381,10 +507,12 @@ func check(id string, label string, path string, required bool) checkStatus {
 	}
 }
 
-func resolvePython(root string) string {
-	candidates := []string{
-		os.Getenv("HVAC_STUDIO_PYTHON"),
-		platform.RuntimePythonPath(root),
+func resolvePython(root string, mode string) string {
+	candidates := []string{}
+	if mode == "portable-studio" || mode == "runtime-package" || mode == "runtime-export" {
+		candidates = append(candidates, platform.RuntimePythonPath(root), os.Getenv("HVAC_STUDIO_PYTHON"))
+	} else {
+		candidates = append(candidates, os.Getenv("HVAC_STUDIO_PYTHON"), platform.RuntimePythonPath(root))
 	}
 	candidates = append(candidates, platform.VirtualEnvPythonCandidates(root)...)
 	candidates = append(candidates, repoManagedPythonCandidates(root)...)

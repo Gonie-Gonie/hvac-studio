@@ -27,40 +27,52 @@ function Invoke-ReleaseStep {
   & $Action
 }
 
+function Invoke-CheckedPowerShell {
+  param(
+    [Parameter(Mandatory = $true)][string]$Script,
+    [string[]]$Arguments = @()
+  )
+
+  powershell -NoProfile -ExecutionPolicy Bypass -File $Script @Arguments
+  if ($LASTEXITCODE -ne 0) {
+    throw "$Script failed with exit code $LASTEXITCODE"
+  }
+}
+
 Write-Host "HVAC Studio release candidate"
 Write-Host "version: $ResolvedVersion"
 Write-Host "repo: $RepoRoot"
 
 if (-not $SkipSetup) {
   Invoke-ReleaseStep 'Bootstrap repo-local toolchain' {
-    powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot 'scripts\dev\setup.ps1')
+    Invoke-CheckedPowerShell -Script (Join-Path $RepoRoot 'scripts\dev\setup.ps1')
   }
 }
 
 if (-not $SkipFast) {
   Invoke-ReleaseStep 'Run fast verification' {
-    powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot 'scripts\dev\test-fast.ps1')
+    Invoke-CheckedPowerShell -Script (Join-Path $RepoRoot 'scripts\dev\test-fast.ps1')
   }
 }
 
 Invoke-ReleaseStep 'Run upgrade rehearsal' {
-  powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot 'scripts\release\test-upgrade-rehearsal.ps1') -Version $ResolvedVersion
+  Invoke-CheckedPowerShell -Script (Join-Path $RepoRoot 'scripts\release\test-upgrade-rehearsal.ps1') -Arguments @('-Version', $ResolvedVersion)
 }
 
 Invoke-ReleaseStep 'Build and smoke-test portable Studio package' {
-  powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot 'scripts\release\test-portable-package.ps1') -Version $ResolvedVersion
+  Invoke-CheckedPowerShell -Script (Join-Path $RepoRoot 'scripts\release\test-portable-package.ps1') -Arguments @('-Version', $ResolvedVersion)
 }
 
 Invoke-ReleaseStep 'Build and smoke-test Windows installer bundle' {
-  powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot 'scripts\release\test-installer-package.ps1') -Version $ResolvedVersion -PortableZip $PortableZip
+  Invoke-CheckedPowerShell -Script (Join-Path $RepoRoot 'scripts\release\test-installer-package.ps1') -Arguments @('-Version', $ResolvedVersion, '-PortableZip', $PortableZip)
 }
 
 Invoke-ReleaseStep 'Build and smoke-test runtime package' {
-  powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot 'scripts\release\test-runtime-package.ps1') -Version $ResolvedVersion
+  Invoke-CheckedPowerShell -Script (Join-Path $RepoRoot 'scripts\release\test-runtime-package.ps1') -Arguments @('-Version', $ResolvedVersion)
 }
 
 Invoke-ReleaseStep 'Build and smoke-test experimental macOS package' {
-  powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot 'scripts\release\test-macos-package.ps1') -Version $ResolvedVersion
+  Invoke-CheckedPowerShell -Script (Join-Path $RepoRoot 'scripts\release\test-macos-package.ps1') -Arguments @('-Version', $ResolvedVersion)
 }
 
 foreach ($Artifact in @($PortableZip, $InstallerZip, $RuntimeZip, $MacOSZip)) {
