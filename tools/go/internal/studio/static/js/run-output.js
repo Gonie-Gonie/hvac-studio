@@ -1,7 +1,7 @@
 import { escapeHTML } from "./dom.js";
 import { formatValue } from "./format.js";
 
-export function renderRunOutputWorkspace(state, summary, outputRows, chart, componentRows, batchRows, executionRows, connectionRows, nodeRows) {
+export function renderRunOutputWorkspace(state, summary, outputRows, chart, componentRows, batchRows, executionRows, componentLogRows, connectionRows, nodeRows) {
   if (!summary || !outputRows || !chart) return;
   renderRunSummary(state, summary);
   renderPublicOutputs(state, outputRows);
@@ -9,6 +9,7 @@ export function renderRunOutputWorkspace(state, summary, outputRows, chart, comp
   renderSelectedComponentValues(state, componentRows);
   renderBatchCases(state, batchRows);
   renderExecutionTrace(state, executionRows);
+  renderComponentLogs(state, componentLogRows);
   renderConnectionTrace(state, connectionRows);
   renderNodeTrace(state, nodeRows);
 }
@@ -152,6 +153,29 @@ function renderExecutionTrace(state, tbody) {
       <td>${escapeHTML(item.component)}</td>
       <td>${escapeHTML(item.stage)}</td>
       <td>${duration}</td>
+    `;
+    tbody.append(row);
+  }
+}
+
+function renderComponentLogs(state, tbody) {
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  const context = latestResultContext(state);
+  const logs = context.result?.component_logs || [];
+  if (!logs.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-cell">No component logs yet</td></tr>`;
+    return;
+  }
+  for (const log of logs) {
+    const severity = String(log.severity || "info").toLowerCase();
+    const severityLabel = [log.severity || "info", log.stream || ""].filter(Boolean).join(" / ");
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${escapeHTML(log.component || "")}</td>
+      <td>${escapeHTML(log.stage || "")}</td>
+      <td><span class="log-severity ${logSeverityClass(severity)}">${escapeHTML(severityLabel)}</span></td>
+      <td class="log-message">${escapeHTML(log.message || "")}</td>
     `;
     tbody.append(row);
   }
@@ -336,6 +360,11 @@ function formatDuration(value) {
   if (value < 1) return `${value.toFixed(3)} ms`;
   if (value < 100) return `${value.toFixed(2)} ms`;
   return `${value.toFixed(0)} ms`;
+}
+
+function logSeverityClass(severity) {
+  if (severity === "error" || severity === "warning" || severity === "info") return severity;
+  return "info";
 }
 
 function latestNumericOutputs(state) {

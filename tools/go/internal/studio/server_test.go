@@ -120,6 +120,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("executionTraceRows")) {
 		t.Fatalf("index did not include execution trace rows")
 	}
+	if !bytes.Contains(body, []byte("componentLogRows")) {
+		t.Fatalf("index did not include component log rows")
+	}
 	if !bytes.Contains(body, []byte("connectionTraceRows")) {
 		t.Fatalf("index did not include connection trace rows")
 	}
@@ -514,6 +517,9 @@ func TestStaticRunOutputModuleServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("renderExecutionTrace")) {
 		t.Fatalf("run output module did not render execution traces")
 	}
+	if !bytes.Contains(body, []byte("renderComponentLogs")) {
+		t.Fatalf("run output module did not render component logs")
+	}
 	if !bytes.Contains(body, []byte("renderConnectionTrace")) {
 		t.Fatalf("run output module did not render connection traces")
 	}
@@ -526,6 +532,9 @@ func TestStaticRunOutputModuleServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("timing-cell")) {
 		t.Fatalf("run output module did not render component timing bars")
 	}
+	if !bytes.Contains(body, []byte("log-severity")) {
+		t.Fatalf("run output module did not render component log severity badges")
+	}
 	if !bytes.Contains(body, []byte("failureSummaryRows")) {
 		t.Fatalf("run output module did not render failed run summaries")
 	}
@@ -537,6 +546,9 @@ func TestStaticRunOutputModuleServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("component_outputs")) {
 		t.Fatalf("run output module did not read component output snapshots")
+	}
+	if !bytes.Contains(body, []byte("component_logs")) {
+		t.Fatalf("run output module did not read component logs")
 	}
 }
 
@@ -2814,6 +2826,60 @@ func TestRunEndpointRunsFeedForwardExample(t *testing.T) {
 	}
 }
 
+func TestRunEndpointCapturesComponentLogs(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	project := createWorkspaceProject(t, server, "Noisy Run Project")
+	sourcePath := filepath.Join(filepath.Dir(project.ProjectPath), "components", "scalar.py")
+	source := strings.TrimLeft(`
+import sys
+
+class ScalarComponent:
+    def initialize(self, params, context):
+        return {}
+
+    def evaluate(self, inputs, state, params, context):
+        print("stdout from scalar")
+        print("stderr from scalar", file=sys.stderr)
+        value = float(inputs["value"])
+        gain = float(params.get("gain", 2.0))
+        return {"result": value * gain}, state
+`, "\n")
+	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path": project.ProjectPath,
+		"inputs":       map[string]any{"value": 4},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/run", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Result runtimecore.RunResult `json:"result"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if got := body.Result.Outputs["result"]; got != 8.0 {
+		t.Fatalf("result = %v, want 8", got)
+	}
+	if !hasComponentLog(body.Result.ComponentLogs, "scalar", "evaluate", "info", "stdout from scalar") {
+		t.Fatalf("stdout log missing from %#v", body.Result.ComponentLogs)
+	}
+	if !hasComponentLog(body.Result.ComponentLogs, "scalar", "evaluate", "error", "stderr from scalar") {
+		t.Fatalf("stderr log missing from %#v", body.Result.ComponentLogs)
+	}
+}
+
 func TestRunEndpointAppliesParameterSet(t *testing.T) {
 	server := newTestServer(t)
 	payload := []byte(`{
@@ -4379,6 +4445,15 @@ func hasProblemMessage(problems []Problem, message string) bool {
 func hasProblemMessageContaining(problems []Problem, text string) bool {
 	for _, problem := range problems {
 		if strings.Contains(problem.Message, text) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasComponentLog(logs []runtimecore.ComponentLog, component string, stage string, severity string, message string) bool {
+	for _, log := range logs {
+		if log.Component == component && log.Stage == stage && log.Severity == severity && log.Message == message {
 			return true
 		}
 	}

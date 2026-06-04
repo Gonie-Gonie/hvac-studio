@@ -33,13 +33,23 @@ type Response struct {
 	Message string         `json:"message"`
 	Outputs map[string]any `json:"outputs"`
 	State   map[string]any `json:"state"`
+	Logs    []LogEntry     `json:"logs"`
 	Error   *WorkerError   `json:"error"`
 }
 
 type WorkerError struct {
-	Type      string `json:"type"`
-	Message   string `json:"message"`
-	Traceback string `json:"traceback"`
+	Type      string     `json:"type"`
+	Message   string     `json:"message"`
+	Traceback string     `json:"traceback"`
+	Logs      []LogEntry `json:"logs,omitempty"`
+}
+
+type LogEntry struct {
+	ComponentID string `json:"component_id"`
+	Stage       string `json:"stage"`
+	Stream      string `json:"stream"`
+	Severity    string `json:"severity"`
+	Message     string `json:"message"`
 }
 
 func (e *WorkerError) Error() string {
@@ -102,17 +112,18 @@ func (c *Client) Ping() error {
 	return c.request(map[string]any{"type": "ping"}, &response)
 }
 
-func (c *Client) LoadComponent(componentID string, classPath string, projectRoot string) error {
+func (c *Client) LoadComponent(componentID string, classPath string, projectRoot string) ([]LogEntry, error) {
 	var response Response
-	return c.request(map[string]any{
+	err := c.request(map[string]any{
 		"type":         "load_component",
 		"component_id": componentID,
 		"class":        classPath,
 		"project_root": projectRoot,
 	}, &response)
+	return response.Logs, err
 }
 
-func (c *Client) InitializeComponent(componentID string, params map[string]any, context map[string]any) (map[string]any, error) {
+func (c *Client) InitializeComponent(componentID string, params map[string]any, context map[string]any) (map[string]any, []LogEntry, error) {
 	var response Response
 	err := c.request(map[string]any{
 		"type":         "initialize_component",
@@ -121,12 +132,12 @@ func (c *Client) InitializeComponent(componentID string, params map[string]any, 
 		"context":      context,
 	}, &response)
 	if err != nil {
-		return nil, err
+		return nil, response.Logs, err
 	}
-	return response.State, nil
+	return response.State, response.Logs, nil
 }
 
-func (c *Client) EvaluateComponent(componentID string, inputs map[string]any, state map[string]any, params map[string]any, context map[string]any) (map[string]any, map[string]any, error) {
+func (c *Client) EvaluateComponent(componentID string, inputs map[string]any, state map[string]any, params map[string]any, context map[string]any) (map[string]any, map[string]any, []LogEntry, error) {
 	var response Response
 	err := c.request(map[string]any{
 		"type":         "evaluate_component",
@@ -137,9 +148,9 @@ func (c *Client) EvaluateComponent(componentID string, inputs map[string]any, st
 		"context":      context,
 	}, &response)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, response.Logs, err
 	}
-	return response.Outputs, response.State, nil
+	return response.Outputs, response.State, response.Logs, nil
 }
 
 func (c *Client) Close() error {
@@ -188,6 +199,7 @@ func (c *Client) request(payload map[string]any, response *Response) error {
 	}
 	if !response.OK {
 		if response.Error != nil {
+			response.Error.Logs = response.Logs
 			return response.Error
 		}
 		return fmt.Errorf("worker request failed")

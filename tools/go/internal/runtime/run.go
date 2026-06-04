@@ -31,6 +31,7 @@ type RunResult struct {
 	Context          map[string]any            `json:"context"`
 	ExecutionOrder   []string                  `json:"execution_order"`
 	ComponentTimings []ComponentTiming         `json:"component_timings,omitempty"`
+	ComponentLogs    []ComponentLog            `json:"component_logs,omitempty"`
 	DurationMS       float64                   `json:"duration_ms,omitempty"`
 }
 
@@ -59,6 +60,14 @@ type ComponentTiming struct {
 	Component  string  `json:"component"`
 	Stage      string  `json:"stage"`
 	DurationMS float64 `json:"duration_ms"`
+}
+
+type ComponentLog struct {
+	Component string `json:"component"`
+	Stage     string `json:"stage"`
+	Stream    string `json:"stream,omitempty"`
+	Severity  string `json:"severity"`
+	Message   string `json:"message"`
 }
 
 func Run(ctx context.Context, loaded *project.LoadedProject, input RunInput) (*RunResult, error) {

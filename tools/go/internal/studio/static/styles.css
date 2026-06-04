@@ -1638,6 +1638,38 @@ td {
   color: #a51d1d;
 }
 
+.log-severity {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.log-severity.info {
+  background: #e7f1fb;
+  color: var(--accent);
+}
+
+.log-severity.warning {
+  background: #fff7e6;
+  color: #936400;
+}
+
+.log-severity.error {
+  background: #ffe9e9;
+  color: #a51d1d;
+}
+
+.log-message {
+  max-width: 460px;
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
 .connection-value {
   display: flex;
   gap: 8px;

@@ -64,6 +64,12 @@
         "state": {
           "type": "object"
         },
+        "logs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/log_entry"
+          }
+        },
         "error": {
           "type": "object",
           "properties": {
@@ -79,7 +85,30 @@
           }
         }
       }
+    },
+    "log_entry": {
+      "type": "object",
+      "required": ["component_id", "stage", "stream", "severity", "message"],
+      "properties": {
+        "component_id": {
+          "type": "string"
+        },
+        "stage": {
+          "type": "string",
+          "enum": ["load", "initialize", "evaluate"]
+        },
+        "stream": {
+          "type": "string",
+          "enum": ["stdout", "stderr"]
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["info", "warning", "error"]
+        },
+        "message": {
+          "type": "string"
+        }
+      }
     }
   }
 }
-

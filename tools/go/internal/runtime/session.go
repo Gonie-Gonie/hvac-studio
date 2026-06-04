@@ -16,6 +16,7 @@ type Session struct {
 	plan   *compiler.Plan
 	client *pythonworker.Client
 	states map[string]map[string]any
+	logs   []ComponentLog
 }
 
 func NewSession(ctx context.Context, loaded *project.LoadedProject) (*Session, error) {
@@ -62,10 +63,13 @@ func (s *Session) loadComponents(initContext map[string]any) error {
 		if component.Class == "" {
 			return apperror.Errorf(apperror.CodeValidation, "component %s kind user_python requires class", component.ID)
 		}
-		if err := s.client.LoadComponent(component.ID, component.Class, s.loaded.Root); err != nil {
+		loadLogs, err := s.client.LoadComponent(component.ID, component.Class, s.loaded.Root)
+		s.logs = append(s.logs, componentLogsFromWorker(loadLogs)...)
+		if err != nil {
 			return apperror.Wrap(apperror.CodePythonWorker, fmt.Errorf("load component %s: %w", component.ID, err))
 		}
-		state, err := s.client.InitializeComponent(component.ID, component.Parameters, initContext)
+		state, initLogs, err := s.client.InitializeComponent(component.ID, component.Parameters, initContext)
+		s.logs = append(s.logs, componentLogsFromWorker(initLogs)...)
 		if err != nil {
 			return apperror.Wrap(apperror.CodePythonWorker, fmt.Errorf("initialize component %s: %w", component.ID, err))
 		}
@@ -90,6 +94,7 @@ func (s *Session) Evaluate(input RunInput) (*RunResult, error) {
 	componentOutputs := map[string]map[string]any{}
 	nodeValues := []NodeValueTrace{}
 	timings := []ComponentTiming{}
+	logs := append([]ComponentLog(nil), s.logs...)
 
 	for _, componentID := range s.plan.Order {
 		component := s.plan.Index.Components[componentID]
@@ -101,13 +106,14 @@ func (s *Session) Evaluate(input RunInput) (*RunResult, error) {
 		nodeValues = append(nodeValues, nodeValueTraces(component.ID, "input", component.Nodes.Inputs, componentInputs)...)
 
 		componentStarted := time.Now()
-		outputs, nextState, err := s.client.EvaluateComponent(
+		outputs, nextState, evalLogs, err := s.client.EvaluateComponent(
 			component.ID,
 			componentInputs,
 			s.states[component.ID],
 			component.Parameters,
 			input.Context,
 		)
+		logs = append(logs, componentLogsFromWorker(evalLogs)...)
 		timings = append(timings, ComponentTiming{
 			Component:  component.ID,
 			Stage:      "evaluate",
@@ -151,6 +157,7 @@ func (s *Session) Evaluate(input RunInput) (*RunResult, error) {
 		Context:          input.Context,
 		ExecutionOrder:   s.plan.Order,
 		ComponentTimings: timings,
+		ComponentLogs:    logs,
 		DurationMS:       durationMilliseconds(time.Since(started)),
 	}, nil
 }
@@ -175,4 +182,36 @@ func cloneStates(states map[string]map[string]any) map[string]map[string]any {
 
 func durationMilliseconds(duration time.Duration) float64 {
 	return float64(duration.Microseconds()) / 1000
+}
+
+func componentLogsFromWorker(entries []pythonworker.LogEntry) []ComponentLog {
+	logs := make([]ComponentLog, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Message == "" {
+			continue
+		}
+		component := entry.ComponentID
+		if component == "" {
+			component = "component"
+		}
+		stage := entry.Stage
+		if stage == "" {
+			stage = "evaluate"
+		}
+		severity := entry.Severity
+		if severity == "" {
+			severity = "info"
+			if entry.Stream == "stderr" {
+				severity = "error"
+			}
+		}
+		logs = append(logs, ComponentLog{
+			Component: component,
+			Stage:     stage,
+			Stream:    entry.Stream,
+			Severity:  severity,
+			Message:   entry.Message,
+		})
+	}
+	return logs
 }

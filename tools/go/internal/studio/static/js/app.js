@@ -2504,6 +2504,7 @@ function renderRunWorkspace() {
     el("componentRunRows"),
     el("batchCaseRows"),
     el("executionTraceRows"),
+    el("componentLogRows"),
     el("connectionTraceRows"),
     el("nodeTraceRows"),
   );

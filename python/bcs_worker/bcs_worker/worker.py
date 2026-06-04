@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import importlib
+import io
 import json
 import sys
 import traceback
@@ -18,6 +20,13 @@ from .protocol import ensure_project_root, to_jsonable
 class ComponentRecord:
     class_path: str
     instance: Any
+
+
+class CapturedComponentError(Exception):
+    def __init__(self, original: BaseException, logs: list[dict[str, Any]]) -> None:
+        super().__init__(str(original))
+        self.original = original
+        self.logs = logs
 
 
 @dataclass
@@ -120,36 +129,108 @@ def handle_request(host: ComponentHost, request: dict[str, Any]) -> dict[str, An
         if request_type == "ping":
             return {"id": request_id, "ok": True, "message": "pong"}
         if request_type == "load_component":
-            payload = host.load_component(
-                component_id=str(request.get("component_id", "")),
-                class_path=str(request.get("class", "")),
-                project_root=str(request.get("project_root", ".")),
+            component_id = str(request.get("component_id", ""))
+            payload, logs = captured_component_call(
+                component_id=component_id,
+                stage="load",
+                callback=lambda: host.load_component(
+                    component_id=component_id,
+                    class_path=str(request.get("class", "")),
+                    project_root=str(request.get("project_root", ".")),
+                ),
             )
-            return {"id": request_id, "ok": True, **payload}
+            return {"id": request_id, "ok": True, "logs": logs, **payload}
         if request_type == "initialize_component":
-            state = host.initialize_component(
-                component_id=str(request.get("component_id", "")),
-                params=request.get("params") or {},
-                context=request.get("context") or {},
+            component_id = str(request.get("component_id", ""))
+            state, logs = captured_component_call(
+                component_id=component_id,
+                stage="initialize",
+                callback=lambda: host.initialize_component(
+                    component_id=component_id,
+                    params=request.get("params") or {},
+                    context=request.get("context") or {},
+                ),
             )
-            return {"id": request_id, "ok": True, "state": state}
+            return {"id": request_id, "ok": True, "state": state, "logs": logs}
         if request_type == "evaluate_component":
-            outputs, state = host.evaluate_component(
-                component_id=str(request.get("component_id", "")),
-                inputs=request.get("inputs") or {},
-                state=request.get("state") or {},
-                params=request.get("params") or {},
-                context=request.get("context") or {},
+            component_id = str(request.get("component_id", ""))
+            (outputs, state), logs = captured_component_call(
+                component_id=component_id,
+                stage="evaluate",
+                callback=lambda: host.evaluate_component(
+                    component_id=component_id,
+                    inputs=request.get("inputs") or {},
+                    state=request.get("state") or {},
+                    params=request.get("params") or {},
+                    context=request.get("context") or {},
+                ),
             )
-            return {"id": request_id, "ok": True, "outputs": outputs, "state": state}
+            return {"id": request_id, "ok": True, "outputs": outputs, "state": state, "logs": logs}
         if request_type == "shutdown":
             return {"id": request_id, "ok": True, "message": "shutdown"}
         raise WorkerError("UnknownRequest", f"unknown request type: {request_type}")
+    except CapturedComponentError as exc:
+        if isinstance(exc.original, WorkerError):
+            error = exc.original.to_dict()
+        else:
+            error = WorkerError(
+                type(exc.original).__name__,
+                str(exc.original),
+                "".join(traceback.format_exception(type(exc.original), exc.original, exc.original.__traceback__)),
+            ).to_dict()
+        return {"id": request_id, "ok": False, "error": error, "logs": exc.logs}
     except WorkerError as exc:
         return {"id": request_id, "ok": False, "error": exc.to_dict()}
     except Exception as exc:  # noqa: BLE001 - worker boundary must report all user errors.
         error = WorkerError(type(exc).__name__, str(exc), traceback.format_exc())
         return {"id": request_id, "ok": False, "error": error.to_dict()}
+
+
+def captured_component_call(
+    component_id: str,
+    stage: str,
+    callback: Any,
+) -> tuple[Any, list[dict[str, Any]]]:
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            result = callback()
+    except Exception as exc:  # noqa: BLE001 - preserve user exception at worker boundary.
+        logs = component_logs(component_id, stage, stdout.getvalue(), stderr.getvalue())
+        raise CapturedComponentError(exc, logs) from exc
+    return result, component_logs(component_id, stage, stdout.getvalue(), stderr.getvalue())
+
+
+def component_logs(component_id: str, stage: str, stdout: str, stderr: str) -> list[dict[str, Any]]:
+    logs: list[dict[str, Any]] = []
+    logs.extend(component_log_entries(component_id, stage, "stdout", "info", stdout))
+    logs.extend(component_log_entries(component_id, stage, "stderr", "error", stderr))
+    return logs
+
+
+def component_log_entries(
+    component_id: str,
+    stage: str,
+    stream: str,
+    severity: str,
+    text: str,
+) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        message = line.rstrip()
+        if not message:
+            continue
+        entries.append(
+            {
+                "component_id": component_id,
+                "stage": stage,
+                "stream": stream,
+                "severity": severity,
+                "message": message,
+            }
+        )
+    return entries
 
 
 def stdio_loop() -> int:
