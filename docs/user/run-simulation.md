@@ -31,10 +31,11 @@ Run results include:
 - context
 - execution order
 - per-component timing
+- run comparison deltas
 - component stdout/stderr logs
 - total duration
 
-After a run, the system canvas shows the latest values on component input and output node endpoints. Connection labels also show the latest carried value when available, alongside medium and compatibility markers. Selecting a component also shows its latest inputs and outputs in the Run workspace and the Inspector. The Run workspace includes an execution trace, per-component timing bars, component log table, connection-value table, and node-value table so the data flow can be inspected without reading raw JSON. Component logs capture stdout and stderr produced during load, initialize, and evaluate calls. If a run or batch case fails, the Run workspace keeps a failure summary and shows linked problem metadata such as component, source file, and line when available. If project inputs, parameters, Python source, or graph connections change after the run, Studio keeps the previous values visible but marks them stale until the next successful run.
+After a run, the system canvas shows the latest values on component input and output node endpoints. Connection labels also show the latest carried value when available, alongside medium and compatibility markers. Selecting a component also shows its latest inputs and outputs in the Run workspace and the Inspector. The Run workspace includes a run comparison table, execution trace, per-component timing bars, component log table, connection-value table, and node-value table so the data flow can be inspected without reading raw JSON. The comparison table uses the previous runtime result as a baseline when a user runs twice, opens another saved run, or opens a batch after a prior run. Component logs capture stdout and stderr produced during load, initialize, and evaluate calls. If a run or batch case fails, the Run workspace keeps a failure summary and shows linked problem metadata such as component, source file, and line when available. If project inputs, parameters, Python source, or graph connections change after the run, Studio keeps the previous values visible but marks them stale until the next successful run.
 
 ## Scenarios
 

@@ -111,6 +111,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("artifactRows")) {
 		t.Fatalf("index did not include artifact browser rows")
 	}
+	if !bytes.Contains(body, []byte("runComparisonRows")) {
+		t.Fatalf("index did not include run comparison rows")
+	}
 	if !bytes.Contains(body, []byte("componentRunRows")) {
 		t.Fatalf("index did not include selected component run values")
 	}
@@ -219,6 +222,15 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("latestRuntimeResult")) {
 		t.Fatalf("module entrypoint did not share latest runtime result state")
+	}
+	if !bytes.Contains(body, []byte("latestRuntimeComparisonContext")) {
+		t.Fatalf("module entrypoint did not include runtime comparison baseline capture")
+	}
+	if !bytes.Contains(body, []byte("latestRunSource")) {
+		t.Fatalf("module entrypoint did not preserve latest run source labels")
+	}
+	if !bytes.Contains(body, []byte("runComparisonBaseline")) {
+		t.Fatalf("module entrypoint did not preserve run comparison baselines")
 	}
 	if !bytes.Contains(body, []byte("runInputMeta")) {
 		t.Fatalf("module entrypoint did not include run input metadata rendering")
@@ -517,6 +529,9 @@ func TestStaticRunOutputModuleServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("renderExecutionTrace")) {
 		t.Fatalf("run output module did not render execution traces")
 	}
+	if !bytes.Contains(body, []byte("renderRunComparison")) {
+		t.Fatalf("run output module did not render run comparisons")
+	}
 	if !bytes.Contains(body, []byte("renderComponentLogs")) {
 		t.Fatalf("run output module did not render component logs")
 	}
@@ -531,6 +546,12 @@ func TestStaticRunOutputModuleServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("timing-cell")) {
 		t.Fatalf("run output module did not render component timing bars")
+	}
+	if !bytes.Contains(body, []byte("comparison-delta")) {
+		t.Fatalf("run output module did not render comparison delta badges")
+	}
+	if !bytes.Contains(body, []byte("runComparisonBaseline")) {
+		t.Fatalf("run output module did not read run comparison baselines")
 	}
 	if !bytes.Contains(body, []byte("log-severity")) {
 		t.Fatalf("run output module did not render component log severity badges")

@@ -1361,6 +1361,45 @@ td {
   font-size: 12px;
 }
 
+.comparison-source {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.comparison-delta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.comparison-delta.positive {
+  background: #e7f1fb;
+  color: var(--accent);
+}
+
+.comparison-delta.negative {
+  background: #fff4e5;
+  color: #995c00;
+}
+
+.comparison-delta.changed {
+  background: #f1edff;
+  color: #5f3dc4;
+}
+
+.comparison-delta.same {
+  background: #e7f8ef;
+  color: #12733d;
+}
+
 .table-input {
   width: 100%;
   min-width: 96px;

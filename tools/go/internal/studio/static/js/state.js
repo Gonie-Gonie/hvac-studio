@@ -5,6 +5,8 @@ export const state = {
   detail: null,
   selectedComponentId: "",
   latestResult: null,
+  latestRunSource: "",
+  runComparisonBaseline: null,
   latestResultStale: false,
   latestRunRecord: null,
   latestBatchRecord: null,

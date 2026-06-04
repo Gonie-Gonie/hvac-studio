@@ -95,6 +95,8 @@ async function loadProject(projectPath) {
   state.currentProjectPath = projectPath;
   state.selectedComponentId = "";
   state.latestResult = null;
+  state.latestRunSource = "";
+  state.runComparisonBaseline = null;
   state.latestResultStale = false;
   state.latestRunRecord = null;
   state.latestBatchRecord = null;
@@ -2495,11 +2497,51 @@ function latestRuntimeResult() {
   return state.latestResult;
 }
 
+function latestRuntimeComparisonContext() {
+  if (state.latestBatchRecord) {
+    const found = (state.latestBatchRecord.cases || []).find((item) => item.ok && item.result);
+    if (found?.result) {
+      return { result: found.result, source: batchRunSourceLabel(state.latestBatchRecord, found) };
+    }
+  }
+  if (state.latestRunRecord?.result) {
+    return { result: state.latestRunRecord.result, source: runRecordSourceLabel(state.latestRunRecord) };
+  }
+  if (state.latestResult) {
+    return { result: state.latestResult, source: state.latestRunSource || currentRunSourceLabel() };
+  }
+  return null;
+}
+
+function currentRunSourceLabel() {
+  const parts = ["current run"];
+  if (state.activeRunInput) {
+    parts.push(`scenario ${state.activeRunInput.name || state.activeRunInput.id || "active"}`);
+  }
+  parts.push(state.activeParameterSetPath ? `parameter set ${state.activeParameterSetPath}` : "baseline");
+  return parts.join(" / ");
+}
+
+function runRecordSourceLabel(record) {
+  const parts = [record.id || "saved run"];
+  parts.push(record.parameter_set ? `parameter set ${record.parameter_set}` : "baseline");
+  return parts.join(" / ");
+}
+
+function batchRunSourceLabel(record, firstCase) {
+  const parts = [record.id || "batch"];
+  const caseName = firstCase?.scenario_name || firstCase?.scenario_id || "";
+  if (caseName) parts.push(`case ${caseName}`);
+  parts.push(record.parameter_set ? `parameter set ${record.parameter_set}` : "baseline");
+  return parts.join(" / ");
+}
+
 function renderRunWorkspace() {
   renderRunOutputWorkspace(
     state,
     el("runSummaryRows"),
     el("runOutputRows"),
+    el("runComparisonRows"),
     el("runOutputChart"),
     el("componentRunRows"),
     el("batchCaseRows"),
@@ -2945,6 +2987,8 @@ async function validateProject() {
 async function runProject() {
   if (!(await saveModelEditsBeforeExecution())) return;
   const inputs = collectRunInputs();
+  const comparisonBaseline = latestRuntimeComparisonContext();
+  const runSource = currentRunSourceLabel();
   try {
     const save = currentProject()?.source === "workspace";
     const body = await api("/api/run", {
@@ -2952,6 +2996,8 @@ async function runProject() {
       body: JSON.stringify({ project_path: state.currentProjectPath, inputs, context: currentRunContext(), parameter_set_path: state.activeParameterSetPath, save }),
     });
     state.latestResult = body.result;
+    state.latestRunSource = runSource;
+    state.runComparisonBaseline = comparisonBaseline;
     state.latestResultStale = false;
     state.latestRunRecord = null;
     state.latestBatchRecord = null;
@@ -2970,6 +3016,7 @@ async function runProject() {
   } catch (error) {
     log(`Run failed: ${error.message}`);
     state.latestResult = null;
+    state.latestRunSource = "";
     state.latestResultStale = false;
     state.latestRunRecord = null;
     state.latestBatchRecord = null;
@@ -2989,14 +3036,17 @@ async function runProject() {
 
 async function runBatch() {
   if (!(await saveModelEditsBeforeExecution())) return;
+  const comparisonBaseline = latestRuntimeComparisonContext();
   try {
     const body = await api("/api/batch", {
       method: "POST",
       body: JSON.stringify({ project_path: state.currentProjectPath, parameter_set_path: state.activeParameterSetPath }),
     });
     state.latestBatchRecord = body.batch;
+    state.runComparisonBaseline = comparisonBaseline;
     state.latestRunRecord = null;
     state.latestResult = null;
+    state.latestRunSource = "";
     state.latestResultStale = false;
     state.latestDataValidation = null;
     state.latestWorkflowRecord = null;
@@ -3217,14 +3267,17 @@ async function saveModelEditsBeforeExecution() {
 }
 
 async function loadRunRecord(runID) {
+  const comparisonBaseline = latestRuntimeComparisonContext();
   try {
     const body = await api(`/api/project/run?project_path=${encodeURIComponent(state.currentProjectPath)}&run_id=${encodeURIComponent(runID)}`);
     state.latestRunRecord = body.run_record;
+    state.runComparisonBaseline = comparisonBaseline;
     state.latestBatchRecord = null;
     state.latestDataValidation = null;
     state.latestWorkflowRecord = null;
     state.activeParameterSetPath = body.run_record.parameter_set || "";
     state.latestResult = body.run_record.result;
+    state.latestRunSource = "";
     state.latestResultStale = false;
     setProblems();
     renderSystemHeader();
@@ -3245,14 +3298,17 @@ async function loadRunRecord(runID) {
 }
 
 async function loadBatchRecord(batchID) {
+  const comparisonBaseline = latestRuntimeComparisonContext();
   try {
     const body = await api(`/api/project/batch?project_path=${encodeURIComponent(state.currentProjectPath)}&batch_id=${encodeURIComponent(batchID)}`);
     state.latestBatchRecord = body.batch_record;
+    state.runComparisonBaseline = comparisonBaseline;
     state.latestRunRecord = null;
     state.latestDataValidation = null;
     state.latestWorkflowRecord = null;
     state.activeParameterSetPath = body.batch_record.parameter_set || "";
     state.latestResult = null;
+    state.latestRunSource = "";
     state.latestResultStale = false;
     const batchProblems = collectBatchProblems(body.batch_record);
     state.latestValidation = { problems: batchProblems };
@@ -3296,6 +3352,7 @@ async function loadWorkflowRecord(kind, recordID) {
     state.latestBatchRecord = null;
     state.latestRunRecord = null;
     state.latestResult = null;
+    state.latestRunSource = "";
     state.latestResultStale = false;
     setProblems();
     renderSystemHeader();

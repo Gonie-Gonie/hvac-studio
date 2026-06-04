@@ -1,10 +1,11 @@
 import { escapeHTML } from "./dom.js";
 import { formatValue } from "./format.js";
 
-export function renderRunOutputWorkspace(state, summary, outputRows, chart, componentRows, batchRows, executionRows, componentLogRows, connectionRows, nodeRows) {
+export function renderRunOutputWorkspace(state, summary, outputRows, comparisonRows, chart, componentRows, batchRows, executionRows, componentLogRows, connectionRows, nodeRows) {
   if (!summary || !outputRows || !chart) return;
   renderRunSummary(state, summary);
   renderPublicOutputs(state, outputRows);
+  renderRunComparison(state, comparisonRows);
   renderOutputChart(state, chart);
   renderSelectedComponentValues(state, componentRows);
   renderBatchCases(state, batchRows);
@@ -153,6 +154,39 @@ function renderExecutionTrace(state, tbody) {
       <td>${escapeHTML(item.component)}</td>
       <td>${escapeHTML(item.stage)}</td>
       <td>${duration}</td>
+    `;
+    tbody.append(row);
+  }
+}
+
+function renderRunComparison(state, tbody) {
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  const current = latestResultContext(state);
+  const baseline = state.runComparisonBaseline;
+  if (!current.result || !baseline?.result) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-cell">Run twice or open a saved run to compare outputs</td></tr>`;
+    return;
+  }
+
+  const currentOutputs = current.result.outputs || {};
+  const baselineOutputs = baseline.result.outputs || {};
+  const outputNames = Array.from(new Set([...Object.keys(currentOutputs), ...Object.keys(baselineOutputs)])).sort();
+  if (!outputNames.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-cell">No public outputs to compare</td></tr>`;
+    return;
+  }
+
+  for (const name of outputNames) {
+    const currentValue = currentOutputs[name];
+    const baselineValue = baselineOutputs[name];
+    const delta = comparisonDelta(currentValue, baselineValue);
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${escapeHTML(name)}</td>
+      <td><span class="comparison-source">${escapeHTML(current.source)}</span>${escapeHTML(formatComparisonValue(currentValue))}</td>
+      <td><span class="comparison-source">${escapeHTML(baseline.source || "baseline")}</span>${escapeHTML(formatComparisonValue(baselineValue))}</td>
+      <td><span class="comparison-delta ${delta.className}">${escapeHTML(delta.label)}</span></td>
     `;
     tbody.append(row);
   }
@@ -377,7 +411,7 @@ function latestNumericOutputs(state) {
 function latestResultContext(state) {
   if (state.latestBatchRecord) return { result: firstBatchResult(state), source: "first ok case" };
   if (state.latestRunRecord) return { result: state.latestRunRecord.result, source: "saved run" };
-  if (state.latestResult) return { result: state.latestResult, source: "current run" };
+  if (state.latestResult) return { result: state.latestResult, source: state.latestRunSource || "current run" };
   return { result: null, source: "" };
 }
 
@@ -385,4 +419,23 @@ function firstBatchResult(state) {
   const cases = state.latestBatchRecord?.cases || [];
   const found = cases.find((item) => item.ok && item.result?.outputs);
   return found?.result || null;
+}
+
+function comparisonDelta(currentValue, baselineValue) {
+  if (typeof currentValue === "number" && Number.isFinite(currentValue) && typeof baselineValue === "number" && Number.isFinite(baselineValue)) {
+    const delta = currentValue - baselineValue;
+    const percent = baselineValue !== 0 ? ` (${((delta / Math.abs(baselineValue)) * 100).toFixed(2)}%)` : "";
+    const label = `${delta >= 0 ? "+" : ""}${formatValue(delta)}${percent}`;
+    return { label, className: delta > 0 ? "positive" : delta < 0 ? "negative" : "same" };
+  }
+  const currentText = formatValue(currentValue);
+  const baselineText = formatValue(baselineValue);
+  if (currentText === baselineText) return { label: "same", className: "same" };
+  if (baselineValue === undefined) return { label: "added", className: "changed" };
+  if (currentValue === undefined) return { label: "removed", className: "changed" };
+  return { label: "changed", className: "changed" };
+}
+
+function formatComparisonValue(value) {
+  return value === undefined ? "n/a" : formatValue(value);
 }
