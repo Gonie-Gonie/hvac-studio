@@ -17,7 +17,7 @@ components/<component_id>/helpers.py
 
 New components use the generated-wrapper layout by default. Studio and the runner own the wrapper contract, while the Code workspace opens `user_step.py` as the primary editable function body. Existing single-file components still load and can be edited for compatibility with older projects.
 
-Available component templates include scalar, controller, stateful, data source, data sink, utility, vectorized, and external executable placeholder. Vectorized components use `execution_mode: "vectorized"` and may implement `evaluate_batch(inputs, state, params, context)` with the same `(outputs, state)` return contract as `evaluate`. The external executable template remains an authoring placeholder until that post-1.0 execution mode is implemented.
+Available component templates include scalar, controller, stateful, data source, data sink, utility, vectorized, and external executable. Vectorized components use `execution_mode: "vectorized"` and may implement `evaluate_batch(inputs, state, params, context)` with the same `(outputs, state)` return contract as `evaluate`. External executable components use `kind: "external_exe"` with `execution_mode: "external_executable"` and run the process named by `parameters.command` and `parameters.args`.
 
 New components are not silently added to the runnable system. Adding a component to a system is an explicit action. Components that are not currently in the entry system are marked as unused in the Project tree and can be added with Use.
 
@@ -52,6 +52,8 @@ Step components implement `evaluate(inputs, state, params, context)`.
 Vectorized components implement `evaluate_batch(inputs, state, params, context)`
 when one worker call should process array-shaped inputs and return
 array-shaped outputs.
+External executable components do not run the generated Python wrapper. They
+exchange JSON with the configured command through stdin/stdout.
 
 ## Authoring Direction
 

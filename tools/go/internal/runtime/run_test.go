@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
 	graphindex "github.com/goniegonie/hvac-studio/tools/go/internal/graph"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
@@ -67,6 +68,17 @@ func TestValidateOutputsRejectsUndeclaredOutput(t *testing.T) {
 
 	if err == nil || !strings.Contains(err.Error(), "returned undeclared output node: debug") {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestValidateOutputsUsesRuntimeCodeForExternalExecutable(t *testing.T) {
+	component := contractComponent()
+	component.Kind = "external_exe"
+
+	err := validateOutputs(component, map[string]any{})
+
+	if apperror.ErrorCode(err) != apperror.CodeRuntime {
+		t.Fatalf("error code = %v, want runtime", apperror.ErrorCode(err))
 	}
 }
 

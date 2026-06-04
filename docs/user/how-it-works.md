@@ -38,15 +38,19 @@ Execution follows this shape:
 2. Load `graph.json`.
 3. Validate component, node, connection, and public IO references.
 4. Build an execution order.
-5. Start the Python worker.
+5. Start the Python worker when the project contains user Python components.
 6. Initialize components.
-7. Evaluate components in order.
+7. Evaluate components in order, including external executable calls when a component declares that mode.
 8. Collect public outputs.
 9. Return or save structured results.
 
 ## Python Worker Executes User Code
 
 User Python runs in a worker process. This keeps the runtime boundary explicit and makes future repeated evaluation, optimization, and external engine integration more stable.
+
+External executable components run as separate processes. The runner sends one
+JSON request on stdin and reads one JSON response on stdout, while still owning
+graph validation, execution order, state carryover, logs, and public outputs.
 
 ## SDK Wraps Serve Mode
 

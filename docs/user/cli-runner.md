@@ -38,6 +38,16 @@ bcs-runner.exe run `
   --output vectorized-output.json
 ```
 
+External executable components also use `run`. The runner sends a JSON request
+to the configured command on stdin and reads one JSON response from stdout:
+
+```powershell
+bcs-runner.exe run `
+  --project examples/010_external_executable_component/project.bcsproj `
+  --input examples/010_external_executable_component/inputs/case01.json `
+  --output external-output.json
+```
+
 ## Run Time Series
 
 `run-series` evaluates ordered steps inside one runtime session, so component

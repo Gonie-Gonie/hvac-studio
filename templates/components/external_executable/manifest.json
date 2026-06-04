@@ -1,6 +1,6 @@
 {
   "id": "external_executable",
-  "name": "External Executable Placeholder",
+  "name": "External Executable",
   "kind": "external_exe",
   "category": "utility",
   "execution_mode": "external_executable",
@@ -35,7 +35,9 @@
     }
   ],
   "parameters": {
-    "command": ""
+    "command": "",
+    "args": [],
+    "timeout_ms": 30000
   },
   "parameter_defs": {
     "command": {
@@ -45,7 +47,25 @@
       "current": "",
       "role": "fixed",
       "group": "External",
-      "description": "Executable command to connect after external execution mode is enabled."
+      "description": "Executable command invoked by the runner. Set this before running."
+    },
+    "args": {
+      "display_name": "Arguments",
+      "unit": "",
+      "default": [],
+      "current": [],
+      "role": "fixed",
+      "group": "External",
+      "description": "Command arguments. Project-relative paths are resolved from the project root."
+    },
+    "timeout_ms": {
+      "display_name": "Timeout",
+      "unit": "ms",
+      "default": 30000,
+      "current": 30000,
+      "role": "fixed",
+      "group": "External",
+      "description": "Maximum wall-clock time for one external process call."
     }
   },
   "state_defs": {}

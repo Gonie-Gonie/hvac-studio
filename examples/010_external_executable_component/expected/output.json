@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "outputs": {
+    "response": 10.0
+  },
+  "component_inputs": {
+    "external_gain": {
+      "request": 4.0
+    }
+  },
+  "component_outputs": {
+    "external_gain": {
+      "response": 10.0
+    }
+  },
+  "states": {
+    "external_gain": {
+      "calls": 1.0
+    }
+  },
+  "execution_order": [
+    "external_gain"
+  ]
+}

@@ -12,6 +12,11 @@ Components that declare `execution_mode: "vectorized"` run through the same
 one-case command path, but the Python worker calls `evaluate_batch` so array
 inputs can produce array outputs in one component call.
 
+Components that declare `kind: "external_exe"` and
+`execution_mode: "external_executable"` run through the same one-case command
+path, but the runner invokes the configured process and exchanges JSON over
+stdin/stdout.
+
 The Run Inputs toolbar shows each public input's display name, stable ID when different, value type, unit, and required/optional status. The Default control resets a field to the saved default input value or the graph node default.
 
 The Timeout control sets the maximum wall-clock time for Run and Batch requests. The default is 30 seconds, matching the runner's previous fixed timeout. If a run exceeds the selected timeout, Studio reports a timeout failure instead of saving a partial run record. While a Run or Batch request is active, the command bar enables Cancel; canceling keeps the previous result visible and reports the canceled request in Problems.

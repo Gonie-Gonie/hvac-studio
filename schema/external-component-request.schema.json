@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hvac-studio.local/schema/external-component-request.schema.json",
+  "title": "HVAC Studio External Component Request",
+  "type": "object",
+  "required": ["component_id", "inputs", "state", "params", "context"],
+  "additionalProperties": false,
+  "properties": {
+    "component_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inputs": {
+      "type": "object"
+    },
+    "state": {
+      "type": "object"
+    },
+    "params": {
+      "type": "object"
+    },
+    "context": {
+      "type": "object"
+    }
+  }
+}

@@ -11,10 +11,11 @@ learning path and gives releases repeatable smoke assets.
 | 2 | `examples/003_feedforward_system` | Feed-forward system composition and connection validation. |
 | 3 | `examples/008_generated_wrapper_component` | Generated-wrapper component authoring and export-safe source layout. |
 | 4 | `examples/009_vectorized_component` | Vectorized array input/output execution through `evaluate_batch`. |
-| 5 | `examples/004_stateful_controller` | Controller state, native `run-series`, and serve-mode repeated evaluations. |
-| 6 | `examples/005_chiller_plant_like_system` | Plant composition, dataset validation, parameter sets, calibration, and time-column validation rows. |
-| 7 | `examples/006_optimization_case` | Grid-search optimization and SDK-style external search scripting. |
-| 8 | `examples/007_runtime_only_package` | Runtime-only delivery shape and exported-package command style. |
+| 5 | `examples/010_external_executable_component` | External process execution through stdin/stdout JSON. |
+| 6 | `examples/004_stateful_controller` | Controller state, native `run-series`, and serve-mode repeated evaluations. |
+| 7 | `examples/005_chiller_plant_like_system` | Plant composition, dataset validation, parameter sets, calibration, and time-column validation rows. |
+| 8 | `examples/006_optimization_case` | Grid-search optimization and SDK-style external search scripting. |
+| 9 | `examples/007_runtime_only_package` | Runtime-only delivery shape and exported-package command style. |
 
 `examples/002_custom_component` is intentionally reserved for future richer
 custom inlet/outlet authoring notes and is not part of the runnable smoke set.
@@ -47,3 +48,8 @@ as `examples/004_stateful_controller/inputs/series01.json`.
 For array-shaped one-call execution, use `examples/009_vectorized_component`.
 That example declares `execution_mode: "vectorized"` and routes the component
 through `evaluate_batch`.
+
+For command-line process integration, use
+`examples/010_external_executable_component`. That example declares
+`kind: "external_exe"` and sends component inputs/state/params/context to a
+separate process on stdin.

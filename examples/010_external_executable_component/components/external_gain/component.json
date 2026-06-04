@@ -1,0 +1,90 @@
+{
+  "id": "external_gain",
+  "name": "External Gain",
+  "kind": "external_exe",
+  "category": "utility",
+  "execution_mode": "external_executable",
+  "source": {
+    "layout": "generated_wrapper",
+    "metadata": "components/external_gain/component.json",
+    "step": "components/external_gain/external_gain.py",
+    "wrapper": "components/external_gain/external_gain.py"
+  },
+  "nodes": {
+    "inputs": [
+      {
+        "id": "request",
+        "name": "Request",
+        "preset": "scalar_input",
+        "direction": "inlet",
+        "medium": "signal",
+        "value_type": "float",
+        "unit": "",
+        "required": true
+      }
+    ],
+    "outputs": [
+      {
+        "id": "response",
+        "name": "Response",
+        "preset": "scalar_output",
+        "direction": "outlet",
+        "medium": "signal",
+        "value_type": "float",
+        "unit": ""
+      }
+    ]
+  },
+  "parameters": {
+    "command": "python",
+    "args": ["components/external_gain/external_gain.py"],
+    "timeout_ms": 5000,
+    "gain": 2.5
+  },
+  "parameter_defs": {
+    "command": {
+      "display_name": "Command",
+      "unit": "",
+      "default": "python",
+      "current": "python",
+      "role": "fixed",
+      "group": "External",
+      "description": "Executable command invoked by the runner."
+    },
+    "args": {
+      "display_name": "Arguments",
+      "unit": "",
+      "default": ["components/external_gain/external_gain.py"],
+      "current": ["components/external_gain/external_gain.py"],
+      "role": "fixed",
+      "group": "External",
+      "description": "Command arguments. Paths are resolved from the project root."
+    },
+    "timeout_ms": {
+      "display_name": "Timeout",
+      "unit": "ms",
+      "default": 5000,
+      "current": 5000,
+      "role": "fixed",
+      "group": "External",
+      "description": "Maximum wall-clock time for one external process call."
+    },
+    "gain": {
+      "display_name": "Gain",
+      "unit": "ratio",
+      "default": 2.5,
+      "current": 2.5,
+      "role": "calibration_target",
+      "group": "Model",
+      "description": "Multiplier applied by the external executable."
+    }
+  },
+  "state_defs": {
+    "calls": {
+      "display_name": "Calls",
+      "unit": "count",
+      "initial": 0,
+      "description": "Number of external process evaluations."
+    }
+  }
+}
