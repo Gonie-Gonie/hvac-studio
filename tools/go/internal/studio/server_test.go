@@ -114,6 +114,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("workspaceHelpLink")) {
 		t.Fatalf("index did not include workspace help link")
 	}
+	if bytes.Contains(body, []byte("Empty System")) || bytes.Contains(body, []byte("HVAC System")) || bytes.Contains(body, []byte("Runtime-only")) {
+		t.Fatalf("index should not expose unavailable project types")
+	}
 	if !bytes.Contains(body, []byte("runComparisonRows")) {
 		t.Fatalf("index did not include run comparison rows")
 	}
@@ -494,6 +497,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if bytes.Contains(body, []byte(`window.prompt("Component name"`)) {
 		t.Fatalf("module entrypoint should not use a prompt for component creation")
+	}
+	if bytes.Contains(body, []byte(`"planned"`)) {
+		t.Fatalf("module entrypoint should not expose planned project types")
 	}
 }
 

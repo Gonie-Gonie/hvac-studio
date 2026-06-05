@@ -1,7 +1,6 @@
 package platform
 
 import (
-	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -81,10 +80,6 @@ func FindNearestRuntimePython(start string) string {
 func LookPath(name string) (string, bool) {
 	path, err := exec.LookPath(name)
 	return path, err == nil
-}
-
-func CommandContext(ctx context.Context, name string, args ...string) *exec.Cmd {
-	return exec.CommandContext(ctx, name, args...)
 }
 
 func uniquePaths(paths []string) []string {

@@ -679,12 +679,35 @@ These items broaden the engine. They should not block beta or 1.0 unless a real 
 | PM-307 | SDK scale | Done: `RunnerClient.evaluate_async(...)` supports asyncio callers, `RunnerPool` keeps a bounded number of persistent serve sessions for independent high-volume evaluations, request timeouts prevent unbounded SDK waits, and the optimization SDK example uses pooled candidates | Keep richer process health telemetry and distributed-worker adapters as future workflow depth |
 | PM-308 | Platforms | Done: release scripts build and smoke-test an experimental macOS support package with package plan, platform prerequisite checks, release provenance/checksums, GitHub artifact wiring, and explicit signing/notarization caveats | Build native signed/notarized macOS apps only on macOS after platform smoke infrastructure exists |
 
+### P4: Productization And Usability
+
+These items are the next quality bar before calling the Studio experience beta-ready for real users. They remove prototype signals, make state and consequences explicit, and keep automation quiet enough that daily development feels professional.
+
+| ID | Area | Unimplemented item | Done when |
+| --- | --- | --- | --- |
+| PM-401 | Product surface | Remove prototype-facing language and dead affordances from Studio, packaged docs, examples, scripts, and release assets | No visible `planned`, unavailable-feature placeholder, `mock`, `demo`, disabled future feature, or raw internal status appears in user-facing screens unless it is an intentional support label |
+| PM-402 | User explicitness | Make every workflow show the active project, source artifact, selected inputs, parameter-set precedence, generated output path, and whether baseline files will change | Before running, saving, exporting, calibrating, optimizing, deleting, or applying parameters, the user can tell exactly what artifact will be read or written |
+| PM-403 | Workflow ergonomics | Turn Start, System, Code, Run, Data, Parameters, Calibration, Optimization, Artifacts, and Export into complete task workspaces with clear empty states, inline validation, busy states, cancel/retry behavior, and stable keyboard focus | Common tasks can be completed without hand-editing JSON, opening docs in parallel, or guessing which panel owns the next action |
+| PM-404 | Error recovery | Promote structured problems into navigable recovery actions across Studio, CLI, SDK, serve, and package smoke logs | Errors identify component/node/source/artifact location, explain the failing contract, preserve logs, and offer the next valid action without hiding raw diagnostics |
+| PM-405 | Visual fit and polish | Run screenshot-backed desktop and mobile audits for dense projects, long names, failed runs, empty projects, large tables, and code diagnostics | No clipped labels, overlapping controls, awkward empty cells, inconsistent button language, or layout shifts remain in supported viewport sizes |
+| PM-406 | Release first-run experience | Harden portable and installer first-run flows around WebView2, Python runtime, unsigned prerelease trust, docs availability, examples, update channel, and uninstall/reinstall behavior | A clean Windows machine can install/open/run/export without seeing development-only paths or unexplained console output |
+| PM-407 | Quiet automation | Keep development, test, package smoke, Python worker, source-check, and external-executable subprocesses hidden unless the user explicitly launches a CLI or desktop window | `scripts/dev/test-fast.ps1` and release package tests do not flash transient `cmd`/Python/PowerShell windows; stdout/stderr still land in logs |
+| PM-408 | Acceptance walkthroughs | Maintain scripted user walkthroughs and screenshot baselines for first project, component authoring, source error fix, run comparison, dataset validation, calibration, optimization, export, SDK use, and runtime package use | A release cannot advance if a walkthrough requires tribal knowledge, exposes prototype wording, or leaves the user unable to recover from an expected mistake |
+
+P4 closure notes:
+
+- Treat prototype polish issues as release blockers, not cosmetic backlog, when they appear in the first-run or main workflow path.
+- Keep raw JSON and logs available for inspection, but never as the primary decision surface when a structured view exists.
+- Keep future features out of primary UI until they can either work end to end or be represented as documented package/release support boundaries.
+- Keep quiet automation changes behind shared platform helpers so Studio, runner, worker, examples, and release scripts do not diverge.
+
 ## Post-MVP Release Sequence
 
 1. `v0.1.x-alpha`: complete P0 alpha hardening and keep release gates green.
-2. `v0.2.0-beta`: ship P1 Studio usability workflows and screenshot-backed docs.
-3. `v1.0.0-rc`: finish P2 compatibility, installer, provenance, docs, and clean-machine rehearsals.
-4. `v1.x`: begin P3 engine/platform expansion behind explicit contracts.
+2. `v0.1.x-alpha`: close P4 productization and usability blockers found during real walkthroughs.
+3. `v0.2.0-beta`: ship P1/P4 Studio usability workflows and screenshot-backed docs without prototype-facing surfaces.
+4. `v1.0.0-rc`: finish P2 compatibility, installer, provenance, docs, clean-machine rehearsals, and P4 acceptance walkthroughs.
+5. `v1.x`: begin P3 engine/platform expansion behind explicit contracts.
 
 ## Release Gates
 
@@ -710,6 +733,13 @@ For GUI readability changes:
 - capture desktop and mobile screenshots
 - check Project tree, command bars, Inspector, canvas, tables, code editor, and results for overlap/truncation
 - keep captures under ignored `artifacts/`
+
+For productization/usability changes:
+
+- search user-facing assets for prototype wording such as `planned`, unavailable-feature placeholders, `mock`, `demo`, `not implemented`, and unexplained `dev` labels
+- verify Start, System, Code, Run, Artifacts, Parameters, and Export have useful empty, dirty, busy, success, and failure states
+- run at least one walkthrough from project creation to export without hand-editing JSON
+- verify test and package smoke automation does not open transient console windows except for explicitly launched desktop smoke windows
 
 ## Boundaries After MVP Closure
 

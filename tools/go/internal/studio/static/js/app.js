@@ -266,10 +266,7 @@ function renderProjectTypeRows() {
   const tbody = el("startProjectTypeRows");
   if (!tbody) return;
   const types = [
-    ["Python Component Project", "default"],
-    ["Empty System", "planned"],
-    ["HVAC System Template", "planned"],
-    ["Runtime-only Imported Project", "planned"],
+    ["Python Component Project", "Ready"],
   ];
   tbody.innerHTML = types.map(([name, status]) => `
     <tr>
