@@ -489,6 +489,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("projectTemplateSelect")) {
 		t.Fatalf("module entrypoint did not read the selected project type")
 	}
+	if !bytes.Contains(body, []byte("Baseline graph parameters")) {
+		t.Fatalf("module entrypoint did not expose baseline run parameter state")
+	}
 	if !bytes.Contains(body, []byte("serveButton")) {
 		t.Fatalf("module entrypoint did not reserve the Serve command state")
 	}

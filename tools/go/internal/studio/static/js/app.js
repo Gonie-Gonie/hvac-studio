@@ -231,9 +231,13 @@ function renderStartRuntimeRows() {
   const tbody = el("startRuntimeRows");
   if (!tbody) return;
   const project = state.detail?.project;
+  const summary = currentProjectSummary();
   const rows = [
     ["Runtime", el("runtimeStatus")?.textContent || "Runtime ready"],
-    ["Current Project", project?.project_name || "none"],
+    ["Current Project", project?.project_name || "No project open"],
+    ["Project File", summary?.relative_path || state.detail?.project_path || "No project open"],
+    ["Default Input", project?.default_input || "No default input"],
+    ["Run Parameters", state.activeParameterSetPath || "Baseline graph parameters"],
     ["Python", project?.environment?.python || "python"],
     ["Environment", project?.environment?.mode || "project"],
   ];
@@ -522,6 +526,7 @@ function parameterSetTreeItem(item) {
     state.activeParameterSetPath = item.relative_path || "";
     renderProjectTree();
     renderRunInputs();
+    renderStartRuntimeRows();
     log(`Parameter set selected: ${state.activeParameterSetPath || "baseline"}`);
   });
   return row;
@@ -2342,6 +2347,7 @@ function parameterSetResultSection(detail) {
     state.activeParameterSetPath = detail.summary?.relative_path || "";
     renderRunInputs();
     renderProjectTree();
+    renderStartRuntimeRows();
     renderResults();
     log(`Active parameter set: ${state.activeParameterSetPath}`);
   });
