@@ -3156,6 +3156,47 @@ func TestRunEndpointMapsPythonTracebackToSourceLine(t *testing.T) {
 	}
 }
 
+func TestTracebackFramesParseWindowsPythonFileLines(t *testing.T) {
+	message := "Traceback (most recent call last):\n" +
+		"  File \"C:\\Temp\\project\\components\\scalar.py\", line 3, in evaluate\n" +
+		"    scale = 1 / 0\n" +
+		"ZeroDivisionError: division by zero\n"
+
+	frames := tracebackFrames(message)
+
+	if len(frames) != 1 {
+		t.Fatalf("frames = %#v", frames)
+	}
+	if frames[0].Path != `C:\Temp\project\components\scalar.py` || frames[0].Line != 3 {
+		t.Fatalf("frame = %#v", frames[0])
+	}
+}
+
+func TestTracebackSourceLocationFallsBackToProjectFrame(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	projectSummary := createWorkspaceProject(t, server, "Traceback Helper Project")
+	loaded, err := project.Load(projectSummary.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourcePath := filepath.Join(root, "projects", "traceback-helper-project", "components", "scalar.py")
+	message := "Traceback (most recent call last):\n" +
+		"  File \"C:\\Users\\GonieGonie\\Documents\\GitHub\\hvac-studio\\python\\bcs_worker\\bcs_worker\\worker.py\", line 82, in evaluate_component\n" +
+		"    result = instance.evaluate(inputs or {}, state or {}, params or {}, context or {})\n" +
+		"  File \"" + sourcePath + "\", line 3, in evaluate\n" +
+		"    scale = 1 / 0\n" +
+		"ZeroDivisionError: division by zero\n"
+
+	location, ok := tracebackSourceLocation(loaded, message, "scalar")
+
+	if !ok {
+		t.Fatalf("location not found for frames %#v root %s", tracebackFrames(message), loaded.Root)
+	}
+	if location.ComponentID != "scalar" || location.Source != "components/scalar.py" || location.Line != 3 {
+		t.Fatalf("location = %#v", location)
+	}
+}
+
 func TestRunEndpointRejectsSavedSourceContractErrors(t *testing.T) {
 	_, server := newIsolatedTestServer(t)
 	project := createWorkspaceProject(t, server, "Run Source Gate Project")

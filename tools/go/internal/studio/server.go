@@ -4318,7 +4318,7 @@ func tracebackSourceLocation(loaded *project.LoadedProject, message string, pref
 			}
 		}
 	}
-	return sourceLocation{}, false
+	return tracebackProjectSourceLocation(loaded, frames, preferredComponentID)
 }
 
 func tracebackFrames(message string) []tracebackFrame {
@@ -4364,9 +4364,49 @@ func componentEditableSourcePaths(loaded *project.LoadedProject) []componentSour
 	return paths
 }
 
+func tracebackProjectSourceLocation(loaded *project.LoadedProject, frames []tracebackFrame, preferredComponentID string) (sourceLocation, bool) {
+	absRoot, err := filepath.Abs(loaded.Root)
+	if err != nil {
+		return sourceLocation{}, false
+	}
+	absRoot = canonicalExistingPath(absRoot)
+
+	for index := len(frames) - 1; index >= 0; index-- {
+		frame := frames[index]
+		if frame.Line <= 0 {
+			continue
+		}
+		framePath := filepath.Clean(filepath.FromSlash(strings.TrimSpace(frame.Path)))
+		if framePath == "" {
+			continue
+		}
+		if !filepath.IsAbs(framePath) {
+			framePath = filepath.Join(absRoot, framePath)
+		}
+		frameAbs, err := filepath.Abs(framePath)
+		if err != nil {
+			continue
+		}
+		frameAbs = canonicalExistingPath(frameAbs)
+		rel, err := filepath.Rel(absRoot, frameAbs)
+		if err != nil {
+			continue
+		}
+		if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+			continue
+		}
+		return sourceLocation{
+			ComponentID: preferredComponentID,
+			Source:      filepath.ToSlash(rel),
+			Line:        frame.Line,
+		}, true
+	}
+	return sourceLocation{}, false
+}
+
 func sameTracebackPath(tracebackPath string, sourcePath string) bool {
-	tracebackPath = filepath.Clean(filepath.FromSlash(strings.TrimSpace(tracebackPath)))
-	sourcePath = filepath.Clean(filepath.FromSlash(strings.TrimSpace(sourcePath)))
+	tracebackPath = cleanPathForComparison(tracebackPath)
+	sourcePath = cleanPathForComparison(sourcePath)
 	if filepath.IsAbs(tracebackPath) {
 		if tracebackAbs, err := filepath.Abs(tracebackPath); err == nil {
 			tracebackPath = tracebackAbs
@@ -4375,12 +4415,37 @@ func sameTracebackPath(tracebackPath string, sourcePath string) bool {
 	if sourceAbs, err := filepath.Abs(sourcePath); err == nil {
 		sourcePath = sourceAbs
 	}
+	if sameExistingFile(tracebackPath, sourcePath) {
+		return true
+	}
+	tracebackPath = canonicalExistingPath(tracebackPath)
+	sourcePath = canonicalExistingPath(sourcePath)
 	if strings.EqualFold(tracebackPath, sourcePath) {
 		return true
 	}
 	tracebackSlash := filepath.ToSlash(tracebackPath)
 	sourceSlash := filepath.ToSlash(sourcePath)
 	return strings.HasSuffix(sourceSlash, tracebackSlash)
+}
+
+func cleanPathForComparison(path string) string {
+	return filepath.Clean(filepath.FromSlash(strings.TrimSpace(path)))
+}
+
+func canonicalExistingPath(path string) string {
+	if evaluated, err := filepath.EvalSymlinks(path); err == nil {
+		path = evaluated
+	}
+	return filepath.Clean(path)
+}
+
+func sameExistingFile(left string, right string) bool {
+	leftInfo, leftErr := os.Stat(left)
+	rightInfo, rightErr := os.Stat(right)
+	if leftErr != nil || rightErr != nil {
+		return false
+	}
+	return os.SameFile(leftInfo, rightInfo)
 }
 
 func compilerDiagnosticsProblems(diagnostics []compiler.Diagnostic) []Problem {

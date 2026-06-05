@@ -193,10 +193,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-fast.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1 -Version 0.1.0-alpha.3 -SkipSetup
 ```
 
-Current post-MVP release candidate after closing PM-301 through PM-308:
+Current post-MVP release candidate after closing PM-301 through PM-308 and the Studio traceback path hotfix:
 
 ```text
-v0.1.0-alpha.4
+v0.1.0-alpha.5
 Windows portable zip
 Windows installer preview zip
 Windows runtime-only zip
@@ -204,21 +204,22 @@ Experimental macOS support zip
 Pooled Python SDK evaluation
 Composite, unit-conversion, solver-boundary, external executable, and vectorized examples
 Hardened release candidate gate with package smoke failure propagation
+Studio Python traceback source mapping hardened for Windows short/long path aliases
 ```
 
 Release artifacts produced by the post-MVP release gate:
 
 ```text
-dist/hvac-studio-0.1.0-alpha.4-windows-amd64-portable.zip
-dist/hvac-studio-0.1.0-alpha.4-windows-amd64-installer.zip
-dist/hvac-studio-runtime-0.1.0-alpha.4-windows-amd64.zip
-dist/hvac-studio-0.1.0-alpha.4-macos-universal-experimental.zip
+dist/hvac-studio-0.1.0-alpha.5-windows-amd64-portable.zip
+dist/hvac-studio-0.1.0-alpha.5-windows-amd64-installer.zip
+dist/hvac-studio-runtime-0.1.0-alpha.5-windows-amd64.zip
+dist/hvac-studio-0.1.0-alpha.5-macos-universal-experimental.zip
 ```
 
 Post-MVP release verification command:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1 -Version 0.1.0-alpha.4 -SkipSetup
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1 -Version 0.1.0-alpha.5 -SkipSetup
 ```
 
 ## Milestone Status Summary
