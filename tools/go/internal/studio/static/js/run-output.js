@@ -297,7 +297,42 @@ function latestSummaryRows(state) {
   if (state.latestRunRecord) return runRecordSummaryRows(state.latestRunRecord);
   if (state.latestResult) return resultSummaryRows(state.latestResult, "current run");
   if (state.latestValidation?.error) return failureSummaryRows(state.latestValidation);
-  return [];
+  return pendingRunSummaryRows(state);
+}
+
+function pendingRunSummaryRows(state) {
+  const project = state.detail?.project;
+  const projectSummary = currentProject(state);
+  const inputSource = state.activeRunInput
+    ? `scenario ${state.activeRunInput.name || state.activeRunInput.id || "selected"}`
+    : project?.default_input || "current fields";
+  const parameterSet = state.activeParameterSetPath || "Baseline graph parameters";
+  const saveTarget = projectSummary?.source === "workspace" ? "New record under runs/" : "Not saved for read-only project";
+  return [
+    { name: "Run target", value: project?.project_name || "No project open", source: projectSummary?.relative_path || state.detail?.project_path || "" },
+    { name: "Input source", value: inputSource, source: state.activeRunInput?.relative_path || project?.default_input || "Run fields" },
+    { name: "Parameter set", value: parameterSet, source: state.activeParameterSetPath ? "parameter_sets" : "graph.json" },
+    { name: "Context", value: runContextSummary(state), source: "Run fields" },
+    { name: "Save target", value: saveTarget, source: "Run command" },
+    { name: "Timeout", value: timeoutSummary(state.runTimeoutMS), source: "Run command" },
+  ];
+}
+
+function currentProject(state) {
+  return (state.projects || []).find((project) => project.project_path === state.currentProjectPath);
+}
+
+function runContextSummary(state) {
+  const context = state.activeRunInput?.context || state.detail?.default_run_input?.context || { time: 0, dt: 60 };
+  const keys = Object.keys(context || {});
+  if (!keys.length) return "No context";
+  return keys.map((key) => `${key}=${formatValue(context[key])}`).join(", ");
+}
+
+function timeoutSummary(timeoutMS) {
+  const numeric = Number(timeoutMS);
+  if (!Number.isFinite(numeric) || numeric <= 0) return "default";
+  return formatDuration(numeric);
 }
 
 function seriesSummaryRows(series) {

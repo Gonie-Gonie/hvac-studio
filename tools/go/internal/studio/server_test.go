@@ -637,6 +637,15 @@ func TestStaticRunOutputModuleServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("failureSummaryRows")) {
 		t.Fatalf("run output module did not render failed run summaries")
 	}
+	if !bytes.Contains(body, []byte("pendingRunSummaryRows")) {
+		t.Fatalf("run output module did not render pending run context")
+	}
+	if !bytes.Contains(body, []byte("Baseline graph parameters")) {
+		t.Fatalf("run output module did not expose baseline parameter context")
+	}
+	if !bytes.Contains(body, []byte("Save target")) {
+		t.Fatalf("run output module did not expose run write target")
+	}
 	if !bytes.Contains(body, []byte("batchCaseErrorSummary")) {
 		t.Fatalf("run output module did not include batch failure problem summaries")
 	}
