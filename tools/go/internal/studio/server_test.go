@@ -501,6 +501,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if bytes.Contains(body, []byte(`"planned"`)) {
 		t.Fatalf("module entrypoint should not expose planned project types")
 	}
+	if bytes.Contains(body, []byte(">empty<")) || bytes.Contains(body, []byte(">Empty<")) {
+		t.Fatalf("module entrypoint should not render generic empty states")
+	}
 }
 
 func TestComponentTemplatesEndpointListsManifests(t *testing.T) {

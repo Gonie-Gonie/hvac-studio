@@ -200,13 +200,24 @@ function renderProjectTree() {
     if (items.length) {
       for (const item of items) section.append(item);
     } else {
-      const empty = document.createElement("div");
-      empty.className = "tree-item";
-      empty.innerHTML = `<span class="tree-meta">empty</span>`;
-      section.append(empty);
+      section.append(emptyTreeItem(emptyTreeMessage(title)));
     }
     root.append(section);
   }
+}
+
+function emptyTreeItem(message) {
+  const row = document.createElement("div");
+  row.className = "tree-item";
+  row.innerHTML = `<span class="tree-meta">${escapeHTML(message)}</span>`;
+  return row;
+}
+
+function emptyTreeMessage(title) {
+  const lower = String(title || "items").toLowerCase();
+  if (lower === "sources") return "No editable sources";
+  if (lower === "export profiles") return "Ready to export";
+  return `No ${lower}`;
 }
 
 function renderStartWorkspace() {
@@ -238,7 +249,7 @@ function renderProjectRows(tbody, projects) {
   if (!tbody) return;
   tbody.innerHTML = "";
   if (!projects.length) {
-    tbody.append(emptyRow(3));
+    tbody.append(emptyRow(3, "No projects found"));
     return;
   }
   for (const project of projects.slice(0, 8)) {
@@ -282,7 +293,7 @@ function renderArtifactWorkspace() {
   const rows = artifactRows();
   tbody.innerHTML = "";
   if (!rows.length) {
-    tbody.append(emptyRow(6));
+    tbody.append(emptyRow(6, "No artifacts yet"));
     return;
   }
   for (const artifact of rows) {
@@ -1382,10 +1393,7 @@ function inspectorBlock(title, rows) {
   block.className = "inspector-block";
   block.innerHTML = `<div class="inspector-title">${escapeHTML(title)}</div>`;
   if (!rows.length) {
-    const row = document.createElement("div");
-    row.className = "kv";
-    row.innerHTML = `<span class="kv-key">empty</span><span></span>`;
-    block.append(row);
+    block.append(emptyKVRow("No values"));
     return block;
   }
   for (const [key, value] of rows) {
@@ -1402,10 +1410,7 @@ function nodeListBlock(title, component, nodes, direction) {
   block.className = "inspector-block";
   block.innerHTML = `<div class="inspector-title">${escapeHTML(title)}</div>`;
   if (!nodes.length) {
-    const row = document.createElement("div");
-    row.className = "kv";
-    row.innerHTML = `<span class="kv-key">empty</span><span></span>`;
-    block.append(row);
+    block.append(emptyKVRow(`No ${String(title || "nodes").toLowerCase()}`));
     return block;
   }
   for (const node of nodes) {
@@ -1526,10 +1531,7 @@ function parameterInspectorBlock(component) {
 
   const entries = Object.entries(component.parameters || {});
   if (!entries.length) {
-    const row = document.createElement("div");
-    row.className = "kv";
-    row.innerHTML = `<span class="kv-key">empty</span><span></span>`;
-    block.append(row);
+    block.append(emptyKVRow("No parameters"));
   }
   for (const [name, value] of entries) {
     const row = document.createElement("div");
@@ -1583,10 +1585,7 @@ function parameterDefinitionBlock(component) {
   const definitions = component.parameter_defs || {};
   const names = [...new Set([...Object.keys(component.parameters || {}), ...Object.keys(definitions)])].sort();
   if (!names.length) {
-    const row = document.createElement("div");
-    row.className = "kv";
-    row.innerHTML = `<span class="kv-key">empty</span><span></span>`;
-    block.append(row);
+    block.append(emptyKVRow("No parameter definitions"));
   }
   for (const name of names) {
     block.append(parameterDefinitionRow(component, name, definitions[name] || {}));
@@ -1663,10 +1662,7 @@ function stateDefinitionBlock(component) {
   block.innerHTML = `<div class="inspector-title">State Definitions</div>`;
   const entries = Object.entries(component.state_defs || {}).sort(([left], [right]) => left.localeCompare(right));
   if (!entries.length) {
-    const row = document.createElement("div");
-    row.className = "kv";
-    row.innerHTML = `<span class="kv-key">empty</span><span></span>`;
-    block.append(row);
+    block.append(emptyKVRow("No state definitions"));
   }
   for (const [name, definition] of entries) {
     block.append(stateDefinitionRow(component, name, definition || {}));
@@ -1911,10 +1907,7 @@ function connectionEditor(targetComponent) {
 
   if (!canEditConnections) {
     if (!existingRows.length) {
-      const row = document.createElement("div");
-      row.className = "kv";
-      row.innerHTML = `<span class="kv-key">empty</span><span></span>`;
-      block.append(row);
+      block.append(emptyKVRow("No connections"));
     }
     return block;
   }
@@ -2011,7 +2004,7 @@ function renderParameters() {
     }
   }
   if (!count) {
-    tbody.append(emptyRow(4));
+    tbody.append(emptyRow(4, "No parameters"));
   }
 }
 
@@ -2092,9 +2085,16 @@ function parameterRow(component, name, value, editable) {
   return tr;
 }
 
-function emptyRow(cols) {
+function emptyKVRow(message) {
+  const row = document.createElement("div");
+  row.className = "kv";
+  row.innerHTML = `<span class="kv-key">${escapeHTML(message)}</span><span></span>`;
+  return row;
+}
+
+function emptyRow(cols, message = "No rows") {
   const tr = document.createElement("tr");
-  tr.innerHTML = `<td colspan="${cols}" class="empty-cell">empty</td>`;
+  tr.innerHTML = `<td colspan="${cols}" class="empty-cell">${escapeHTML(message)}</td>`;
   return tr;
 }
 
@@ -2493,7 +2493,7 @@ function resultTable(title, rows, headers = ["Item", "Value"]) {
   `;
   const tbody = block.querySelector("tbody");
   if (!normalizedRows.length) {
-    tbody.innerHTML = `<tr><td colspan="${headers.length}" class="empty-cell">Empty</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${headers.length}" class="empty-cell">No ${escapeHTML(String(title || "rows").toLowerCase())}</td></tr>`;
     return block;
   }
   for (const row of normalizedRows) {
@@ -2774,10 +2774,7 @@ function contractBlock(title, rows) {
   block.className = "contract-block";
   block.innerHTML = `<div class="contract-title">${escapeHTML(title)}</div>`;
   if (!rows.length) {
-    const empty = document.createElement("div");
-    empty.className = "contract-row";
-    empty.innerHTML = `<span>empty</span><span class="contract-meta"></span>`;
-    block.append(empty);
+    block.append(emptyContractRow(`No ${String(title || "entries").toLowerCase()}`));
     return block;
   }
   for (const [name, meta] of rows) {
@@ -2794,10 +2791,7 @@ function sourceReferenceBlock(title, rows, component) {
   block.className = "contract-block";
   block.innerHTML = `<div class="contract-title">${escapeHTML(title)}</div>`;
   if (!rows.length) {
-    const empty = document.createElement("div");
-    empty.className = "contract-row";
-    empty.innerHTML = `<span>empty</span><span class="contract-meta"></span>`;
-    block.append(empty);
+    block.append(emptyContractRow(`No ${String(title || "references").toLowerCase()}`));
     return block;
   }
   const editable = canEditSource(component);
@@ -2818,6 +2812,13 @@ function sourceReferenceBlock(title, rows, component) {
     block.append(rowEl);
   }
   return block;
+}
+
+function emptyContractRow(message) {
+  const row = document.createElement("div");
+  row.className = "contract-row";
+  row.innerHTML = `<span>${escapeHTML(message)}</span><span class="contract-meta"></span>`;
+  return row;
 }
 
 function canEditSource(component) {
