@@ -32,5 +32,7 @@ export const state = {
   pendingSourceFocus: null,
   pendingConnection: null,
   scenarioDraftName: "",
+  logSeverityFilter: "all",
+  logTextFilter: "",
   logs: [],
 };

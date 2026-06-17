@@ -2497,7 +2497,123 @@ function openProblem(problem) {
 }
 
 function renderLogs() {
-  el("logsPanel").textContent = state.logs.join("\n");
+  const panel = el("logsPanel");
+  if (!panel) return;
+  panel.innerHTML = "";
+  const controls = document.createElement("div");
+  controls.className = "log-controls";
+
+  const severity = document.createElement("select");
+  severity.id = "logSeverityFilter";
+  for (const [value, label] of [["all", "All"], ["app", "Studio"], ["info", "Info"], ["warning", "Warning"], ["error", "Error"]]) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    severity.append(option);
+  }
+  severity.value = state.logSeverityFilter || "all";
+
+  const search = document.createElement("input");
+  search.id = "logTextFilter";
+  search.type = "search";
+  search.placeholder = "Filter logs";
+  search.value = state.logTextFilter || "";
+
+  const exportButton = document.createElement("button");
+  exportButton.type = "button";
+  exportButton.id = "exportLogBundleButton";
+  exportButton.textContent = "Export Logs";
+  exportButton.addEventListener("click", downloadLogBundle);
+
+  const rows = document.createElement("div");
+  rows.className = "log-rows";
+  const updateRows = () => renderLogRows(rows);
+  severity.addEventListener("change", () => {
+    state.logSeverityFilter = severity.value;
+    updateRows();
+  });
+  search.addEventListener("input", () => {
+    state.logTextFilter = search.value;
+    updateRows();
+  });
+  controls.append(severity, search, exportButton);
+  panel.append(controls, rows);
+  updateRows();
+}
+
+function renderLogRows(container) {
+  const rows = filteredLogRows();
+  container.innerHTML = "";
+  if (!rows.length) {
+    const empty = document.createElement("div");
+    empty.className = "log-empty";
+    empty.textContent = "No logs match the current filter";
+    container.append(empty);
+    return;
+  }
+  for (const item of rows) {
+    const row = document.createElement("div");
+    row.className = `log-row ${logSeverityClassName(item.severity)}`;
+    row.innerHTML = `
+      <span class="log-row-meta">${escapeHTML([item.source, item.component, item.stage, item.stream].filter(Boolean).join(" / "))}</span>
+      <span class="log-row-severity">${escapeHTML(item.severity || "info")}</span>
+      <span class="log-row-message">${escapeHTML(item.message || "")}</span>
+    `;
+    container.append(row);
+  }
+}
+
+function filteredLogRows() {
+  const severity = state.logSeverityFilter || "all";
+  const needle = String(state.logTextFilter || "").trim().toLowerCase();
+  return combinedLogRows().filter((item) => {
+    if (severity !== "all" && item.severity !== severity && item.source !== severity) return false;
+    if (!needle) return true;
+    return [item.source, item.component, item.stage, item.stream, item.severity, item.message]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(needle);
+  });
+}
+
+function combinedLogRows() {
+  const appLogs = (state.logs || []).map((message) => ({
+    source: "app",
+    severity: "app",
+    message,
+  }));
+  const runtimeLogs = (latestRuntimeResult()?.component_logs || []).map((entry) => ({
+    source: "runtime",
+    component: entry.component || "",
+    stage: entry.stage || "",
+    stream: entry.stream || "",
+    severity: String(entry.severity || "info").toLowerCase(),
+    message: entry.message || "",
+  }));
+  return [...runtimeLogs, ...appLogs];
+}
+
+function logSeverityClassName(severity) {
+  const normalized = String(severity || "info").toLowerCase();
+  if (normalized === "error" || normalized === "warning" || normalized === "info" || normalized === "app") return normalized;
+  return "info";
+}
+
+function downloadLogBundle() {
+  const project = state.detail?.project?.project_name || "hvac-studio";
+  const bundle = {
+    project: state.detail?.project?.project_name || "",
+    project_path: state.currentProjectPath || "",
+    active_component: state.selectedComponentId || "",
+    latest_result_source: state.latestRunSource || "",
+    filters: {
+      severity: state.logSeverityFilter || "all",
+      text: state.logTextFilter || "",
+    },
+    logs: combinedLogRows(),
+  };
+  downloadTextFile(`${safeFileName(project)}-logs.json`, `${JSON.stringify(bundle, null, 2)}\n`, "application/json;charset=utf-8");
 }
 
 function renderResults() {

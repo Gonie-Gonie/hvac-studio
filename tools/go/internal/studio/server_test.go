@@ -349,6 +349,11 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("activeRunAbortController")) {
 		t.Fatalf("module entrypoint did not track active runtime requests")
 	}
+	if !bytes.Contains(body, []byte("logSeverityFilter")) ||
+		!bytes.Contains(body, []byte("downloadLogBundle")) ||
+		!bytes.Contains(body, []byte("exportLogBundleButton")) {
+		t.Fatalf("module entrypoint did not expose log filtering and export")
+	}
 	if !bytes.Contains(body, []byte("runInputMeta")) {
 		t.Fatalf("module entrypoint did not include run input metadata rendering")
 	}

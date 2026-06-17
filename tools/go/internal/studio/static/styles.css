@@ -1755,6 +1755,75 @@ td {
   display: block;
 }
 
+.log-controls {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.log-controls select,
+.log-controls input,
+.log-controls button {
+  width: 100%;
+  min-height: 30px;
+}
+
+.log-rows {
+  display: grid;
+  gap: 6px;
+}
+
+.log-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.36fr) 72px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding: 7px 8px;
+  border: 1px solid #e5ebf2;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.log-row.warning {
+  border-color: #f0d28a;
+  background: #fffaf0;
+}
+
+.log-row.error {
+  border-color: #efb4b4;
+  background: #fff5f5;
+}
+
+.log-row.app {
+  border-color: #c7dcef;
+  background: #f2f8fd;
+}
+
+.log-row-meta,
+.log-row-severity {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.log-row-severity {
+  text-transform: uppercase;
+}
+
+.log-row-message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
+.log-empty {
+  color: var(--muted);
+  padding: 10px 2px;
+}
+
 .code-pane {
   margin: 0;
   white-space: pre-wrap;
