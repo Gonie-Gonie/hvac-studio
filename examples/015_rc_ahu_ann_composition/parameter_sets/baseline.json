@@ -1,0 +1,12 @@
+{
+  "id": "baseline",
+  "name": "Baseline Composition Parameters",
+  "components": {
+    "chiller": {
+      "cop": 4.2
+    },
+    "ahu_state_ann": {
+      "output_bias": 0.0
+    }
+  }
+}

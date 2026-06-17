@@ -1,0 +1,19 @@
+{
+  "id": "rc_ahu_validation",
+  "name": "RC AHU Composition Validation Mapping",
+  "dataset": "datasets/rc_ahu_validation.csv",
+  "time_column": "time",
+  "input_columns": {
+    "outdoor_temperature_c": "outdoor_temperature_c",
+    "solar_gain_kw": "solar_gain_kw",
+    "internal_gain_kw": "internal_gain_kw",
+    "zone_setpoint_c": "zone_setpoint_c",
+    "chw_setpoint_c": "chw_setpoint_c",
+    "pump_speed_fraction": "pump_speed_fraction"
+  },
+  "observed_output_columns": {
+    "total_power_kw": "measured_total_power_kw",
+    "unmet_load_kw": "measured_unmet_load_kw",
+    "supply_air_temperature_c": "measured_supply_air_temperature_c"
+  }
+}

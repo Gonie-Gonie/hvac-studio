@@ -1,0 +1,970 @@
+{
+  "schema_version": "0.1.0",
+  "systems": [
+    {
+      "id": "MainSystem",
+      "name": "RC AHU ANN Composition",
+      "components": [
+        "zone_rc",
+        "controller",
+        "feature_mapper",
+        "ahu_state_ann",
+        "chiller",
+        "pump",
+        "aggregator"
+      ],
+      "connections": [
+        "zone_load_to_controller",
+        "zone_temperature_to_controller",
+        "zone_setpoint_to_controller",
+        "zone_outdoor_to_features",
+        "zone_load_to_features",
+        "controller_chw_to_features",
+        "controller_pump_to_features",
+        "controller_request_to_features",
+        "features_to_ann",
+        "ann_coil_to_chiller",
+        "controller_chw_to_chiller",
+        "controller_pump_to_pump",
+        "controller_request_to_pump",
+        "zone_load_to_aggregator",
+        "zone_temperature_to_aggregator",
+        "zone_setpoint_to_aggregator",
+        "chiller_power_to_aggregator",
+        "pump_power_to_aggregator"
+      ],
+      "public_inputs": [
+        {
+          "id": "outdoor_temperature_c",
+          "name": "Outdoor Temperature",
+          "component": "zone_rc",
+          "node": "outdoor_temperature_c",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "degC",
+          "required": true
+        },
+        {
+          "id": "solar_gain_kw",
+          "name": "Solar Gain",
+          "component": "zone_rc",
+          "node": "solar_gain_kw",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "kW",
+          "required": true
+        },
+        {
+          "id": "internal_gain_kw",
+          "name": "Internal Gain",
+          "component": "zone_rc",
+          "node": "internal_gain_kw",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "kW",
+          "required": true
+        },
+        {
+          "id": "zone_setpoint_c",
+          "name": "Zone Setpoint",
+          "component": "zone_rc",
+          "node": "zone_setpoint_c",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "degC",
+          "required": true
+        },
+        {
+          "id": "chw_setpoint_c",
+          "name": "Base Chilled Water Setpoint",
+          "component": "controller",
+          "node": "chw_setpoint_c",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "degC",
+          "required": true
+        },
+        {
+          "id": "pump_speed_fraction",
+          "name": "Pump Speed Fraction",
+          "component": "controller",
+          "node": "pump_speed_fraction",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "fraction",
+          "required": true
+        }
+      ],
+      "public_outputs": [
+        {
+          "id": "zone_load_kw",
+          "name": "Zone Cooling Load",
+          "component": "zone_rc",
+          "node": "zone_load_kw",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "kW"
+        },
+        {
+          "id": "zone_temperature_c",
+          "name": "Zone Temperature",
+          "component": "zone_rc",
+          "node": "zone_temperature_c",
+          "medium": "air",
+          "value_type": "float",
+          "unit": "degC"
+        },
+        {
+          "id": "supply_air_temperature_c",
+          "name": "Supply Air Temperature",
+          "component": "ahu_state_ann",
+          "node": "supply_air_temperature_c",
+          "medium": "air",
+          "value_type": "float",
+          "unit": "degC"
+        },
+        {
+          "id": "chw_supply_temperature_c",
+          "name": "Chilled Water Supply Temperature",
+          "component": "chiller",
+          "node": "chw_supply_temperature_c",
+          "medium": "water",
+          "value_type": "float",
+          "unit": "degC"
+        },
+        {
+          "id": "total_power_kw",
+          "name": "Total Power",
+          "component": "aggregator",
+          "node": "total_power_kw",
+          "medium": "electricity",
+          "value_type": "float",
+          "unit": "kW"
+        },
+        {
+          "id": "unmet_load_kw",
+          "name": "Unmet Load",
+          "component": "aggregator",
+          "node": "unmet_load_kw",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "kW"
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "zone_rc",
+      "name": "RC Zone Load",
+      "kind": "user_python",
+      "category": "physical_component",
+      "execution_mode": "step",
+      "class": "components.zone_rc.ZoneLoadRC",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "outdoor_temperature_c",
+            "name": "Outdoor Temperature",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC",
+            "required": true
+          },
+          {
+            "id": "solar_gain_kw",
+            "name": "Solar Gain",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          },
+          {
+            "id": "internal_gain_kw",
+            "name": "Internal Gain",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          },
+          {
+            "id": "zone_setpoint_c",
+            "name": "Zone Setpoint",
+            "preset": "control_signal_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "zone_load_kw",
+            "name": "Zone Cooling Load",
+            "preset": "scalar_output",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "kW"
+          },
+          {
+            "id": "zone_temperature_c",
+            "name": "Zone Temperature",
+            "preset": "air_outlet",
+            "direction": "outlet",
+            "medium": "air",
+            "value_type": "float",
+            "unit": "degC"
+          },
+          {
+            "id": "zone_setpoint_c",
+            "name": "Zone Setpoint",
+            "preset": "control_signal_input",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC"
+          },
+          {
+            "id": "outdoor_temperature_c",
+            "name": "Outdoor Temperature",
+            "preset": "scalar_output",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC"
+          }
+        ]
+      },
+      "parameters": {
+        "initial_zone_temperature_c": 24.0,
+        "base_load_kw": 18.0,
+        "ua_kw_per_k": 0.45,
+        "nominal_capacity_kw": 20.0,
+        "outdoor_coupling": 0.05,
+        "gain_temperature_per_kw": 0.02,
+        "cooling_temperature_per_kw": 0.03
+      },
+      "parameter_defs": {
+        "ua_kw_per_k": {
+          "display_name": "Envelope UA",
+          "unit": "kW/K",
+          "default": 0.45,
+          "current": 0.45,
+          "bounds": {
+            "min": 0.2,
+            "max": 0.8
+          },
+          "role": "calibration_target",
+          "group": "Zone"
+        }
+      }
+    },
+    {
+      "id": "controller",
+      "name": "Supervisory Controller",
+      "kind": "user_python",
+      "category": "controller",
+      "execution_mode": "step",
+      "class": "components.controller.SupervisoryController",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "zone_load_kw",
+            "name": "Zone Cooling Load",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          },
+          {
+            "id": "zone_temperature_c",
+            "name": "Zone Temperature",
+            "preset": "air_inlet",
+            "direction": "inlet",
+            "medium": "air",
+            "value_type": "float",
+            "unit": "degC",
+            "required": true
+          },
+          {
+            "id": "zone_setpoint_c",
+            "name": "Zone Setpoint",
+            "preset": "control_signal_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC",
+            "required": true
+          },
+          {
+            "id": "chw_setpoint_c",
+            "name": "Base Chilled Water Setpoint",
+            "preset": "control_signal_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC",
+            "required": true
+          },
+          {
+            "id": "pump_speed_fraction",
+            "name": "Pump Speed Fraction",
+            "preset": "control_signal_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "fraction",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "cooling_request_kw",
+            "name": "Cooling Request",
+            "preset": "scalar_output",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "kW"
+          },
+          {
+            "id": "chw_setpoint_command_c",
+            "name": "Commanded Chilled Water Setpoint",
+            "preset": "control_signal_input",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC"
+          },
+          {
+            "id": "pump_speed_fraction",
+            "name": "Pump Speed Fraction",
+            "preset": "control_signal_input",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "fraction"
+          }
+        ]
+      },
+      "parameters": {
+        "temperature_error_gain_kw_per_k": 5.0,
+        "chw_reset_c_per_kw": 0.01,
+        "max_reset_c": 0.6
+      },
+      "parameter_defs": {
+        "chw_reset_c_per_kw": {
+          "display_name": "CHW Reset Slope",
+          "unit": "K/kW",
+          "default": 0.01,
+          "current": 0.01,
+          "bounds": {
+            "min": 0.0,
+            "max": 0.03
+          },
+          "role": "optimization_variable",
+          "group": "Control"
+        }
+      }
+    },
+    {
+      "id": "feature_mapper",
+      "name": "Feature Mapper",
+      "kind": "user_python",
+      "category": "utility",
+      "execution_mode": "step",
+      "class": "components.feature_mapper.FeatureMapper",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "outdoor_temperature_c",
+            "name": "Outdoor Temperature",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC",
+            "required": true
+          },
+          {
+            "id": "zone_load_kw",
+            "name": "Zone Cooling Load",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          },
+          {
+            "id": "chw_setpoint_c",
+            "name": "Commanded Chilled Water Setpoint",
+            "preset": "control_signal_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC",
+            "required": true
+          },
+          {
+            "id": "pump_speed_fraction",
+            "name": "Pump Speed Fraction",
+            "preset": "control_signal_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "fraction",
+            "required": true
+          },
+          {
+            "id": "cooling_request_kw",
+            "name": "Cooling Request",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "features",
+            "name": "Features",
+            "preset": "scalar_output",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "object",
+            "unit": ""
+          }
+        ]
+      },
+      "parameters": {}
+    },
+    {
+      "id": "ahu_state_ann",
+      "name": "AHU State ANN",
+      "kind": "user_python",
+      "category": "physical_component",
+      "execution_mode": "step",
+      "class": "components.ahu_state_ann.AHUStateANN",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "features",
+            "name": "Features",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "object",
+            "unit": "",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "supply_air_temperature_c",
+            "name": "Supply Air Temperature",
+            "preset": "air_outlet",
+            "direction": "outlet",
+            "medium": "air",
+            "value_type": "float",
+            "unit": "degC"
+          },
+          {
+            "id": "coil_load_kw",
+            "name": "Coil Load",
+            "preset": "water_outlet",
+            "direction": "outlet",
+            "medium": "water",
+            "value_type": "float",
+            "unit": "kW"
+          }
+        ]
+      },
+      "parameters": {
+        "output_bias": 0.0
+      },
+      "parameter_defs": {
+        "output_bias": {
+          "display_name": "Output Bias",
+          "unit": "native",
+          "default": 0.0,
+          "current": 0.0,
+          "bounds": {
+            "min": -2.0,
+            "max": 2.0
+          },
+          "role": "calibration_target",
+          "group": "ML"
+        }
+      },
+      "state_defs": {
+        "model": {
+          "display_name": "Loaded Model",
+          "description": "JSON model loaded during initialize."
+        }
+      },
+      "ml_metadata": {
+        "model_format": "custom-linear",
+        "model_file": "assets/ahu_state_ann/model.json",
+        "feature_schema_file": "assets/ahu_state_ann/feature_schema.json",
+        "target_schema_file": "assets/ahu_state_ann/target_schema.json",
+        "validation_report_file": "assets/ahu_state_ann/validation_report.json",
+        "required_packages": [],
+        "valid_time_resolution": "step",
+        "valid_input_ranges": {
+          "outdoor_temperature_c": {
+            "min": -20.0,
+            "max": 45.0
+          },
+          "zone_load_kw": {
+            "min": 0.0,
+            "max": 80.0
+          },
+          "chw_setpoint_c": {
+            "min": 4.0,
+            "max": 12.0
+          },
+          "pump_speed_fraction": {
+            "min": 0.0,
+            "max": 1.0
+          },
+          "cooling_request_kw": {
+            "min": 0.0,
+            "max": 100.0
+          }
+        }
+      }
+    },
+    {
+      "id": "chiller",
+      "name": "Chiller-Like Model",
+      "kind": "user_python",
+      "category": "physical_component",
+      "execution_mode": "step",
+      "class": "components.chiller_like.ChillerLikeModel",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "coil_load_kw",
+            "name": "Coil Load",
+            "preset": "water_inlet",
+            "direction": "inlet",
+            "medium": "water",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          },
+          {
+            "id": "chw_setpoint_command_c",
+            "name": "Commanded Chilled Water Setpoint",
+            "preset": "control_signal_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "chiller_power_kw",
+            "name": "Chiller Electric Power",
+            "preset": "electric_power_output",
+            "direction": "outlet",
+            "medium": "electricity",
+            "value_type": "float",
+            "unit": "kW"
+          },
+          {
+            "id": "chw_supply_temperature_c",
+            "name": "Chilled Water Supply Temperature",
+            "preset": "water_outlet",
+            "direction": "outlet",
+            "medium": "water",
+            "value_type": "float",
+            "unit": "degC"
+          }
+        ]
+      },
+      "parameters": {
+        "cop": 4.2,
+        "approach_c_per_kw": 0.005,
+        "max_approach_c": 0.8,
+        "parasitic_kw": 0.0
+      },
+      "parameter_defs": {
+        "cop": {
+          "display_name": "Coefficient of Performance",
+          "default": 4.2,
+          "current": 4.2,
+          "bounds": {
+            "min": 3.0,
+            "max": 6.0
+          },
+          "role": "calibration_target",
+          "group": "Chiller"
+        }
+      }
+    },
+    {
+      "id": "pump",
+      "name": "Variable-Speed Pump",
+      "kind": "user_python",
+      "category": "physical_component",
+      "execution_mode": "step",
+      "class": "components.pump.VariableSpeedPump",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "pump_speed_fraction",
+            "name": "Pump Speed Fraction",
+            "preset": "control_signal_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "fraction",
+            "required": true
+          },
+          {
+            "id": "cooling_request_kw",
+            "name": "Cooling Request",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "pump_power_kw",
+            "name": "Pump Electric Power",
+            "preset": "electric_power_output",
+            "direction": "outlet",
+            "medium": "electricity",
+            "value_type": "float",
+            "unit": "kW"
+          }
+        ]
+      },
+      "parameters": {
+        "standby_kw": 1.5,
+        "design_kw": 8.0,
+        "request_kw_per_cooling_kw": 0.0
+      },
+      "parameter_defs": {
+        "design_kw": {
+          "display_name": "Design Pump Power",
+          "unit": "kW",
+          "default": 8.0,
+          "current": 8.0,
+          "bounds": {
+            "min": 4.0,
+            "max": 12.0
+          },
+          "role": "calibration_target",
+          "group": "Pump"
+        }
+      }
+    },
+    {
+      "id": "aggregator",
+      "name": "Output Aggregator",
+      "kind": "user_python",
+      "category": "utility",
+      "execution_mode": "step",
+      "class": "components.aggregator.OutputAggregator",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "zone_load_kw",
+            "name": "Zone Cooling Load",
+            "preset": "scalar_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          },
+          {
+            "id": "zone_temperature_c",
+            "name": "Zone Temperature",
+            "preset": "air_inlet",
+            "direction": "inlet",
+            "medium": "air",
+            "value_type": "float",
+            "unit": "degC",
+            "required": true
+          },
+          {
+            "id": "zone_setpoint_c",
+            "name": "Zone Setpoint",
+            "preset": "control_signal_input",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "degC",
+            "required": true
+          },
+          {
+            "id": "chiller_power_kw",
+            "name": "Chiller Electric Power",
+            "preset": "electric_power_output",
+            "direction": "inlet",
+            "medium": "electricity",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          },
+          {
+            "id": "pump_power_kw",
+            "name": "Pump Electric Power",
+            "preset": "electric_power_output",
+            "direction": "inlet",
+            "medium": "electricity",
+            "value_type": "float",
+            "unit": "kW",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "total_power_kw",
+            "name": "Total Power",
+            "preset": "electric_power_output",
+            "direction": "outlet",
+            "medium": "electricity",
+            "value_type": "float",
+            "unit": "kW"
+          },
+          {
+            "id": "unmet_load_kw",
+            "name": "Unmet Load",
+            "preset": "scalar_output",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "kW"
+          }
+        ]
+      },
+      "parameters": {
+        "aux_kw_per_zone_kw": 0.03,
+        "comfort_deadband_c": 0.5
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "zone_load_to_controller",
+      "from": {
+        "component": "zone_rc",
+        "node": "zone_load_kw"
+      },
+      "to": {
+        "component": "controller",
+        "node": "zone_load_kw"
+      }
+    },
+    {
+      "id": "zone_temperature_to_controller",
+      "from": {
+        "component": "zone_rc",
+        "node": "zone_temperature_c"
+      },
+      "to": {
+        "component": "controller",
+        "node": "zone_temperature_c"
+      }
+    },
+    {
+      "id": "zone_setpoint_to_controller",
+      "from": {
+        "component": "zone_rc",
+        "node": "zone_setpoint_c"
+      },
+      "to": {
+        "component": "controller",
+        "node": "zone_setpoint_c"
+      }
+    },
+    {
+      "id": "zone_outdoor_to_features",
+      "from": {
+        "component": "zone_rc",
+        "node": "outdoor_temperature_c"
+      },
+      "to": {
+        "component": "feature_mapper",
+        "node": "outdoor_temperature_c"
+      }
+    },
+    {
+      "id": "zone_load_to_features",
+      "from": {
+        "component": "zone_rc",
+        "node": "zone_load_kw"
+      },
+      "to": {
+        "component": "feature_mapper",
+        "node": "zone_load_kw"
+      }
+    },
+    {
+      "id": "controller_chw_to_features",
+      "from": {
+        "component": "controller",
+        "node": "chw_setpoint_command_c"
+      },
+      "to": {
+        "component": "feature_mapper",
+        "node": "chw_setpoint_c"
+      }
+    },
+    {
+      "id": "controller_pump_to_features",
+      "from": {
+        "component": "controller",
+        "node": "pump_speed_fraction"
+      },
+      "to": {
+        "component": "feature_mapper",
+        "node": "pump_speed_fraction"
+      }
+    },
+    {
+      "id": "controller_request_to_features",
+      "from": {
+        "component": "controller",
+        "node": "cooling_request_kw"
+      },
+      "to": {
+        "component": "feature_mapper",
+        "node": "cooling_request_kw"
+      }
+    },
+    {
+      "id": "features_to_ann",
+      "from": {
+        "component": "feature_mapper",
+        "node": "features"
+      },
+      "to": {
+        "component": "ahu_state_ann",
+        "node": "features"
+      }
+    },
+    {
+      "id": "ann_coil_to_chiller",
+      "from": {
+        "component": "ahu_state_ann",
+        "node": "coil_load_kw"
+      },
+      "to": {
+        "component": "chiller",
+        "node": "coil_load_kw"
+      }
+    },
+    {
+      "id": "controller_chw_to_chiller",
+      "from": {
+        "component": "controller",
+        "node": "chw_setpoint_command_c"
+      },
+      "to": {
+        "component": "chiller",
+        "node": "chw_setpoint_command_c"
+      }
+    },
+    {
+      "id": "controller_pump_to_pump",
+      "from": {
+        "component": "controller",
+        "node": "pump_speed_fraction"
+      },
+      "to": {
+        "component": "pump",
+        "node": "pump_speed_fraction"
+      }
+    },
+    {
+      "id": "controller_request_to_pump",
+      "from": {
+        "component": "controller",
+        "node": "cooling_request_kw"
+      },
+      "to": {
+        "component": "pump",
+        "node": "cooling_request_kw"
+      }
+    },
+    {
+      "id": "zone_load_to_aggregator",
+      "from": {
+        "component": "zone_rc",
+        "node": "zone_load_kw"
+      },
+      "to": {
+        "component": "aggregator",
+        "node": "zone_load_kw"
+      }
+    },
+    {
+      "id": "zone_temperature_to_aggregator",
+      "from": {
+        "component": "zone_rc",
+        "node": "zone_temperature_c"
+      },
+      "to": {
+        "component": "aggregator",
+        "node": "zone_temperature_c"
+      }
+    },
+    {
+      "id": "zone_setpoint_to_aggregator",
+      "from": {
+        "component": "zone_rc",
+        "node": "zone_setpoint_c"
+      },
+      "to": {
+        "component": "aggregator",
+        "node": "zone_setpoint_c"
+      }
+    },
+    {
+      "id": "chiller_power_to_aggregator",
+      "from": {
+        "component": "chiller",
+        "node": "chiller_power_kw"
+      },
+      "to": {
+        "component": "aggregator",
+        "node": "chiller_power_kw"
+      }
+    },
+    {
+      "id": "pump_power_to_aggregator",
+      "from": {
+        "component": "pump",
+        "node": "pump_power_kw"
+      },
+      "to": {
+        "component": "aggregator",
+        "node": "pump_power_kw"
+      }
+    }
+  ]
+}

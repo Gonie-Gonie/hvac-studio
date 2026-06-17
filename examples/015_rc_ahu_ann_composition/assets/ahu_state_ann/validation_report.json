@@ -1,0 +1,15 @@
+{
+  "dataset": "synthetic commissioning set",
+  "rows": 24,
+  "metrics": {
+    "supply_air_temperature_c": {
+      "rmse": 0.18,
+      "mae": 0.12
+    },
+    "coil_load_kw": {
+      "rmse": 0.42,
+      "mae": 0.31
+    }
+  },
+  "notes": "Small deterministic surrogate used by the repository example workflow."
+}

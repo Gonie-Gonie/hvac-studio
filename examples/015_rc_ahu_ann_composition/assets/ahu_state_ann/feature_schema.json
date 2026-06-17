@@ -1,0 +1,16 @@
+{
+  "features": [
+    "outdoor_temperature_c",
+    "zone_load_kw",
+    "chw_setpoint_c",
+    "pump_speed_fraction",
+    "cooling_request_kw"
+  ],
+  "units": {
+    "outdoor_temperature_c": "degC",
+    "zone_load_kw": "kW",
+    "chw_setpoint_c": "degC",
+    "pump_speed_fraction": "fraction",
+    "cooling_request_kw": "kW"
+  }
+}

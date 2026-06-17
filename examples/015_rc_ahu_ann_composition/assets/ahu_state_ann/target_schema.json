@@ -1,0 +1,10 @@
+{
+  "targets": [
+    "supply_air_temperature_c",
+    "coil_load_kw"
+  ],
+  "units": {
+    "supply_air_temperature_c": "degC",
+    "coil_load_kw": "kW"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "id": "ahu_state_ann_linear_surrogate",
+  "format": "custom-linear",
+  "outputs": {
+    "supply_air_temperature_c": {
+      "intercept": 14.0,
+      "coefficients": {
+        "outdoor_temperature_c": 0.02,
+        "zone_load_kw": 0.05,
+        "chw_setpoint_c": 0.15,
+        "pump_speed_fraction": -2.0,
+        "cooling_request_kw": -0.03
+      }
+    },
+    "coil_load_kw": {
+      "intercept": 0.0,
+      "coefficients": {
+        "outdoor_temperature_c": 0.0,
+        "zone_load_kw": 0.1,
+        "chw_setpoint_c": -1.2,
+        "pump_speed_fraction": 0.0,
+        "cooling_request_kw": 0.75
+      }
+    }
+  }
+}

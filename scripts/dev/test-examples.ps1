@@ -64,9 +64,13 @@ function Invoke-Example {
 function Invoke-WorkflowSmoke {
   $PlantProject = Join-Path $ExamplesRoot '005_chiller_plant_like_system\project.bcsproj'
   $OptimizationProject = Join-Path $ExamplesRoot '006_optimization_case\project.bcsproj'
+  $CompositionProject = Join-Path $ExamplesRoot '015_rc_ahu_ann_composition\project.bcsproj'
   $ValidationOutput = Join-Path ([IO.Path]::GetTempPath()) 'hvac-studio-plant-validation.json'
   $CalibrationOutput = Join-Path ([IO.Path]::GetTempPath()) 'hvac-studio-plant-calibration.json'
   $OptimizationOutput = Join-Path ([IO.Path]::GetTempPath()) 'hvac-studio-optimization.json'
+  $CompositionValidationOutput = Join-Path ([IO.Path]::GetTempPath()) 'hvac-studio-composition-validation.json'
+  $CompositionCalibrationOutput = Join-Path ([IO.Path]::GetTempPath()) 'hvac-studio-composition-calibration.json'
+  $CompositionOptimizationOutput = Join-Path ([IO.Path]::GetTempPath()) 'hvac-studio-composition-optimization.json'
 
   Push-Location (Join-Path $RepoRoot 'tools\go')
   try {
@@ -102,11 +106,44 @@ function Invoke-WorkflowSmoke {
     if ($null -eq $Optimization.best_inputs.chw_setpoint_c) {
       throw 'optimization smoke did not report best chw_setpoint_c input'
     }
+
+    Write-Host 'example workflow: rc ahu validation'
+    Invoke-Checked $env:HVAC_STUDIO_GO @('run', '.\cmd\bcs-runner', 'validate-data', '--project', $CompositionProject, '--mapping', 'validation/mappings/rc_ahu_validation.json', '--output', $CompositionValidationOutput)
+    $CompositionValidation = Get-Content -Raw -LiteralPath $CompositionValidationOutput | ConvertFrom-Json
+    if (-not $CompositionValidation.ok -or $CompositionValidation.row_count -ne 3) {
+      throw "rc ahu validation smoke failed: ok=$($CompositionValidation.ok) rows=$($CompositionValidation.row_count)"
+    }
+    if ($null -eq $CompositionValidation.metrics.total_power_kw -or $null -eq $CompositionValidation.metrics.supply_air_temperature_c) {
+      throw 'rc ahu validation smoke did not compute expected metrics'
+    }
+
+    Write-Host 'example workflow: rc ahu calibration'
+    Invoke-Checked $env:HVAC_STUDIO_GO @('run', '.\cmd\bcs-runner', 'calibrate', '--project', $CompositionProject, '--setup', 'calibration/setups/chiller_cop_grid.json', '--output', $CompositionCalibrationOutput)
+    $CompositionCalibration = Get-Content -Raw -LiteralPath $CompositionCalibrationOutput | ConvertFrom-Json
+    if (-not $CompositionCalibration.ok -or $CompositionCalibration.candidates.Count -ne 3) {
+      throw "rc ahu calibration smoke failed: ok=$($CompositionCalibration.ok) candidates=$($CompositionCalibration.candidates.Count)"
+    }
+    if ($null -eq $CompositionCalibration.best_parameter_set.components.chiller.cop) {
+      throw 'rc ahu calibration smoke did not report a best chiller COP'
+    }
+
+    Write-Host 'example workflow: rc ahu optimization'
+    Invoke-Checked $env:HVAC_STUDIO_GO @('run', '.\cmd\bcs-runner', 'optimize', '--project', $CompositionProject, '--setup', 'optimization/setups/chw_pump_grid.json', '--output', $CompositionOptimizationOutput)
+    $CompositionOptimization = Get-Content -Raw -LiteralPath $CompositionOptimizationOutput | ConvertFrom-Json
+    if (-not $CompositionOptimization.ok -or $CompositionOptimization.candidates.Count -ne 9) {
+      throw "rc ahu optimization smoke failed: ok=$($CompositionOptimization.ok) candidates=$($CompositionOptimization.candidates.Count)"
+    }
+    if ($null -eq $CompositionOptimization.best_inputs.chw_setpoint_c -or $null -eq $CompositionOptimization.best_inputs.pump_speed_fraction) {
+      throw 'rc ahu optimization smoke did not report best control inputs'
+    }
   } finally {
     Pop-Location
     Remove-Item -LiteralPath $ValidationOutput -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $CalibrationOutput -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $OptimizationOutput -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $CompositionValidationOutput -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $CompositionCalibrationOutput -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $CompositionOptimizationOutput -Force -ErrorAction SilentlyContinue
   }
 }
 

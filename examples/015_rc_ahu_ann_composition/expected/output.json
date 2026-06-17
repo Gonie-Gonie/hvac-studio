@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "outputs": {
+    "chw_supply_temperature_c": 6.786538,
+    "supply_air_temperature_c": 14.774685,
+    "total_power_kw": 9.227624,
+    "unmet_load_kw": 0,
+    "zone_load_kw": 28.6,
+    "zone_temperature_c": 24.282
+  }
+}
