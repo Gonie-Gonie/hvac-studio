@@ -56,7 +56,7 @@ powershell -ExecutionPolicy Bypass -File .\check-env.ps1 -Json
 .\runtime\python\python.exe .\optimize-sdk.py
 ```
 
-Studio exports include generated run, batch, validation, calibration, and optimization records when `include_records` is selected by the caller. Source artifacts are always copied; generated records are listed separately in `manifest.json` under `run_records`, `batch_records`, `validation_records`, `calibration_records`, and `optimization_records`.
+The Studio Export workspace includes an `Include Records` toggle. When selected, Studio copies generated run, batch, validation, calibration, and optimization records into the package; source artifacts are always copied. Generated records are listed separately in `manifest.json` under `run_records`, `batch_records`, `validation_records`, `calibration_records`, and `optimization_records`.
 
 ## Target Runtime Package Shape
 

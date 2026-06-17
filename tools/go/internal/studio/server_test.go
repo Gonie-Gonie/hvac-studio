@@ -101,6 +101,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("serveButton")) {
 		t.Fatalf("index did not include the Serve command slot")
 	}
+	if !bytes.Contains(body, []byte("exportIncludeRecordsInput")) || !bytes.Contains(body, []byte("Include Records")) {
+		t.Fatalf("index did not include the runtime export record selection control")
+	}
 	if !bytes.Contains(body, []byte("startView")) {
 		t.Fatalf("index did not include the Start workspace")
 	}
@@ -328,6 +331,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("Export SDK Script")) || !bytes.Contains(body, []byte("downloadOptimizationSDKScript")) || !bytes.Contains(body, []byte("run_optimization")) {
 		t.Fatalf("module entrypoint did not expose optimization SDK script export")
+	}
+	if !bytes.Contains(body, []byte("exportIncludeRecordsInput")) || !bytes.Contains(body, []byte("include_records: includeRecords")) {
+		t.Fatalf("module entrypoint did not send runtime export record selection")
 	}
 	if !bytes.Contains(body, []byte("validationPlotSection")) || !bytes.Contains(body, []byte("Measured vs Simulated")) || !bytes.Contains(body, []byte("Residual Histogram")) {
 		t.Fatalf("module entrypoint did not render validation plots")
@@ -697,6 +703,9 @@ func TestStaticExportWorkspaceModuleServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("Commands")) {
 		t.Fatalf("export workspace module did not render commands")
+	}
+	if !bytes.Contains(body, []byte("Include records")) || !bytes.Contains(body, []byte("exportIncludeRecordsInput")) {
+		t.Fatalf("export workspace module did not render record selection summary")
 	}
 	if !bytes.Contains(body, []byte("Records")) {
 		t.Fatalf("export workspace module did not render record count")

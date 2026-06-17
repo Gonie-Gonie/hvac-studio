@@ -36,11 +36,18 @@ function renderSummaryRows(state, manifest, tbody) {
     ["Interface schema", manifest.interface_schema || ""],
     ["Self check", "bin/bcs-env.exe check --root ."],
     ["Commands", (manifest.commands || ["run-default.ps1"]).join(", ")],
+    ["Include records", includeRecordsLabel(manifest)],
     ["Records", recordCount(manifest).toString()],
     ["Files", String((manifest.files || []).length)],
   ];
   if (manifest.created_at_utc) rows.splice(2, 0, ["Created", manifest.created_at_utc]);
   for (const [name, value] of rows) tbody.append(row([name, value]));
+}
+
+function includeRecordsLabel(manifest) {
+  if (manifest.created_at_utc) return manifest.include_records ? "yes" : "no";
+  const input = document.getElementById("exportIncludeRecordsInput");
+  return input?.checked ? "yes" : "no";
 }
 
 function recordCount(manifest) {

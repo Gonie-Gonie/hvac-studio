@@ -6508,9 +6508,10 @@ async function exportSchema() {
 async function exportProject() {
   if (!(await saveModelEditsBeforeExecution())) return;
   try {
+    const includeRecords = el("exportIncludeRecordsInput")?.checked ?? true;
     const body = await api("/api/export", {
       method: "POST",
-      body: JSON.stringify({ project_path: state.currentProjectPath, profile: "runtime_package", include_records: true }),
+      body: JSON.stringify({ project_path: state.currentProjectPath, profile: "runtime_package", include_records: includeRecords }),
     });
     state.latestExport = body.export;
     state.latestExportSummary = body.summary;
@@ -7416,6 +7417,7 @@ function updateCommandState() {
   el("schemaButton").disabled = !hasProject;
   el("serveButton").disabled = true;
   el("exportButton").disabled = !hasProject || !isWorkspaceProject();
+  el("exportIncludeRecordsInput").disabled = !hasProject || !isWorkspaceProject();
   el("saveProjectButton").disabled = !hasProject || !isWorkspaceProject();
   el("copyProjectButton").disabled = !hasProject;
   el("datasetSourcePathInput").disabled = !hasProject || !isWorkspaceProject();
