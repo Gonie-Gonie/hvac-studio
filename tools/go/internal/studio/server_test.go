@@ -1150,6 +1150,29 @@ func TestCreateComponentEndpointCreatesMLComponentAssets(t *testing.T) {
 			t.Fatalf("expected ML component file %s: %v", name, err)
 		}
 	}
+	userStepBytes, err := os.ReadFile(filepath.Join(componentRoot, "user_step.py"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(userStepBytes, []byte("evaluate_model(state, inputs, bias)")) {
+		t.Fatalf("ML user step did not delegate to the cached model pipeline:\n%s", string(userStepBytes))
+	}
+	helperBytes, err := os.ReadFile(filepath.Join(componentRoot, "helpers.py"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, token := range []string{
+		"def load_model_assets",
+		"def extract_features",
+		"def preprocess_features",
+		"def run_inference",
+		"def postprocess_outputs",
+		"missing ML feature",
+	} {
+		if !bytes.Contains(helperBytes, []byte(token)) {
+			t.Fatalf("ML helper did not include %s:\n%s", token, string(helperBytes))
+		}
+	}
 	metadataBytes, err := os.ReadFile(filepath.Join(componentRoot, "component.json"))
 	if err != nil {
 		t.Fatal(err)

@@ -4,6 +4,9 @@ ML-backed components are normal runner components with additional metadata for
 model files and feature contracts. The initial supported path is a Python
 generated-wrapper component that loads project-owned assets during
 `initialize(...)` and uses the cached state during `step(...)`.
+The generated helper pipeline separates feature extraction, preprocessing,
+inference, postprocessing, and output return so the default component can be
+adapted without changing the wrapper contract.
 
 ## Component Metadata
 
