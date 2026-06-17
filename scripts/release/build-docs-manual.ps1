@@ -58,6 +58,147 @@ foreach ($Rel in $Sources) {
 }
 $Lines | Set-Content -LiteralPath $ManualPath -Encoding UTF8
 
+function Write-PlainTextPdf {
+  param(
+    [Parameter(Mandatory = $true)][string]$Path,
+    [Parameter(Mandatory = $true)][string]$Title,
+    [string[]]$Lines
+  )
+
+  $Pages = New-Object System.Collections.Generic.List[object]
+  $Current = New-Object System.Collections.Generic.List[string]
+  foreach ($Line in $Lines) {
+    if ($Line -like '<div style="page-break-after:*') {
+      if ($Current.Count -gt 0) {
+        $Pages.Add(@($Current))
+        $Current = New-Object System.Collections.Generic.List[string]
+      }
+      continue
+    }
+    foreach ($Wrapped in (Split-PdfLine -Line $Line -Width 92)) {
+      $Current.Add($Wrapped)
+      if ($Current.Count -ge 58) {
+        $Pages.Add(@($Current))
+        $Current = New-Object System.Collections.Generic.List[string]
+      }
+    }
+  }
+  if ($Current.Count -gt 0 -or $Pages.Count -eq 0) {
+    $Pages.Add(@($Current))
+  }
+
+  $Objects = New-Object System.Collections.Generic.List[string]
+  $PageObjectIDs = New-Object System.Collections.Generic.List[int]
+  $Objects.Add('<< /Type /Catalog /Pages 2 0 R >>')
+  $Objects.Add('__PAGES__')
+  $Objects.Add('<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>')
+
+  for ($PageIndex = 0; $PageIndex -lt $Pages.Count; $PageIndex++) {
+    $PageObjectID = $Objects.Count + 1
+    $ContentObjectID = $PageObjectID + 1
+    $PageObjectIDs.Add($PageObjectID)
+    $Objects.Add("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents $ContentObjectID 0 R >>")
+    $Content = New-PdfContentStream -Title $Title -PageNumber ($PageIndex + 1) -PageCount $Pages.Count -Lines $Pages[$PageIndex]
+    $Length = [Text.Encoding]::ASCII.GetByteCount($Content)
+    $Objects.Add("<< /Length $Length >>`nstream`n$Content`nendstream")
+  }
+
+  $Kids = ($PageObjectIDs | ForEach-Object { "$_ 0 R" }) -join ' '
+  $Objects[1] = "<< /Type /Pages /Kids [$Kids] /Count $($Pages.Count) >>"
+
+  $Builder = [Text.StringBuilder]::new()
+  [void]$Builder.AppendLine('%PDF-1.4')
+  $Offsets = New-Object System.Collections.Generic.List[int]
+  for ($Index = 0; $Index -lt $Objects.Count; $Index++) {
+    $Offsets.Add([Text.Encoding]::ASCII.GetByteCount($Builder.ToString()))
+    [void]$Builder.AppendLine("$($Index + 1) 0 obj")
+    [void]$Builder.AppendLine($Objects[$Index])
+    [void]$Builder.AppendLine('endobj')
+  }
+  $XrefOffset = [Text.Encoding]::ASCII.GetByteCount($Builder.ToString())
+  [void]$Builder.AppendLine('xref')
+  [void]$Builder.AppendLine("0 $($Objects.Count + 1)")
+  [void]$Builder.AppendLine('0000000000 65535 f ')
+  foreach ($Offset in $Offsets) {
+    [void]$Builder.AppendLine(('{0:0000000000} 00000 n ' -f $Offset))
+  }
+  [void]$Builder.AppendLine('trailer')
+  [void]$Builder.AppendLine("<< /Size $($Objects.Count + 1) /Root 1 0 R >>")
+  [void]$Builder.AppendLine('startxref')
+  [void]$Builder.AppendLine("$XrefOffset")
+  [void]$Builder.AppendLine('%%EOF')
+
+  [IO.File]::WriteAllBytes($Path, [Text.Encoding]::ASCII.GetBytes($Builder.ToString()))
+}
+
+function Split-PdfLine {
+  param(
+    [string]$Line,
+    [int]$Width = 92
+  )
+
+  $Text = ($Line -replace "`t", '    ')
+  if ($null -eq $Text -or $Text.Length -eq 0) {
+    return @('')
+  }
+  $Parts = New-Object System.Collections.Generic.List[string]
+  while ($Text.Length -gt $Width) {
+    $Break = $Text.LastIndexOf(' ', [Math]::Min($Width, $Text.Length - 1))
+    if ($Break -lt 24) {
+      $Break = $Width
+    }
+    $Parts.Add($Text.Substring(0, $Break).TrimEnd())
+    $Text = $Text.Substring($Break).TrimStart()
+  }
+  $Parts.Add($Text)
+  return @($Parts)
+}
+
+function New-PdfContentStream {
+  param(
+    [Parameter(Mandatory = $true)][string]$Title,
+    [Parameter(Mandatory = $true)][int]$PageNumber,
+    [Parameter(Mandatory = $true)][int]$PageCount,
+    [string[]]$Lines
+  )
+
+  $Content = [Text.StringBuilder]::new()
+  [void]$Content.AppendLine('BT')
+  [void]$Content.AppendLine('/F1 10 Tf')
+  [void]$Content.AppendLine('50 760 Td')
+  [void]$Content.AppendLine("($(Escape-PdfText "$Title - page $PageNumber of $PageCount")) Tj")
+  [void]$Content.AppendLine('/F1 8.5 Tf')
+  [void]$Content.AppendLine('0 -18 Td')
+  foreach ($Line in $Lines) {
+    [void]$Content.AppendLine("($(Escape-PdfText $Line)) Tj")
+    [void]$Content.AppendLine('0 -12 Td')
+  }
+  [void]$Content.AppendLine('ET')
+  return $Content.ToString().TrimEnd()
+}
+
+function Escape-PdfText {
+  param([string]$Text)
+
+  if ($null -eq $Text) {
+    return ''
+  }
+  $AsciiChars = New-Object System.Collections.Generic.List[string]
+  foreach ($Char in $Text.ToCharArray()) {
+    $Code = [int][char]$Char
+    if ($Code -ge 32 -and $Code -le 126) {
+      $AsciiChars.Add([string]$Char)
+    } else {
+      $AsciiChars.Add('?')
+    }
+  }
+  $Escaped = $AsciiChars -join ''
+  $Escaped = $Escaped.Replace('\', '\\')
+  $Escaped = $Escaped.Replace('(', '\(')
+  $Escaped = $Escaped.Replace(')', '\)')
+  return $Escaped
+}
+
 $PdfStatus = 'skipped'
 $PdfReason = 'pandoc was not found'
 $Pandoc = Get-Command pandoc -ErrorAction SilentlyContinue
@@ -68,6 +209,10 @@ if ($null -ne $Pandoc) {
   }
   $PdfStatus = 'built'
   $PdfReason = ''
+} else {
+  Write-PlainTextPdf -Path $PdfPath -Title "HVAC Studio Manual $ResolvedVersion" -Lines $Lines
+  $PdfStatus = 'built'
+  $PdfReason = 'built with plain-text fallback because pandoc was not found'
 }
 
 [ordered]@{

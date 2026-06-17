@@ -78,7 +78,7 @@ Both MVP packages include `bin/bcs-env.exe` and a bundled Python runtime under `
 
 Studio desktop binaries are built through `scripts/release/build-studio.ps1` with Wails production tags: `-tags desktop,production`. A plain `go build` can compile but show a Wails runtime error dialog instead of opening the app window.
 
-User documentation source lives under `docs/user/`. Package scripts include Markdown docs under `docs/`, build offline HTML under `docs/site/`, and build a consolidated Markdown manual under `docs/manual/`. The CI fast gate runs the same MkDocs build through `scripts/dev/test-docs.ps1`; package smoke tests fail if `docs/site/index.html` or `docs/manual/hvac-studio-manual.md` is missing. PDF manual generation runs when `pandoc` is installed and is recorded as `built` or `skipped` in `docs/manual/manual-build.json`.
+User documentation source lives under `docs/user/`. Package scripts include Markdown docs under `docs/`, build offline HTML under `docs/site/`, and build a consolidated Markdown manual under `docs/manual/`. The CI fast gate runs the same MkDocs build through `scripts/dev/test-docs.ps1`; package smoke tests fail if `docs/site/index.html`, `docs/manual/hvac-studio-manual.md`, or `docs/manual/hvac-studio-manual.pdf` is missing. PDF manual generation uses `pandoc` when it is installed and otherwise writes a plain-text fallback PDF; the path and build mode are recorded in `docs/manual/manual-build.json`.
 
 Each expanded runtime package also includes `release-provenance.json`, which records the package name, version, runtime id, git metadata, tool versions, documentation packaging status, and package file list. `release-checksums.json` stores SHA-256 hashes for package contents and is verified by package smoke tests.
 
@@ -99,14 +99,15 @@ Package documentation is versioned with:
 - `docs/version.json`
 - `docs/site/version.json`
 
-Build the consolidated manual source, and a PDF when `pandoc` is installed:
+Build the consolidated manual source and PDF:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\build-docs-manual.ps1 -Version 0.1.0-dev
 ```
 
-The Markdown manual is always written under `dist/docs/manual/`. PDF generation
-is optional until the release environment includes a PDF toolchain.
+The Markdown manual and PDF are written under `dist/docs/manual/`. When `pandoc`
+is unavailable, the script writes a plain-text fallback PDF so release packages
+still contain a user-guide PDF asset.
 
 ## Local Release Test
 
