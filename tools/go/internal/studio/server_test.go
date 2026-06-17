@@ -326,6 +326,11 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("openHighErrorInspection")) || !bytes.Contains(body, []byte("High Error Inspection")) {
 		t.Fatalf("module entrypoint did not expose high-error timestep inspection")
 	}
+	if !bytes.Contains(body, []byte("downloadSeriesCSV")) ||
+		!bytes.Contains(body, []byte("Export Series JSON")) ||
+		!bytes.Contains(body, []byte("Time Indexed Steps")) {
+		t.Fatalf("module entrypoint did not expose series export and step inspection")
+	}
 	if !bytes.Contains(body, []byte("runTimeoutField")) {
 		t.Fatalf("module entrypoint did not include run timeout control rendering")
 	}

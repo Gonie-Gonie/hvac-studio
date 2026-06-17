@@ -68,8 +68,10 @@ Use this for sequential stateful studies. Use Data validation when the workflow
 is comparing model outputs against measured dataset rows.
 
 In Studio, Series uses the current Run input fields as a seed and evaluates a
-short timestep preview. The Run workspace plots numeric public output arrays and
-uses the final step as the latest canvas/Inspector value.
+short timestep preview. The Run workspace plots numeric public output arrays,
+shows a time-indexed step table with trace counts, and uses the final step as
+the latest canvas/Inspector value. The structured result view can export the
+series as CSV for spreadsheet analysis or JSON for replay/debug tooling.
 
 ## Scenarios
 
