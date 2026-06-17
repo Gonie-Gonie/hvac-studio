@@ -116,6 +116,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 		if !bytes.Contains(body, []byte(id)) {
 			t.Fatalf("index did not include runtime export option %s", id)
 		}
+		if bytes.Contains(body, []byte(`id="`+id+`" type="checkbox" checked disabled`)) {
+			t.Fatalf("runtime export option %s should be selectable", id)
+		}
 	}
 	if !bytes.Contains(body, []byte("SDK Examples")) || !bytes.Contains(body, []byte("Records")) {
 		t.Fatalf("index did not include the runtime export record selection control")
