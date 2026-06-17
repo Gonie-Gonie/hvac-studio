@@ -2416,7 +2416,11 @@ function mlAssetEditorBlock(component) {
   button.type = "button";
   button.textContent = "Save ML Assets";
   button.addEventListener("click", () => updateMLAssetsFromInspector(component.id, block));
-  form.append(button);
+  const schemaButton = document.createElement("button");
+  schemaButton.type = "button";
+  schemaButton.textContent = "Apply Schema Nodes";
+  schemaButton.addEventListener("click", () => applyMLSchemaNodes(component.id));
+  form.append(button, schemaButton);
   block.append(form);
   return block;
 }
@@ -2477,6 +2481,27 @@ function fileToBase64(file) {
     reader.addEventListener("error", () => reject(reader.error || new Error("File read failed")));
     reader.readAsDataURL(file);
   });
+}
+
+async function applyMLSchemaNodes(componentID) {
+  if (!componentID || !isWorkspaceProject()) return;
+  try {
+    const body = await api("/api/project/components/ml-schema-nodes", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath, component_id: componentID }),
+    });
+    state.detail = body.project;
+    state.selectedComponentId = componentID;
+    markRunResultStale(false);
+    renderAll();
+    const summary = body.summary || {};
+    log(`ML schema nodes applied: ${componentID} inputs=${(summary.added_inputs || []).length} outputs=${(summary.added_outputs || []).length}`);
+  } catch (error) {
+    log(`Apply ML schema nodes failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
 }
 
 function renderParameterAddForm(container, components, editable) {

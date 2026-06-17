@@ -19,6 +19,9 @@ or replace the model file, optional input/output scaler files, feature schema,
 target schema, training metadata, validation report, required packages, model
 format, and valid time resolution. Imported files are written under the
 component folder and the graph plus component metadata file are kept in sync.
+Use **Apply Schema Nodes** after importing schema files to ensure the component
+has the `features` object input and target-based output nodes. For components
+already included in a system, added nodes also update related public IO.
 
 Use `ml_metadata` on the component entry in `graph.json` or the component
 metadata file:

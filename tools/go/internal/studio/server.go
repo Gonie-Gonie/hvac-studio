@@ -238,6 +238,28 @@ type componentMLAssetUpload struct {
 	ContentBase64 string `json:"content_base64,omitempty"`
 }
 
+type applyComponentMLSchemaNodesRequest struct {
+	ProjectPath string `json:"project_path"`
+	ComponentID string `json:"component_id"`
+}
+
+type MLSchemaNodeApplySummary struct {
+	FeatureCount    int      `json:"feature_count"`
+	TargetCount     int      `json:"target_count"`
+	AddedInputs     []string `json:"added_inputs"`
+	AddedOutputs    []string `json:"added_outputs"`
+	ExistingInputs  []string `json:"existing_inputs"`
+	ExistingOutputs []string `json:"existing_outputs"`
+}
+
+type mlSchemaNode struct {
+	ID        string
+	Name      string
+	Medium    string
+	ValueType string
+	Unit      string
+}
+
 type deleteComponentRequest struct {
 	ProjectPath string `json:"project_path"`
 	ComponentID string `json:"component_id"`
@@ -787,6 +809,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/project/components/replace", s.handleReplaceComponent)
 	s.mux.HandleFunc("POST /api/project/components/update", s.handleUpdateComponent)
 	s.mux.HandleFunc("POST /api/project/components/ml-assets", s.handleUpdateComponentMLAssets)
+	s.mux.HandleFunc("POST /api/project/components/ml-schema-nodes", s.handleApplyComponentMLSchemaNodes)
 	s.mux.HandleFunc("POST /api/project/components/delete", s.handleDeleteComponent)
 	s.mux.HandleFunc("POST /api/project/system/components", s.handleIncludeComponent)
 	s.mux.HandleFunc("POST /api/project/system/components/remove", s.handleRemoveComponentFromSystem)
@@ -1431,6 +1454,34 @@ func (s *Server) handleUpdateComponentMLAssets(w http.ResponseWriter, r *http.Re
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "component": component, "imported_files": importedFiles, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleApplyComponentMLSchemaNodes(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeApplyComponentMLSchemaNodesRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	component, summary, err := applyComponentMLSchemaNodes(loaded, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "component": component, "summary": summary, "project": projectDetail(reloaded)})
 }
 
 func (s *Server) handleDeleteComponent(w http.ResponseWriter, r *http.Request) {
@@ -3156,6 +3207,177 @@ func cloneValueBoundsMap(values map[string]model.ValueBounds) map[string]model.V
 	return out
 }
 
+func applyComponentMLSchemaNodes(loaded *project.LoadedProject, req applyComponentMLSchemaNodesRequest) (model.Component, MLSchemaNodeApplySummary, error) {
+	componentID := strings.TrimSpace(req.ComponentID)
+	if componentID == "" {
+		return model.Component{}, MLSchemaNodeApplySummary{}, apperror.Errorf(apperror.CodeValidation, "component_id is required")
+	}
+	component, found := findComponent(loaded.Graph, componentID)
+	if !found {
+		return model.Component{}, MLSchemaNodeApplySummary{}, apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
+	}
+	if component.MLMetadata == nil {
+		return model.Component{}, MLSchemaNodeApplySummary{}, apperror.Errorf(apperror.CodeValidation, "component has no ML metadata: %s", componentID)
+	}
+	features, err := readMLSchemaNodes(loaded.Root, component.MLMetadata.FeatureSchemaFile, []string{"features"}, "float")
+	if err != nil {
+		return model.Component{}, MLSchemaNodeApplySummary{}, err
+	}
+	targets, err := readMLSchemaNodes(loaded.Root, component.MLMetadata.TargetSchemaFile, []string{"targets", "outputs"}, "float")
+	if err != nil {
+		return model.Component{}, MLSchemaNodeApplySummary{}, err
+	}
+	if len(features) == 0 && len(targets) == 0 {
+		return model.Component{}, MLSchemaNodeApplySummary{}, apperror.Errorf(apperror.CodeValidation, "ML feature or target schema is required")
+	}
+
+	summary := MLSchemaNodeApplySummary{
+		FeatureCount: len(features),
+		TargetCount:  len(targets),
+	}
+	if len(features) > 0 {
+		required := true
+		current, _ := findComponent(loaded.Graph, componentID)
+		if componentHasInputNode(current, "features") {
+			summary.ExistingInputs = append(summary.ExistingInputs, "features")
+		} else {
+			if _, err := createNode(loaded, createNodeRequest{
+				ComponentID: componentID,
+				Direction:   "input",
+				ID:          "features",
+				Name:        "Features",
+				Medium:      "signal",
+				ValueType:   "object",
+				Required:    &required,
+				Default:     map[string]any{},
+			}); err != nil {
+				return model.Component{}, MLSchemaNodeApplySummary{}, err
+			}
+			summary.AddedInputs = append(summary.AddedInputs, "features")
+		}
+	}
+	for _, target := range targets {
+		current, _ := findComponent(loaded.Graph, componentID)
+		if componentHasOutputNode(current, target.ID) {
+			summary.ExistingOutputs = append(summary.ExistingOutputs, target.ID)
+			continue
+		}
+		if componentHasNode(current, target.ID) {
+			return model.Component{}, MLSchemaNodeApplySummary{}, apperror.Errorf(apperror.CodeValidation, "schema target conflicts with existing non-output node: %s.%s", componentID, target.ID)
+		}
+		if _, err := createNode(loaded, createNodeRequest{
+			ComponentID: componentID,
+			Direction:   "output",
+			ID:          target.ID,
+			Name:        defaultString(target.Name, displayNameFromID(target.ID)),
+			Medium:      defaultString(target.Medium, "signal"),
+			ValueType:   defaultString(target.ValueType, "float"),
+			Unit:        target.Unit,
+		}); err != nil {
+			return model.Component{}, MLSchemaNodeApplySummary{}, err
+		}
+		summary.AddedOutputs = append(summary.AddedOutputs, target.ID)
+	}
+	updated, found := findComponent(loaded.Graph, componentID)
+	if !found {
+		return model.Component{}, MLSchemaNodeApplySummary{}, apperror.Errorf(apperror.CodeValidation, "component not found after schema node apply: %s", componentID)
+	}
+	return updated, summary, nil
+}
+
+func readMLSchemaNodes(projectRoot string, rel string, keys []string, fallbackValueType string) ([]mlSchemaNode, error) {
+	rel = strings.TrimSpace(rel)
+	if rel == "" {
+		return nil, nil
+	}
+	path, err := resolveProjectOwnedFile(projectRoot, rel)
+	if err != nil {
+		return nil, err
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, apperror.Errorf(apperror.CodeValidation, "ML schema file is missing: %s", filepath.ToSlash(rel))
+	}
+	var document map[string]json.RawMessage
+	if err := json.Unmarshal(content, &document); err != nil {
+		return nil, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	for _, key := range keys {
+		raw, ok := document[key]
+		if !ok {
+			continue
+		}
+		nodes, err := decodeMLSchemaNodes(raw, fallbackValueType)
+		if err != nil {
+			return nil, err
+		}
+		return nodes, nil
+	}
+	return nil, nil
+}
+
+func decodeMLSchemaNodes(raw json.RawMessage, fallbackValueType string) ([]mlSchemaNode, error) {
+	var names []string
+	if err := json.Unmarshal(raw, &names); err == nil {
+		nodes := []mlSchemaNode{}
+		for _, name := range names {
+			node, err := mlSchemaNodeFromParts("", name, "", fallbackValueType, "")
+			if err != nil {
+				return nil, err
+			}
+			nodes = append(nodes, node)
+		}
+		return nodes, nil
+	}
+	var objects []struct {
+		ID        string `json:"id"`
+		Name      string `json:"name"`
+		Medium    string `json:"medium"`
+		ValueType string `json:"value_type"`
+		Unit      string `json:"unit"`
+	}
+	if err := json.Unmarshal(raw, &objects); err != nil {
+		return nil, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	nodes := []mlSchemaNode{}
+	for _, item := range objects {
+		node, err := mlSchemaNodeFromParts(item.ID, item.Name, item.Medium, defaultString(item.ValueType, fallbackValueType), item.Unit)
+		if err != nil {
+			return nil, err
+		}
+		nodes = append(nodes, node)
+	}
+	return nodes, nil
+}
+
+func mlSchemaNodeFromParts(id string, name string, medium string, valueType string, unit string) (mlSchemaNode, error) {
+	id = strings.TrimSpace(id)
+	name = strings.TrimSpace(name)
+	if id == "" {
+		id = name
+	}
+	id = strings.ReplaceAll(slugify(id), "-", "_")
+	if id == "" {
+		return mlSchemaNode{}, apperror.Errorf(apperror.CodeValidation, "ML schema node id is required")
+	}
+	if id[0] >= '0' && id[0] <= '9' {
+		id = "n_" + id
+	}
+	if !isIdentifierLike(id) {
+		return mlSchemaNode{}, apperror.Errorf(apperror.CodeValidation, "ML schema node id is invalid: %s", id)
+	}
+	if name == "" {
+		name = displayNameFromID(id)
+	}
+	return mlSchemaNode{
+		ID:        id,
+		Name:      name,
+		Medium:    strings.TrimSpace(medium),
+		ValueType: strings.TrimSpace(valueType),
+		Unit:      strings.TrimSpace(unit),
+	}, nil
+}
+
 func deleteComponent(loaded *project.LoadedProject, req deleteComponentRequest) error {
 	componentID := strings.TrimSpace(req.ComponentID)
 	if componentID == "" {
@@ -4837,6 +5059,15 @@ func decodeUpdateComponentRequest(r *http.Request) (updateComponentRequest, erro
 func decodeUpdateComponentMLAssetsRequest(r *http.Request) (updateComponentMLAssetsRequest, error) {
 	defer r.Body.Close()
 	var req updateComponentMLAssetsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeApplyComponentMLSchemaNodesRequest(r *http.Request) (applyComponentMLSchemaNodesRequest, error) {
+	defer r.Body.Close()
+	var req applyComponentMLSchemaNodesRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}

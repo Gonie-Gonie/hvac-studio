@@ -636,6 +636,8 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("mlAssetEditorBlock")) ||
 		!bytes.Contains(body, []byte("/api/project/components/ml-assets")) ||
+		!bytes.Contains(body, []byte("/api/project/components/ml-schema-nodes")) ||
+		!bytes.Contains(body, []byte("Apply Schema Nodes")) ||
 		!bytes.Contains(body, []byte("input_scaler_file")) ||
 		!bytes.Contains(body, []byte("fileToBase64")) {
 		t.Fatalf("module entrypoint did not include ML asset import editing")
@@ -1216,6 +1218,7 @@ func TestUpdateComponentMLAssetsEndpointImportsFilesAndMetadata(t *testing.T) {
 			{"field": "model_file", "file_name": "uploaded_model.onnx", "content_base64": "AQIDBA=="},
 			{"field": "input_scaler_file", "file_name": "input_scaler.json", "content": `{"mean":[1.0],"scale":[2.0]}`},
 			{"field": "feature_schema_file", "file_name": "uploaded_features.json", "content": `{"features":["temperature_c"]}`},
+			{"field": "target_schema_file", "file_name": "uploaded_targets.json", "content": `{"targets":[{"id":"fan_power_kw","name":"Fan Power","unit":"kW"}]}`},
 			{"field": "training_metadata_file", "file_name": "training_metadata.json", "content": `{"dataset":"train.csv"}`},
 			{"field": "validation_report_file", "file_name": "uploaded_validation.json", "content": `{"metrics":{"rmse":1.25}}`},
 		},
@@ -1246,6 +1249,7 @@ func TestUpdateComponentMLAssetsEndpointImportsFilesAndMetadata(t *testing.T) {
 		metadata.ModelFile != "components/ml_inference/uploaded_model.onnx" ||
 		metadata.InputScalerFile != "components/ml_inference/input_scaler.json" ||
 		metadata.FeatureSchemaFile != "components/ml_inference/uploaded_features.json" ||
+		metadata.TargetSchemaFile != "components/ml_inference/uploaded_targets.json" ||
 		metadata.TrainingMetadataFile != "components/ml_inference/training_metadata.json" ||
 		metadata.ValidationReportFile != "components/ml_inference/uploaded_validation.json" {
 		t.Fatalf("ML metadata = %#v", metadata)
@@ -1257,6 +1261,7 @@ func TestUpdateComponentMLAssetsEndpointImportsFilesAndMetadata(t *testing.T) {
 		"components/ml_inference/uploaded_model.onnx",
 		"components/ml_inference/input_scaler.json",
 		"components/ml_inference/uploaded_features.json",
+		"components/ml_inference/uploaded_targets.json",
 		"components/ml_inference/training_metadata.json",
 		"components/ml_inference/uploaded_validation.json",
 	} {
@@ -1289,6 +1294,36 @@ func TestUpdateComponentMLAssetsEndpointImportsFilesAndMetadata(t *testing.T) {
 	persisted, found := findComponent(loaded.Graph, "ml_inference")
 	if !found || persisted.MLMetadata == nil || persisted.MLMetadata.ModelFile != "components/ml_inference/uploaded_model.onnx" {
 		t.Fatalf("persisted ML metadata = %#v found=%v", persisted.MLMetadata, found)
+	}
+
+	applyPayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "ml_inference",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyResponse := httptest.NewRecorder()
+	applyRequest := httptest.NewRequest(http.MethodPost, "/api/project/components/ml-schema-nodes", bytes.NewReader(applyPayload))
+	server.Handler().ServeHTTP(applyResponse, applyRequest)
+	if applyResponse.Code != http.StatusOK {
+		t.Fatalf("schema node status = %d body=%s", applyResponse.Code, applyResponse.Body.String())
+	}
+	var applyBody struct {
+		Component model.Component          `json:"component"`
+		Summary   MLSchemaNodeApplySummary `json:"summary"`
+	}
+	if err := json.Unmarshal(applyResponse.Body.Bytes(), &applyBody); err != nil {
+		t.Fatal(err)
+	}
+	if applyBody.Summary.FeatureCount != 1 ||
+		applyBody.Summary.TargetCount != 1 ||
+		!containsString(applyBody.Summary.ExistingInputs, "features") ||
+		!containsString(applyBody.Summary.AddedOutputs, "fan_power_kw") {
+		t.Fatalf("schema node summary = %#v", applyBody.Summary)
+	}
+	if !componentHasOutputNode(applyBody.Component, "fan_power_kw") {
+		t.Fatalf("schema output node was not created: %#v", applyBody.Component.Nodes.Outputs)
 	}
 
 	badPayload, err := json.Marshal(map[string]any{
