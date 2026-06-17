@@ -573,6 +573,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("/api/project/optimization-setup")) {
 		t.Fatalf("module entrypoint did not create optimization setups")
 	}
+	if !bytes.Contains(body, []byte("optimizationSetupEditorSection")) ||
+		!bytes.Contains(body, []byte("Decision Variables")) ||
+		!bytes.Contains(body, []byte("Estimated Runs")) ||
+		!bytes.Contains(body, []byte("constraints")) {
+		t.Fatalf("module entrypoint did not expose optimization setup editor")
+	}
 	if !bytes.Contains(body, []byte("/api/project/parameter-set/apply")) {
 		t.Fatalf("module entrypoint did not apply parameter sets")
 	}
@@ -3247,10 +3253,13 @@ func TestCreateOptimizationSetupEndpointWritesPublicInputSetup(t *testing.T) {
 	if err := copyProjectTree(filepath.Join(repoRoot, "examples", "006_optimization_case"), projectRoot); err != nil {
 		t.Fatal(err)
 	}
+	writeTestFile(t, filepath.Join(projectRoot, "parameter_sets", "base.json"), `{"id":"base","components":{}}`)
 	projectPath := filepath.Join(projectRoot, "project.bcsproj")
 	payload, err := json.Marshal(map[string]any{
-		"project_path": projectPath,
-		"id":           "auto_optimization",
+		"project_path":       projectPath,
+		"id":                 "auto_optimization",
+		"algorithm":          "grid",
+		"base_parameter_set": filepath.Join("parameter_sets", "base.json"),
 		"base_inputs": map[string]any{
 			"building_load_kw": 500.0,
 			"chw_setpoint_c":   7.5,
@@ -3277,6 +3286,9 @@ func TestCreateOptimizationSetupEndpointWritesPublicInputSetup(t *testing.T) {
 	}
 	if body.Summary.RelativePath != "optimization/setups/auto_optimization.json" || body.Summary.VariableCount != 1 {
 		t.Fatalf("summary = %#v", body.Summary)
+	}
+	if body.Summary.BaseParameterSet != "parameter_sets/base.json" || body.Setup.BaseParameterSet != "parameter_sets/base.json" {
+		t.Fatalf("base parameter set summary=%#v setup=%#v", body.Summary, body.Setup)
 	}
 	if body.Setup.Objective.Output != "objective_kw" || body.Setup.DecisionVariables[0].Name != "chw_setpoint_c" {
 		t.Fatalf("optimization setup = %#v", body.Setup)

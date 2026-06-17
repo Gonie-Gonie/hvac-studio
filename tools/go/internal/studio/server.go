@@ -424,6 +424,8 @@ type createOptimizationSetupRequest struct {
 	ProjectPath       string                          `json:"project_path"`
 	ID                string                          `json:"id"`
 	Name              string                          `json:"name"`
+	Algorithm         string                          `json:"algorithm"`
+	BaseParameterSet  string                          `json:"base_parameter_set"`
 	BaseInputs        map[string]any                  `json:"base_inputs"`
 	Context           map[string]any                  `json:"context"`
 	Objective         optimization.Objective          `json:"objective"`
@@ -553,12 +555,13 @@ type CalibrationSetupSummary struct {
 }
 
 type OptimizationSetupSummary struct {
-	ID            string                 `json:"id"`
-	Name          string                 `json:"name"`
-	RelativePath  string                 `json:"relative_path"`
-	Algorithm     string                 `json:"algorithm"`
-	Objective     optimization.Objective `json:"objective"`
-	VariableCount int                    `json:"variable_count"`
+	ID               string                 `json:"id"`
+	Name             string                 `json:"name"`
+	RelativePath     string                 `json:"relative_path"`
+	Algorithm        string                 `json:"algorithm"`
+	BaseParameterSet string                 `json:"base_parameter_set,omitempty"`
+	Objective        optimization.Objective `json:"objective"`
+	VariableCount    int                    `json:"variable_count"`
 }
 
 type DatasetPreview struct {
@@ -6078,6 +6081,19 @@ func createOptimizationSetup(loaded *project.LoadedProject, req createOptimizati
 	if objective.Sense == "" {
 		objective.Sense = "min"
 	}
+	algorithm := strings.TrimSpace(req.Algorithm)
+	if algorithm == "" {
+		algorithm = "grid"
+	}
+	if algorithm != "grid" {
+		return OptimizationSetupSummary{}, optimization.Setup{}, apperror.Errorf(apperror.CodeValidation, "unsupported optimization algorithm: %s", algorithm)
+	}
+	baseParameterSet := strings.TrimSpace(req.BaseParameterSet)
+	if baseParameterSet != "" {
+		if _, err := resolveProjectOwnedFile(loaded.Root, baseParameterSet); err != nil {
+			return OptimizationSetupSummary{}, optimization.Setup{}, err
+		}
+	}
 	variables := req.DecisionVariables
 	if len(variables) == 0 {
 		variable, ok := defaultOptimizationDecisionVariable(loaded.Graph, loaded.Project.EntrySystem, baseInputs)
@@ -6097,9 +6113,10 @@ func createOptimizationSetup(loaded *project.LoadedProject, req createOptimizati
 	setup := optimization.Setup{
 		ID:                id,
 		Name:              name,
-		Algorithm:         "grid",
+		Algorithm:         algorithm,
 		BaseInputs:        baseInputs,
 		Context:           contextValues,
+		BaseParameterSet:  filepath.ToSlash(baseParameterSet),
 		Objective:         objective,
 		DecisionVariables: variables,
 		Constraints:       req.Constraints,
@@ -6116,12 +6133,13 @@ func createOptimizationSetup(loaded *project.LoadedProject, req createOptimizati
 	rel, _ := filepath.Rel(loaded.Root, setupPath)
 	setup.Path = filepath.ToSlash(rel)
 	summary := OptimizationSetupSummary{
-		ID:            setup.ID,
-		Name:          setup.Name,
-		RelativePath:  setup.Path,
-		Algorithm:     setup.Algorithm,
-		Objective:     setup.Objective,
-		VariableCount: len(setup.DecisionVariables),
+		ID:               setup.ID,
+		Name:             setup.Name,
+		RelativePath:     setup.Path,
+		Algorithm:        setup.Algorithm,
+		BaseParameterSet: filepath.ToSlash(setup.BaseParameterSet),
+		Objective:        setup.Objective,
+		VariableCount:    len(setup.DecisionVariables),
 	}
 	return summary, setup, nil
 }
@@ -6510,12 +6528,13 @@ func loadOptimizationSetupSummaries(projectRoot string) []OptimizationSetupSumma
 			name = displayNameFromID(setup.ID)
 		}
 		summaries = append(summaries, OptimizationSetupSummary{
-			ID:            setup.ID,
-			Name:          name,
-			RelativePath:  filepath.ToSlash(rel),
-			Algorithm:     setup.Algorithm,
-			Objective:     setup.Objective,
-			VariableCount: len(setup.DecisionVariables),
+			ID:               setup.ID,
+			Name:             name,
+			RelativePath:     filepath.ToSlash(rel),
+			Algorithm:        setup.Algorithm,
+			BaseParameterSet: filepath.ToSlash(setup.BaseParameterSet),
+			Objective:        setup.Objective,
+			VariableCount:    len(setup.DecisionVariables),
 		})
 	}
 	sort.Slice(summaries, func(i, j int) bool {

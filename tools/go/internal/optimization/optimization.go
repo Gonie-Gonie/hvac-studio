@@ -27,6 +27,7 @@ type Setup struct {
 	Algorithm         string             `json:"algorithm"`
 	BaseInputs        map[string]any     `json:"base_inputs"`
 	Context           map[string]any     `json:"context"`
+	BaseParameterSet  string             `json:"base_parameter_set,omitempty"`
 	Objective         Objective          `json:"objective"`
 	DecisionVariables []DecisionVariable `json:"decision_variables"`
 	Constraints       []Constraint       `json:"constraints,omitempty"`
@@ -65,6 +66,7 @@ type Result struct {
 	SetupName         string                    `json:"setup_name,omitempty"`
 	Setup             string                    `json:"setup,omitempty"`
 	Algorithm         string                    `json:"algorithm"`
+	BaseParameterSet  string                    `json:"base_parameter_set,omitempty"`
 	Objective         Objective                 `json:"objective"`
 	SavedRecord       string                    `json:"saved_record,omitempty"`
 	BestObjective     float64                   `json:"best_objective"`
@@ -83,6 +85,7 @@ type RecordSummary struct {
 	SetupID           string    `json:"setup_id"`
 	SetupName         string    `json:"setup_name,omitempty"`
 	Algorithm         string    `json:"algorithm"`
+	BaseParameterSet  string    `json:"base_parameter_set,omitempty"`
 	Objective         Objective `json:"objective"`
 	SavedScenario     string    `json:"saved_scenario,omitempty"`
 	SavedParameterSet string    `json:"saved_parameter_set,omitempty"`
@@ -134,6 +137,7 @@ func WriteRecord(loaded *project.LoadedProject, result *Result) (RecordSummary, 
 	}
 	provenance, err := artifactmeta.Build(loaded, []artifactmeta.Reference{
 		{Role: "optimization_setup", Path: result.Setup},
+		{Role: "base_parameter_set", Path: result.BaseParameterSet},
 		{Role: "saved_scenario", Path: result.SavedScenario},
 		{Role: "saved_parameter_set", Path: result.SavedParameterSet},
 	})
@@ -221,6 +225,7 @@ func summarizeRecord(projectRoot string, recordPath string, record Record) Recor
 		summary.OK = record.Result.OK
 		summary.Objective = record.Result.Objective
 		summary.BestObjective = record.Result.BestObjective
+		summary.BaseParameterSet = record.Result.BaseParameterSet
 		summary.SavedScenario = record.Result.SavedScenario
 		summary.SavedParameterSet = record.Result.SavedParameterSet
 		summary.CandidateCount = len(record.Result.Candidates)
@@ -303,6 +308,11 @@ func Run(ctx context.Context, projectPath string, setup Setup, options Options) 
 	if err != nil {
 		return nil, apperror.Wrap(apperror.CodeValidation, err)
 	}
+	if setup.BaseParameterSet != "" {
+		if _, err := parameterset.ApplyFile(loaded, setup.BaseParameterSet); err != nil {
+			return nil, err
+		}
+	}
 	if err := validateDecisionVariables(loaded, setup.DecisionVariables); err != nil {
 		return nil, err
 	}
@@ -362,17 +372,18 @@ func Run(ctx context.Context, projectPath string, setup Setup, options Options) 
 	}
 
 	result := &Result{
-		OK:             true,
-		SetupID:        setup.ID,
-		SetupName:      setup.Name,
-		Setup:          setup.Path,
-		Algorithm:      setup.Algorithm,
-		Objective:      setup.Objective,
-		BestObjective:  best.Objective,
-		BestInputs:     best.Inputs,
-		BestParameters: best.Parameters,
-		BestOutputs:    best.Outputs,
-		Candidates:     summaries,
+		OK:               true,
+		SetupID:          setup.ID,
+		SetupName:        setup.Name,
+		Setup:            setup.Path,
+		Algorithm:        setup.Algorithm,
+		BaseParameterSet: filepath.ToSlash(setup.BaseParameterSet),
+		Objective:        setup.Objective,
+		BestObjective:    best.Objective,
+		BestInputs:       best.Inputs,
+		BestParameters:   best.Parameters,
+		BestOutputs:      best.Outputs,
+		Candidates:       summaries,
 	}
 	if !best.Feasible || best.Error != "" {
 		result.OK = false

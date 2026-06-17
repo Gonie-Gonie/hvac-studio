@@ -17,8 +17,13 @@ Optimization changes decision variables to improve an objective.
 5. Run optimization.
 6. Save the result as scenario, parameter set, script, or CSV.
 
-The implemented path uses saved grid-search setups over public inputs or
-component parameters. A decision variable can use:
+In Studio, open `Artifacts` and use `Opt Setup` to create a saved grid-search
+setup without editing JSON. The editor lets you select the objective output,
+minimize or maximize, base parameter set, public-input and component-parameter
+decision variables, bounds, output constraints, and estimated run count.
+
+The saved setup uses public inputs or component parameters. A decision variable
+can use:
 
 - `kind: "public_input"` with `name`
 - `kind: "component_parameter"` with `component` and `name`
