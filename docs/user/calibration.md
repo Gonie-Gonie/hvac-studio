@@ -13,7 +13,13 @@ Calibration estimates model parameters to reduce the difference between simulate
 7. Run calibration.
 8. Save results as a new parameter set.
 
-The current implemented path uses a saved setup JSON and grid search. See:
+In Studio, open `Artifacts` and use `Cal Setup` to create a setup without
+editing JSON. The editor lets you select the validation mapping, target outputs
+and weights, candidate parameters, bounds, base parameter set, and grid-search
+algorithm. Candidate filters cover role, component, unit, and bounds presence;
+the selected candidate count and expected grid run count update before saving.
+
+The saved setup can also be inspected or reproduced from JSON. See:
 
 ```text
 examples/005_chiller_plant_like_system/calibration/setups/chiller_cop_grid.json

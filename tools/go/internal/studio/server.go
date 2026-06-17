@@ -414,6 +414,7 @@ type createCalibrationSetupRequest struct {
 	MappingPath      string                      `json:"mapping_path"`
 	ID               string                      `json:"id"`
 	Name             string                      `json:"name"`
+	Algorithm        string                      `json:"algorithm"`
 	BaseParameterSet string                      `json:"base_parameter_set"`
 	ObjectiveOutputs map[string]float64          `json:"objective_outputs"`
 	Parameters       []calibration.ParameterSpec `json:"parameters"`
@@ -743,6 +744,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/project/parameter-set/apply", s.handleApplyParameterSet)
 	s.mux.HandleFunc("POST /api/project/parameters/delete", s.handleDeleteParameter)
 	s.mux.HandleFunc("POST /api/project/source", s.handleUpdateSource)
+	s.mux.HandleFunc("GET /api/project/validation-mapping", s.handleValidationMappingDetail)
 	s.mux.HandleFunc("POST /api/project/validation-mapping", s.handleCreateValidationMapping)
 	s.mux.HandleFunc("POST /api/project/validation-mapping/update", s.handleUpdateValidationMapping)
 	s.mux.HandleFunc("POST /api/project/validation-mapping/copy", s.handleCopyValidationMapping)
@@ -934,6 +936,20 @@ func (s *Server) handleParameterSetDetail(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "parameter_set": detail})
+}
+
+func (s *Server) handleValidationMappingDetail(w http.ResponseWriter, r *http.Request) {
+	loaded, err := s.loadProject(r.URL.Query().Get("project_path"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	mapping, err := modelvalidation.LoadMapping(loaded.Root, r.URL.Query().Get("path"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "mapping": mapping})
 }
 
 func (s *Server) handleCreateValidationMapping(w http.ResponseWriter, r *http.Request) {
@@ -5993,6 +6009,13 @@ func createCalibrationSetup(loaded *project.LoadedProject, req createCalibration
 	if len(parameters) == 0 {
 		return CalibrationSetupSummary{}, calibration.Setup{}, apperror.Errorf(apperror.CodeValidation, "calibration setup requires at least one calibration_target parameter with numeric bounds")
 	}
+	algorithm := strings.TrimSpace(req.Algorithm)
+	if algorithm == "" {
+		algorithm = "grid"
+	}
+	if algorithm != "grid" {
+		return CalibrationSetupSummary{}, calibration.Setup{}, apperror.Errorf(apperror.CodeValidation, "unsupported calibration algorithm: %s", algorithm)
+	}
 	id := strings.ReplaceAll(slugify(req.ID), "-", "_")
 	if id == "" {
 		id = uniqueCalibrationSetupID(loaded.Root, strings.ReplaceAll(slugify(mapping.ID+"_calibration"), "-", "_"))
@@ -6004,7 +6027,7 @@ func createCalibrationSetup(loaded *project.LoadedProject, req createCalibration
 	setup := calibration.Setup{
 		ID:               id,
 		Name:             name,
-		Algorithm:        "grid",
+		Algorithm:        algorithm,
 		Mapping:          filepath.ToSlash(mapping.Path),
 		BaseParameterSet: filepath.ToSlash(strings.TrimSpace(req.BaseParameterSet)),
 		Objective: calibration.Objective{

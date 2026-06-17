@@ -519,6 +519,60 @@ h2,
   width: min(320px, 100%);
 }
 
+.calibration-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  padding: 10px;
+}
+
+.editor-control {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.editor-control input,
+.editor-control select {
+  width: 100%;
+  min-width: 0;
+}
+
+.calibration-filters,
+.calibration-setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+}
+
+.calibration-filters select {
+  width: min(180px, 100%);
+}
+
+.compact-toggle {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.compact-toggle input {
+  height: auto;
+}
+
+.calibration-candidate-block {
+  grid-column: 1 / -1;
+  overflow-x: auto;
+}
+
+.calibration-candidate-block input[type="number"],
+.result-table input[type="number"] {
+  width: 86px;
+}
+
 .metric-bars {
   display: grid;
   gap: 9px;

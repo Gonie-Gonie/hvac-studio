@@ -555,6 +555,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("/api/project/calibration-setup")) {
 		t.Fatalf("module entrypoint did not create calibration setups")
 	}
+	if !bytes.Contains(body, []byte("calibrationSetupEditorSection")) ||
+		!bytes.Contains(body, []byte("Candidate Parameters")) ||
+		!bytes.Contains(body, []byte("Expected Runs")) ||
+		!bytes.Contains(body, []byte("objective_outputs")) {
+		t.Fatalf("module entrypoint did not expose calibration setup editor")
+	}
 	if !bytes.Contains(body, []byte("/api/project/optimization-setup")) {
 		t.Fatalf("module entrypoint did not create optimization setups")
 	}
@@ -3036,6 +3042,31 @@ func TestCreateValidationMappingEndpointWritesSuggestedMapping(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(projectRoot, "validation", "mappings", "suggested_validation.json")); err != nil {
 		t.Fatal(err)
 	}
+
+	detailResponse := httptest.NewRecorder()
+	detailRequest := httptest.NewRequest(
+		http.MethodGet,
+		"/api/project/validation-mapping?project_path="+url.QueryEscape(projectPath)+"&path="+url.QueryEscape(filepath.Join("validation", "mappings", "suggested_validation.json")),
+		nil,
+	)
+
+	server.Handler().ServeHTTP(detailResponse, detailRequest)
+
+	if detailResponse.Code != http.StatusOK {
+		t.Fatalf("detail status = %d body=%s", detailResponse.Code, detailResponse.Body.String())
+	}
+	var detailBody struct {
+		Mapping struct {
+			ID                    string            `json:"id"`
+			ObservedOutputColumns map[string]string `json:"observed_output_columns"`
+		} `json:"mapping"`
+	}
+	if err := json.Unmarshal(detailResponse.Body.Bytes(), &detailBody); err != nil {
+		t.Fatal(err)
+	}
+	if detailBody.Mapping.ID != "suggested_validation" || detailBody.Mapping.ObservedOutputColumns["total_power_kw"] != "measured_total_power_kw" {
+		t.Fatalf("mapping detail = %#v", detailBody.Mapping)
+	}
 }
 
 func TestValidationMappingManagementEndpointRenamesCopiesAndDeletes(t *testing.T) {
@@ -3166,6 +3197,7 @@ func TestCreateCalibrationSetupEndpointWritesRoleBasedSetup(t *testing.T) {
 		"project_path": projectPath,
 		"mapping_path": filepath.Join("validation", "mappings", "plant_validation.json"),
 		"id":           "auto_calibration",
+		"algorithm":    "grid",
 	})
 	if err != nil {
 		t.Fatal(err)

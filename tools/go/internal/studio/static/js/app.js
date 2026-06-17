@@ -547,6 +547,9 @@ async function openArtifactSummary(kind, item) {
     } else if (kind === "parameter_set" && item.relative_path) {
       const body = await api(`/api/project/parameter-set?project_path=${encodeURIComponent(state.currentProjectPath)}&path=${encodeURIComponent(item.relative_path)}`);
       state.latestWorkflowRecord = { kind, parameter_set: body.parameter_set };
+    } else if (kind === "validation_mapping" && item.relative_path) {
+      const body = await api(`/api/project/validation-mapping?project_path=${encodeURIComponent(state.currentProjectPath)}&path=${encodeURIComponent(item.relative_path)}`);
+      state.latestWorkflowRecord = { kind, artifact: item, mapping: body.mapping };
     } else {
       state.latestWorkflowRecord = { kind, artifact: item };
     }
@@ -2649,6 +2652,11 @@ function structuredResultView(value) {
     wrapper.append(validationMappingArtifactSection(value.artifact, value.mapping));
     return wrapper;
   }
+  if (value.kind === "calibration_setup_editor") {
+    wrapper.append(resultHeader("Calibration Setup", value.mapping_summary?.relative_path || "", `${(value.candidates || []).length} candidates`, "/docs/user/calibration.md"));
+    wrapper.append(calibrationSetupEditorSection(value));
+    return wrapper;
+  }
   if (value.kind && value.artifact) {
     wrapper.append(resultHeader(value.kind.replace(/_/g, " "), value.artifact.relative_path || value.artifact.path || "", value.artifact.state || ""));
     wrapper.append(resultTable("Summary", objectRows(value.artifact)));
@@ -2949,9 +2957,9 @@ async function importDataset() {
   }
 }
 
-async function createCalibrationSetup() {
-  if (!(await saveModelEditsBeforeExecution())) return;
-  const mapping = (state.detail?.validation_mappings || [])[0];
+async function openCalibrationSetupEditor(mappingPath = "") {
+  const mappings = state.detail?.validation_mappings || [];
+  const mapping = mappings.find((item) => item.relative_path === mappingPath) || mappings[0];
   if (!mapping) {
     state.latestValidation = { error: "No validation mapping is available for this project" };
     renderProblems();
@@ -2960,13 +2968,31 @@ async function createCalibrationSetup() {
     return;
   }
   try {
+    const body = await api(`/api/project/validation-mapping?project_path=${encodeURIComponent(state.currentProjectPath)}&path=${encodeURIComponent(mapping.relative_path)}`);
+    state.latestWorkflowRecord = {
+      kind: "calibration_setup_editor",
+      mapping_summary: mapping,
+      mapping: body.mapping,
+      candidates: calibrationParameterCandidates(),
+    };
+    renderResults();
+    setMode("artifacts");
+    setBottomTab("results");
+    log(`Calibration setup editor opened: ${mapping.relative_path}`);
+  } catch (error) {
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+    log(`Calibration setup editor failed: ${error.message}`);
+  }
+}
+
+async function createCalibrationSetup(payload) {
+  if (!(await saveModelEditsBeforeExecution())) return;
+  try {
     const body = await api("/api/project/calibration-setup", {
       method: "POST",
-      body: JSON.stringify({
-        project_path: state.currentProjectPath,
-        mapping_path: mapping.relative_path,
-        base_parameter_set: state.activeParameterSetPath,
-      }),
+      body: JSON.stringify({ project_path: state.currentProjectPath, ...payload }),
     });
     state.detail = body.project;
     state.latestWorkflowRecord = { kind: "calibration_setup", artifact: body.summary, setup: body.setup };
@@ -2982,6 +3008,296 @@ async function createCalibrationSetup() {
     setBottomTab("problems");
     log(`Calibration setup failed: ${error.message}`);
   }
+}
+
+function calibrationParameterCandidates() {
+  const candidates = [];
+  for (const component of state.detail?.graph?.components || []) {
+    const definitions = component.parameter_defs || {};
+    const names = [...new Set([...Object.keys(component.parameters || {}), ...Object.keys(definitions)])].sort();
+    for (const name of names) {
+      const definition = definitions[name] || {};
+      const bounds = definition.bounds || {};
+      const min = finiteNumber(bounds.min);
+      const max = finiteNumber(bounds.max);
+      const hasBounds = min !== null && max !== null && max >= min;
+      const current = component.parameters?.[name] ?? definition.current ?? definition.default ?? "";
+      const role = definition.role || "fixed";
+      const selected = role === "calibration_target" && hasBounds && finiteNumber(current) !== null;
+      candidates.push({
+        component: component.id,
+        componentName: component.name || component.id,
+        name,
+        role,
+        unit: definition.unit || "",
+        current,
+        min,
+        max,
+        step: hasBounds ? defaultCalibrationGridStep(min, max) : "",
+        hasBounds,
+        selected,
+      });
+    }
+  }
+  return candidates;
+}
+
+function defaultCalibrationGridStep(min, max) {
+  const step = (Number(max) - Number(min)) / 4;
+  if (!Number.isFinite(step) || step <= 0) return "1";
+  return String(Math.round(step * 1e9) / 1e9);
+}
+
+function calibrationSetupEditorSection(context) {
+  const section = document.createElement("div");
+  section.className = "result-grid";
+  section.append(calibrationSetupControls(context));
+  section.append(calibrationObjectiveOutputEditor(context.mapping));
+  section.append(calibrationCandidateEditor(context.candidates || []));
+  const actions = document.createElement("div");
+  actions.className = "result-actions calibration-setup-actions";
+  const runCount = document.createElement("span");
+  runCount.className = "input-meta calibration-run-count";
+  const create = document.createElement("button");
+  create.type = "button";
+  create.className = "small-action";
+  create.textContent = "Create Setup";
+  create.addEventListener("click", () => {
+    const payload = collectCalibrationSetupEditorPayload(section, context);
+    if (payload) createCalibrationSetup(payload);
+  });
+  actions.append(runCount, create);
+  section.append(actions);
+  section.querySelectorAll("[data-calibration-filter], [data-cal-param-check], [data-cal-param-field], [data-cal-output-check], [data-cal-output-weight]").forEach((control) => {
+    control.addEventListener("input", () => updateCalibrationEditorState(section));
+    control.addEventListener("change", () => updateCalibrationEditorState(section));
+  });
+  updateCalibrationEditorState(section);
+  return section;
+}
+
+function calibrationSetupControls(context) {
+  const block = document.createElement("div");
+  block.className = "result-block calibration-editor-block";
+  block.innerHTML = `<div class="result-block-title">Setup</div>`;
+  const controls = document.createElement("div");
+  controls.className = "calibration-editor-grid";
+  const mappingSelect = document.createElement("select");
+  mappingSelect.dataset.calibrationMapping = "true";
+  for (const item of state.detail?.validation_mappings || []) {
+    mappingSelect.append(new Option(item.name || item.id || item.relative_path, item.relative_path || ""));
+  }
+  mappingSelect.value = context.mapping_summary?.relative_path || "";
+  mappingSelect.addEventListener("change", () => openCalibrationSetupEditor(mappingSelect.value));
+  const baseSelect = document.createElement("select");
+  baseSelect.dataset.calibrationBase = "true";
+  baseSelect.append(new Option("Baseline", ""));
+  for (const item of state.detail?.parameter_sets || []) {
+    baseSelect.append(new Option(item.name || item.id || item.relative_path, item.relative_path || ""));
+  }
+  baseSelect.value = state.activeParameterSetPath || "";
+  const algorithmSelect = document.createElement("select");
+  algorithmSelect.dataset.calibrationAlgorithm = "true";
+  algorithmSelect.append(new Option("Grid Search", "grid"));
+  controls.append(
+    labeledEditorControl("Mapping", mappingSelect),
+    labeledEditorControl("Base Parameter Set", baseSelect),
+    labeledEditorControl("Algorithm", algorithmSelect),
+    labeledEditorInput("Setup ID", "text", "auto", "calibration-setup-id"),
+    labeledEditorInput("Setup Name", "text", "auto", "calibration-setup-name"),
+  );
+  block.append(controls);
+  return block;
+}
+
+function calibrationObjectiveOutputEditor(mapping) {
+  const block = document.createElement("div");
+  block.className = "result-block";
+  block.innerHTML = `
+    <div class="result-block-title">Target Outputs</div>
+    <table class="result-table">
+      <thead><tr><th>Use</th><th>Output</th><th>Dataset Column</th><th>Weight</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  `;
+  const tbody = block.querySelector("tbody");
+  const outputs = Object.entries(mapping?.observed_output_columns || {});
+  if (!outputs.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-cell">No observed outputs</td></tr>`;
+    return block;
+  }
+  for (const [output, column] of outputs) {
+    const row = document.createElement("tr");
+    row.dataset.calOutput = output;
+    row.innerHTML = `
+      <td><input type="checkbox" data-cal-output-check checked aria-label="Use ${escapeAttr(output)}" /></td>
+      <td>${escapeHTML(output)}</td>
+      <td>${escapeHTML(column)}</td>
+      <td><input type="number" data-cal-output-weight value="1" min="0" step="0.1" aria-label="${escapeAttr(output)} weight" /></td>
+    `;
+    tbody.append(row);
+  }
+  return block;
+}
+
+function calibrationCandidateEditor(candidates) {
+  const block = document.createElement("div");
+  block.className = "result-block calibration-candidate-block";
+  block.innerHTML = `
+    <div class="result-block-title">Candidate Parameters</div>
+    <div class="calibration-filters">
+      <select data-calibration-filter="role" aria-label="Role filter">
+        <option value="">All roles</option>
+        <option value="calibration_target" selected>calibration_target</option>
+      </select>
+      <select data-calibration-filter="component" aria-label="Component filter"></select>
+      <select data-calibration-filter="unit" aria-label="Unit filter"></select>
+      <label class="compact-toggle"><input type="checkbox" data-calibration-filter="bounds" checked /> Bounds present</label>
+    </div>
+    <table class="result-table">
+      <thead><tr><th>Use</th><th>Component</th><th>Parameter</th><th>Role</th><th>Unit</th><th>Current</th><th>Min</th><th>Max</th><th>Step</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  `;
+  const componentFilter = block.querySelector('[data-calibration-filter="component"]');
+  componentFilter.append(new Option("All components", ""));
+  [...new Set(candidates.map((item) => item.component))].sort().forEach((component) => componentFilter.append(new Option(component, component)));
+  const unitFilter = block.querySelector('[data-calibration-filter="unit"]');
+  unitFilter.append(new Option("All units", ""));
+  [...new Set(candidates.map((item) => item.unit).filter(Boolean))].sort().forEach((unit) => unitFilter.append(new Option(unit, unit)));
+  const tbody = block.querySelector("tbody");
+  if (!candidates.length) {
+    tbody.innerHTML = `<tr><td colspan="9" class="empty-cell">No parameters</td></tr>`;
+    return block;
+  }
+  for (const candidate of candidates) {
+    const row = document.createElement("tr");
+    row.dataset.calParam = `${candidate.component}.${candidate.name}`;
+    row.dataset.paramComponent = candidate.component;
+    row.dataset.paramName = candidate.name;
+    row.dataset.role = candidate.role;
+    row.dataset.component = candidate.component;
+    row.dataset.unit = candidate.unit;
+    row.dataset.hasBounds = candidate.hasBounds ? "true" : "false";
+    row.innerHTML = `
+      <td><input type="checkbox" data-cal-param-check ${candidate.selected ? "checked" : ""} aria-label="Use ${escapeAttr(candidate.component)}.${escapeAttr(candidate.name)}" /></td>
+      <td>${escapeHTML(candidate.componentName)}</td>
+      <td>${escapeHTML(candidate.name)}</td>
+      <td>${escapeHTML(candidate.role)}</td>
+      <td>${escapeHTML(candidate.unit)}</td>
+      <td>${escapeHTML(parameterInputValue(candidate.current))}</td>
+      <td><input type="number" data-cal-param-field="min" value="${escapeAttr(candidate.min ?? "")}" step="any" /></td>
+      <td><input type="number" data-cal-param-field="max" value="${escapeAttr(candidate.max ?? "")}" step="any" /></td>
+      <td><input type="number" data-cal-param-field="step" value="${escapeAttr(candidate.step ?? "")}" min="0" step="any" /></td>
+    `;
+    tbody.append(row);
+  }
+  return block;
+}
+
+function labeledEditorControl(label, control) {
+  const field = document.createElement("label");
+  field.className = "editor-control";
+  field.append(textSpan("input-label", label), control);
+  return field;
+}
+
+function labeledEditorInput(label, type, placeholder, dataName) {
+  const input = document.createElement("input");
+  input.type = type;
+  input.placeholder = placeholder;
+  input.setAttribute(`data-${dataName}`, "true");
+  return labeledEditorControl(label, input);
+}
+
+function textSpan(className, text) {
+  const span = document.createElement("span");
+  span.className = className;
+  span.textContent = text;
+  return span;
+}
+
+function updateCalibrationEditorState(section) {
+  const roleFilter = section.querySelector('[data-calibration-filter="role"]')?.value || "";
+  const componentFilter = section.querySelector('[data-calibration-filter="component"]')?.value || "";
+  const unitFilter = section.querySelector('[data-calibration-filter="unit"]')?.value || "";
+  const boundsOnly = section.querySelector('[data-calibration-filter="bounds"]')?.checked || false;
+  for (const row of section.querySelectorAll("[data-cal-param]")) {
+    const visible = (!roleFilter || row.dataset.role === roleFilter) &&
+      (!componentFilter || row.dataset.component === componentFilter) &&
+      (!unitFilter || row.dataset.unit === unitFilter) &&
+      (!boundsOnly || row.dataset.hasBounds === "true");
+    row.hidden = !visible;
+  }
+  const selectedRows = [...section.querySelectorAll("[data-cal-param]")].filter((row) => row.querySelector("[data-cal-param-check]")?.checked);
+  const expectedRuns = selectedRows.length ? selectedRows.reduce((product, row) => product * calibrationGridPointCount(row), 1) : 0;
+  const runCount = section.querySelector(".calibration-run-count");
+  if (runCount) {
+    runCount.textContent = `Selected ${selectedRows.length} / Expected Runs ${formatExpectedRunCount(expectedRuns)}`;
+  }
+}
+
+function calibrationGridPointCount(row) {
+  const min = Number(row.querySelector('[data-cal-param-field="min"]')?.value);
+  const max = Number(row.querySelector('[data-cal-param-field="max"]')?.value);
+  const step = Number(row.querySelector('[data-cal-param-field="step"]')?.value);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || !Number.isFinite(step) || step <= 0 || max < min) return 0;
+  return Math.max(1, Math.floor(((max - min) / step) + 1.000000001));
+}
+
+function formatExpectedRunCount(value) {
+  if (!Number.isFinite(value)) return "too many";
+  if (value > 999999) return `${shortNumber(value)}+`;
+  return String(value);
+}
+
+function collectCalibrationSetupEditorPayload(section, context) {
+  const mappingPath = section.querySelector("[data-calibration-mapping]")?.value || context.mapping_summary?.relative_path || "";
+  const outputs = {};
+  for (const row of section.querySelectorAll("[data-cal-output]")) {
+    if (!row.querySelector("[data-cal-output-check]")?.checked) continue;
+    const weight = Number(row.querySelector("[data-cal-output-weight]")?.value);
+    if (!Number.isFinite(weight) || weight < 0) {
+      showInlineProblem(`Invalid calibration output weight: ${row.dataset.calOutput}`);
+      return null;
+    }
+    outputs[row.dataset.calOutput] = weight;
+  }
+  if (!Object.keys(outputs).length) {
+    showInlineProblem("Select at least one calibration target output");
+    return null;
+  }
+  const parameters = [];
+  for (const row of section.querySelectorAll("[data-cal-param]")) {
+    if (!row.querySelector("[data-cal-param-check]")?.checked) continue;
+    const min = Number(row.querySelector('[data-cal-param-field="min"]')?.value);
+    const max = Number(row.querySelector('[data-cal-param-field="max"]')?.value);
+    const step = Number(row.querySelector('[data-cal-param-field="step"]')?.value);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || !Number.isFinite(step) || step <= 0 || max < min) {
+      showInlineProblem(`Invalid calibration bounds: ${row.dataset.paramComponent}.${row.dataset.paramName}`);
+      return null;
+    }
+    parameters.push({
+      component: row.dataset.paramComponent,
+      name: row.dataset.paramName,
+      min,
+      max,
+      step,
+    });
+  }
+  if (!parameters.length) {
+    showInlineProblem("Select at least one calibration parameter");
+    return null;
+  }
+  return {
+    mapping_path: mappingPath,
+    id: section.querySelector("[data-calibration-setup-id]")?.value.trim() || "",
+    name: section.querySelector("[data-calibration-setup-name]")?.value.trim() || "",
+    algorithm: section.querySelector("[data-calibration-algorithm]")?.value || "grid",
+    base_parameter_set: section.querySelector("[data-calibration-base]")?.value || "",
+    objective_outputs: outputs,
+    parameters,
+  };
 }
 
 async function createOptimizationSetup() {
@@ -6800,7 +7116,7 @@ function bindEvents() {
   el("datasetSourcePathInput").addEventListener("keydown", (event) => {
     if (event.key === "Enter") importDataset();
   });
-  el("createCalibrationSetupButton").addEventListener("click", createCalibrationSetup);
+  el("createCalibrationSetupButton").addEventListener("click", () => openCalibrationSetupEditor());
   el("createOptimizationSetupButton").addEventListener("click", createOptimizationSetup);
   el("sourceComponentSelect").addEventListener("change", (event) => selectComponent(event.target.value));
   el("saveSourceButton").addEventListener("click", saveCurrentSource);
