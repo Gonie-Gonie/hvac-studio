@@ -6266,6 +6266,9 @@ func writeRuntimeExportSupportFiles(projectRoot string, exportRoot string) ([]st
 	if err := copyExternalExportDir(supportRoot, exportRoot, "runtime/python", &files, seen); err != nil {
 		return nil, err
 	}
+	if err := copyExternalExportDir(supportRoot, exportRoot, "python/bcs_sdk", &files, seen); err != nil {
+		return nil, err
+	}
 	sort.Strings(files)
 	return files, nil
 }
@@ -6577,10 +6580,17 @@ if ($RequestFile) {
 func runtimeExportSDKExample(projectPath string, defaultInput string) string {
 	return fmt.Sprintf(`from pathlib import Path
 import json
-import subprocess
+import sys
 
 
 ROOT = Path(__file__).resolve().parent
+SDK_ROOT = ROOT / "python" / "bcs_sdk"
+if SDK_ROOT.exists():
+    sys.path.insert(0, str(SDK_ROOT))
+
+from bcs_sdk import RunnerClient
+
+
 RUNNER = ROOT / "bin" / "bcs-runner.exe"
 PROJECT = ROOT / %q
 INPUT_REL = %q
@@ -6589,20 +6599,16 @@ if not INPUT_REL:
 INPUT = ROOT / INPUT_REL
 OUTPUT = ROOT / "outputs" / "sdk-example-output.json"
 
-OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-subprocess.run([str(RUNNER), "validate", "--project", str(PROJECT)], check=True)
-subprocess.run([
-    str(RUNNER),
-    "run",
-    "--project",
-    str(PROJECT),
-    "--input",
-    str(INPUT),
-    "--output",
-    str(OUTPUT),
-], check=True)
-with OUTPUT.open("r", encoding="utf-8") as handle:
-    result = json.load(handle)
+with INPUT.open("r", encoding="utf-8") as handle:
+    payload = json.load(handle)
+
+client = RunnerClient(project=PROJECT, runner=RUNNER, persistent=False)
+client.validate_project()
+result = client.run_once(
+    dict(payload.get("inputs") or {}),
+    dict(payload.get("context") or {}),
+    output=OUTPUT,
+)
 print(json.dumps(result["outputs"], indent=2, sort_keys=True))
 `, filepath.FromSlash(projectPath), filepath.FromSlash(defaultInput))
 }
@@ -6646,7 +6652,7 @@ func runtimeExportReadme(projectPath string, defaultInput string, lockfile strin
 		lockfileLine +
 		"- Public IO schema: `schema/public-io.json`\n" +
 		"- CLI guide: `docs/CLI_Guide.md`\n" +
-		"- Python subprocess example: `sdk-example.py`\n" +
+		"- Python SDK example: `sdk-example.py`\n" +
 		"- Runner: `bin/bcs-runner.exe`\n\n" +
 		"Available Windows commands:\n\n" +
 		strings.Join(commandLines, "\n") +

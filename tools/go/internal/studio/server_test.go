@@ -4773,6 +4773,8 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 		"project/optimization/setups/scalar_grid.json",
 		"project/inputs/case01.json",
 		"project/requirements.lock.txt",
+		"python/bcs_sdk/bcs_sdk/__init__.py",
+		"python/bcs_sdk/bcs_sdk/client.py",
 		"runtime/manifest.json",
 		"runtime/python/python.exe",
 		"run-batch.ps1",
@@ -4826,6 +4828,13 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	}
 	if !bytes.Contains(optimizeBytes, []byte("SaveParameterSet")) || !bytes.Contains(optimizeBytes, []byte("--save-parameter-set")) {
 		t.Fatalf("optimize script missing parameter set save option:\n%s", string(optimizeBytes))
+	}
+	sdkExampleBytes, err := os.ReadFile(filepath.Join(exportRoot, "sdk-example.py"))
+	if err != nil {
+		t.Fatalf("sdk example: %v", err)
+	}
+	if !bytes.Contains(sdkExampleBytes, []byte("RunnerClient")) || !bytes.Contains(sdkExampleBytes, []byte("python\" / \"bcs_sdk")) {
+		t.Fatalf("sdk example does not use exported SDK:\n%s", string(sdkExampleBytes))
 	}
 	guideBytes, err := os.ReadFile(filepath.Join(exportRoot, "docs", "CLI_Guide.md"))
 	if err != nil {
@@ -5205,10 +5214,12 @@ func seedTestTemplates(t *testing.T, root string) {
 func seedTestRuntimeSupport(t *testing.T, root string) {
 	t.Helper()
 	for rel, content := range map[string]string{
-		"bin/bcs-runner.exe":        "runner",
-		"bin/bcs-env.exe":           "env",
-		"runtime/manifest.json":     `{"runtime":"test"}`,
-		"runtime/python/python.exe": "python",
+		"bin/bcs-runner.exe":                 "runner",
+		"bin/bcs-env.exe":                    "env",
+		"runtime/manifest.json":              `{"runtime":"test"}`,
+		"runtime/python/python.exe":          "python",
+		"python/bcs_sdk/bcs_sdk/__init__.py": "from .client import RunnerClient\n",
+		"python/bcs_sdk/bcs_sdk/client.py":   "class RunnerClient:\n    pass\n",
 	} {
 		path := filepath.Join(root, filepath.FromSlash(rel))
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
