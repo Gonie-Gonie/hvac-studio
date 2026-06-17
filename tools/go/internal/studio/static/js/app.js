@@ -4028,9 +4028,13 @@ function collectCalibrationSetupEditorPayload(section, context) {
 }
 
 function openOptimizationSetupEditor() {
+  const baseInputs = collectRunInputs();
+  const baseContext = currentRunContext();
   state.latestWorkflowRecord = {
     kind: "optimization_setup_editor",
-    candidates: optimizationDecisionCandidates(),
+    base_inputs: baseInputs,
+    context: baseContext,
+    candidates: optimizationDecisionCandidates(baseInputs),
     outputs: optimizationPublicOutputs(),
   };
   renderResults();
@@ -4066,9 +4070,9 @@ function optimizationPublicOutputs() {
   return (currentSystem()?.public_outputs || []).filter((output) => isNumericValueType(output.value_type || output.valueType || "float"));
 }
 
-function optimizationDecisionCandidates() {
+function optimizationDecisionCandidates(baseInputs = collectRunInputs()) {
   const candidates = [];
-  const runInputs = collectRunInputs();
+  const runInputs = baseInputs || {};
   for (const input of currentSystem()?.public_inputs || []) {
     const value = finiteNumber(runInputs[input.id]);
     if (value === null) continue;
@@ -4088,6 +4092,8 @@ function optimizationDecisionCandidates() {
       selected: /setpoint|speed|fraction|load/i.test(name),
     });
   }
+  const systemComponentIDs = new Set(currentSystem()?.components || []);
+  const systemID = currentSystem()?.id || "system";
   for (const component of state.detail?.graph?.components || []) {
     const definitions = component.parameter_defs || {};
     for (const name of Object.keys(definitions).sort()) {
@@ -4096,7 +4102,7 @@ function optimizationDecisionCandidates() {
       const min = finiteNumber(definition.bounds?.min);
       const max = finiteNumber(definition.bounds?.max);
       if (current === null || min === null || max === null || max < min) continue;
-      candidates.push({
+      const candidate = {
         kind: "component_parameter",
         label: `${component.id}.${name}`,
         name,
@@ -4108,7 +4114,16 @@ function optimizationDecisionCandidates() {
         max,
         step: defaultCalibrationGridStep(min, max),
         selected: definition.role === "optimization_variable",
-      });
+      };
+      candidates.push(candidate);
+      if (systemComponentIDs.has(component.id)) {
+        candidates.push({
+          ...candidate,
+          kind: "system_parameter",
+          label: `${systemID}.${component.id}.${name}`,
+          selected: false,
+        });
+      }
     }
   }
   return candidates;
@@ -4127,6 +4142,8 @@ function isNumericValueType(valueType) {
 function optimizationSetupEditorSection(context) {
   const section = document.createElement("div");
   section.className = "result-grid";
+  section.dataset.optimizationBaseInputs = JSON.stringify(context.base_inputs || collectRunInputs());
+  section.dataset.optimizationBaseContext = JSON.stringify(context.context || currentRunContext());
   section.append(optimizationSetupControls(context));
   section.append(optimizationDecisionEditor(context.candidates || []));
   section.append(optimizationConstraintEditor(context.outputs || []));
@@ -4144,6 +4161,8 @@ function optimizationSetupEditorSection(context) {
   });
   actions.append(runCount, create);
   section.append(actions);
+  const baseSource = section.querySelector("[data-optimization-base-source]");
+  baseSource?.addEventListener("change", () => applyOptimizationBaseSource(section, baseSource.value));
   section.querySelectorAll("[data-opt-var-check], [data-opt-var-field], [data-opt-constraint-check], [data-opt-constraint-field]").forEach((control) => {
     control.addEventListener("input", () => updateOptimizationEditorState(section));
     control.addEventListener("change", () => updateOptimizationEditorState(section));
@@ -4158,6 +4177,15 @@ function optimizationSetupControls(context) {
   block.innerHTML = `<div class="result-block-title">Setup</div>`;
   const controls = document.createElement("div");
   controls.className = "calibration-editor-grid";
+  const baseSourceSelect = document.createElement("select");
+  baseSourceSelect.dataset.optimizationBaseSource = "true";
+  baseSourceSelect.append(new Option("Current Fields", "current"));
+  if (state.detail?.default_run_input) {
+    baseSourceSelect.append(new Option("Default Input", "default"));
+  }
+  for (const scenario of state.detail?.scenarios || []) {
+    baseSourceSelect.append(new Option(`Scenario: ${scenario.name || scenario.id}`, `scenario:${scenario.id}`));
+  }
   const objectiveSelect = document.createElement("select");
   objectiveSelect.dataset.optimizationObjective = "true";
   for (const output of context.outputs || []) {
@@ -4177,7 +4205,9 @@ function optimizationSetupControls(context) {
   algorithmSelect.dataset.optimizationAlgorithm = "true";
   algorithmSelect.append(new Option("Grid Search", "grid"));
   algorithmSelect.append(new Option("Differential Evolution", "differential_evolution"));
+  algorithmSelect.append(new Option("Custom SDK Script", "custom_sdk_script"));
   controls.append(
+    labeledEditorControl("Base Input/Scenario", baseSourceSelect),
     labeledEditorControl("Objective", objectiveSelect),
     labeledEditorControl("Sense", senseSelect),
     labeledEditorControl("Base Parameter Set", baseSelect),
@@ -4216,7 +4246,7 @@ function optimizationDecisionEditor(candidates) {
       <td>${escapeHTML(candidate.label)}</td>
       <td>${escapeHTML(candidate.role)}</td>
       <td>${escapeHTML(candidate.unit)}</td>
-      <td>${escapeHTML(parameterInputValue(candidate.current))}</td>
+      <td data-opt-current>${escapeHTML(parameterInputValue(candidate.current))}</td>
       <td><input type="number" data-opt-var-field="min" value="${escapeAttr(candidate.min)}" step="any" /></td>
       <td><input type="number" data-opt-var-field="max" value="${escapeAttr(candidate.max)}" step="any" /></td>
       <td><input type="number" data-opt-var-field="step" value="${escapeAttr(candidate.step)}" min="0" step="any" /></td>
@@ -4255,6 +4285,82 @@ function optimizationConstraintEditor(outputs) {
     tbody.append(row);
   }
   return block;
+}
+
+async function applyOptimizationBaseSource(section, source) {
+  try {
+    let inputs = collectRunInputs();
+    let context = currentRunContext();
+    let label = "current fields";
+    if (source === "default") {
+      inputs = state.detail?.default_run_input?.inputs || {};
+      context = state.detail?.default_run_input?.context || currentRunContext();
+      label = "default input";
+    } else if (source?.startsWith("scenario:")) {
+      const scenarioID = source.slice("scenario:".length);
+      const body = await api(`/api/project/scenario?project_path=${encodeURIComponent(state.currentProjectPath)}&scenario_id=${encodeURIComponent(scenarioID)}`);
+      inputs = body.scenario?.inputs || {};
+      context = body.scenario?.context || currentRunContext();
+      label = `scenario ${body.scenario?.name || scenarioID}`;
+    }
+    setOptimizationEditorBase(section, inputs, context);
+    log(`Optimization base input selected: ${label}`);
+  } catch (error) {
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+    log(`Optimization base input load failed: ${error.message}`);
+  }
+}
+
+function setOptimizationEditorBase(section, inputs, context) {
+  section.dataset.optimizationBaseInputs = JSON.stringify(inputs || {});
+  section.dataset.optimizationBaseContext = JSON.stringify(context || {});
+  for (const row of section.querySelectorAll('[data-opt-var][data-kind="public_input"]')) {
+    const value = finiteNumber((inputs || {})[row.dataset.name]);
+    const checkbox = row.querySelector("[data-opt-var-check]");
+    const fields = row.querySelectorAll("[data-opt-var-field]");
+    const currentCell = row.querySelector("[data-opt-current]");
+    if (value === null) {
+      if (checkbox) {
+        checkbox.checked = false;
+        checkbox.disabled = true;
+      }
+      fields.forEach((field) => {
+        field.value = "";
+        field.disabled = true;
+      });
+      if (currentCell) currentCell.textContent = "";
+      continue;
+    }
+    if (checkbox) checkbox.disabled = false;
+    fields.forEach((field) => {
+      field.disabled = false;
+    });
+    const [min, max] = defaultDecisionBounds(value);
+    row.querySelector('[data-opt-var-field="min"]').value = min;
+    row.querySelector('[data-opt-var-field="max"]').value = max;
+    row.querySelector('[data-opt-var-field="step"]').value = defaultCalibrationGridStep(min, max);
+    if (currentCell) currentCell.textContent = parameterInputValue(value);
+  }
+  updateOptimizationEditorState(section);
+}
+
+function optimizationEditorBaseInputs(section) {
+  return parseEditorJSON(section.dataset.optimizationBaseInputs, collectRunInputs());
+}
+
+function optimizationEditorBaseContext(section) {
+  return parseEditorJSON(section.dataset.optimizationBaseContext, currentRunContext());
+}
+
+function parseEditorJSON(value, fallback) {
+  if (!value) return fallback;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
 }
 
 function updateOptimizationEditorState(section) {
@@ -4301,6 +4407,9 @@ function collectOptimizationSetupEditorPayload(section) {
     if (row.dataset.kind === "component_parameter") {
       variable.component = row.dataset.component;
     }
+    if (row.dataset.kind === "system_parameter") {
+      variable.component = row.dataset.component;
+    }
     variables.push(variable);
   }
   if (!variables.length) {
@@ -4330,8 +4439,8 @@ function collectOptimizationSetupEditorPayload(section) {
     name: section.querySelector("[data-optimization-setup-name]")?.value.trim() || "",
     algorithm: section.querySelector("[data-optimization-algorithm]")?.value || "grid",
     base_parameter_set: section.querySelector("[data-optimization-base]")?.value || "",
-    base_inputs: collectRunInputs(),
-    context: currentRunContext(),
+    base_inputs: optimizationEditorBaseInputs(section),
+    context: optimizationEditorBaseContext(section),
     objective: {
       output: objectiveOutput,
       sense: section.querySelector("[data-optimization-sense]")?.value || "min",
@@ -4971,6 +5080,7 @@ function candidateResultSection(result, savedLabel, savedPath) {
   if (result.objective !== undefined && (typeof result.objective !== "object" || result.objective === null)) summaryRows.push(["Final objective", shortNumber(result.objective)]);
   if (result.best_objective !== undefined) summaryRows.push(["Best objective", shortNumber(result.best_objective)]);
   summaryRows.push([savedLabel, savedPath || ""]);
+  if (result.saved_parameter_set && savedLabel !== "Saved parameter set") summaryRows.push(["Saved parameter set", result.saved_parameter_set]);
   section.append(resultTable("Summary", summaryRows));
   if (result.changed_parameters) {
     section.append(resultTable("Parameter Changes", parameterChangeRows(result.changed_parameters), ["Component", "Parameter", "Initial", "Best", "Delta"]));

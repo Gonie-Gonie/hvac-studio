@@ -652,8 +652,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("optimizationSetupEditorSection")) ||
 		!bytes.Contains(body, []byte("Decision Variables")) ||
+		!bytes.Contains(body, []byte("Base Input/Scenario")) ||
+		!bytes.Contains(body, []byte("system_parameter")) ||
 		!bytes.Contains(body, []byte("Differential Evolution")) ||
 		!bytes.Contains(body, []byte("differential_evolution")) ||
+		!bytes.Contains(body, []byte("Custom SDK Script")) ||
+		!bytes.Contains(body, []byte("custom_sdk_script")) ||
 		!bytes.Contains(body, []byte("Estimated Runs")) ||
 		!bytes.Contains(body, []byte("constraints")) {
 		t.Fatalf("module entrypoint did not expose optimization setup editor")
@@ -3988,6 +3992,65 @@ func TestCreateOptimizationSetupEndpointWritesPublicInputSetup(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(projectRoot, "optimization", "setups", "auto_optimization.json")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCreateOptimizationSetupEndpointWritesSystemParameterSetup(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectRoot := filepath.Join(root, "projects", "system-parameter-optimization")
+	if err := copyProjectTree(filepath.Join(repoRoot, "examples", "006_optimization_case"), projectRoot); err != nil {
+		t.Fatal(err)
+	}
+	projectPath := filepath.Join(projectRoot, "project.bcsproj")
+	payload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"id":           "system_parameter_optimization",
+		"algorithm":    "custom_sdk_script",
+		"base_inputs": map[string]any{
+			"building_load_kw": 500.0,
+			"chw_setpoint_c":   7.0,
+		},
+		"context": map[string]any{"time": 0.0, "dt": 60.0},
+		"objective": map[string]any{
+			"output": "chiller_power_kw",
+			"sense":  "min",
+		},
+		"decision_variables": []map[string]any{{
+			"kind":      "system_parameter",
+			"component": "tradeoff",
+			"name":      "power_credit_kw_per_k",
+			"min":       4.0,
+			"max":       12.0,
+			"step":      4.0,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/optimization-setup", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Summary OptimizationSetupSummary `json:"summary"`
+		Setup   optimization.Setup       `json:"setup"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Summary.Algorithm != "custom_sdk_script" || body.Setup.Algorithm != "custom_sdk_script" {
+		t.Fatalf("algorithm summary=%#v setup=%#v", body.Summary, body.Setup)
+	}
+	if body.Setup.DecisionVariables[0].Kind != "system_parameter" || body.Setup.DecisionVariables[0].Component != "tradeoff" {
+		t.Fatalf("optimization setup = %#v", body.Setup)
 	}
 }
 

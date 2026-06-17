@@ -281,7 +281,7 @@ func LoadSetup(projectRoot string, relativePath string) (Setup, error) {
 	}
 	for _, variable := range setup.DecisionVariables {
 		switch variable.Kind {
-		case "public_input", "component_parameter":
+		case "public_input", "component_parameter", "system_parameter":
 		default:
 			return Setup{}, apperror.Errorf(apperror.CodeValidation, "unsupported optimization variable kind: %s", variable.Kind)
 		}
@@ -414,7 +414,7 @@ func gridCandidates(setup Setup) []candidateValues {
 					Inputs:     cloneMap(candidate.Inputs),
 					Parameters: cloneNestedMap(candidate.Parameters),
 				}
-				if variable.Kind == "component_parameter" {
+				if variable.Kind == "component_parameter" || variable.Kind == "system_parameter" {
 					componentID, name := componentParameterRef(variable)
 					if cloned.Parameters[componentID] == nil {
 						cloned.Parameters[componentID] = map[string]any{}
@@ -433,7 +433,7 @@ func gridCandidates(setup Setup) []candidateValues {
 
 func isSupportedAlgorithm(algorithm string) bool {
 	switch algorithm {
-	case "grid", "differential_evolution":
+	case "grid", "differential_evolution", "custom_sdk_script":
 		return true
 	default:
 		return false
@@ -442,7 +442,7 @@ func isSupportedAlgorithm(algorithm string) bool {
 
 func candidateValuesForAlgorithm(setup Setup) []candidateValues {
 	switch setup.Algorithm {
-	case "differential_evolution":
+	case "differential_evolution", "custom_sdk_script":
 		return gridCandidates(setup)
 	default:
 		return gridCandidates(setup)
@@ -467,7 +467,7 @@ func validateDecisionVariables(loaded *project.LoadedProject, variables []Decisi
 			if strings.TrimSpace(variable.Name) == "" {
 				return apperror.Errorf(apperror.CodeInput, "public input decision variable name is required")
 			}
-		case "component_parameter":
+		case "component_parameter", "system_parameter":
 			componentID, name := componentParameterRef(variable)
 			if componentID == "" || name == "" {
 				return apperror.Errorf(apperror.CodeInput, "component parameter decision variable requires component and name")

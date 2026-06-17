@@ -6920,7 +6920,7 @@ func createOptimizationSetup(loaded *project.LoadedProject, req createOptimizati
 	if algorithm == "" {
 		algorithm = "grid"
 	}
-	if algorithm != "grid" && algorithm != "differential_evolution" {
+	if algorithm != "grid" && algorithm != "differential_evolution" && algorithm != "custom_sdk_script" {
 		return OptimizationSetupSummary{}, optimization.Setup{}, apperror.Errorf(apperror.CodeValidation, "unsupported optimization algorithm: %s", algorithm)
 	}
 	baseParameterSet := strings.TrimSpace(req.BaseParameterSet)
@@ -6981,7 +6981,7 @@ func createOptimizationSetup(loaded *project.LoadedProject, req createOptimizati
 
 func optimizationSetupHasParameterVariables(setup optimization.Setup) bool {
 	for _, variable := range setup.DecisionVariables {
-		if variable.Kind == "component_parameter" {
+		if variable.Kind == "component_parameter" || variable.Kind == "system_parameter" {
 			return true
 		}
 	}

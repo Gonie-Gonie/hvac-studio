@@ -127,7 +127,10 @@ The setup points to a validation mapping, an optional base parameter set, an obj
 
 ## Optimization
 
-`optimize` runs a saved optimization setup. The current implemented path supports grid search over public inputs:
+`optimize` runs a saved optimization setup. Setups can vary public inputs,
+component parameters, or entry-system-scoped parameters, and can use `grid`,
+`differential_evolution`, or `custom_sdk_script` algorithm labels with the same
+runner-backed candidate flow:
 
 ```powershell
 bcs-runner.exe optimize `
@@ -138,7 +141,10 @@ bcs-runner.exe optimize `
   --output optimization-result.json
 ```
 
-The result reports candidate objectives, best inputs, best outputs, and the saved scenario path. `--save-record` also writes the optimization result under `optimization/results/`.
+The result reports candidate objectives, best inputs, best parameters, best
+outputs, saved scenario path, and saved parameter set path when parameter
+variables are used. `--save-record` also writes the optimization result under
+`optimization/results/`.
 
 ## Saved Records
 

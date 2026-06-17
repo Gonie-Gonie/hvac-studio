@@ -18,17 +18,23 @@ Optimization changes decision variables to improve an objective.
 6. Save the result as scenario, parameter set, script, or CSV.
 
 In Studio, open `Artifacts` and use `Opt Setup` to create a saved setup without
-editing JSON. The editor lets you select the objective output, minimize or
-maximize, base parameter set, algorithm, public-input and component-parameter
-decision variables, bounds, output constraints, and estimated run count.
-Supported algorithms are `grid` and `differential_evolution`; both preserve the
-same runner-backed candidate/result artifact flow.
+editing JSON. The editor lets you select the base input source from the current
+run fields, the project default input, or a saved scenario. It also lets you
+select the objective output, minimize or maximize, base parameter set, algorithm,
+public-input, component-parameter, and entry-system-scoped parameter decision
+variables, bounds, output constraints, and estimated run count. Supported
+algorithms are `grid`, `differential_evolution`, and `custom_sdk_script`; all
+preserve the same runner-backed candidate/result artifact flow, while the custom
+SDK path is meant to pair the saved setup with an exported `RunnerClient` script
+for external search loops.
 
 The saved setup uses public inputs or component parameters. A decision variable
 can use:
 
 - `kind: "public_input"` with `name`
 - `kind: "component_parameter"` with `component` and `name`
+- `kind: "system_parameter"` with `component` and `name` for a parameter scoped
+  to the entry system
 
 Output constraints use `output`, `operator`, and `value`. Supported operators
 are `<=`, `>=`, and `==`. Candidate rows record feasibility, failed runs, and
@@ -51,7 +57,8 @@ bcs-runner.exe optimize `
 ```
 
 The result includes each candidate objective, the best inputs, best outputs, and
-the saved scenario path. Studio result views show best decision variables, best
+the saved scenario path. Parameter-variable studies also report the saved
+parameter set path. Studio result views show best decision variables, best
 outputs, constraint status, candidate output comparison, export the candidate
 table as CSV for spreadsheet review, download a Markdown report, and export a
 Python SDK script that calls `RunnerClient.run_optimization(...)` with the same
