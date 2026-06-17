@@ -3019,6 +3019,21 @@ function candidateResultSection(result, savedLabel, savedPath) {
   if (result.changed_parameters) {
     section.append(resultTable("Parameter Changes", parameterChangeRows(result.changed_parameters), ["Component", "Parameter", "Initial", "Best", "Delta"]));
   }
+  const bestDecisionRows = optimizationBestDecisionRows(result);
+  if (bestDecisionRows.length) {
+    section.append(resultTable("Best Decision Variables", bestDecisionRows, ["Kind", "Target", "Value"]));
+  }
+  if (result.best_outputs) {
+    section.append(resultTable("Best Outputs", Object.entries(result.best_outputs || {}).map(([name, value]) => [name, formatValue(value)]), ["Output", "Value"]));
+  }
+  const constraintRows = optimizationConstraintRows(result);
+  if (constraintRows.length) {
+    section.append(resultTable("Constraint Status", constraintRows, ["Item", "Status", "Detail"]));
+  }
+  const outputRows = optimizationOutputComparisonRows(result);
+  if (outputRows.length) {
+    section.append(resultTable("Output Comparison", outputRows, ["#", "Objective", "Status", "Outputs"]));
+  }
   section.append(resultTable("Candidates", candidates.slice(0, 12).map((item, index) => [
     String(item.index ?? index + 1),
     shortNumber(item.objective),
@@ -3055,6 +3070,61 @@ function candidateResultSection(result, savedLabel, savedPath) {
     section.append(actions);
   }
   return section;
+}
+
+function optimizationBestDecisionRows(result) {
+  const rows = [];
+  for (const [name, value] of Object.entries(result.best_inputs || {})) {
+    rows.push(["Public Input", name, formatValue(value)]);
+  }
+  for (const [component, values] of Object.entries(result.best_parameters || {})) {
+    for (const [name, value] of Object.entries(values || {})) {
+      rows.push(["Component Parameter", `${component}.${name}`, formatValue(value)]);
+    }
+  }
+  return rows;
+}
+
+function optimizationConstraintRows(result) {
+  const candidates = result.candidates || [];
+  if (!candidates.length || !(result.best_inputs || result.best_parameters || result.best_outputs)) return [];
+  const best = bestCandidate(result);
+  const feasible = candidates.filter((item) => !item.error && item.feasible !== false).length;
+  const infeasible = candidates.filter((item) => item.feasible === false).length;
+  const failed = candidates.filter((item) => item.error).length;
+  const rows = [
+    ["Feasible candidates", String(feasible), ""],
+    ["Infeasible candidates", String(infeasible), ""],
+    ["Failed candidates", String(failed), ""],
+  ];
+  if (best) {
+    const violations = best.constraint_violations || [];
+    rows.push(["Best candidate", violations.length ? "violated" : "ok", violations.length ? `${violations.length} constraint violation(s)` : "constraints satisfied"]);
+    for (const violation of violations) {
+      rows.push([
+        violation.output || "constraint",
+        `${violation.operator || ""} ${shortNumber(violation.value)}`.trim(),
+        [violation.message || "", `actual ${formatValue(violation.actual)}`, `violation ${shortNumber(violation.violation)}`].filter(Boolean).join(" / "),
+      ]);
+    }
+  }
+  return rows;
+}
+
+function optimizationOutputComparisonRows(result) {
+  return (result.candidates || []).filter((item) => item.outputs && Object.keys(item.outputs).length).slice(0, 12).map((item, index) => [
+    String(item.index ?? index + 1),
+    shortNumber(item.objective),
+    candidateStatus(item),
+    resultPublicOutputSummary(item.outputs || {}),
+  ]);
+}
+
+function bestCandidate(result) {
+  const candidates = result.candidates || [];
+  const bestObjective = Number(result.best_objective);
+  if (!Number.isFinite(bestObjective)) return candidates.find((item) => !item.error) || null;
+  return candidates.find((item) => !item.error && Math.abs(Number(item.objective) - bestObjective) <= 1e-9) || candidates.find((item) => !item.error) || null;
 }
 
 function parameterChangeRows(changes) {
