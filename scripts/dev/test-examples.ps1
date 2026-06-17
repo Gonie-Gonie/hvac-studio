@@ -177,5 +177,6 @@ foreach ($Project in $Projects) {
 }
 
 Invoke-WorkflowSmoke
+& (Join-Path $PSScriptRoot 'test-serve-protocol.ps1')
 
 Write-Host "example tests ok: $($Projects.Count)"

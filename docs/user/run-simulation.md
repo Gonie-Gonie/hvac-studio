@@ -81,7 +81,7 @@ Batch runs execute saved scenarios and write `runs/batch-*.json` records. The Ru
 
 ## Serve Mode
 
-`bcs-runner serve` keeps the compiled graph and Python components alive for repeated evaluations. It reads one JSON request per line and writes one JSON response per line. This is the current low-level bridge for SDK and external-engine integrations.
+`bcs-runner serve` keeps the compiled graph and Python components alive for repeated evaluations. It reads one JSON request per line and writes one JSON response per line. This is the current low-level bridge for SDK and external-engine integrations. The full request/response contract is in [External Engine Protocol](external-engine-protocol.md).
 
 ```json
 {"id":"case-1","inputs":{"value":4},"context":{"time":0,"dt":60}}

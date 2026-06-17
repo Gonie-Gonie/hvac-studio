@@ -156,7 +156,7 @@ Serve mode keeps the graph compiled and Python components loaded for repeated ev
 '@ | bcs-runner.exe serve --project project.bcsproj
 ```
 
-Each input line is a JSON request. Each output line is a JSON response with `ok`, `id`, and either `result` or `error`. Component state is preserved inside the live serve session until shutdown. Use `run-series` when the repeated evaluations are a saved time-indexed artifact.
+Each input line is a JSON request. Each output line is a JSON response with `ok`, `id`, and either `result` or `error`. Component state is preserved inside the live serve session until shutdown. Use `run-series` when the repeated evaluations are a saved time-indexed artifact. See [External Engine Protocol](external-engine-protocol.md) for the schema, shutdown request, timeout guidance, and smoke-tested JSONL example.
 
 ## Exit Codes
 

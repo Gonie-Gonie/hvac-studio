@@ -23,6 +23,7 @@ nav:
       - Calibration: user/calibration.md
       - Optimization: user/optimization.md
       - CLI Runner: user/cli-runner.md
+      - External Engine Protocol: user/external-engine-protocol.md
       - Export Runtime: user/export-runtime.md
       - Artifact Compatibility: user/artifact-compatibility.md
       - Troubleshooting: user/troubleshooting.md

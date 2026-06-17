@@ -1,0 +1,4 @@
+{"id":"case-1","inputs":{"value":4},"context":{"time":0,"dt":60}}
+{"id":"case-2","inputs":{"value":5},"context":{"time":60,"dt":60}}
+{"id":"bad-missing-input","inputs":{},"context":{"time":120,"dt":60}}
+{"id":"stop","type":"shutdown"}

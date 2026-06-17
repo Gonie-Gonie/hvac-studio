@@ -3,7 +3,8 @@
 Examples are both learning material and regression assets. Runnable examples are
 validated by `scripts/dev/test-examples.ps1`; workflow examples also exercise
 data validation, calibration, optimization, SDK-oriented scripting, and
-runtime-only delivery paths.
+runtime-only delivery paths. External engine request/response examples live
+under `examples/sdk/`.
 
 ## Learning Path
 
@@ -23,6 +24,7 @@ runtime-only delivery paths.
 | Unit conversion | `012_unit_conversion_component` | Explicit connection-level linear unit conversion and value-type checks. |
 | Composite system | `013_composite_system` | A nested system wrapped behind explicit public input/output IDs. |
 | AHU state ANN | `014_ahu_state_ann` | Feature mapping plus ML-backed component assets and metadata. |
+| SDK and external engine | `sdk` | Raw JSONL `serve` requests and a Python subprocess integration example. |
 
 ## Smoke Coverage
 
@@ -41,6 +43,7 @@ The smoke script:
 - runs the plant validation mapping from `005_chiller_plant_like_system`
 - runs the plant calibration setup from `005_chiller_plant_like_system`
 - runs the optimization setup from `006_optimization_case`
+- runs the raw `bcs-runner serve` JSONL protocol smoke from `examples/sdk`
 
 ## Time-Series Boundary
 
