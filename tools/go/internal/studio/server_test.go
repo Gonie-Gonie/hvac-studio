@@ -385,6 +385,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("validationComparisonBaseline")) || !bytes.Contains(body, []byte("Parameter Set Comparison")) || !bytes.Contains(body, []byte("compareValidationParameterSet")) {
 		t.Fatalf("module entrypoint did not render validation parameter-set comparisons")
 	}
+	if !bytes.Contains(body, []byte("validationResultActions")) || !bytes.Contains(body, []byte("Create Calibration Setup")) {
+		t.Fatalf("module entrypoint did not connect validation results to calibration setup")
+	}
 	if !bytes.Contains(body, []byte("Compare Parameter Set")) {
 		t.Fatalf("module entrypoint did not expose validation parameter-set comparison action")
 	}

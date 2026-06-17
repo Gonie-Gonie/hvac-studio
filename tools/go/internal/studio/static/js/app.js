@@ -4397,10 +4397,25 @@ function validationResultSection(result) {
   if (comparisonRows.length) {
     section.append(resultTable("Parameter Set Comparison", comparisonRows, ["Metric", "Baseline", "Current", "RMSE Delta", "MAE Delta", "R2 Delta"]));
   }
+  section.append(validationResultActions(result));
   section.append(validationComparisonControls(result));
   section.append(validationPlotSection(result));
   section.append(highErrorRows(result));
   return section;
+}
+
+function validationResultActions(result) {
+  const actions = document.createElement("div");
+  actions.className = "result-actions validation-result-actions";
+  const calibration = document.createElement("button");
+  calibration.type = "button";
+  calibration.className = "small-action";
+  calibration.textContent = "Create Calibration Setup";
+  const mappingPath = validationResultMappingPath(result);
+  calibration.disabled = !isWorkspaceProject() || !mappingPath;
+  calibration.addEventListener("click", () => openCalibrationSetupEditor(mappingPath));
+  actions.append(calibration);
+  return actions;
 }
 
 function validationComparisonControls(result) {
