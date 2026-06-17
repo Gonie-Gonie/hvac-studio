@@ -368,6 +368,10 @@ h2,
   align-content: start;
 }
 
+.start-wide-card {
+  grid-column: 1 / -1;
+}
+
 .artifact-workspace .table-shell {
   max-width: 1180px;
 }
@@ -395,6 +399,46 @@ h2,
   border-color: #e5d1a7;
   color: #765312;
   background: #fff7e6;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid #c9d3e1;
+  border-radius: 999px;
+  color: #334155;
+  background: #f8fafc;
+  white-space: nowrap;
+}
+
+.status-pill.ready {
+  border-color: #b9dfc8;
+  color: var(--ok);
+  background: #ecfdf3;
+}
+
+.status-pill.warning {
+  border-color: #f0d195;
+  color: #765312;
+  background: #fff8e5;
+}
+
+.status-pill.blocked {
+  border-color: #efb4ae;
+  color: var(--danger);
+  background: #fff1f0;
+}
+
+.readiness-table td:nth-child(2) {
+  width: 120px;
+  white-space: nowrap;
+}
+
+.readiness-table td:last-child {
+  width: 1%;
+  white-space: nowrap;
 }
 
 .results-pane {

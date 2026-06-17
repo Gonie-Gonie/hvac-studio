@@ -102,6 +102,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("dataValidateButton")) {
 		t.Fatalf("index did not include the Data validation command slot")
 	}
+	if !bytes.Contains(body, []byte("startWorkflowRows")) {
+		t.Fatalf("index did not include the Start workflow readiness rows")
+	}
 	if !bytes.Contains(body, []byte("serveButton")) {
 		t.Fatalf("index did not include the Serve command slot")
 	}
@@ -596,6 +599,11 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("renderStartWorkspace")) {
 		t.Fatalf("module entrypoint did not include the Start workspace renderer")
+	}
+	if !bytes.Contains(body, []byte("renderStartWorkflowRows")) ||
+		!bytes.Contains(body, []byte("workflowReadinessRows")) ||
+		!bytes.Contains(body, []byte("readinessRow")) {
+		t.Fatalf("module entrypoint did not include Start workflow readiness rendering")
 	}
 	if bytes.Contains(body, []byte("currentProjectSummary")) {
 		t.Fatalf("module entrypoint should not reference removed project summary helper")
