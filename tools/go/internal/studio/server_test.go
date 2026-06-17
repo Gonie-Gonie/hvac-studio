@@ -296,6 +296,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("runComparisonBaseline")) {
 		t.Fatalf("module entrypoint did not preserve run comparison baselines")
 	}
+	if !bytes.Contains(body, []byte("parameterChangeRows")) {
+		t.Fatalf("module entrypoint did not render calibration parameter change rows")
+	}
+	if !bytes.Contains(body, []byte("Apply Parameter Set")) {
+		t.Fatalf("module entrypoint did not expose saved calibration parameter-set apply action")
+	}
 	if !bytes.Contains(body, []byte("runTimeoutField")) {
 		t.Fatalf("module entrypoint did not include run timeout control rendering")
 	}

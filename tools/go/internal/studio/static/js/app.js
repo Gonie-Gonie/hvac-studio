@@ -2641,19 +2641,69 @@ function highErrorRows(metrics) {
 function candidateResultSection(result, savedLabel, savedPath) {
   const section = document.createElement("div");
   section.className = "result-grid";
-  section.append(resultTable("Summary", [
+  const summaryRows = [
     ["Setup", result.setup_name || result.setup_id || ""],
-    ["Objective", shortNumber(result.objective)],
-    ["Best objective", shortNumber(result.best_objective)],
-    [savedLabel, savedPath || ""],
-  ]));
+  ];
+  if (result.base_parameter_set !== undefined) summaryRows.push(["Base parameter set", result.base_parameter_set || "baseline"]);
+  if (result.initial_objective !== undefined) summaryRows.push(["Initial objective", shortNumber(result.initial_objective)]);
+  if (result.objective !== undefined) summaryRows.push(["Objective", shortNumber(result.objective)]);
+  if (result.best_objective !== undefined) summaryRows.push(["Best objective", shortNumber(result.best_objective)]);
+  summaryRows.push([savedLabel, savedPath || ""]);
+  section.append(resultTable("Summary", summaryRows));
+  if (result.changed_parameters) {
+    section.append(resultTable("Parameter Changes", parameterChangeRows(result.changed_parameters), ["Component", "Parameter", "Initial", "Best", "Delta"]));
+  }
   section.append(resultTable("Candidates", (result.candidates || []).slice(0, 12).map((item, index) => [
     String(item.index ?? index + 1),
     shortNumber(item.objective),
     candidateStatus(item),
     parameterCandidateSummary(item.parameters || item.inputs || item.outputs || {}),
   ]), ["#", "Objective", "Status", "Values"]));
+  const failed = (result.candidates || []).filter((item) => item.error);
+  if (failed.length) {
+    section.append(resultTable("Failed Candidates", failed.slice(0, 12).map((item) => [
+      String(item.index ?? ""),
+      item.error || "",
+      parameterCandidateSummary(item.parameters || item.inputs || item.outputs || {}),
+    ]), ["#", "Error", "Values"]));
+  }
+  if (savedLabel === "Saved parameter set" && savedPath && isWorkspaceProject()) {
+    const actions = document.createElement("div");
+    actions.className = "result-actions";
+    const apply = document.createElement("button");
+    apply.type = "button";
+    apply.className = "small-action";
+    apply.textContent = "Apply Parameter Set";
+    apply.addEventListener("click", () => applyParameterSetToGraph(savedPath));
+    actions.append(apply);
+    section.append(actions);
+  }
   return section;
+}
+
+function parameterChangeRows(changes) {
+  const rows = [];
+  for (const [component, params] of Object.entries(changes || {})) {
+    for (const [name, change] of Object.entries(params || {})) {
+      const initial = change?.initial;
+      const best = change?.best;
+      rows.push([
+        component,
+        name,
+        formatValue(initial),
+        formatValue(best),
+        numericDelta(initial, best),
+      ]);
+    }
+  }
+  return rows.sort((a, b) => `${a[0]}.${a[1]}`.localeCompare(`${b[0]}.${b[1]}`));
+}
+
+function numericDelta(initial, best) {
+  const before = Number(initial);
+  const after = Number(best);
+  if (!Number.isFinite(before) || !Number.isFinite(after)) return "";
+  return shortNumber(after - before);
 }
 
 function candidateStatus(item) {
