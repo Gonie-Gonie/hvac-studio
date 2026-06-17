@@ -390,11 +390,16 @@ function seriesSource(series) {
 }
 
 function runRecordSummaryRows(record) {
-  return [
+  const rows = [
     { name: "Record", value: record.id || "run", source: "saved run" },
+    { name: "Output path", value: record.relative_path || "", source: "saved run" },
     { name: "Created", value: record.created_at_utc || "", source: "saved run" },
-    ...resultSummaryRows(record.result, "saved run"),
   ];
+  if (record.parameter_set) {
+    rows.push({ name: "Parameter set", value: record.parameter_set, source: "saved run" });
+  }
+  rows.push(...resultSummaryRows(record.result, "saved run"));
+  return rows;
 }
 
 function batchSummaryRows(record) {

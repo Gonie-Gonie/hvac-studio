@@ -906,6 +906,9 @@ func TestStaticRunOutputModuleServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("Save target")) {
 		t.Fatalf("run output module did not expose run write target")
 	}
+	if !bytes.Contains(body, []byte("Output path")) {
+		t.Fatalf("run output module did not expose saved run output path")
+	}
 	if !bytes.Contains(body, []byte("batchCaseErrorSummary")) {
 		t.Fatalf("run output module did not include batch failure problem summaries")
 	}

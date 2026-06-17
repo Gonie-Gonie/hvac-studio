@@ -5970,9 +5970,11 @@ async function runProject() {
     setProblems();
     if (body.run_record) {
       state.detail.runs = [body.run_record, ...(state.detail.runs || [])];
+      state.latestRunRecord = { ...body.run_record, result: body.result };
       log(`Run saved: ${body.run_record.relative_path}`);
       renderProjectTree();
     } else {
+      state.latestRunRecord = null;
       log("Run complete");
     }
     setMode("run");

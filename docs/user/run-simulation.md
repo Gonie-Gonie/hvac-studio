@@ -29,6 +29,10 @@ Workspace runs are saved as:
 runs/run-*.json
 ```
 
+After a saved workspace run, the Run summary shows the record ID and output path
+so the same artifact can be reopened from the Project tree or compared with CLI
+output.
+
 Before a workspace run, Studio saves model edits that affect runtime behavior, such as component parameters and Python source. Run input fields are sent with the run request and can be saved separately as default inputs or scenarios.
 
 ## Inspect Results
