@@ -140,6 +140,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("cancelRunButton")) {
 		t.Fatalf("index did not include run cancellation control")
 	}
+	if !bytes.Contains(body, []byte("retryRunButton")) {
+		t.Fatalf("index did not include run retry control")
+	}
 	if !bytes.Contains(body, []byte("seriesButton")) {
 		t.Fatalf("index did not include time-series run control")
 	}
@@ -334,6 +337,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("cancelActiveRun")) {
 		t.Fatalf("module entrypoint did not bind runtime cancellation")
+	}
+	if !bytes.Contains(body, []byte("retryLastRuntimeAction")) || !bytes.Contains(body, []byte("lastRuntimeAction")) {
+		t.Fatalf("module entrypoint did not bind runtime retry")
 	}
 	if !bytes.Contains(body, []byte("activeRunAbortController")) {
 		t.Fatalf("module entrypoint did not track active runtime requests")

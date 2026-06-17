@@ -203,6 +203,7 @@ async function loadProject(projectPath) {
   state.activeRunInput = null;
   state.activeRunAbortController = null;
   state.activeRunLabel = "";
+  state.lastRuntimeAction = "";
   state.sourceByComponent = {};
   state.sourceDraftByComponent = {};
   state.sourceCheckByComponent = {};
@@ -4182,6 +4183,7 @@ async function runProject() {
   const inputs = collectRunInputs();
   const comparisonBaseline = latestRuntimeComparisonContext();
   const runSource = currentRunSourceLabel();
+  state.lastRuntimeAction = "run";
   const controller = beginRuntimeRequest("Run");
   if (!controller) return;
   try {
@@ -4244,6 +4246,7 @@ async function runSeries() {
   if (!(await saveModelEditsBeforeExecution())) return;
   const seriesInput = buildSeriesInput();
   const comparisonBaseline = latestRuntimeComparisonContext();
+  state.lastRuntimeAction = "series";
   const controller = beginRuntimeRequest("Series");
   if (!controller) return;
   try {
@@ -4307,6 +4310,7 @@ async function runSeries() {
 async function runBatch() {
   if (!(await saveModelEditsBeforeExecution())) return;
   const comparisonBaseline = latestRuntimeComparisonContext();
+  state.lastRuntimeAction = "batch";
   const controller = beginRuntimeRequest("Batch");
   if (!controller) return;
   try {
@@ -4378,6 +4382,27 @@ function cancelActiveRun() {
   state.activeRunAbortController.abort();
   log(`${label} cancel requested`);
   updateCommandState();
+}
+
+async function retryLastRuntimeAction() {
+  if (!state.detail || state.activeRunAbortController) return;
+  const action = state.lastRuntimeAction;
+  if (action === "series") {
+    log("Retrying Series");
+    await runSeries();
+    return;
+  }
+  if (action === "batch") {
+    log("Retrying Batch");
+    await runBatch();
+    return;
+  }
+  if (action === "run") {
+    log("Retrying Run");
+    await runProject();
+    return;
+  }
+  log("No run action to retry");
 }
 
 function isAbortError(error) {
@@ -6152,6 +6177,7 @@ function updateCommandState() {
   el("scenarioButton").disabled = !hasProject || !isWorkspaceProject();
   el("batchButton").disabled = !hasProject || !isWorkspaceProject() || runtimeBusy;
   el("cancelRunButton").disabled = !runtimeBusy;
+  el("retryRunButton").disabled = !hasProject || runtimeBusy || !state.lastRuntimeAction;
   el("schemaButton").disabled = !hasProject;
   el("serveButton").disabled = true;
   el("exportButton").disabled = !hasProject || !isWorkspaceProject();
@@ -6335,6 +6361,7 @@ function bindEvents() {
   el("scenarioButton").addEventListener("click", createScenario);
   el("batchButton").addEventListener("click", runBatch);
   el("cancelRunButton").addEventListener("click", cancelActiveRun);
+  el("retryRunButton").addEventListener("click", retryLastRuntimeAction);
   el("schemaButton").addEventListener("click", exportSchema);
   el("exportButton").addEventListener("click", exportProject);
   el("importDatasetButton").addEventListener("click", importDataset);

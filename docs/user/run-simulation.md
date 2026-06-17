@@ -21,7 +21,7 @@ stdin/stdout.
 
 The Run Inputs toolbar shows each public input's display name, stable ID when different, value type, unit, and required/optional status. The Default control resets a field to the saved default input value or the graph node default.
 
-The Timeout control sets the maximum wall-clock time for Run and Batch requests. The default is 30 seconds, matching the runner's previous fixed timeout. If a run exceeds the selected timeout, Studio reports a timeout failure instead of saving a partial run record. While a Run or Batch request is active, the command bar enables Cancel; canceling keeps the previous result visible and reports the canceled request in Problems.
+The Timeout control sets the maximum wall-clock time for Run and Batch requests. The default is 30 seconds, matching the runner's previous fixed timeout. If a run exceeds the selected timeout, Studio reports a timeout failure instead of saving a partial run record. While a Run, Series, or Batch request is active, the command bar enables Cancel; canceling keeps the previous result visible and reports the canceled request in Problems. After a Run, Series, or Batch attempt, Retry repeats the same workflow using the current run fields, selected scenario, and active parameter set.
 
 Workspace runs are saved as:
 

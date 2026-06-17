@@ -23,6 +23,7 @@ export const state = {
   runTimeoutMS: 30000,
   activeRunAbortController: null,
   activeRunLabel: "",
+  lastRuntimeAction: "",
   selectedConnectionId: "",
   sourceByComponent: {},
   sourceDraftByComponent: {},
