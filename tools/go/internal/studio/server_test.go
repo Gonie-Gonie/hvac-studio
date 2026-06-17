@@ -305,8 +305,17 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("parameterChangeRows")) {
 		t.Fatalf("module entrypoint did not render calibration parameter change rows")
 	}
+	if !bytes.Contains(body, []byte("Objective History")) || !bytes.Contains(body, []byte("candidateObjectiveHistory")) {
+		t.Fatalf("module entrypoint did not render candidate objective history")
+	}
 	if !bytes.Contains(body, []byte("Apply Parameter Set")) {
 		t.Fatalf("module entrypoint did not expose saved calibration parameter-set apply action")
+	}
+	if !bytes.Contains(body, []byte("Use for Runs")) || !bytes.Contains(body, []byte("Revert Active")) {
+		t.Fatalf("module entrypoint did not expose calibration parameter-set apply/revert flow")
+	}
+	if !bytes.Contains(body, []byte("Validation Before/After")) || !bytes.Contains(body, []byte("calibrationValidationComparisonSection")) {
+		t.Fatalf("module entrypoint did not expose calibration before/after validation plots")
 	}
 	if !bytes.Contains(body, []byte("Export CSV")) || !bytes.Contains(body, []byte("downloadCandidateCSV")) {
 		t.Fatalf("module entrypoint did not expose candidate CSV export")

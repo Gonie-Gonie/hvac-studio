@@ -2647,6 +2647,11 @@ function structuredResultView(value) {
     wrapper.append(highErrorInspectionSection(value));
     return wrapper;
   }
+  if (value.kind === "calibration_validation_comparison") {
+    wrapper.append(resultHeader("Calibration Validation", value.calibration_result?.setup_name || value.calibration_result?.setup_id || "", "before / after", "/docs/user/calibration.md"));
+    wrapper.append(calibrationValidationComparisonSection(value));
+    return wrapper;
+  }
   if (value.kind === "validation_mapping" && value.artifact) {
     wrapper.append(resultHeader("Validation Mapping", value.artifact.relative_path || value.artifact.path || "", `${value.artifact.input_count || 0} in / ${value.artifact.output_count || 0} out`, "/docs/user/data-validation.md"));
     wrapper.append(validationMappingArtifactSection(value.artifact, value.mapping));
@@ -3953,6 +3958,10 @@ function candidateResultSection(result, savedLabel, savedPath) {
   if (result.best_outputs) {
     section.append(resultTable("Best Outputs", Object.entries(result.best_outputs || {}).map(([name, value]) => [name, formatValue(value)]), ["Output", "Value"]));
   }
+  const objectiveHistory = candidateObjectiveHistory(result);
+  if (objectiveHistory) {
+    section.append(objectiveHistory);
+  }
   const constraintRows = optimizationConstraintRows(result);
   if (constraintRows.length) {
     section.append(resultTable("Constraint Status", constraintRows, ["Item", "Status", "Detail"]));
@@ -3992,6 +4001,25 @@ function candidateResultSection(result, savedLabel, savedPath) {
   exportReport.addEventListener("click", () => downloadCandidateReport(result));
   actions.append(exportReport);
   if (savedLabel === "Saved parameter set" && savedPath && isWorkspaceProject()) {
+    const useForRuns = document.createElement("button");
+    useForRuns.type = "button";
+    useForRuns.className = "small-action";
+    useForRuns.textContent = "Use for Runs";
+    useForRuns.addEventListener("click", () => activateParameterSetForRuns(savedPath));
+    actions.append(useForRuns);
+    const revertActive = document.createElement("button");
+    revertActive.type = "button";
+    revertActive.className = "small-action";
+    revertActive.textContent = "Revert Active";
+    revertActive.addEventListener("click", () => activateParameterSetForRuns(""));
+    actions.append(revertActive);
+    const compareValidation = document.createElement("button");
+    compareValidation.type = "button";
+    compareValidation.className = "small-action";
+    compareValidation.textContent = "Validation Before/After";
+    compareValidation.disabled = !result.mapping;
+    compareValidation.addEventListener("click", () => runCalibrationValidationComparison(result));
+    actions.append(compareValidation);
     const apply = document.createElement("button");
     apply.type = "button";
     apply.className = "small-action";
@@ -4003,6 +4031,124 @@ function candidateResultSection(result, savedLabel, savedPath) {
     section.append(actions);
   }
   return section;
+}
+
+function candidateObjectiveHistory(result) {
+  const points = (result.candidates || [])
+    .map((item, index) => ({ index: item.index ?? index + 1, objective: finiteNumber(item.objective) }))
+    .filter((item) => item.objective !== null);
+  if (!points.length) return null;
+  const block = document.createElement("div");
+  block.className = "result-block";
+  block.innerHTML = `<div class="result-block-title">Objective History</div>`;
+  const svg = validationSVG("objective history");
+  const bounds = plotBounds();
+  const yExtent = numericExtent(points.map((point) => point.objective));
+  appendPlotFrame(svg, bounds);
+  appendLinePath(svg, points, bounds, yExtent, (point) => point.objective, "validation-series-simulated");
+  for (const [index, point] of points.entries()) {
+    const circle = svgNode("circle", {
+      class: "validation-point",
+      cx: scaleIndex(index, points.length, bounds.left, bounds.right),
+      cy: scaleValue(point.objective, yExtent, bounds.bottom, bounds.top),
+      r: 3,
+    });
+    circle.append(svgTitle(`candidate ${point.index}: ${shortNumber(point.objective)}`));
+    svg.append(circle);
+  }
+  block.append(svg);
+  return block;
+}
+
+function activateParameterSetForRuns(path) {
+  state.activeParameterSetPath = path || "";
+  renderRunInputs();
+  renderProjectTree();
+  renderStartRuntimeRows();
+  log(`Active parameter set: ${state.activeParameterSetPath || "baseline"}`);
+}
+
+async function runCalibrationValidationComparison(result) {
+  if (!result?.mapping || !result?.saved_parameter_set) {
+    showInlineProblem("Calibration validation comparison requires a mapping and saved parameter set");
+    return;
+  }
+  try {
+    const beforeBody = await api("/api/validation/run", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        mapping_path: result.mapping,
+        parameter_set_path: result.base_parameter_set || "",
+        high_error_rows: 3,
+        save: false,
+      }),
+    });
+    const afterBody = await api("/api/validation/run", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        mapping_path: result.mapping,
+        parameter_set_path: result.saved_parameter_set,
+        high_error_rows: 3,
+        save: false,
+      }),
+    });
+    state.latestWorkflowRecord = {
+      kind: "calibration_validation_comparison",
+      calibration_result: result,
+      before: beforeBody.validation_result,
+      after: afterBody.validation_result,
+    };
+    renderResults();
+    setBottomTab("results");
+    log(`Calibration validation compared: ${result.saved_parameter_set}`);
+  } catch (error) {
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+    log(`Calibration validation comparison failed: ${error.message}`);
+  }
+}
+
+function calibrationValidationComparisonSection(value) {
+  const section = document.createElement("div");
+  section.className = "result-grid";
+  const before = value.before || {};
+  const after = value.after || {};
+  section.append(resultTable("Summary", [
+    ["Mapping", after.mapping || before.mapping || value.calibration_result?.mapping || ""],
+    ["Before", before.parameter_set || "baseline"],
+    ["After", after.parameter_set || value.calibration_result?.saved_parameter_set || ""],
+    ["Rows", `${before.row_count || 0} before / ${after.row_count || 0} after`],
+  ]));
+  const comparisonRows = validationComparisonRows(after, before);
+  if (comparisonRows.length) {
+    section.append(resultTable("Metric Deltas", comparisonRows, ["Metric", "Before", "After", "RMSE Delta", "MAE Delta", "R2 Delta"]));
+  }
+  const beforePlots = validationPlotSection(before);
+  setResultBlockTitle(beforePlots, "Before Validation Plots");
+  const afterPlots = validationPlotSection(after);
+  setResultBlockTitle(afterPlots, "After Validation Plots");
+  section.append(beforePlots, afterPlots);
+  const actions = document.createElement("div");
+  actions.className = "result-actions";
+  const back = document.createElement("button");
+  back.type = "button";
+  back.className = "small-action";
+  back.textContent = "Back to Calibration Result";
+  back.addEventListener("click", () => {
+    state.latestWorkflowRecord = value.calibration_result || null;
+    renderResults();
+  });
+  actions.append(back);
+  section.append(actions);
+  return section;
+}
+
+function setResultBlockTitle(block, title) {
+  const titleNode = block.querySelector(".result-block-title");
+  if (titleNode) titleNode.textContent = title;
 }
 
 function optimizationBestDecisionRows(result) {
