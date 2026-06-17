@@ -639,6 +639,11 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(body, []byte("Received Features")) {
 		t.Fatalf("module entrypoint did not include feature preview rendering")
 	}
+	if !bytes.Contains(body, []byte("featureMappingSuggestionBlock")) ||
+		!bytes.Contains(body, []byte("Feature Mapping Suggestion")) ||
+		!bytes.Contains(body, []byte("Connect Feature Mapper")) {
+		t.Fatalf("module entrypoint did not include feature mapping suggestions")
+	}
 	if !bytes.Contains(body, []byte("mlAssetEditorBlock")) ||
 		!bytes.Contains(body, []byte("/api/project/components/ml-assets")) ||
 		!bytes.Contains(body, []byte("/api/project/components/ml-schema-nodes")) ||

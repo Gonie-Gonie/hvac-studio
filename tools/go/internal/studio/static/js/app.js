@@ -1513,6 +1513,8 @@ function renderInspector() {
   ]));
   if (component.ml_metadata) container.append(mlMetadataBlock(component));
   if (component.ml_metadata && isWorkspaceProject()) container.append(mlAssetEditorBlock(component));
+  const featureMappingSuggestion = featureMappingSuggestionBlock(component);
+  if (featureMappingSuggestion) container.append(featureMappingSuggestion);
   if (isWorkspaceProject()) container.append(componentEditor(component));
   container.append(nodeListBlock("Inputs", component, component.nodes.inputs || [], "input"));
   container.append(nodeListBlock("Outputs", component, component.nodes.outputs || [], "output"));
@@ -1594,6 +1596,14 @@ function featurePreviewBlock(title, features) {
 
 function isPlainObject(value) {
   return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function componentHasInputNode(component, nodeID) {
+  return (component?.nodes?.inputs || []).some((node) => node.id === nodeID);
+}
+
+function componentHasOutputNode(component, nodeID) {
+  return (component?.nodes?.outputs || []).some((node) => node.id === nodeID);
 }
 
 function nodeListBlock(title, component, nodes, direction) {
@@ -2464,6 +2474,51 @@ function mlAssetEditorBlock(component) {
   form.append(button, schemaButton);
   block.append(form);
   return block;
+}
+
+function featureMappingSuggestionBlock(targetComponent) {
+  const suggestions = featureMappingSuggestions(targetComponent);
+  if (!suggestions.length) return null;
+  const block = document.createElement("div");
+  block.className = "inspector-block";
+  block.innerHTML = `<div class="inspector-title">Feature Mapping Suggestion</div>`;
+  const form = document.createElement("div");
+  form.className = "connection-form";
+  const select = document.createElement("select");
+  select.setAttribute("aria-label", "Feature mapper source");
+  for (const suggestion of suggestions) {
+    const option = document.createElement("option");
+    option.value = `${suggestion.component}.${suggestion.node}`;
+    option.textContent = `${suggestion.component}.${suggestion.node}`;
+    select.append(option);
+  }
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = "Connect Feature Mapper";
+  button.addEventListener("click", () => createConnectionFromInspector(select.value, targetComponent.id, "features"));
+  form.append(select, button);
+  block.append(form);
+  return block;
+}
+
+function featureMappingSuggestions(targetComponent) {
+  if (!targetComponent?.ml_metadata || !isWorkspaceProject() || !componentHasInputNode(targetComponent, "features")) return [];
+  const system = currentSystem();
+  if (!system || !(system.components || []).includes(targetComponent.id)) return [];
+  const graphConnections = state.detail?.graph?.connections || [];
+  const systemConnections = (system.connections || []).map((id) => graphConnections.find((connection) => connection.id === id)).filter(Boolean);
+  if (systemConnections.some((connection) => connection.to.component === targetComponent.id && connection.to.node === "features")) return [];
+  return (system.components || [])
+    .map(componentById)
+    .filter((component) => component && component.id !== targetComponent.id && componentHasOutputNode(component, "features"))
+    .sort((left, right) => featureMapperRank(left) - featureMapperRank(right))
+    .map((component) => ({ component: component.id, node: "features" }));
+}
+
+function featureMapperRank(component) {
+  const id = component?.id || "";
+  const name = component?.name || "";
+  return id.includes("feature_mapper") || name.toLowerCase().includes("feature mapper") ? 0 : 1;
 }
 
 async function updateMLAssetsFromInspector(componentID, block) {

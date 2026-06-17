@@ -56,6 +56,9 @@ different `source`, `scale`, `offset`, `min`, and `max`. Missing source values
 raise `missing feature input: <name>` so Studio and CLI runs report the same
 component error. After a run, selecting the Feature Mapper shows a Feature
 Preview table; selecting the ML component shows the received feature object.
+When an ML component has an unconnected `features` input and a Feature Mapper
+with a `features` output is already in the entry system, Studio shows a
+Feature Mapping Suggestion action that creates the connection.
 
 `examples/014_ahu_state_ann` uses this shape:
 
