@@ -511,6 +511,14 @@ h2,
   width: min(280px, 100%);
 }
 
+.validation-compare-actions {
+  flex-wrap: wrap;
+}
+
+.validation-compare-select {
+  width: min(320px, 100%);
+}
+
 .metric-bars {
   display: grid;
   gap: 9px;

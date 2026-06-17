@@ -3090,9 +3090,85 @@ function validationResultSection(result) {
   if (comparisonRows.length) {
     section.append(resultTable("Parameter Set Comparison", comparisonRows, ["Metric", "Baseline", "Current", "RMSE Delta", "MAE Delta", "R2 Delta"]));
   }
+  section.append(validationComparisonControls(result));
   section.append(validationPlotSection(result));
   section.append(highErrorRows(result));
   return section;
+}
+
+function validationComparisonControls(result) {
+  const actions = document.createElement("div");
+  actions.className = "result-actions validation-compare-actions";
+  const select = document.createElement("select");
+  select.className = "validation-compare-select";
+  const currentPath = result.parameter_set || "";
+  const choices = [{ label: "Baseline", value: "" }, ...(state.detail?.parameter_sets || []).map((item) => ({
+    label: item.name || item.id || item.relative_path,
+    value: item.relative_path || "",
+  }))].filter((item) => item.value !== currentPath);
+  if (!choices.length) {
+    select.append(new Option("No comparison sets", currentPath));
+  } else {
+    for (const item of choices) {
+      select.append(new Option(item.label, item.value));
+    }
+  }
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "small-action";
+  button.textContent = "Compare Parameter Set";
+  button.disabled = !choices.length || !validationResultMappingPath(result);
+  button.addEventListener("click", () => compareValidationParameterSet(result, select.value));
+  actions.append(select, button);
+  return actions;
+}
+
+function validationResultMappingPath(result) {
+  if (result.mapping) return result.mapping;
+  const mappingID = result.mapping_id || "";
+  const found = (state.detail?.validation_mappings || []).find((item) => item.id === mappingID || item.name === result.mapping_name);
+  return found?.relative_path || "";
+}
+
+async function compareValidationParameterSet(baselineResult, parameterSetPath) {
+  if (!(await saveModelEditsBeforeExecution())) return;
+  const mappingPath = validationResultMappingPath(baselineResult);
+  if (!mappingPath) {
+    state.latestValidation = { error: "Validation comparison requires a saved mapping path" };
+    renderProblems();
+    setBottomTab("problems");
+    log("Validation comparison unavailable: no mapping path");
+    return;
+  }
+  try {
+    const body = await api("/api/validation/run", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        mapping_path: mappingPath,
+        parameter_set_path: parameterSetPath,
+        high_error_rows: 3,
+        save: isWorkspaceProject(),
+      }),
+    });
+    state.validationComparisonBaseline = baselineResult;
+    state.latestDataValidation = body.validation_result;
+    state.latestWorkflowRecord = null;
+    if (body.validation_record) {
+      state.detail.validation_runs = [body.validation_record, ...(state.detail.validation_runs || [])];
+      await refreshCurrentProjectDetail();
+    }
+    setProblems();
+    renderResults();
+    renderProblems();
+    setBottomTab("results");
+    log(`Validation compared with parameter set: ${parameterSetPath || "baseline"}`);
+  } catch (error) {
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+    log(`Validation comparison failed: ${error.message}`);
+  }
 }
 
 function validationComparisonRows(current, baseline) {

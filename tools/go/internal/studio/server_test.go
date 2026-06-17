@@ -320,8 +320,11 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("validationPlotSection")) || !bytes.Contains(body, []byte("Measured vs Simulated")) || !bytes.Contains(body, []byte("Residual Histogram")) {
 		t.Fatalf("module entrypoint did not render validation plots")
 	}
-	if !bytes.Contains(body, []byte("validationComparisonBaseline")) || !bytes.Contains(body, []byte("Parameter Set Comparison")) {
+	if !bytes.Contains(body, []byte("validationComparisonBaseline")) || !bytes.Contains(body, []byte("Parameter Set Comparison")) || !bytes.Contains(body, []byte("compareValidationParameterSet")) {
 		t.Fatalf("module entrypoint did not render validation parameter-set comparisons")
+	}
+	if !bytes.Contains(body, []byte("Compare Parameter Set")) {
+		t.Fatalf("module entrypoint did not expose validation parameter-set comparison action")
 	}
 	if !bytes.Contains(body, []byte("openHighErrorInspection")) || !bytes.Contains(body, []byte("High Error Inspection")) {
 		t.Fatalf("module entrypoint did not expose high-error timestep inspection")
