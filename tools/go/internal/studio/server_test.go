@@ -1,6 +1,7 @@
 package studio
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"io"
@@ -5526,6 +5527,20 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	if _, err := compiler.Compile(exportedLoaded); err != nil {
 		t.Fatalf("compile exported project: %v", err)
 	}
+	relocatedExportRoot := filepath.Join(root, "relocated", "runtime_package")
+	if err := copyProjectTree(exportRoot, relocatedExportRoot); err != nil {
+		t.Fatalf("relocate export: %v", err)
+	}
+	assertRuntimeExportCompiles(t, relocatedExportRoot)
+	archivePath := filepath.Join(root, "runtime-export.zip")
+	if err := zipDirectory(exportRoot, archivePath); err != nil {
+		t.Fatalf("zip export: %v", err)
+	}
+	unzippedExportRoot := filepath.Join(root, "unzipped", "runtime_package")
+	if err := unzipArchive(archivePath, unzippedExportRoot); err != nil {
+		t.Fatalf("unzip export: %v", err)
+	}
+	assertRuntimeExportCompiles(t, unzippedExportRoot)
 
 	openResponse := httptest.NewRecorder()
 	openRequest := httptest.NewRequest(http.MethodGet, "/api/project/export?project_path="+url.QueryEscape(createBody.Project.ProjectPath)+"&profile=runtime_package", nil)
@@ -6026,6 +6041,111 @@ func writeTestFile(t *testing.T, path string, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func assertRuntimeExportCompiles(t *testing.T, exportRoot string) {
+	t.Helper()
+	if _, err := os.Stat(filepath.Join(exportRoot, "manifest.json")); err != nil {
+		t.Fatalf("relocated manifest: %v", err)
+	}
+	loaded, err := project.Load(filepath.Join(exportRoot, "project", "project.bcsproj"))
+	if err != nil {
+		t.Fatalf("load relocated export: %v", err)
+	}
+	if _, err := compiler.Compile(loaded); err != nil {
+		t.Fatalf("compile relocated export: %v", err)
+	}
+}
+
+func zipDirectory(sourceRoot string, archivePath string) error {
+	archive, err := os.Create(archivePath)
+	if err != nil {
+		return err
+	}
+	defer archive.Close()
+	writer := zip.NewWriter(archive)
+	defer writer.Close()
+	return filepath.WalkDir(sourceRoot, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(sourceRoot, path)
+		if err != nil {
+			return err
+		}
+		header.Name = filepath.ToSlash(rel)
+		header.Method = zip.Deflate
+		target, err := writer.CreateHeader(header)
+		if err != nil {
+			return err
+		}
+		source, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer source.Close()
+		_, err = io.Copy(target, source)
+		return err
+	})
+}
+
+func unzipArchive(archivePath string, targetRoot string) error {
+	reader, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+	cleanRoot := filepath.Clean(targetRoot)
+	cleanRootWithSeparator := cleanRoot + string(os.PathSeparator)
+	for _, file := range reader.File {
+		targetPath := filepath.Join(targetRoot, filepath.FromSlash(file.Name))
+		cleanTarget := filepath.Clean(targetPath)
+		if cleanTarget != cleanRoot && !strings.HasPrefix(cleanTarget, cleanRootWithSeparator) {
+			return &os.PathError{Op: "unzip", Path: file.Name, Err: os.ErrInvalid}
+		}
+		if file.FileInfo().IsDir() {
+			if err := os.MkdirAll(cleanTarget, file.Mode()); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(cleanTarget), 0o755); err != nil {
+			return err
+		}
+		source, err := file.Open()
+		if err != nil {
+			return err
+		}
+		target, err := os.OpenFile(cleanTarget, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, file.Mode())
+		if err != nil {
+			_ = source.Close()
+			return err
+		}
+		_, copyErr := io.Copy(target, source)
+		closeErr := target.Close()
+		sourceErr := source.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+		if sourceErr != nil {
+			return sourceErr
+		}
+	}
+	return nil
 }
 
 func seedExportWorkflowArtifacts(t *testing.T, projectRoot string) {
