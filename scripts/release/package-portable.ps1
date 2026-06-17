@@ -171,7 +171,7 @@ $ReleaseManifest = [ordered]@{
   version = $ResolvedVersion
   runtime_id = $RuntimeId
   primary_platform = 'Windows 10/11 x64'
-  future_platforms = @('macOS experimental after MVP')
+  additional_platforms = @('macOS experimental after MVP')
   commit = $Commit
   built_at_utc = (Get-Date).ToUniversalTime().ToString('o')
   provenance = 'release-provenance.json'
@@ -189,7 +189,7 @@ $ReleaseManifest = [ordered]@{
   includes_embedded_python = $true
   notes = @(
     'Windows-first portable Studio package.',
-    'Engine and project format are OS-independent; macOS packaging is a future experimental target.',
+    'Engine and project format are OS-independent; macOS packaging is an experimental post-MVP target.',
     'HVAC Studio.exe opens a native Wails desktop window for normal use.',
     'bin/studio.exe --server is reserved for scripted API smoke tests and automation.',
     'Includes a bundled Python runtime for included examples.',

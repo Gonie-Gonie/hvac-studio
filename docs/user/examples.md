@@ -20,8 +20,8 @@ learning path and gives releases repeatable smoke assets.
 | 11 | `examples/006_optimization_case` | Grid-search optimization and SDK-style external search scripting. |
 | 12 | `examples/007_runtime_only_package` | Runtime-only delivery shape and exported-package command style. |
 
-`examples/002_custom_component` is intentionally reserved for future richer
-custom inlet/outlet authoring notes and is not part of the runnable smoke set.
+`examples/002_custom_component` is intentionally reserved for richer custom
+inlet/outlet authoring notes and is not part of the runnable smoke set.
 
 ## Regression Role
 

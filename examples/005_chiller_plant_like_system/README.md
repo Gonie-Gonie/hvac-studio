@@ -37,8 +37,8 @@ Pop-Location
 The validation dataset includes a `time` column. The mapping preserves that value
 in validation row summaries, which makes this example the current tutorial for
 time-indexed validation data. Each CSV row is still evaluated independently;
-native sequential time-series state carryover is planned as a later engine
-feature.
+native sequential time-series state carryover belongs to `run-series` input
+artifacts.
 
 Use the high-efficiency parameter set to compare runtime overlays without
 mutating `graph.json`, then use the calibration setup to estimate chiller-related

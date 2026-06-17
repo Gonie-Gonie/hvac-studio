@@ -46,7 +46,7 @@ Execution follows this shape:
 
 ## Python Worker Executes User Code
 
-User Python runs in a worker process. This keeps the runtime boundary explicit and makes future repeated evaluation, optimization, and external engine integration more stable.
+User Python runs in a worker process. This keeps the runtime boundary explicit and makes repeated evaluation, optimization, and external engine integration more stable.
 
 External executable components run as separate processes. The runner sends one
 JSON request on stdin and reads one JSON response on stdout, while still owning

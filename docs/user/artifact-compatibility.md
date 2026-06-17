@@ -31,8 +31,8 @@ line, whether it is compatible, and the action required. The command exits with:
 
 There are no automatic rewrites yet. During the alpha line, compatible
 patch-level changes may add optional fields, but they must not require rewriting
-existing `0.1.x` projects. `--write` is reserved for future documented
-migrations and currently writes no changes for already-compatible artifacts.
+existing `0.1.x` projects. `--write` is reserved for documented migrations and
+currently writes no changes for already-compatible artifacts.
 
 When an incompatible schema appears, migration work should produce:
 

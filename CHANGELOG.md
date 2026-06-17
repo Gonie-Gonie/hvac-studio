@@ -11,8 +11,8 @@
 - Add typed runner error categories for documented CLI exit codes.
 - Add CLI validation golden tests for invalid graph diagnostics.
 - Add `bcs-runner schema` for exporting system public input/output interface metadata.
-- Add component input snapshots to run output for future inspector/debug UX.
-- Add the first full Studio workspace shell with project explorer, system canvas, inspector, runtime actions, bottom panels, and future workflow surfaces.
+- Add component input snapshots to run output for inspector/debug UX.
+- Add the first full Studio workspace shell with project explorer, system canvas, inspector, runtime actions, bottom panels, and workflow surfaces.
 - Document Windows-first portable release strategy and add portable Studio package smoke testing.
 - Bundle repo-local Python into Windows portable/runtime packages and test package execution without system Python on `PATH`.
 - Add Studio workspace project creation and saved run records.
@@ -26,7 +26,7 @@
 - Add Studio component Python source loading and workspace source saving.
 - Add Studio scenario artifact creation from current run inputs.
 - Document the connected Studio workflow covered by portable release smoke tests.
-- Add the initial User Guide Markdown scaffold under `docs/user/` and document the planned HTML/PDF help release flow.
+- Add the initial User Guide Markdown scaffold under `docs/user/` and document the HTML/PDF help release flow.
 - Add Studio node-to-node connection authoring for workspace systems.
 - Add Studio scenario reopening so saved scenarios can populate run inputs.
 - Save workspace parameter/source model edits before Studio run and export actions.
@@ -45,10 +45,10 @@
 - Add a dedicated Studio Code workspace for direct Python source editing, snippets, contract context, and source checks.
 - Add a double-clickable portable Studio entrypoint backed by a Wails desktop window, with `bin/studio.exe --server` reserved for API automation.
 - Build Wails Studio binaries with the required production tags and make portable smoke detect Wails error dialogs.
-- Replace the placeholder `bcs-env` command with a package environment checker used by portable and runtime smoke tests.
-- Replace placeholder portable templates with source project/component templates used by Studio project creation.
-- Split Studio static JavaScript into ES modules and replace the validation plot placeholder with a runtime output preview.
-- Remove unimplemented Studio future workspaces from the active UI and promote actual run output state into a focused Run workspace.
+- Replace the initial `bcs-env` command with a package environment checker used by portable and runtime smoke tests.
+- Replace initial portable templates with source project/component templates used by Studio project creation.
+- Split Studio static JavaScript into ES modules and replace the static validation plot stub with a runtime output preview.
+- Remove inactive Studio workspaces from the active UI and promote actual run output state into a focused Run workspace.
 - Expand Studio runtime export from a manifest-only artifact to a project artifact containing source-of-truth project files.
 - Verify exported Studio runtime project artifacts can be loaded, compiled, and run by packaged release smoke tests.
 - Add a detailed Studio export workspace view for runtime export summary, file list, and manifest JSON.

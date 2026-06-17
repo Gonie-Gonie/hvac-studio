@@ -6,7 +6,7 @@ HVAC Studio is released as a Windows-first installed/portable engineering tool. 
 Primary supported platform:
 - Windows 10/11 x64
 
-Future / experimental platform:
+Additional experimental platform:
 - macOS after MVP
 
 Development policy:

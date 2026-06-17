@@ -8,8 +8,8 @@ Current templates:
 - `components/scalar`: the default generated-wrapper scalar component.
 - `components/controller`: a proportional controller starting point.
 - `components/stateful`: a stateful controller/component starting point with `state_defs`.
-- `components/data_source`: a context-backed source placeholder.
-- `components/data_sink`: a sink placeholder for consuming connected values.
+- `components/data_source`: a context-backed source template.
+- `components/data_sink`: a sink template for consuming connected values.
 - `components/utility`: a two-input utility calculation.
 - `components/vectorized`: a vectorized generated-wrapper component using `evaluate_batch`.
 - `components/external_executable`: an external process component using stdin/stdout JSON.

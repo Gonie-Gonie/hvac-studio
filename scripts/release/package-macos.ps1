@@ -59,7 +59,7 @@ $MacPlan = [ordered]@{
     './macos/check-prereqs.ps1'
     './macos/check-prereqs.sh'
   )
-  planned_entrypoints = [ordered]@{
+  target_entrypoints = [ordered]@{
     runner = 'bin/bcs-runner'
     env = 'bin/bcs-env'
     studio_app = 'HVAC Studio.app'

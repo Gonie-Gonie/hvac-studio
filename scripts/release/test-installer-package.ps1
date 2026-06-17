@@ -84,7 +84,7 @@ try {
     throw 'installer payload checksum mismatch'
   }
 
-  $PlanInstallDir = Join-Path $TestRoot 'planned-install'
+  $PlanInstallDir = Join-Path $TestRoot 'install-plan'
   $PlanOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $InstallScript -PlanOnly -InstallDir $PlanInstallDir -AddToPath
   $Plan = ($PlanOutput -join "`n") | ConvertFrom-Json
   if ($Plan.schema -ne 'hvac-studio.installer.plan.v1') {

@@ -10,6 +10,7 @@ $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 & (Join-Path $RepoRoot 'scripts\dev\test-examples.ps1')
 & (Join-Path $RepoRoot 'scripts\dev\test-validation.ps1')
 & (Join-Path $RepoRoot 'scripts\dev\test-docs.ps1')
+& (Join-Path $RepoRoot 'scripts\dev\test-product-wording.ps1')
 
 $Npm = Get-Command npm -ErrorAction SilentlyContinue
 if ($null -ne $Npm -and (Test-Path (Join-Path $RepoRoot 'app\studio\frontend\package.json'))) {

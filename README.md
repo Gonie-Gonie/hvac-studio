@@ -23,12 +23,12 @@ The Studio UI is intentionally built as the full product workspace first. Indivi
 ## Repository Map
 
 ```text
-app/studio/          Studio GUI direction and future installed app notes
+app/studio/          Studio GUI direction and installed app notes
 tools/go/            Go runner, compiler, scheduler, runtime packages
 python/bcs_worker/   Python component evaluator process
 python/bcs_sdk/      Python wrapper around the runner
 schema/              JSON schemas for project, graph, protocol, input, output
-examples/            Runnable model examples and future golden tests
+examples/            Runnable model examples and golden tests
 scripts/dev/         Local development and verification scripts
 runtime/             Runtime packaging manifest
 templates/           Source templates for Studio-created projects/components

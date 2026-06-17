@@ -15,8 +15,8 @@
 | Surface | Status | Notes |
 | --- | --- | --- |
 | Signed/notarized macOS app | Not yet supported | Requires native macOS build, Developer ID signing, notarization, stapling, and clean-machine platform smoke tests. |
-| Linux package | Not planned for 1.0 | Engine code should remain OS-independent, but packaging is Windows-first. |
-| Automatic updater | Not implemented | Release notes and checksums are the update mechanism for now. |
+| Linux package | Outside 1.0 scope | Engine code should remain OS-independent, but packaging is Windows-first. |
+| Automatic updater | Unavailable | Release notes and checksums are the update mechanism for now. |
 | `.bcsproj` file association | Policy only | Disabled until Studio supports project-file launch arguments. |
 
 ## Runtime Requirements

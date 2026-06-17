@@ -89,8 +89,8 @@ The command exits successfully when `project.bcsproj` and `graph.json` are insid
 the supported compatibility line. It exits with a validation error when an
 artifact is missing `schema_version`, has an invalid version, or uses an
 unsupported major/minor version. The report still records which artifact needs a
-manual migration. `--write` is accepted for future migrations, but currently
-writes no changes when no migration is needed.
+manual migration. `--write` is accepted for documented migrations, but
+currently writes no changes when no migration is needed.
 
 ## Data Validation
 
