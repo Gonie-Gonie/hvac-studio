@@ -16,6 +16,7 @@ export const state = {
   latestSchema: null,
   latestValidation: null,
   latestDataValidation: null,
+  validationComparisonBaseline: null,
   latestWorkflowRecord: null,
   activeParameterSetPath: "",
   activeRunInput: null,

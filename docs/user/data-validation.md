@@ -75,6 +75,12 @@ bcs-runner.exe validate-data `
 
 In Studio, projects with saved mappings show a `Validation` section in the Project tree and enable the `Data` command. The result appears in the Results panel with evaluated row count, input row count, skipped rows, filled value count, metrics, high-error rows, and output-level plots for measured vs simulated values, scatter, residuals, and residual histograms. Select a high-error row to inspect the timestep component inputs, component outputs, node values, connection values, and state snapshot.
 
+When you run validation again for the same dataset and mapping, Studio keeps the
+previous validation result as the comparison baseline and shows a `Parameter Set
+Comparison` table with RMSE, MAE, and R2 deltas. This is intended for comparing
+baseline, calibrated, and scenario-specific parameter sets without changing the
+saved graph.
+
 For workspace projects, Studio saves Data command results under `validation/runs/` and shows them in the Project tree as `Validation Runs`. CLI users can do the same with `bcs-runner validate-data --save-record`.
 
 Validation should not automatically change parameters. Calibration is the workflow that estimates parameters from observed data.

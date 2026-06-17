@@ -189,6 +189,7 @@ async function loadProject(projectPath) {
   state.latestSchema = null;
   state.latestValidation = null;
   state.latestDataValidation = null;
+  state.validationComparisonBaseline = null;
   state.latestWorkflowRecord = null;
   state.activeParameterSetPath = "";
   state.activeRunInput = null;
@@ -2595,9 +2596,47 @@ function validationResultSection(result) {
     ["Values filled", String(result.filled_value_count || 0)],
   ]));
   section.append(metricBars(result.metrics || {}));
+  const comparisonRows = validationComparisonRows(result, state.validationComparisonBaseline);
+  if (comparisonRows.length) {
+    section.append(resultTable("Parameter Set Comparison", comparisonRows, ["Metric", "Baseline", "Current", "RMSE Delta", "MAE Delta", "R2 Delta"]));
+  }
   section.append(validationPlotSection(result));
   section.append(highErrorRows(result));
   return section;
+}
+
+function validationComparisonRows(current, baseline) {
+  if (!sameValidationComparisonScope(current, baseline)) return [];
+  const currentLabel = current.parameter_set || "baseline";
+  const baselineLabel = baseline.parameter_set || "baseline";
+  return Object.entries(current.metrics || {}).filter(([name]) => baseline.metrics?.[name]).map(([name, metric]) => {
+    const previous = baseline.metrics[name] || {};
+    return [
+      name,
+      baselineLabel,
+      currentLabel,
+      metricDelta(metric.rmse, previous.rmse),
+      metricDelta(metric.mae, previous.mae),
+      metricDelta(metric.r2, previous.r2),
+    ];
+  });
+}
+
+function sameValidationComparisonScope(current, baseline) {
+  if (!current || !baseline) return false;
+  const currentMapping = current.mapping || current.mapping_id || "";
+  const baselineMapping = baseline.mapping || baseline.mapping_id || "";
+  if (currentMapping && baselineMapping && currentMapping !== baselineMapping) return false;
+  if ((current.dataset || "") !== (baseline.dataset || "")) return false;
+  return Object.keys(current.metrics || {}).some((name) => baseline.metrics?.[name]);
+}
+
+function metricDelta(current, baseline) {
+  const currentValue = Number(current);
+  const baselineValue = Number(baseline);
+  if (!Number.isFinite(currentValue) || !Number.isFinite(baselineValue)) return "";
+  const delta = currentValue - baselineValue;
+  return delta > 0 ? `+${shortNumber(delta)}` : String(shortNumber(delta));
 }
 
 function metricBars(metrics) {
@@ -4099,6 +4138,7 @@ async function runDataValidation() {
     log("Data validation unavailable: no mapping");
     return;
   }
+  const comparisonBaseline = latestValidationComparisonSource();
   try {
     const body = await api("/api/validation/run", {
       method: "POST",
@@ -4110,6 +4150,7 @@ async function runDataValidation() {
         save: isWorkspaceProject(),
       }),
     });
+    state.validationComparisonBaseline = comparisonBaseline;
     state.latestDataValidation = body.validation_result;
     state.latestSeriesResult = null;
     state.latestWorkflowRecord = null;
@@ -4132,6 +4173,12 @@ async function runDataValidation() {
     setBottomTab("problems");
     log(`Data validation failed: ${error.message}`);
   }
+}
+
+function latestValidationComparisonSource() {
+  if (state.latestWorkflowRecord?.result?.metrics) return state.latestWorkflowRecord.result;
+  if (state.latestWorkflowRecord?.metrics) return state.latestWorkflowRecord;
+  return state.latestDataValidation;
 }
 
 async function runCalibrationSetup(setup) {
