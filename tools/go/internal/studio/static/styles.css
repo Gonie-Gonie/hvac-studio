@@ -486,6 +486,16 @@ h2,
   font-size: 12px;
 }
 
+.clickable-result-row {
+  cursor: pointer;
+}
+
+.clickable-result-row:hover,
+.clickable-result-row:focus-visible {
+  background: var(--surface-2);
+  outline: none;
+}
+
 .result-actions {
   display: flex;
   gap: 8px;

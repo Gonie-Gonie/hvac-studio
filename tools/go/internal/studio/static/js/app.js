@@ -2271,6 +2271,11 @@ function structuredResultView(value) {
     wrapper.append(parameterSetResultSection(value.parameter_set));
     return wrapper;
   }
+  if (value.kind === "high_error_inspection") {
+    wrapper.append(resultHeader("High Error Inspection", value.metric || "", `row ${value.row_index ?? ""}`, "/docs/user/data-validation.md"));
+    wrapper.append(highErrorInspectionSection(value));
+    return wrapper;
+  }
   if (value.kind && value.artifact) {
     wrapper.append(resultHeader(value.kind.replace(/_/g, " "), value.artifact.relative_path || value.artifact.path || "", value.artifact.state || ""));
     wrapper.append(resultTable("Summary", objectRows(value.artifact)));
@@ -2591,7 +2596,7 @@ function validationResultSection(result) {
   ]));
   section.append(metricBars(result.metrics || {}));
   section.append(validationPlotSection(result));
-  section.append(highErrorRows(result.metrics || {}));
+  section.append(highErrorRows(result));
   return section;
 }
 
@@ -2864,21 +2869,138 @@ function svgNode(name, attrs = {}) {
   return node;
 }
 
-function highErrorRows(metrics) {
+function highErrorRows(result) {
+  const metrics = result.metrics || {};
+  const block = document.createElement("div");
+  block.className = "result-block";
+  block.innerHTML = `
+    <div class="result-block-title">High Error Rows</div>
+    <table class="result-table">
+      <thead><tr><th>Metric</th><th>Row</th><th>Time</th><th>Observed</th><th>Simulated</th><th>Error</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  `;
+  const tbody = block.querySelector("tbody");
   const rows = [];
   for (const [metric, item] of Object.entries(metrics)) {
     for (const high of item.high_error_rows || []) {
-      rows.push([
+      rows.push({
         metric,
-        String(high.row_index),
-        high.time ?? "",
-        shortNumber(high.observed),
-        shortNumber(high.simulated),
-        shortNumber(high.error),
-      ]);
+        high,
+      });
     }
   }
-  return resultTable("High Error Rows", rows, ["Metric", "Row", "Time", "Observed", "Simulated", "Error"]);
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-cell">No high error rows</td></tr>`;
+    return block;
+  }
+  for (const row of rows) {
+    const tr = document.createElement("tr");
+    tr.className = "clickable-result-row";
+    tr.tabIndex = 0;
+    tr.title = "Inspect timestep";
+    const cells = [
+      row.metric,
+      String(row.high.row_index),
+      row.high.time ?? "",
+      shortNumber(row.high.observed),
+      shortNumber(row.high.simulated),
+      shortNumber(row.high.error),
+    ];
+    tr.innerHTML = cells.map((cell) => `<td>${escapeHTML(cell)}</td>`).join("");
+    tr.addEventListener("click", () => openHighErrorInspection(result, row.metric, row.high));
+    tr.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openHighErrorInspection(result, row.metric, row.high);
+      }
+    });
+    tbody.append(tr);
+  }
+  return block;
+}
+
+function openHighErrorInspection(validationResult, metric, high) {
+  state.latestWorkflowRecord = {
+    kind: "high_error_inspection",
+    metric,
+    row_index: high.row_index,
+    time: high.time,
+    observed: high.observed,
+    simulated: high.simulated,
+    error: high.error,
+    inspection: high.inspection || {},
+    validation_result: validationResult,
+  };
+  renderResults();
+  setBottomTab("results");
+}
+
+function highErrorInspectionSection(value) {
+  const section = document.createElement("div");
+  section.className = "result-grid";
+  const inspection = value.inspection || {};
+  section.append(resultTable("Summary", [
+    ["Metric", value.metric || ""],
+    ["Row", String(value.row_index ?? "")],
+    ["Time", value.time ?? ""],
+    ["Observed", shortNumber(value.observed)],
+    ["Simulated", shortNumber(value.simulated)],
+    ["Error", shortNumber(value.error)],
+  ]));
+  section.append(resultTable("Component Inputs", componentValueRows(inspection.component_inputs), ["Component", "Input", "Value"]));
+  section.append(resultTable("Component Outputs", componentValueRows(inspection.component_outputs), ["Component", "Output", "Value"]));
+  section.append(resultTable("Node Values", nodeValueRows(inspection.node_values), ["Component", "Node", "Direction", "Metadata", "Value"]));
+  section.append(resultTable("Connection Values", connectionValueRows(inspection.connection_values), ["Connection", "From", "To", "Metadata", "Value"]));
+  section.append(resultTable("States", componentValueRows(inspection.states), ["Component", "State", "Value"]));
+  const actions = document.createElement("div");
+  actions.className = "result-actions";
+  const back = document.createElement("button");
+  back.type = "button";
+  back.className = "small-action";
+  back.textContent = "Back to Validation Result";
+  back.addEventListener("click", () => {
+    state.latestWorkflowRecord = value.validation_result || null;
+    renderResults();
+  });
+  actions.append(back);
+  section.append(actions);
+  return section;
+}
+
+function componentValueRows(values) {
+  const rows = [];
+  for (const [component, fields] of Object.entries(values || {})) {
+    for (const [name, value] of Object.entries(fields || {})) {
+      rows.push([component, name, formatValue(value)]);
+    }
+  }
+  return rows;
+}
+
+function nodeValueRows(values) {
+  return (values || []).map((item) => [
+    item.component || "",
+    item.node || "",
+    item.direction || "",
+    [item.medium || "", item.value_type || "", item.unit || ""].filter(Boolean).join(" / "),
+    formatValue(item.value),
+  ]);
+}
+
+function connectionValueRows(values) {
+  return (values || []).map((item) => [
+    item.id || "",
+    endpointLabel(item.from),
+    endpointLabel(item.to),
+    [item.source_medium || item.target_medium || "", item.value_type || "", item.unit || ""].filter(Boolean).join(" / "),
+    formatValue(item.value),
+  ]);
+}
+
+function endpointLabel(endpoint) {
+  if (!endpoint) return "";
+  return [endpoint.component, endpoint.node].filter(Boolean).join(".");
 }
 
 function candidateResultSection(result, savedLabel, savedPath) {
