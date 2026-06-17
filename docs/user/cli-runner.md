@@ -106,6 +106,9 @@ bcs-runner.exe validate-data `
 ```
 
 The mapping and parameter-set paths are project-relative. The result includes RMSE, MAE, MBE, CVRMSE, R2, row summaries, and inspect data for the highest-error rows. `--save-record` also writes a project artifact under `validation/runs/`.
+Validation mappings can set `missing_value_policy` to `error`, `drop`, `fill`,
+or `ignore_output_rows`; the result reports evaluated, skipped, and filled row
+handling so CLI output matches the Studio Data view.
 
 ## Calibration
 

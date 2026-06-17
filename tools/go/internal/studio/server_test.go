@@ -2722,7 +2722,7 @@ func TestCreateValidationMappingEndpointWritesSuggestedMapping(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
-	if body.Summary.RelativePath != "validation/mappings/suggested_validation.json" || body.Summary.MissingValuePolicy != "fail_fast" {
+	if body.Summary.RelativePath != "validation/mappings/suggested_validation.json" || body.Summary.MissingValuePolicy != "error" || body.Mapping.MissingValuePolicy != "error" {
 		t.Fatalf("summary = %#v", body.Summary)
 	}
 	if body.Mapping.InputColumns["building_load_kw"] != "building_load_kw" {

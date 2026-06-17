@@ -33,6 +33,7 @@ The mapping connects dataset columns to public inputs and observed outputs:
   "dataset": "datasets/plant_validation.csv",
   "dataset_checksum": "<sha256>",
   "time_column": "time",
+  "missing_value_policy": "error",
   "input_columns": {
     "building_load_kw": "building_load_kw"
   },
@@ -41,6 +42,17 @@ The mapping connects dataset columns to public inputs and observed outputs:
   }
 }
 ```
+
+Missing values are blank cells or common markers such as `NA`, `N/A`, `NaN`,
+`null`, and `none`. Studio lets you choose the mapping policy before selecting
+`Create Mapping`:
+
+| Policy | Behavior |
+|---|---|
+| `error` | Stop validation at the first required missing value. Older `fail_fast` mappings are read as `error`. |
+| `drop` | Skip rows with any missing mapped input, observed output, or time value. |
+| `fill` | Fill missing mapped values with the previous value for that dataset column, or `0` if no previous value exists. |
+| `ignore_output_rows` | Skip rows with missing observed output values while still requiring mapped inputs and time values. |
 
 ## Metrics
 
@@ -61,7 +73,7 @@ bcs-runner.exe validate-data `
   --parameter-set parameter_sets/high_efficiency.json
 ```
 
-In Studio, projects with saved mappings show a `Validation` section in the Project tree and enable the `Data` command. The result appears in the Results panel.
+In Studio, projects with saved mappings show a `Validation` section in the Project tree and enable the `Data` command. The result appears in the Results panel with evaluated row count, input row count, skipped rows, and filled value count.
 
 For workspace projects, Studio saves Data command results under `validation/runs/` and shows them in the Project tree as `Validation Runs`. CLI users can do the same with `bcs-runner validate-data --save-record`.
 

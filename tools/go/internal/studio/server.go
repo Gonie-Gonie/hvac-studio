@@ -5321,11 +5321,9 @@ func createValidationMapping(loaded *project.LoadedProject, req createValidation
 		name = displayNameFromID(id)
 	}
 	policy := strings.TrimSpace(req.MissingValuePolicy)
-	if policy == "" {
-		policy = "fail_fast"
-	}
-	if policy != "fail_fast" {
-		return ValidationMappingSummary{}, modelvalidation.Mapping{}, apperror.Errorf(apperror.CodeValidation, "unsupported missing value policy: %s", policy)
+	policy, err = modelvalidation.NormalizeMissingValuePolicy(policy)
+	if err != nil {
+		return ValidationMappingSummary{}, modelvalidation.Mapping{}, err
 	}
 
 	mapping := modelvalidation.Mapping{
@@ -5827,8 +5825,9 @@ func loadValidationMappingSummaries(projectRoot string) []ValidationMappingSumma
 		if name == "" {
 			name = displayNameFromID(id)
 		}
-		if mapping.MissingValuePolicy == "" {
-			mapping.MissingValuePolicy = "fail_fast"
+		policy, err := modelvalidation.NormalizeMissingValuePolicy(mapping.MissingValuePolicy)
+		if err != nil {
+			policy = modelvalidation.MissingPolicyError
 		}
 		rel, _ := filepath.Rel(projectRoot, path)
 		summaries = append(summaries, ValidationMappingSummary{
@@ -5839,7 +5838,7 @@ func loadValidationMappingSummaries(projectRoot string) []ValidationMappingSumma
 			DatasetChecksum:    mapping.DatasetChecksum,
 			InputCount:         len(mapping.InputColumns),
 			OutputCount:        len(mapping.ObservedOutputColumns),
-			MissingValuePolicy: mapping.MissingValuePolicy,
+			MissingValuePolicy: policy,
 		})
 	}
 	sort.Slice(summaries, func(i, j int) bool {

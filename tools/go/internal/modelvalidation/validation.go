@@ -36,6 +36,13 @@ type Options struct {
 	HighErrorRows int
 }
 
+const (
+	MissingPolicyError            = "error"
+	MissingPolicyDrop             = "drop"
+	MissingPolicyFill             = "fill"
+	MissingPolicyIgnoreOutputRows = "ignore_output_rows"
+)
+
 type Result struct {
 	OK                    bool                     `json:"ok"`
 	MappingID             string                   `json:"mapping_id"`
@@ -46,9 +53,13 @@ type Result struct {
 	Dataset               string                   `json:"dataset"`
 	DatasetChecksum       string                   `json:"dataset_checksum,omitempty"`
 	RowCount              int                      `json:"row_count"`
+	InputRowCount         int                      `json:"input_row_count,omitempty"`
+	SkippedRowCount       int                      `json:"skipped_row_count,omitempty"`
+	FilledValueCount      int                      `json:"filled_value_count,omitempty"`
 	InputColumns          map[string]string        `json:"input_columns"`
 	ObservedOutputColumns map[string]string        `json:"observed_output_columns"`
 	MissingValuePolicy    string                   `json:"missing_value_policy,omitempty"`
+	Warnings              []string                 `json:"warnings,omitempty"`
 	Metrics               map[string]MetricSummary `json:"metrics"`
 	Rows                  []RowSummary             `json:"rows"`
 }
@@ -85,7 +96,9 @@ type RowSummary struct {
 	Simulated map[string]float64 `json:"simulated"`
 	Errors    map[string]float64 `json:"errors"`
 	OK        bool               `json:"ok"`
+	Skipped   bool               `json:"skipped,omitempty"`
 	Error     string             `json:"error,omitempty"`
+	Filled    []string           `json:"filled_columns,omitempty"`
 }
 
 type MetricSummary struct {
@@ -248,9 +261,11 @@ func LoadMapping(projectRoot string, mappingPath string) (Mapping, error) {
 	if rel, err := filepath.Rel(projectRoot, resolved); err == nil {
 		mapping.Path = filepath.ToSlash(rel)
 	}
-	if mapping.MissingValuePolicy == "" {
-		mapping.MissingValuePolicy = "fail_fast"
+	policy, err := NormalizeMissingValuePolicy(mapping.MissingValuePolicy)
+	if err != nil {
+		return Mapping{}, err
 	}
+	mapping.MissingValuePolicy = policy
 	if mapping.Dataset == "" {
 		return Mapping{}, apperror.Errorf(apperror.CodeInput, "validation mapping dataset is required")
 	}
@@ -267,6 +282,11 @@ func Run(ctx context.Context, loaded *project.LoadedProject, mapping Mapping, op
 	if options.HighErrorRows <= 0 {
 		options.HighErrorRows = 3
 	}
+	policy, err := NormalizeMissingValuePolicy(mapping.MissingValuePolicy)
+	if err != nil {
+		return nil, err
+	}
+	mapping.MissingValuePolicy = policy
 	datasetPath, err := resolveProjectOwnedFile(loaded.Root, mapping.Dataset)
 	if err != nil {
 		return nil, err
@@ -301,45 +321,56 @@ func Run(ctx context.Context, loaded *project.LoadedProject, mapping Mapping, op
 		Mapping:               mapping.Path,
 		Dataset:               filepath.ToSlash(mapping.Dataset),
 		DatasetChecksum:       datasetChecksum,
-		RowCount:              len(rows),
+		InputRowCount:         len(rows),
 		InputColumns:          mapping.InputColumns,
 		ObservedOutputColumns: mapping.ObservedOutputColumns,
 		MissingValuePolicy:    mapping.MissingValuePolicy,
 		Metrics:               map[string]MetricSummary{},
 		Rows:                  []RowSummary{},
 	}
+	resolver := newMissingValueResolver(mapping.MissingValuePolicy)
 
 	for rowIndex, row := range rows {
-		inputs, err := rowInputs(row, mapping.InputColumns)
+		prepared, skipReason, err := prepareValidationRow(row, mapping, resolver)
 		if err != nil {
-			return nil, err
+			return nil, apperror.Errorf(apperror.CodeInput, "dataset row %d: %s", rowIndex, err.Error())
 		}
-		observed, err := rowObserved(row, mapping.ObservedOutputColumns)
-		if err != nil {
-			return nil, err
+		if skipReason != "" {
+			result.SkippedRowCount++
+			result.Rows = append(result.Rows, RowSummary{
+				RowIndex:  rowIndex,
+				Time:      prepared.Time,
+				Inputs:    prepared.Inputs,
+				Observed:  prepared.Observed,
+				Simulated: map[string]float64{},
+				Errors:    map[string]float64{},
+				OK:        false,
+				Skipped:   true,
+				Error:     skipReason,
+				Filled:    prepared.FilledColumns,
+			})
+			continue
 		}
+		result.RowCount++
+		result.FilledValueCount += len(prepared.FilledColumns)
 		contextValues := map[string]any{
 			"row_index": rowIndex,
 			"dataset":   filepath.ToSlash(mapping.Dataset),
 		}
-		timeValue := any(nil)
 		if mapping.TimeColumn != "" {
-			timeValue, err = rowValue(row, mapping.TimeColumn)
-			if err != nil {
-				return nil, err
-			}
-			contextValues["time"] = timeValue
+			contextValues["time"] = prepared.Time
 		}
 
-		runResult, err := session.Evaluate(runtimecore.RunInput{Inputs: inputs, Context: contextValues})
+		runResult, err := session.Evaluate(runtimecore.RunInput{Inputs: prepared.Inputs, Context: contextValues})
 		rowSummary := RowSummary{
 			RowIndex:  rowIndex,
-			Time:      timeValue,
-			Inputs:    inputs,
-			Observed:  observed,
+			Time:      prepared.Time,
+			Inputs:    prepared.Inputs,
+			Observed:  prepared.Observed,
 			Simulated: map[string]float64{},
 			Errors:    map[string]float64{},
 			OK:        err == nil,
+			Filled:    prepared.FilledColumns,
 		}
 		if err != nil {
 			rowSummary.Error = err.Error()
@@ -355,7 +386,7 @@ func Run(ctx context.Context, loaded *project.LoadedProject, mapping Mapping, op
 			ConnectionValues: runResult.ConnectionValues,
 			States:           runResult.States,
 		}
-		for outputID, observedValue := range observed {
+		for outputID, observedValue := range prepared.Observed {
 			simulatedValue, err := outputValue(runResult.Outputs, outputID)
 			if err != nil {
 				return nil, err
@@ -365,7 +396,7 @@ func Run(ctx context.Context, loaded *project.LoadedProject, mapping Mapping, op
 			rowSummary.Errors[outputID] = errorValue
 			accumulators[outputID].add(observedValue, simulatedValue, HighErrorRow{
 				RowIndex:   rowIndex,
-				Time:       timeValue,
+				Time:       prepared.Time,
 				Observed:   observedValue,
 				Simulated:  simulatedValue,
 				Error:      errorValue,
@@ -378,6 +409,13 @@ func Run(ctx context.Context, loaded *project.LoadedProject, mapping Mapping, op
 
 	for outputID, accumulator := range accumulators {
 		result.Metrics[outputID] = accumulator.summary(options.HighErrorRows)
+	}
+	if result.SkippedRowCount > 0 {
+		result.Warnings = append(result.Warnings, fmt.Sprintf("%d dataset row(s) were skipped by missing value policy %q", result.SkippedRowCount, result.MissingValuePolicy))
+	}
+	if result.RowCount == 0 {
+		result.OK = false
+		result.Warnings = append(result.Warnings, "validation did not evaluate any dataset rows")
 	}
 	return result, nil
 }
@@ -399,20 +437,142 @@ func readCSVRows(path string) ([]map[string]string, error) {
 	}
 	headers := records[0]
 	rows := []map[string]string{}
-	for rowIndex, record := range records[1:] {
+	for _, record := range records[1:] {
 		row := map[string]string{}
 		for index, header := range headers {
 			if strings.TrimSpace(header) == "" {
 				continue
 			}
 			if index >= len(record) {
-				return nil, apperror.Errorf(apperror.CodeInput, "dataset row %d is missing column %s", rowIndex, header)
+				row[header] = ""
+				continue
 			}
 			row[header] = record[index]
 		}
 		rows = append(rows, row)
 	}
 	return rows, nil
+}
+
+func NormalizeMissingValuePolicy(policy string) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(policy))
+	if normalized == "" || normalized == "fail_fast" {
+		return MissingPolicyError, nil
+	}
+	switch normalized {
+	case MissingPolicyError, MissingPolicyDrop, MissingPolicyFill, MissingPolicyIgnoreOutputRows:
+		return normalized, nil
+	default:
+		return "", apperror.Errorf(apperror.CodeValidation, "unsupported missing value policy: %s", policy)
+	}
+}
+
+type preparedValidationRow struct {
+	Inputs        map[string]any
+	Observed      map[string]float64
+	Time          any
+	FilledColumns []string
+}
+
+func prepareValidationRow(row map[string]string, mapping Mapping, resolver *missingValueResolver) (preparedValidationRow, string, error) {
+	prepared := preparedValidationRow{
+		Inputs:   map[string]any{},
+		Observed: map[string]float64{},
+	}
+	filled := map[string]bool{}
+	if mapping.TimeColumn != "" {
+		raw, wasFilled, skipReason, err := resolver.value(row, mapping.TimeColumn, false)
+		if err != nil || skipReason != "" {
+			return prepared, skipReason, err
+		}
+		if wasFilled {
+			filled[mapping.TimeColumn] = true
+		}
+		value, err := parseRowValue(mapping.TimeColumn, raw)
+		if err != nil {
+			return prepared, "", err
+		}
+		prepared.Time = value
+	}
+	for publicInput, column := range mapping.InputColumns {
+		raw, wasFilled, skipReason, err := resolver.value(row, column, false)
+		if err != nil || skipReason != "" {
+			return prepared, skipReason, err
+		}
+		if wasFilled {
+			filled[column] = true
+		}
+		value, err := parseRowValue(column, raw)
+		if err != nil {
+			return prepared, "", err
+		}
+		prepared.Inputs[publicInput] = value
+	}
+	for publicOutput, column := range mapping.ObservedOutputColumns {
+		raw, wasFilled, skipReason, err := resolver.value(row, column, true)
+		if err != nil || skipReason != "" {
+			return prepared, skipReason, err
+		}
+		if wasFilled {
+			filled[column] = true
+		}
+		value, err := parseRowFloat(column, raw)
+		if err != nil {
+			return prepared, "", err
+		}
+		prepared.Observed[publicOutput] = value
+	}
+	prepared.FilledColumns = make([]string, 0, len(filled))
+	for column := range filled {
+		prepared.FilledColumns = append(prepared.FilledColumns, column)
+	}
+	sort.Strings(prepared.FilledColumns)
+	return prepared, "", nil
+}
+
+type missingValueResolver struct {
+	policy     string
+	lastValues map[string]string
+}
+
+func newMissingValueResolver(policy string) *missingValueResolver {
+	return &missingValueResolver{
+		policy:     policy,
+		lastValues: map[string]string{},
+	}
+}
+
+func (r *missingValueResolver) value(row map[string]string, column string, observedOutput bool) (string, bool, string, error) {
+	raw, ok := row[column]
+	if ok && !isMissingValue(raw) {
+		r.lastValues[column] = raw
+		return raw, false, "", nil
+	}
+	switch r.policy {
+	case MissingPolicyFill:
+		fillValue := r.lastValues[column]
+		if fillValue == "" {
+			fillValue = "0"
+		}
+		r.lastValues[column] = fillValue
+		return fillValue, true, "", nil
+	case MissingPolicyDrop:
+		return "", false, fmt.Sprintf("skipped because dataset column %s has a missing value", column), nil
+	case MissingPolicyIgnoreOutputRows:
+		if observedOutput {
+			return "", false, fmt.Sprintf("skipped because observed output column %s has a missing value", column), nil
+		}
+	}
+	return "", false, "", apperror.Errorf(apperror.CodeInput, "dataset column %s has a missing value", column)
+}
+
+func isMissingValue(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", "na", "n/a", "nan", "null", "none":
+		return true
+	default:
+		return false
+	}
 }
 
 func rowInputs(row map[string]string, mapping map[string]string) (map[string]any, error) {
@@ -441,9 +601,13 @@ func rowObserved(row map[string]string, mapping map[string]string) (map[string]f
 
 func rowValue(row map[string]string, column string) (any, error) {
 	raw, ok := row[column]
-	if !ok {
-		return nil, apperror.Errorf(apperror.CodeInput, "dataset column is missing: %s", column)
+	if !ok || isMissingValue(raw) {
+		return nil, apperror.Errorf(apperror.CodeInput, "dataset column %s has a missing value", column)
 	}
+	return parseRowValue(column, raw)
+}
+
+func parseRowValue(column string, raw string) (any, error) {
 	if value, err := strconv.ParseFloat(strings.TrimSpace(raw), 64); err == nil {
 		return value, nil
 	}
@@ -455,6 +619,18 @@ func rowFloat(row map[string]string, column string) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
+	return numericRowValue(column, value)
+}
+
+func parseRowFloat(column string, raw string) (float64, error) {
+	value, err := parseRowValue(column, raw)
+	if err != nil {
+		return 0, err
+	}
+	return numericRowValue(column, value)
+}
+
+func numericRowValue(column string, value any) (float64, error) {
 	number, ok := value.(float64)
 	if !ok {
 		return 0, apperror.Errorf(apperror.CodeInput, "dataset column %s must be numeric", column)

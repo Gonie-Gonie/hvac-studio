@@ -2397,7 +2397,7 @@ async function createValidationMappingFromDataset(dataset) {
       body: JSON.stringify({
         project_path: state.currentProjectPath,
         dataset_path: dataset.summary?.relative_path || "",
-        missing_value_policy: "fail_fast",
+        missing_value_policy: el("validationMissingPolicySelect").value || "error",
       }),
     });
     state.detail = body.project;
@@ -2583,7 +2583,11 @@ function validationResultSection(result) {
     ["Dataset", result.dataset || ""],
     ["Mapping", result.mapping || result.mapping_id || ""],
     ["Parameter set", result.parameter_set || ""],
-    ["Missing values", result.missing_value_policy || "fail_fast"],
+    ["Missing values", result.missing_value_policy || "error"],
+    ["Rows evaluated", String(result.row_count || 0)],
+    ["Rows in dataset", String(result.input_row_count || result.row_count || 0)],
+    ["Rows skipped", String(result.skipped_row_count || 0)],
+    ["Values filled", String(result.filled_value_count || 0)],
   ]));
   section.append(metricBars(result.metrics || {}));
   section.append(highErrorRows(result.metrics || {}));
@@ -5165,6 +5169,7 @@ function updateCommandState() {
   el("datasetSourcePathInput").disabled = !hasProject || !isWorkspaceProject();
   el("datasetIDInput").disabled = !hasProject || !isWorkspaceProject();
   el("datasetDelimiterSelect").disabled = !hasProject || !isWorkspaceProject();
+  el("validationMissingPolicySelect").disabled = !hasProject || !isWorkspaceProject();
   el("importDatasetButton").disabled = !hasProject || !isWorkspaceProject() || runtimeBusy;
   el("createCalibrationSetupButton").disabled = !hasProject || !isWorkspaceProject() || !(state.detail?.validation_mappings || []).length;
   el("createOptimizationSetupButton").disabled = !hasProject || !isWorkspaceProject() || runtimeBusy;
