@@ -31,6 +31,11 @@ The Inspector can open the selected workspace component in the Code workspace so
 
 Existing workspace components can be duplicated from the Project tree or the Inspector. The duplicate copies the graph contract, parameters, and Python source into a new component artifact, but it is not automatically added to the runnable system.
 
+Workspace components can also be replaced from the Inspector. Replacement creates
+a new component from the selected Project panel template, keeps the original
+component source, and rewires the entry system only when public IO and connection
+node IDs are contract-compatible. See [Model Replacement](model-replacement.md).
+
 Removing a component from a system cleans system membership, related connections, public IO, and default input entries, while keeping the component source artifact in the project. Deleting a component removes its graph entry and source file only after it is no longer used by a system.
 
 ## Component Contract

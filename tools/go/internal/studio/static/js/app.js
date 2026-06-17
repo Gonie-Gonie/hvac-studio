@@ -5136,6 +5136,36 @@ async function duplicateComponent(componentID) {
   }
 }
 
+async function replaceSelectedComponent() {
+  const component = componentById(state.selectedComponentId);
+  if (!component || !isWorkspaceProject()) return;
+  const template = el("componentTemplateSelect")?.value || state.componentTemplates[0]?.id || "";
+  if (!template) {
+    showInlineProblem("Component template is required");
+    return;
+  }
+  const name = `${component.name || component.id} Replacement`;
+  if (!window.confirm(`Create a replacement for ${component.id} from template ${template}? The original component and source will be retained.`)) return;
+  try {
+    const body = await api("/api/project/components/replace", {
+      method: "POST",
+      body: JSON.stringify({ project_path: state.currentProjectPath, component_id: component.id, name, template }),
+    });
+    state.detail = body.project;
+    state.selectedComponentId = body.component.id;
+    markRunResultStale(false);
+    renderAll();
+    setMode("code");
+    const replacement = body.replacement || {};
+    log(`Component replacement created: ${component.id} -> ${body.component.id} connections=${replacement.rewired_connections || 0}`);
+  } catch (error) {
+    log(`Replace component failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
 async function includeSelectedComponent() {
   const component = componentById(state.selectedComponentId);
   if (!component || !isWorkspaceProject()) return;
@@ -5815,6 +5845,7 @@ function updateCommandState() {
   el("autoLayoutButton").disabled = !hasProject || !isWorkspaceProject();
   el("includeComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || selectedComponentInSystem();
   el("removeComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || !selectedComponentInSystem();
+  el("replaceComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || state.componentTemplates.length === 0;
   el("deleteComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || selectedComponentInSystem();
 }
 
@@ -5966,6 +5997,7 @@ function bindEvents() {
   el("componentTemplateSelect").addEventListener("change", renderComponentTemplateMeta);
   el("includeComponentButton").addEventListener("click", includeSelectedComponent);
   el("removeComponentButton").addEventListener("click", removeSelectedComponentFromSystem);
+  el("replaceComponentButton").addEventListener("click", replaceSelectedComponent);
   el("deleteComponentButton").addEventListener("click", deleteSelectedComponent);
   el("saveProjectButton").addEventListener("click", saveProjectEdits);
   el("validateButton").addEventListener("click", validateProject);

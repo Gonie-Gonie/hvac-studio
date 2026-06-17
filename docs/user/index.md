@@ -29,6 +29,7 @@ It is not a fixed HVAC component library. Users define components, nodes, parame
 - Read [Concept Map](concept-map.md) to see how project files connect to Studio, CLI, SDK, and exports.
 - Read [How It Works](how-it-works.md) to understand why project files, the runner, and Python worker exist.
 - Use [External Executables](external-executables.md) when a component must run through a separate command-line process.
+- Use [Model Replacement](model-replacement.md) when you need to swap a component implementation without overwriting the original source artifact.
 - Use [ML/ANN Component](ml-ann-component.md) when a component should load model assets, feature schemas, and validation metadata.
 - Read [Artifact Compatibility](artifact-compatibility.md) before depending on saved project files across releases.
 - Use [CLI Runner](cli-runner.md), [External Engine Protocol](external-engine-protocol.md), and [Export Runtime](export-runtime.md) when integrating with external tools.

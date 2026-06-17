@@ -27,6 +27,7 @@ $Sources = @(
   'docs\user\how-it-works.md',
   'docs\user\tutorials.md',
   'docs\user\examples.md',
+  'docs\user\model-replacement.md',
   'docs\user\cli-runner.md',
   'docs\user\artifact-compatibility.md',
   'docs\user\export-runtime.md',

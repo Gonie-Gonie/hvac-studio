@@ -197,6 +197,23 @@ type duplicateComponentRequest struct {
 	Name              string `json:"name"`
 }
 
+type replaceComponentRequest struct {
+	ProjectPath string `json:"project_path"`
+	ComponentID string `json:"component_id"`
+	Name        string `json:"name"`
+	Template    string `json:"template"`
+}
+
+type ComponentReplacementSummary struct {
+	OriginalComponent         string `json:"original_component"`
+	ReplacementComponent      string `json:"replacement_component"`
+	SystemReplaced            bool   `json:"system_replaced"`
+	RewiredConnections        int    `json:"rewired_connections"`
+	RewiredPublicInputs       int    `json:"rewired_public_inputs"`
+	RewiredPublicOutputs      int    `json:"rewired_public_outputs"`
+	OriginalComponentRetained bool   `json:"original_component_retained"`
+}
+
 type updateComponentRequest struct {
 	ProjectPath string `json:"project_path"`
 	ComponentID string `json:"component_id"`
@@ -668,6 +685,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/project/datasets/import", s.handleImportDataset)
 	s.mux.HandleFunc("POST /api/project/components", s.handleCreateComponent)
 	s.mux.HandleFunc("POST /api/project/components/duplicate", s.handleDuplicateComponent)
+	s.mux.HandleFunc("POST /api/project/components/replace", s.handleReplaceComponent)
 	s.mux.HandleFunc("POST /api/project/components/update", s.handleUpdateComponent)
 	s.mux.HandleFunc("POST /api/project/components/delete", s.handleDeleteComponent)
 	s.mux.HandleFunc("POST /api/project/system/components", s.handleIncludeComponent)
@@ -1126,6 +1144,34 @@ func (s *Server) handleDuplicateComponent(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "component": component, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleReplaceComponent(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeReplaceComponentRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	component, summary, err := replaceComponent(loaded, req, s.repoRoot)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "component": component, "replacement": summary, "project": projectDetail(reloaded)})
 }
 
 func (s *Server) handleUpdateComponent(w http.ResponseWriter, r *http.Request) {
@@ -2518,6 +2564,146 @@ func duplicateComponent(loaded *project.LoadedProject, req duplicateComponentReq
 		return model.Component{}, err
 	}
 	return component, nil
+}
+
+func replaceComponent(loaded *project.LoadedProject, req replaceComponentRequest, repoRoot string) (model.Component, ComponentReplacementSummary, error) {
+	componentID := strings.TrimSpace(req.ComponentID)
+	if componentID == "" {
+		return model.Component{}, ComponentReplacementSummary{}, apperror.Errorf(apperror.CodeValidation, "component_id is required")
+	}
+	source, found := findComponent(loaded.Graph, componentID)
+	if !found {
+		return model.Component{}, ComponentReplacementSummary{}, apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
+	}
+	replacementName := strings.TrimSpace(req.Name)
+	if replacementName == "" {
+		replacementName = strings.TrimSpace(source.Name) + " Replacement"
+	}
+	if strings.TrimSpace(replacementName) == "" {
+		replacementName = componentID + " Replacement"
+	}
+	replacement, err := createComponent(loaded, createComponentRequest{
+		ProjectPath: loaded.Path,
+		Name:        replacementName,
+		Template:    req.Template,
+	}, repoRoot)
+	if err != nil {
+		return model.Component{}, ComponentReplacementSummary{}, err
+	}
+	summary, err := rewireReplacementComponent(loaded, source, replacement)
+	if err != nil {
+		_ = rollbackReplacementComponent(loaded, replacement)
+		return model.Component{}, ComponentReplacementSummary{}, err
+	}
+	return replacement, summary, nil
+}
+
+func rewireReplacementComponent(loaded *project.LoadedProject, source model.Component, replacement model.Component) (ComponentReplacementSummary, error) {
+	summary := ComponentReplacementSummary{
+		OriginalComponent:         source.ID,
+		ReplacementComponent:      replacement.ID,
+		OriginalComponentRetained: true,
+	}
+	systemIndex := entrySystemIndex(loaded)
+	if systemIndex < 0 {
+		return summary, apperror.Errorf(apperror.CodeValidation, "entry system not found: %s", loaded.Project.EntrySystem)
+	}
+	system := &loaded.Graph.Systems[systemIndex]
+	if !containsString(system.Components, source.ID) {
+		return summary, nil
+	}
+	missing := replacementCompatibilityProblems(*system, loaded.Graph, source, replacement)
+	if len(missing) > 0 {
+		return summary, apperror.Errorf(apperror.CodeValidation, "replacement component is not contract-compatible: %s", strings.Join(missing, "; "))
+	}
+	for index, componentID := range system.Components {
+		if componentID == source.ID {
+			system.Components[index] = replacement.ID
+			summary.SystemReplaced = true
+		}
+	}
+	for index := range system.PublicInputs {
+		if system.PublicInputs[index].Component == source.ID {
+			system.PublicInputs[index].Component = replacement.ID
+			summary.RewiredPublicInputs++
+		}
+	}
+	for index := range system.PublicOutputs {
+		if system.PublicOutputs[index].Component == source.ID {
+			system.PublicOutputs[index].Component = replacement.ID
+			summary.RewiredPublicOutputs++
+		}
+	}
+	for index := range loaded.Graph.Connections {
+		connection := &loaded.Graph.Connections[index]
+		if !containsString(system.Connections, connection.ID) {
+			continue
+		}
+		rewired := false
+		if connection.From.Component == source.ID {
+			connection.From.Component = replacement.ID
+			rewired = true
+		}
+		if connection.To.Component == source.ID {
+			connection.To.Component = replacement.ID
+			rewired = true
+		}
+		if rewired {
+			summary.RewiredConnections++
+		}
+	}
+	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
+		return summary, err
+	}
+	return summary, nil
+}
+
+func replacementCompatibilityProblems(system model.System, graph *model.Graph, source model.Component, replacement model.Component) []string {
+	problems := []string{}
+	for _, input := range system.PublicInputs {
+		if input.Component == source.ID && !componentHasInputNode(replacement, input.Node) {
+			problems = append(problems, fmt.Sprintf("replacement missing input node for public input %s: %s", input.ID, input.Node))
+		}
+	}
+	for _, output := range system.PublicOutputs {
+		if output.Component == source.ID && !componentHasOutputNode(replacement, output.Node) {
+			problems = append(problems, fmt.Sprintf("replacement missing output node for public output %s: %s", output.ID, output.Node))
+		}
+	}
+	for _, connectionID := range system.Connections {
+		connection, found := findConnection(graph, connectionID)
+		if !found {
+			continue
+		}
+		if connection.From.Component == source.ID && !componentHasOutputNode(replacement, connection.From.Node) {
+			problems = append(problems, fmt.Sprintf("replacement missing output node for connection %s: %s", connection.ID, connection.From.Node))
+		}
+		if connection.To.Component == source.ID && !componentHasInputNode(replacement, connection.To.Node) {
+			problems = append(problems, fmt.Sprintf("replacement missing input node for connection %s: %s", connection.ID, connection.To.Node))
+		}
+	}
+	return problems
+}
+
+func rollbackReplacementComponent(loaded *project.LoadedProject, replacement model.Component) error {
+	copiedPath, pathErr := componentSourceArtifactPath(loaded, replacement)
+	kept := loaded.Graph.Components[:0]
+	for _, component := range loaded.Graph.Components {
+		if component.ID != replacement.ID {
+			kept = append(kept, component)
+		}
+	}
+	loaded.Graph.Components = kept
+	for index := range loaded.Graph.Systems {
+		loaded.Graph.Systems[index].Components = removeString(loaded.Graph.Systems[index].Components, replacement.ID)
+	}
+	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
+		return err
+	}
+	if pathErr == nil {
+		_ = removeComponentSourceArtifact(copiedPath, replacement.Source.Layout)
+	}
+	return nil
 }
 
 func updateComponent(loaded *project.LoadedProject, req updateComponentRequest) (model.Component, error) {
@@ -4138,6 +4324,15 @@ func decodeCreateComponentRequest(r *http.Request) (createComponentRequest, erro
 func decodeDuplicateComponentRequest(r *http.Request) (duplicateComponentRequest, error) {
 	defer r.Body.Close()
 	var req duplicateComponentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeReplaceComponentRequest(r *http.Request) (replaceComponentRequest, error) {
+	defer r.Body.Close()
+	var req replaceComponentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}
@@ -7325,6 +7520,24 @@ func componentHasNode(component model.Component, nodeID string) bool {
 	return false
 }
 
+func componentHasInputNode(component model.Component, nodeID string) bool {
+	for _, node := range component.Nodes.Inputs {
+		if node.ID == nodeID {
+			return true
+		}
+	}
+	return false
+}
+
+func componentHasOutputNode(component model.Component, nodeID string) bool {
+	for _, node := range component.Nodes.Outputs {
+		if node.ID == nodeID {
+			return true
+		}
+	}
+	return false
+}
+
 func isIdentifierLike(value string) bool {
 	if value == "" {
 		return false
@@ -7407,15 +7620,23 @@ func systemHasIncomingConnection(system model.System, graph *model.Graph, compon
 }
 
 func entrySystem(loaded *project.LoadedProject) model.System {
-	if loaded == nil || loaded.Graph == nil || loaded.Project == nil {
+	index := entrySystemIndex(loaded)
+	if index < 0 {
 		return model.System{}
 	}
-	for _, system := range loaded.Graph.Systems {
+	return loaded.Graph.Systems[index]
+}
+
+func entrySystemIndex(loaded *project.LoadedProject) int {
+	if loaded == nil || loaded.Graph == nil || loaded.Project == nil {
+		return -1
+	}
+	for index, system := range loaded.Graph.Systems {
 		if system.ID == loaded.Project.EntrySystem {
-			return system
+			return index
 		}
 	}
-	return model.System{}
+	return -1
 }
 
 func hasPublicInputFor(system model.System, componentID string, nodeID string) bool {

@@ -13,6 +13,7 @@ nav:
       - Concept Map: user/concept-map.md
       - How It Works: user/how-it-works.md
       - Create Component: user/create-component.md
+      - Model Replacement: user/model-replacement.md
       - ML/ANN Component: user/ml-ann-component.md
       - External Executables: user/external-executables.md
       - Edit Python Function: user/edit-python-function.md

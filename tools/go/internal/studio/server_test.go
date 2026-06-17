@@ -296,6 +296,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("runComparisonBaseline")) {
 		t.Fatalf("module entrypoint did not preserve run comparison baselines")
 	}
+	if !bytes.Contains(body, []byte("replaceSelectedComponent")) || !bytes.Contains(body, []byte("/api/project/components/replace")) || !bytes.Contains(body, []byte("replaceComponentButton")) {
+		t.Fatalf("module entrypoint did not expose model replacement workflow")
+	}
 	if !bytes.Contains(body, []byte("parameterChangeRows")) {
 		t.Fatalf("module entrypoint did not render calibration parameter change rows")
 	}
@@ -1046,6 +1049,74 @@ func TestDuplicateComponentEndpointCopiesGraphAndSource(t *testing.T) {
 	}
 	if containsString(loaded.Graph.Systems[0].Components, "scalar_copy") {
 		t.Fatal("duplicated component should not be added to the runnable system yet")
+	}
+}
+
+func TestReplaceComponentEndpointCreatesReplacementAndRewiresSystem(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Replacement Component Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "scalar",
+		"name":         "Scalar Replacement",
+		"template":     "scalar",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/components/replace", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("replace status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Component   model.Component             `json:"component"`
+		Replacement ComponentReplacementSummary `json:"replacement"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Component.ID != "scalar_replacement" {
+		t.Fatalf("replacement id = %s", body.Component.ID)
+	}
+	if !body.Replacement.SystemReplaced || body.Replacement.RewiredPublicInputs != 1 || body.Replacement.RewiredPublicOutputs != 1 {
+		t.Fatalf("replacement summary = %#v", body.Replacement)
+	}
+	if !body.Replacement.OriginalComponentRetained {
+		t.Fatalf("original component should be retained: %#v", body.Replacement)
+	}
+	loaded, err := project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found := findComponent(loaded.Graph, "scalar"); !found {
+		t.Fatal("original component should remain in graph")
+	}
+	if _, found := findComponent(loaded.Graph, "scalar_replacement"); !found {
+		t.Fatal("replacement component was not written to graph")
+	}
+	system := loaded.Graph.Systems[0]
+	if containsString(system.Components, "scalar") || !containsString(system.Components, "scalar_replacement") {
+		t.Fatalf("system components = %v", system.Components)
+	}
+	if !hasPublicInputFor(system, "scalar_replacement", "value") || !hasPublicOutputFor(system, "scalar_replacement", "result") {
+		t.Fatalf("system public IO = inputs %#v outputs %#v", system.PublicInputs, system.PublicOutputs)
+	}
+	if _, err := os.Stat(filepath.Join(root, "projects", "replacement-component-project", "components", "scalar_replacement", "user_step.py")); err != nil {
+		t.Fatal(err)
 	}
 }
 
