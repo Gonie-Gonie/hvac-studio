@@ -6961,6 +6961,11 @@ func writeRuntimeExportSupportFiles(projectRoot string, exportRoot string, optio
 			return nil, err
 		}
 	}
+	for _, rel := range []string{"schema/serve-request.schema.json", "schema/serve-response.schema.json"} {
+		if err := copyExternalExportFile(supportRoot, exportRoot, rel, &files, seen); err != nil {
+			return nil, err
+		}
+	}
 	if err := copyExternalExportDir(supportRoot, exportRoot, "runtime/python", &files, seen); err != nil {
 		return nil, err
 	}

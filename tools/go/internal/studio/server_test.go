@@ -5427,6 +5427,8 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 		"python/bcs_sdk/bcs_sdk/client.py",
 		"runtime/manifest.json",
 		"runtime/python/python.exe",
+		"schema/serve-request.schema.json",
+		"schema/serve-response.schema.json",
 		"run-batch.ps1",
 		"run-default.ps1",
 		"run-scenario.ps1",
@@ -5967,6 +5969,8 @@ func seedTestRuntimeSupport(t *testing.T, root string) {
 		"runtime/python/python.exe":          "python",
 		"python/bcs_sdk/bcs_sdk/__init__.py": "from .client import RunnerClient\n",
 		"python/bcs_sdk/bcs_sdk/client.py":   "class RunnerClient:\n    pass\n",
+		"schema/serve-request.schema.json":   `{"$schema":"https://json-schema.org/draft/2020-12/schema","title":"Serve Request"}`,
+		"schema/serve-response.schema.json":  `{"$schema":"https://json-schema.org/draft/2020-12/schema","title":"Serve Response"}`,
 	} {
 		path := filepath.Join(root, filepath.FromSlash(rel))
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

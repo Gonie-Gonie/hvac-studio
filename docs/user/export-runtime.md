@@ -35,9 +35,11 @@ exports/runtime_package/project/calibration/
 exports/runtime_package/project/optimization/
 exports/runtime_package/runtime/python/
 exports/runtime_package/schema/public-io.json
+exports/runtime_package/schema/serve-request.schema.json
+exports/runtime_package/schema/serve-response.schema.json
 ```
 
-Runtime export copies the source-of-truth project files needed by the runner, including parameter sets, inputs, scenarios, and component sources. Export options let you include or omit datasets with validation mappings, calibration setups, optimization setups, ML assets, Python SDK examples, and generated records. The default Studio selection keeps these workflow artifacts self-contained. Export always writes a public input/output schema and model-specific CLI guide for consumers, generates Windows scripts for the workflows present in the package, and records the exported files plus public IO, execution order, command list, workflow artifact lists, model asset paths, option selections, and SHA-256 checksums in the manifest. When Studio is running from a portable/runtime package, export also copies the packaged runner tools and Python runtime; `python/bcs_sdk` is copied when SDK examples are selected.
+Runtime export copies the source-of-truth project files needed by the runner, including parameter sets, inputs, scenarios, and component sources. Export options let you include or omit datasets with validation mappings, calibration setups, optimization setups, ML assets, Python SDK examples, and generated records. The default Studio selection keeps these workflow artifacts self-contained. Export always writes a public input/output schema, serve protocol schemas, and model-specific CLI guide for consumers, generates Windows scripts for the workflows present in the package, and records the exported files plus public IO, execution order, command list, workflow artifact lists, model asset paths, option selections, and SHA-256 checksums in the manifest. When Studio is running from a portable/runtime package, export also copies the packaged runner tools and Python runtime; `python/bcs_sdk` is copied when SDK examples are selected.
 
 Export profiles appear in the Project tree. Before export, selecting the ready runtime package profile opens the Export workspace preview. After export, selecting the saved profile reopens the saved manifest so the exported folder, file list, public IO, command list, self-check command, record count, and paths can be inspected after the original export action has completed.
 
