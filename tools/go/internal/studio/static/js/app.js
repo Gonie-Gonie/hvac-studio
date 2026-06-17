@@ -1532,6 +1532,10 @@ function renderInspector() {
   if (latestOutputs) {
     container.append(inspectorBlock(runValueTitle("Last Outputs"), Object.entries(latestOutputs).map(([k, v]) => [k, formatValue(v)])));
   }
+  const featurePreview = featurePreviewValue(latestOutputs, latestInputs);
+  if (featurePreview) {
+    container.append(featurePreviewBlock(featurePreview.title, featurePreview.features));
+  }
 }
 
 function runValueTitle(title) {
@@ -1553,6 +1557,43 @@ function inspectorBlock(title, rows) {
     block.append(row);
   }
   return block;
+}
+
+function featurePreviewValue(latestOutputs, latestInputs) {
+  if (isPlainObject(latestOutputs?.features)) {
+    return { title: runValueTitle("Feature Preview"), features: latestOutputs.features };
+  }
+  if (isPlainObject(latestInputs?.features)) {
+    return { title: runValueTitle("Received Features"), features: latestInputs.features };
+  }
+  return null;
+}
+
+function featurePreviewBlock(title, features) {
+  const block = document.createElement("div");
+  block.className = "inspector-block feature-preview-block";
+  block.innerHTML = `<div class="inspector-title">${escapeHTML(title)}</div>`;
+  const table = document.createElement("table");
+  table.className = "feature-preview-table";
+  table.innerHTML = "<thead><tr><th>Feature</th><th>Value</th></tr></thead>";
+  const tbody = document.createElement("tbody");
+  const rows = Object.entries(features || {});
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="2" class="empty-cell">No features</td></tr>`;
+  } else {
+    for (const [name, value] of rows) {
+      const row = document.createElement("tr");
+      row.innerHTML = `<td>${escapeHTML(name)}</td><td>${escapeHTML(formatValue(value))}</td>`;
+      tbody.append(row);
+    }
+  }
+  table.append(tbody);
+  block.append(table);
+  return block;
+}
+
+function isPlainObject(value) {
+  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function nodeListBlock(title, component, nodes, direction) {

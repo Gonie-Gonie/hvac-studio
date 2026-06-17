@@ -54,7 +54,8 @@ convert or clip values before the ML component receives them. The template
 accepts an optional `feature_config` parameter where each feature can set a
 different `source`, `scale`, `offset`, `min`, and `max`. Missing source values
 raise `missing feature input: <name>` so Studio and CLI runs report the same
-component error.
+component error. After a run, selecting the Feature Mapper shows a Feature
+Preview table; selecting the ML component shows the received feature object.
 
 `examples/014_ahu_state_ann` uses this shape:
 

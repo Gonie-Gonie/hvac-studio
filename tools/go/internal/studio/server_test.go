@@ -634,6 +634,11 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("mlMetadataBlock")) {
 		t.Fatalf("module entrypoint did not include ML metadata inspector rendering")
 	}
+	if !bytes.Contains(body, []byte("featurePreviewBlock")) ||
+		!bytes.Contains(body, []byte("Feature Preview")) ||
+		!bytes.Contains(body, []byte("Received Features")) {
+		t.Fatalf("module entrypoint did not include feature preview rendering")
+	}
 	if !bytes.Contains(body, []byte("mlAssetEditorBlock")) ||
 		!bytes.Contains(body, []byte("/api/project/components/ml-assets")) ||
 		!bytes.Contains(body, []byte("/api/project/components/ml-schema-nodes")) ||
