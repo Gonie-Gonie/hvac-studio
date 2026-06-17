@@ -4868,6 +4868,20 @@ async function saveParameterDefinition(componentID, name, row) {
   const min = (fields.min || "").trim();
   const max = (fields.max || "").trim();
   if (min !== "" || max !== "") {
+    const minNumber = min === "" ? null : Number(min);
+    const maxNumber = max === "" ? null : Number(max);
+    if (min !== "" && !Number.isFinite(minNumber)) {
+      showInlineProblem(`Parameter bounds min must be numeric: ${componentID}.${name}`);
+      return;
+    }
+    if (max !== "" && !Number.isFinite(maxNumber)) {
+      showInlineProblem(`Parameter bounds max must be numeric: ${componentID}.${name}`);
+      return;
+    }
+    if (minNumber !== null && maxNumber !== null && minNumber > maxNumber) {
+      showInlineProblem(`Parameter bounds min must be <= max: ${componentID}.${name}`);
+      return;
+    }
     definition.bounds = {};
     if (min !== "") definition.bounds.min = coerceParameter(min);
     if (max !== "") definition.bounds.max = coerceParameter(max);

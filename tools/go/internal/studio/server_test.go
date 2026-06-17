@@ -2372,6 +2372,34 @@ func TestUpdateComponentContractEndpointWritesDefinitionsAndMetadata(t *testing.
 		t.Fatalf("metadata state definitions = %#v", metadata.StateDefinitions)
 	}
 
+	badPayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "second_gain",
+		"parameter_defs": map[string]model.ParameterDefinition{
+			"gain": {
+				Current: 4.5,
+				Bounds:  &model.ValueBounds{Min: 10.0, Max: 1.0},
+				Role:    "optimization_variable",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	badResponse := httptest.NewRecorder()
+	badRequest := httptest.NewRequest(http.MethodPost, "/api/project/component-contract", bytes.NewReader(badPayload))
+	server.Handler().ServeHTTP(badResponse, badRequest)
+	if badResponse.Code != http.StatusBadRequest {
+		t.Fatalf("bad bounds status = %d body=%s", badResponse.Code, badResponse.Body.String())
+	}
+	var badBody apiError
+	if err := json.Unmarshal(badResponse.Body.Bytes(), &badBody); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(badBody.Message, "parameter bounds min must be <= max") {
+		t.Fatalf("bad bounds message = %#v", badBody)
+	}
+
 	deletePayload, err := json.Marshal(map[string]any{
 		"project_path":          createBody.Project.ProjectPath,
 		"component_id":          "second_gain",
