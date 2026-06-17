@@ -43,7 +43,7 @@ bcs-runner.exe optimize `
   --save-record
 ```
 
-The result includes each candidate objective, the best inputs, best outputs, and the saved scenario path. `--save-record` writes a reproducible result artifact under `optimization/results/`.
+The result includes each candidate objective, the best inputs, best outputs, and the saved scenario path. Studio result views can export the candidate table as CSV for spreadsheet review. `--save-record` writes a reproducible result artifact under `optimization/results/`.
 
 For component-parameter studies, save the best parameter values separately:
 

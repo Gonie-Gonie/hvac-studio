@@ -302,6 +302,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("Apply Parameter Set")) {
 		t.Fatalf("module entrypoint did not expose saved calibration parameter-set apply action")
 	}
+	if !bytes.Contains(body, []byte("Export CSV")) || !bytes.Contains(body, []byte("downloadCandidateCSV")) {
+		t.Fatalf("module entrypoint did not expose candidate CSV export")
+	}
 	if !bytes.Contains(body, []byte("runTimeoutField")) {
 		t.Fatalf("module entrypoint did not include run timeout control rendering")
 	}

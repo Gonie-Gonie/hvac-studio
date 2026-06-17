@@ -2641,6 +2641,7 @@ function highErrorRows(metrics) {
 function candidateResultSection(result, savedLabel, savedPath) {
   const section = document.createElement("div");
   section.className = "result-grid";
+  const candidates = result.candidates || [];
   const summaryRows = [
     ["Setup", result.setup_name || result.setup_id || ""],
   ];
@@ -2653,13 +2654,13 @@ function candidateResultSection(result, savedLabel, savedPath) {
   if (result.changed_parameters) {
     section.append(resultTable("Parameter Changes", parameterChangeRows(result.changed_parameters), ["Component", "Parameter", "Initial", "Best", "Delta"]));
   }
-  section.append(resultTable("Candidates", (result.candidates || []).slice(0, 12).map((item, index) => [
+  section.append(resultTable("Candidates", candidates.slice(0, 12).map((item, index) => [
     String(item.index ?? index + 1),
     shortNumber(item.objective),
     candidateStatus(item),
     parameterCandidateSummary(item.parameters || item.inputs || item.outputs || {}),
   ]), ["#", "Objective", "Status", "Values"]));
-  const failed = (result.candidates || []).filter((item) => item.error);
+  const failed = candidates.filter((item) => item.error);
   if (failed.length) {
     section.append(resultTable("Failed Candidates", failed.slice(0, 12).map((item) => [
       String(item.index ?? ""),
@@ -2667,15 +2668,25 @@ function candidateResultSection(result, savedLabel, savedPath) {
       parameterCandidateSummary(item.parameters || item.inputs || item.outputs || {}),
     ]), ["#", "Error", "Values"]));
   }
+  const actions = document.createElement("div");
+  actions.className = "result-actions";
+  if (candidates.length) {
+    const exportCSV = document.createElement("button");
+    exportCSV.type = "button";
+    exportCSV.className = "small-action";
+    exportCSV.textContent = "Export CSV";
+    exportCSV.addEventListener("click", () => downloadCandidateCSV(result));
+    actions.append(exportCSV);
+  }
   if (savedLabel === "Saved parameter set" && savedPath && isWorkspaceProject()) {
-    const actions = document.createElement("div");
-    actions.className = "result-actions";
     const apply = document.createElement("button");
     apply.type = "button";
     apply.className = "small-action";
     apply.textContent = "Apply Parameter Set";
     apply.addEventListener("click", () => applyParameterSetToGraph(savedPath));
     actions.append(apply);
+  }
+  if (actions.childElementCount) {
     section.append(actions);
   }
   return section;
@@ -2704,6 +2715,66 @@ function numericDelta(initial, best) {
   const after = Number(best);
   if (!Number.isFinite(before) || !Number.isFinite(after)) return "";
   return shortNumber(after - before);
+}
+
+function downloadCandidateCSV(result) {
+  const candidates = result.candidates || [];
+  const flatRows = candidates.map((candidate, index) => {
+    const row = {
+      index: candidate.index ?? index + 1,
+      objective: candidate.objective ?? "",
+      status: candidateStatus(candidate),
+      feasible: candidate.feasible ?? "",
+      error: candidate.error || "",
+      constraint_penalty: candidate.constraint_penalty ?? "",
+    };
+    flattenCandidateValues(candidate.inputs || {}, "inputs", row);
+    flattenCandidateValues(candidate.parameters || {}, "parameters", row);
+    flattenCandidateValues(candidate.outputs || {}, "outputs", row);
+    return row;
+  });
+  const baseHeaders = ["index", "objective", "status", "feasible", "error", "constraint_penalty"];
+  const dynamicHeaders = [...new Set(flatRows.flatMap((row) => Object.keys(row)))].filter((key) => !baseHeaders.includes(key)).sort();
+  const headers = [...baseHeaders, ...dynamicHeaders];
+  const csv = [
+    headers.map(csvCell).join(","),
+    ...flatRows.map((row) => headers.map((header) => csvCell(row[header] ?? "")).join(",")),
+  ].join("\r\n");
+  const name = `${safeFileName(result.setup_id || result.setup_name || "candidates")}-candidates.csv`;
+  downloadTextFile(name, csv, "text/csv;charset=utf-8");
+}
+
+function flattenCandidateValues(value, prefix, row) {
+  for (const [key, item] of Object.entries(value || {})) {
+    const path = `${prefix}.${key}`;
+    if (item && typeof item === "object" && !Array.isArray(item)) {
+      flattenCandidateValues(item, path, row);
+    } else {
+      row[path] = item;
+    }
+  }
+}
+
+function csvCell(value) {
+  const text = typeof value === "string" ? value : JSON.stringify(value);
+  const normalized = text === undefined ? "" : String(text);
+  return `"${normalized.replace(/"/g, '""')}"`;
+}
+
+function safeFileName(value) {
+  return String(value || "export").replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^_+|_+$/g, "") || "export";
+}
+
+function downloadTextFile(name, content, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function candidateStatus(item) {

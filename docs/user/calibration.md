@@ -32,8 +32,9 @@ bcs-runner.exe calibrate `
 The result includes the initial objective, best objective, changed parameters,
 candidate objectives, and the new parameter set content. In Studio, saved
 calibration results show a before/after parameter table and an explicit `Apply
-Parameter Set` action when a calibrated parameter set was saved. `--save-record`
-writes a reproducible result artifact under `calibration/results/`.
+Parameter Set` action when a calibrated parameter set was saved. The candidate
+table can be exported as CSV for spreadsheet review. `--save-record` writes a
+reproducible result artifact under `calibration/results/`.
 
 ## Important Rule
 
