@@ -25,6 +25,8 @@ component folder and the graph plus component metadata file are kept in sync.
 Use **Apply Schema Nodes** after importing schema files to ensure the component
 has the `features` object input and target-based output nodes. For components
 already included in a system, added nodes also update related public IO.
+When a validation report is present, the Inspector shows dataset, periods,
+feature schema version, model checksum, time resolution, and metric values.
 
 Use `ml_metadata` on the component entry in `graph.json` or the component
 metadata file:
@@ -69,6 +71,7 @@ public inputs -> FeatureMapper.features -> AHUStateANN.features -> public output
 ## Export Behavior
 
 Runtime export copies the `assets/` directory, lists ML asset paths in
-`manifest.json`, and records SHA-256 checksums for exported files. Schema export
-also lists the ML asset requirements so external tools can prepare the same
-files before running the model.
+`manifest.json`, records SHA-256 checksums for exported files, and includes
+`ml_validation_reports` summaries for component-level validation metadata.
+Schema export also lists the ML asset requirements so external tools can
+prepare the same files before running the model.

@@ -75,6 +75,19 @@ type ProjectDetail struct {
 	ValidationRuns      []modelvalidation.RecordSummary `json:"validation_runs"`
 	CalibrationResults  []calibration.RecordSummary     `json:"calibration_results"`
 	OptimizationResults []optimization.RecordSummary    `json:"optimization_results"`
+	MLValidationReports map[string]MLValidationSummary  `json:"ml_validation_reports,omitempty"`
+}
+
+type MLValidationSummary struct {
+	ComponentID          string                    `json:"component_id"`
+	ReportPath           string                    `json:"report_path"`
+	Dataset              string                    `json:"dataset,omitempty"`
+	Metrics              map[string]map[string]any `json:"metrics,omitempty"`
+	FeatureSchemaVersion string                    `json:"feature_schema_version,omitempty"`
+	ModelAssetChecksum   string                    `json:"model_asset_checksum,omitempty"`
+	TrainingPeriod       string                    `json:"training_period,omitempty"`
+	ValidationPeriod     string                    `json:"validation_period,omitempty"`
+	TimeResolution       string                    `json:"time_resolution,omitempty"`
 }
 
 type StudioLayout struct {
@@ -705,6 +718,7 @@ type ExportManifest struct {
 	Files               []string              `json:"files"`
 	Components          []string              `json:"components"`
 	ModelAssets         []string              `json:"model_assets,omitempty"`
+	MLValidationReports []MLValidationSummary `json:"ml_validation_reports,omitempty"`
 	Checksums           map[string]string     `json:"checksums,omitempty"`
 	PublicInputs        []model.PublicNodeRef `json:"public_inputs"`
 	PublicOutputs       []model.PublicNodeRef `json:"public_outputs"`
@@ -2541,6 +2555,7 @@ func projectDetail(loaded *project.LoadedProject) ProjectDetail {
 		ValidationRuns:      modelvalidation.LoadRecordSummaries(loaded.Root),
 		CalibrationResults:  calibration.LoadRecordSummaries(loaded.Root),
 		OptimizationResults: optimization.LoadRecordSummaries(loaded.Root),
+		MLValidationReports: mlValidationSummaryMap(mlValidationSummaries(loaded, true, false)),
 	}
 	if inputPath, err := resolveProjectOwnedFile(loaded.Root, loaded.Project.DefaultInput); err == nil {
 		detail.DefaultInputPath = inputPath
@@ -7251,6 +7266,7 @@ func writeExportManifest(loaded *project.LoadedProject, profile string, options 
 		Files:               files,
 		Components:          append([]string{}, plan.System.Components...),
 		ModelAssets:         modelAssetExportPaths(loaded.Graph, options.IncludeMLAssets),
+		MLValidationReports: mlValidationSummaries(loaded, options.IncludeMLAssets, true),
 		Checksums:           checksums,
 		PublicInputs:        append([]model.PublicNodeRef{}, plan.System.PublicInputs...),
 		PublicOutputs:       append([]model.PublicNodeRef{}, plan.System.PublicOutputs...),
@@ -7320,6 +7336,75 @@ func modelAssetExportPaths(graph *model.Graph, includeMLAssets bool) []string {
 	}
 	sort.Strings(paths)
 	return paths
+}
+
+func mlValidationSummaries(loaded *project.LoadedProject, includeMLAssets bool, exportPaths bool) []MLValidationSummary {
+	if loaded == nil || loaded.Graph == nil || !includeMLAssets {
+		return nil
+	}
+	summaries := []MLValidationSummary{}
+	for _, component := range loaded.Graph.Components {
+		if component.MLMetadata == nil || strings.TrimSpace(component.MLMetadata.ValidationReportFile) == "" {
+			continue
+		}
+		reportRel := strings.TrimSpace(component.MLMetadata.ValidationReportFile)
+		reportPath, err := resolveProjectOwnedFile(loaded.Root, reportRel)
+		if err != nil {
+			continue
+		}
+		reportBytes, err := os.ReadFile(reportPath)
+		if err != nil {
+			continue
+		}
+		var report struct {
+			Dataset              string                    `json:"dataset"`
+			Metrics              map[string]map[string]any `json:"metrics"`
+			FeatureSchemaVersion string                    `json:"feature_schema_version"`
+			ModelAssetChecksum   string                    `json:"model_asset_checksum"`
+			TrainingPeriod       string                    `json:"training_period"`
+			ValidationPeriod     string                    `json:"validation_period"`
+			TimeResolution       string                    `json:"time_resolution"`
+		}
+		if err := json.Unmarshal(reportBytes, &report); err != nil {
+			continue
+		}
+		modelChecksum := strings.TrimSpace(report.ModelAssetChecksum)
+		if modelChecksum == "" && strings.TrimSpace(component.MLMetadata.ModelFile) != "" {
+			if modelPath, err := resolveProjectOwnedFile(loaded.Root, component.MLMetadata.ModelFile); err == nil {
+				modelChecksum, _ = datasetChecksum(modelPath)
+			}
+		}
+		path := filepath.ToSlash(reportRel)
+		if exportPaths {
+			path = exportArtifactPath(path)
+		}
+		summaries = append(summaries, MLValidationSummary{
+			ComponentID:          component.ID,
+			ReportPath:           path,
+			Dataset:              report.Dataset,
+			Metrics:              report.Metrics,
+			FeatureSchemaVersion: report.FeatureSchemaVersion,
+			ModelAssetChecksum:   modelChecksum,
+			TrainingPeriod:       report.TrainingPeriod,
+			ValidationPeriod:     report.ValidationPeriod,
+			TimeResolution:       report.TimeResolution,
+		})
+	}
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i].ComponentID < summaries[j].ComponentID
+	})
+	return summaries
+}
+
+func mlValidationSummaryMap(values []MLValidationSummary) map[string]MLValidationSummary {
+	if len(values) == 0 {
+		return nil
+	}
+	out := map[string]MLValidationSummary{}
+	for _, value := range values {
+		out[value.ComponentID] = value
+	}
+	return out
 }
 
 func exportFileChecksums(exportRoot string, files []string) (map[string]string, error) {

@@ -1512,6 +1512,8 @@ function renderInspector() {
     ["Class", component.class || ""],
   ]));
   if (component.ml_metadata) container.append(mlMetadataBlock(component));
+  const mlValidationReport = mlValidationReportBlock(component);
+  if (mlValidationReport) container.append(mlValidationReport);
   if (component.ml_metadata && isWorkspaceProject()) container.append(mlAssetEditorBlock(component));
   const featureMappingSuggestion = featureMappingSuggestionBlock(component);
   if (featureMappingSuggestion) container.append(featureMappingSuggestion);
@@ -2414,6 +2416,41 @@ function mlMetadataBlock(component) {
     ["Time Resolution", metadata.valid_time_resolution || ""],
   ].filter(([, value]) => value);
   return inspectorBlock("ML Metadata", rows);
+}
+
+function mlValidationReportBlock(component) {
+  const report = state.detail?.ml_validation_reports?.[component.id];
+  if (!report) return null;
+  const rows = [
+    ["Dataset", report.dataset || ""],
+    ["Report", report.report_path || ""],
+    ["Feature Schema", report.feature_schema_version || ""],
+    ["Model SHA256", report.model_asset_checksum || ""],
+    ["Training Period", report.training_period || ""],
+    ["Validation Period", report.validation_period || ""],
+    ["Time Resolution", report.time_resolution || ""],
+  ].filter(([, value]) => value);
+  const block = inspectorBlock("ML Validation", rows);
+  const metricRows = [];
+  for (const [target, metrics] of Object.entries(report.metrics || {})) {
+    for (const [metric, value] of Object.entries(metrics || {})) {
+      metricRows.push([target, metric, formatValue(value)]);
+    }
+  }
+  if (metricRows.length) {
+    const table = document.createElement("table");
+    table.className = "feature-preview-table";
+    table.innerHTML = "<thead><tr><th>Target</th><th>Metric</th><th>Value</th></tr></thead>";
+    const tbody = document.createElement("tbody");
+    for (const rowValues of metricRows) {
+      const row = document.createElement("tr");
+      row.innerHTML = rowValues.map((value) => `<td>${escapeHTML(value)}</td>`).join("");
+      tbody.append(row);
+    }
+    table.append(tbody);
+    block.append(table);
+  }
+  return block;
 }
 
 function mlAssetEditorBlock(component) {

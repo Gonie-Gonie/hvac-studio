@@ -11,5 +11,8 @@
     }
   },
   "feature_schema_version": "1.0",
+  "model_asset_checksum": "",
+  "training_period": "template",
+  "validation_period": "template",
   "time_resolution": "step"
 }

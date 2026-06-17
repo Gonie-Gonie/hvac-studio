@@ -634,6 +634,11 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("mlMetadataBlock")) {
 		t.Fatalf("module entrypoint did not include ML metadata inspector rendering")
 	}
+	if !bytes.Contains(body, []byte("mlValidationReportBlock")) ||
+		!bytes.Contains(body, []byte("ML Validation")) ||
+		!bytes.Contains(body, []byte("model_asset_checksum")) {
+		t.Fatalf("module entrypoint did not include ML validation report rendering")
+	}
 	if !bytes.Contains(body, []byte("featurePreviewBlock")) ||
 		!bytes.Contains(body, []byte("Feature Preview")) ||
 		!bytes.Contains(body, []byte("Received Features")) {
@@ -754,6 +759,34 @@ func TestFeatureMapperTemplatePreservesFeatureOrder(t *testing.T) {
 		if !strings.Contains(helper, token) {
 			t.Fatalf("feature mapper helper did not include %s:\n%s", token, helper)
 		}
+	}
+}
+
+func TestProjectDetailIncludesMLValidationReports(t *testing.T) {
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := project.Load(filepath.Join(repoRoot, "examples", "014_ahu_state_ann", "project.bcsproj"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	detail := projectDetail(loaded)
+	report, ok := detail.MLValidationReports["ahu_state_ann"]
+	if !ok {
+		t.Fatalf("ML validation reports = %#v", detail.MLValidationReports)
+	}
+	if report.Dataset != "synthetic_ahu_state_reference" ||
+		report.ReportPath != "assets/ahu_state_ann/validation_report.json" ||
+		report.FeatureSchemaVersion != "1.0" ||
+		report.TimeResolution != "step" {
+		t.Fatalf("ML validation report = %#v", report)
+	}
+	if len(report.ModelAssetChecksum) != 64 {
+		t.Fatalf("model checksum = %q", report.ModelAssetChecksum)
+	}
+	if report.Metrics["supply_air_temperature_c"]["rmse"] == nil || report.Metrics["cooling_power_kw"]["r2"] == nil {
+		t.Fatalf("metrics = %#v", report.Metrics)
 	}
 }
 
@@ -6123,6 +6156,17 @@ func TestExportEndpointIncludesMLAssetsAndChecksums(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(exportRoot, filepath.FromSlash(rel))); err != nil {
 			t.Fatalf("export file %s: %v", rel, err)
 		}
+	}
+	if len(body.Export.MLValidationReports) != 1 {
+		t.Fatalf("ML validation reports = %#v", body.Export.MLValidationReports)
+	}
+	mlReport := body.Export.MLValidationReports[0]
+	if mlReport.ComponentID != "ahu_state_ann" ||
+		mlReport.ReportPath != "project/assets/ahu_state_ann/validation_report.json" ||
+		mlReport.Dataset != "synthetic_ahu_state_reference" ||
+		len(mlReport.ModelAssetChecksum) != 64 ||
+		mlReport.Metrics["supply_air_temperature_c"]["rmse"] == nil {
+		t.Fatalf("ML validation report = %#v", mlReport)
 	}
 	var exportedSchema schemaexport.InterfaceSchema
 	schemaBytes, err := os.ReadFile(filepath.Join(exportRoot, "schema", "public-io.json"))
