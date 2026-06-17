@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Iterator
 from unittest.mock import patch
 
-from bcs_sdk import RunnerClient, RunnerError, RunnerPool
+from bcs_sdk import RunnerClient, RunnerError, RunnerPool, load_runtime_export
 from bcs_sdk.model import load_export_manifest, load_parameter_set, load_project, load_scenario
 
 
@@ -41,6 +41,39 @@ class ModelTests(unittest.TestCase):
             self.assertEqual(load_parameter_set(project, "parameter_sets/baseline.json")["id"], "baseline")
             self.assertEqual(load_scenario(project, "scenarios/case01.json")["id"], "case01")
             self.assertEqual(load_export_manifest(project)["commands"], ["run-default.ps1"])
+
+    def test_load_runtime_export(self) -> None:
+        with test_temp_dir() as tmp:
+            root = Path(tmp)
+            (root / "project").mkdir()
+            (root / "bin").mkdir()
+            (root / "runtime" / "python").mkdir(parents=True)
+            (root / "schema").mkdir()
+            (root / "manifest.json").write_text(
+                json.dumps({
+                    "project_path": "project/project.bcsproj",
+                    "graph_path": "project/graph.json",
+                    "runner": "bin/bcs-runner.exe",
+                    "runtime_python": "runtime/python/python.exe",
+                    "interface_schema": "schema/public-io.json",
+                    "commands": ["run-default.ps1"],
+                }),
+                encoding="utf-8",
+            )
+
+            export = load_runtime_export(root)
+            client = export.runner_client(persistent=False, request_timeout=2)
+
+        self.assertEqual(export.project_path, root / "project" / "project.bcsproj")
+        self.assertEqual(export.graph_path, root / "project" / "graph.json")
+        self.assertEqual(export.runner_path, root / "bin" / "bcs-runner.exe")
+        self.assertEqual(export.runtime_python_path, root / "runtime" / "python" / "python.exe")
+        self.assertEqual(export.public_schema_path, root / "schema" / "public-io.json")
+        self.assertEqual(export.serve_request_schema_path, root / "schema" / "serve-request.schema.json")
+        self.assertEqual(str(client.project), str(root / "project" / "project.bcsproj"))
+        self.assertEqual(client.runner, str(root / "bin" / "bcs-runner.exe"))
+        self.assertFalse(client.persistent)
+        self.assertEqual(client.request_timeout, 2)
 
 
 class RunnerClientTests(unittest.TestCase):
