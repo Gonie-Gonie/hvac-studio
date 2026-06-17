@@ -3058,6 +3058,12 @@ function candidateResultSection(result, savedLabel, savedPath) {
     exportCSV.addEventListener("click", () => downloadCandidateCSV(result));
     actions.append(exportCSV);
   }
+  const exportReport = document.createElement("button");
+  exportReport.type = "button";
+  exportReport.className = "small-action";
+  exportReport.textContent = "Export Report";
+  exportReport.addEventListener("click", () => downloadCandidateReport(result));
+  actions.append(exportReport);
   if (savedLabel === "Saved parameter set" && savedPath && isWorkspaceProject()) {
     const apply = document.createElement("button");
     apply.type = "button";
@@ -3150,6 +3156,63 @@ function numericDelta(initial, best) {
   const after = Number(best);
   if (!Number.isFinite(before) || !Number.isFinite(after)) return "";
   return shortNumber(after - before);
+}
+
+function downloadCandidateReport(result) {
+  const isCalibration = result.saved_parameter_set !== undefined && result.changed_parameters !== undefined;
+  const title = isCalibration ? "Calibration Result Report" : "Optimization Result Report";
+  const lines = [`# ${title}`, ""];
+  lines.push(...markdownTable([
+    ["Setup", result.setup_name || result.setup_id || ""],
+    ["Algorithm", result.algorithm || ""],
+    ["Base parameter set", result.base_parameter_set || "baseline"],
+    ["Initial objective", result.initial_objective !== undefined ? shortNumber(result.initial_objective) : ""],
+    ["Best objective", result.best_objective !== undefined ? shortNumber(result.best_objective) : ""],
+    ["Saved parameter set", result.saved_parameter_set || ""],
+    ["Saved scenario", result.saved_scenario || ""],
+    ["Saved record", result.saved_record || ""],
+  ].filter(([, value]) => value !== "")));
+  if (result.changed_parameters) {
+    lines.push("", "## Parameter Changes", "");
+    lines.push(...markdownTable(parameterChangeRows(result.changed_parameters), ["Component", "Parameter", "Initial", "Best", "Delta"]));
+  }
+  const decisionRows = optimizationBestDecisionRows(result);
+  if (decisionRows.length) {
+    lines.push("", "## Best Decision Variables", "");
+    lines.push(...markdownTable(decisionRows, ["Kind", "Target", "Value"]));
+  }
+  if (result.best_outputs) {
+    lines.push("", "## Best Outputs", "");
+    lines.push(...markdownTable(Object.entries(result.best_outputs || {}).map(([name, value]) => [name, formatValue(value)]), ["Output", "Value"]));
+  }
+  const constraintRows = optimizationConstraintRows(result);
+  if (constraintRows.length) {
+    lines.push("", "## Constraint Status", "");
+    lines.push(...markdownTable(constraintRows, ["Item", "Status", "Detail"]));
+  }
+  lines.push("", "## Candidates", "");
+  lines.push(...markdownTable((result.candidates || []).map((item, index) => [
+    String(item.index ?? index + 1),
+    shortNumber(item.objective),
+    candidateStatus(item),
+    parameterCandidateSummary(item.parameters || item.inputs || item.outputs || {}),
+  ]), ["#", "Objective", "Status", "Values"]));
+  const name = `${safeFileName(result.setup_id || result.setup_name || "candidate-result")}-report.md`;
+  downloadTextFile(name, `${lines.join("\n")}\n`, "text/markdown;charset=utf-8");
+}
+
+function markdownTable(rows, headers = ["Item", "Value"]) {
+  const normalized = rows || [];
+  if (!normalized.length) return ["No rows."];
+  return [
+    `| ${headers.map(markdownCell).join(" | ")} |`,
+    `| ${headers.map(() => "---").join(" | ")} |`,
+    ...normalized.map((row) => `| ${headers.map((_, index) => markdownCell(row[index] ?? "")).join(" | ")} |`),
+  ];
+}
+
+function markdownCell(value) {
+  return String(value ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 }
 
 function downloadCandidateCSV(result) {

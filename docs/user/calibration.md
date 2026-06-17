@@ -33,8 +33,10 @@ The result includes the initial objective, best objective, changed parameters,
 candidate objectives, and the new parameter set content. In Studio, saved
 calibration results show a before/after parameter table and an explicit `Apply
 Parameter Set` action when a calibrated parameter set was saved. The candidate
-table can be exported as CSV for spreadsheet review. `--save-record` writes a
-reproducible result artifact under `calibration/results/`.
+table can be exported as CSV for spreadsheet review, and `Export Report`
+downloads a Markdown report with the objective summary, parameter changes, and
+candidate table. `--save-record` writes a reproducible result artifact under
+`calibration/results/`.
 
 ## Important Rule
 
