@@ -717,6 +717,36 @@ func TestComponentTemplatesEndpointListsManifests(t *testing.T) {
 	}
 }
 
+func TestFeatureMapperTemplatePreservesFeatureOrder(t *testing.T) {
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	helperBytes, err := os.ReadFile(filepath.Join(repoRoot, "templates", "components", "feature_mapper", "helpers.py"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	helper := string(helperBytes)
+	last := -1
+	for _, feature := range []string{
+		"outdoor_temperature_c",
+		"return_air_temperature_c",
+		"chw_setpoint_c",
+		"fan_speed_fraction",
+	} {
+		index := strings.Index(helper, `"`+feature+`"`)
+		if index <= last {
+			t.Fatalf("feature order not preserved for %s in:\n%s", feature, helper)
+		}
+		last = index
+	}
+	for _, token := range []string{"missing feature input", `"scale"`, `"offset"`, `"min"`, `"max"`} {
+		if !strings.Contains(helper, token) {
+			t.Fatalf("feature mapper helper did not include %s:\n%s", token, helper)
+		}
+	}
+}
+
 func TestStaticExportWorkspaceModuleServes(t *testing.T) {
 	server := newTestServer(t)
 	response := httptest.NewRecorder()

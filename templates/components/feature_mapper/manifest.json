@@ -60,7 +60,18 @@
       "value_type": "object"
     }
   ],
-  "parameters": {},
-  "parameter_defs": {},
+  "parameters": {
+    "feature_config": {}
+  },
+  "parameter_defs": {
+    "feature_config": {
+      "display_name": "Feature Config",
+      "default": {},
+      "current": {},
+      "role": "runtime_setting",
+      "group": "Feature Mapping",
+      "description": "Optional per-feature source, scale, offset, min, and max settings."
+    }
+  },
   "state_defs": {}
 }

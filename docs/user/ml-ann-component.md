@@ -50,7 +50,11 @@ runner validates that referenced files exist before running or exporting.
 
 Use a Feature Mapper component when raw system variables need a stable feature
 object. The mapper should preserve a deterministic feature order and should
-convert or clip values before the ML component receives them.
+convert or clip values before the ML component receives them. The template
+accepts an optional `feature_config` parameter where each feature can set a
+different `source`, `scale`, `offset`, `min`, and `max`. Missing source values
+raise `missing feature input: <name>` so Studio and CLI runs report the same
+component error.
 
 `examples/014_ahu_state_ann` uses this shape:
 
