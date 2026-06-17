@@ -21,6 +21,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-serve-pro
 
 ## Request Schema
 
+Reusable JSON Schema file: `schema/serve-request.schema.json`.
+
 Evaluation request:
 
 ```json
@@ -47,6 +49,8 @@ lines. Use `run-series` instead when the sequence itself is a saved time-indexed
 artifact.
 
 ## Response Schema
+
+Reusable JSON Schema file: `schema/serve-response.schema.json`.
 
 Successful evaluation response:
 

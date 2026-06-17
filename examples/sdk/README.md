@@ -20,6 +20,11 @@ Pop-Location
 The stream sends two successful evaluations, one structured error case, and a
 shutdown request.
 
+Reusable protocol schemas live at:
+
+- `schema/serve-request.schema.json`
+- `schema/serve-response.schema.json`
+
 ## Raw Python Subprocess
 
 `raw_serve_subprocess.py` shows the same protocol without importing

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://goniegonie.github.io/hvac-studio/schema/serve-request.schema.json",
+  "title": "HVAC Studio Serve Request",
+  "description": "One JSON Lines request sent to bcs-runner serve.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "id": {
+      "description": "Caller-owned correlation id echoed in the response.",
+      "type": "string"
+    },
+    "type": {
+      "description": "Use shutdown to close the serve process cleanly.",
+      "type": "string",
+      "enum": ["shutdown"]
+    },
+    "inputs": {
+      "description": "Public input values keyed by project public input id.",
+      "type": "object",
+      "additionalProperties": true
+    },
+    "context": {
+      "description": "Per-request context such as time, dt, candidate id, or optimizer metadata.",
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "oneOf": [
+    {
+      "description": "Evaluation request.",
+      "required": ["inputs"],
+      "not": {
+        "required": ["type"]
+      }
+    },
+    {
+      "description": "Shutdown request.",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "const": "shutdown"
+        }
+      }
+    }
+  ]
+}

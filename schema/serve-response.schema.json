@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://goniegonie.github.io/hvac-studio/schema/serve-response.schema.json",
+  "title": "HVAC Studio Serve Response",
+  "description": "One JSON Lines response emitted by bcs-runner serve.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "id": {
+      "description": "Correlation id copied from the request when present.",
+      "type": "string"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "result": {
+      "description": "Runner evaluation result for successful evaluation requests.",
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "outputs": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "error": {
+      "description": "Structured runner error for failed evaluation requests.",
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schema", "code", "kind", "message"],
+      "properties": {
+        "schema": {
+          "const": "hvac-studio.error.v1"
+        },
+        "code": {
+          "type": "integer"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
+    "message": {
+      "description": "Shutdown acknowledgement message.",
+      "type": "string"
+    }
+  },
+  "oneOf": [
+    {
+      "description": "Successful evaluation response.",
+      "required": ["ok", "result"],
+      "properties": {
+        "ok": {
+          "const": true
+        }
+      }
+    },
+    {
+      "description": "Structured error response.",
+      "required": ["ok", "error"],
+      "properties": {
+        "ok": {
+          "const": false
+        }
+      }
+    },
+    {
+      "description": "Shutdown acknowledgement.",
+      "required": ["ok", "message"],
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "message": {
+          "const": "shutdown"
+        }
+      }
+    }
+  ]
+}

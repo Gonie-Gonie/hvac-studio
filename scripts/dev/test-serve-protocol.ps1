@@ -9,6 +9,20 @@ if (-not $env:HVAC_STUDIO_GO) {
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $RequestPath = Join-Path $RepoRoot 'examples\sdk\serve-requests.jsonl'
 $ProjectPath = Join-Path $RepoRoot 'examples\001_scalar_component\project.bcsproj'
+$SchemaPaths = @(
+  (Join-Path $RepoRoot 'schema\serve-request.schema.json'),
+  (Join-Path $RepoRoot 'schema\serve-response.schema.json')
+)
+
+foreach ($SchemaPath in $SchemaPaths) {
+  if (-not (Test-Path -LiteralPath $SchemaPath)) {
+    throw "serve protocol schema is missing: $SchemaPath"
+  }
+  $Schema = Get-Content -Raw -Encoding UTF8 -LiteralPath $SchemaPath | ConvertFrom-Json
+  if (-not $Schema.'$schema' -or -not $Schema.title) {
+    throw "serve protocol schema metadata is incomplete: $SchemaPath"
+  }
+}
 
 Push-Location (Join-Path $RepoRoot 'tools\go')
 try {
