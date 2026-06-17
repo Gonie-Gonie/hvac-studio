@@ -1,0 +1,21 @@
+{
+  "id": "feature_mapper",
+  "name": "Feature Mapper",
+  "kind": "user_python",
+  "category": "utility",
+  "execution_mode": "step",
+  "class_name": "FeatureMapperComponent",
+  "source": {
+    "layout": "generated_wrapper",
+    "metadata": "components/feature_mapper/component.json",
+    "init": "components/feature_mapper/user_init.py",
+    "step": "components/feature_mapper/user_step.py",
+    "helpers": "components/feature_mapper/helpers.py",
+    "wrapper": "components/feature_mapper/wrapper.py"
+  },
+  "nodes": {
+    "inputs": [],
+    "outputs": []
+  },
+  "parameters": {}
+}

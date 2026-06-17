@@ -11,6 +11,8 @@ Current templates:
 - `components/data_source`: a context-backed source template.
 - `components/data_sink`: a sink template for consuming connected values.
 - `components/utility`: a two-input utility calculation.
+- `components/feature_mapper`: a deterministic feature object mapper for ML-backed components.
+- `components/ml_inference`: a generated-wrapper ML inference component with project-owned JSON model assets.
 - `components/vectorized`: a vectorized generated-wrapper component using `evaluate_batch`.
 - `components/external_executable`: an external process component using stdin/stdout JSON.
 - `components/solver_boundary`: a generated-wrapper component that keeps iterative feedback behavior inside one explicit solver boundary.

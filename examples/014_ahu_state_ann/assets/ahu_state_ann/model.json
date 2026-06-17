@@ -1,0 +1,23 @@
+{
+  "model_id": "ahu_state_linear_ann_surrogate",
+  "outputs": {
+    "supply_air_temperature_c": {
+      "intercept": 3.0,
+      "coefficients": {
+        "outdoor_temperature_c": 0.08,
+        "return_air_temperature_c": 0.55,
+        "chw_setpoint_c": 0.25,
+        "fan_speed_fraction": -1.5
+      }
+    },
+    "cooling_power_kw": {
+      "intercept": 1.2,
+      "coefficients": {
+        "outdoor_temperature_c": 0.12,
+        "return_air_temperature_c": 0.08,
+        "chw_setpoint_c": -0.2,
+        "fan_speed_fraction": 4.0
+      }
+    }
+  }
+}

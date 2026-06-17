@@ -1439,6 +1439,7 @@ function renderInspector() {
     ["Source", component.source?.layout || "single_file_class"],
     ["Class", component.class || ""],
   ]));
+  if (component.ml_metadata) container.append(mlMetadataBlock(component));
   if (isWorkspaceProject()) container.append(componentEditor(component));
   container.append(nodeListBlock("Inputs", component, component.nodes.inputs || [], "input"));
   container.append(nodeListBlock("Outputs", component, component.nodes.outputs || [], "output"));
@@ -2082,6 +2083,20 @@ function renderParameters() {
   if (!count) {
     tbody.append(emptyRow(4, "No parameters"));
   }
+}
+
+function mlMetadataBlock(component) {
+  const metadata = component.ml_metadata || {};
+  const rows = [
+    ["Model Format", metadata.model_format || ""],
+    ["Model File", metadata.model_file || ""],
+    ["Feature Schema", metadata.feature_schema_file || ""],
+    ["Target Schema", metadata.target_schema_file || ""],
+    ["Validation Report", metadata.validation_report_file || ""],
+    ["Required Packages", (metadata.required_packages || []).join(", ")],
+    ["Time Resolution", metadata.valid_time_resolution || ""],
+  ].filter(([, value]) => value);
+  return inspectorBlock("ML Metadata", rows);
 }
 
 function renderParameterAddForm(container, components, editable) {

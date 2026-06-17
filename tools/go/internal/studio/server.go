@@ -3,6 +3,7 @@ package studio
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"embed"
 	"encoding/csv"
 	"encoding/json"
@@ -127,12 +128,14 @@ type componentTemplateManifest struct {
 	ExecutionMode        string                               `json:"execution_mode"`
 	ClassName            string                               `json:"class_name"`
 	Source               componentTemplateSource              `json:"source"`
+	Assets               []string                             `json:"assets"`
 	Inputs               []model.Node                         `json:"inputs"`
 	Outputs              []model.Node                         `json:"outputs"`
 	Parameters           map[string]any                       `json:"parameters"`
 	ParameterDefinitions map[string]model.ParameterDefinition `json:"parameter_defs"`
 	StateDefinitions     map[string]model.StateDefinition     `json:"state_defs"`
 	SolverBoundary       *model.SolverBoundary                `json:"solver_boundary,omitempty"`
+	MLMetadata           *model.MLMetadata                    `json:"ml_metadata,omitempty"`
 }
 
 type componentTemplateSource struct {
@@ -526,6 +529,8 @@ type ExportManifest struct {
 	RuntimePython       string                `json:"runtime_python"`
 	Files               []string              `json:"files"`
 	Components          []string              `json:"components"`
+	ModelAssets         []string              `json:"model_assets,omitempty"`
+	Checksums           map[string]string     `json:"checksums,omitempty"`
 	PublicInputs        []model.PublicNodeRef `json:"public_inputs"`
 	PublicOutputs       []model.PublicNodeRef `json:"public_outputs"`
 	ExecutionOrder      []string              `json:"execution_order"`
@@ -2271,6 +2276,7 @@ func createComponent(loaded *project.LoadedProject, req createComponentRequest, 
 		ParameterDefinitions: cloneParameterDefinitions(templateManifest.ParameterDefinitions),
 		StateDefinitions:     cloneStateDefinitions(templateManifest.StateDefinitions),
 		SolverBoundary:       cloneSolverBoundary(templateManifest.SolverBoundary),
+		MLMetadata:           componentMLMetadataForTemplate(templateManifest.MLMetadata, componentID),
 	}
 
 	componentsRoot := filepath.Join(loaded.Root, "components")
@@ -2338,6 +2344,7 @@ func duplicateComponent(loaded *project.LoadedProject, req duplicateComponentReq
 	component.ParameterDefinitions = cloneParameterDefinitions(source.ParameterDefinitions)
 	component.StateDefinitions = cloneStateDefinitions(source.StateDefinitions)
 	component.SolverBoundary = cloneSolverBoundary(source.SolverBoundary)
+	component.MLMetadata = cloneMLMetadata(source.MLMetadata)
 	component.Source = cloneComponentSource(source.Source)
 	if component.Source.Layout == "" || component.Source.Layout == "single_file_class" {
 		component.Source.Layout = "single_file_class"
@@ -5368,6 +5375,10 @@ func writeExportManifest(loaded *project.LoadedProject, profile string, includeR
 	}
 	files = append(files, entrypointFiles...)
 	sort.Strings(files)
+	checksums, err := exportFileChecksums(exportRoot, files)
+	if err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
 	commands := []string{}
 	for _, entrypoint := range entrypoints {
 		if strings.HasSuffix(entrypoint.Rel, ".ps1") {
@@ -5388,6 +5399,8 @@ func writeExportManifest(loaded *project.LoadedProject, profile string, includeR
 		RuntimePython:       "runtime/python/python.exe",
 		Files:               files,
 		Components:          append([]string{}, plan.System.Components...),
+		ModelAssets:         modelAssetExportPaths(loaded.Graph),
+		Checksums:           checksums,
 		PublicInputs:        append([]model.PublicNodeRef{}, plan.System.PublicInputs...),
 		PublicOutputs:       append([]model.PublicNodeRef{}, plan.System.PublicOutputs...),
 		ExecutionOrder:      append([]string{}, plan.Order...),
@@ -5426,6 +5439,47 @@ func exportArtifactPath(path string) string {
 	return filepath.ToSlash(filepath.Join("project", path))
 }
 
+func modelAssetExportPaths(graph *model.Graph) []string {
+	if graph == nil {
+		return nil
+	}
+	paths := []string{}
+	seen := map[string]bool{}
+	for _, component := range graph.Components {
+		if component.MLMetadata == nil {
+			continue
+		}
+		for _, asset := range component.MLMetadata.AssetPaths() {
+			assetPath := strings.TrimSpace(asset.Path)
+			if assetPath == "" {
+				continue
+			}
+			exportPath := exportArtifactPath(assetPath)
+			if seen[exportPath] {
+				continue
+			}
+			seen[exportPath] = true
+			paths = append(paths, exportPath)
+		}
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func exportFileChecksums(exportRoot string, files []string) (map[string]string, error) {
+	checksums := map[string]string{}
+	for _, rel := range files {
+		path := filepath.Join(exportRoot, filepath.FromSlash(rel))
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		sum := sha256.Sum256(data)
+		checksums[rel] = fmt.Sprintf("%x", sum)
+	}
+	return checksums, nil
+}
+
 func writeRuntimeExportProject(loaded *project.LoadedProject, targetRoot string, includeRecords bool) ([]string, error) {
 	if err := resetGeneratedDir(filepath.Dir(targetRoot), targetRoot); err != nil {
 		return nil, err
@@ -5451,6 +5505,7 @@ func writeRuntimeExportProject(loaded *project.LoadedProject, targetRoot string,
 	}
 	for _, rel := range []string{
 		"components",
+		"assets",
 		"inputs",
 		"scenarios",
 		"datasets",
@@ -6488,7 +6543,27 @@ func loadComponentTemplate(repoRoot, template string) (componentTemplateManifest
 	if err != nil {
 		return componentTemplateManifest{}, nil, err
 	}
+	assetFiles, err := loadComponentTemplateAssetFiles(templateRoot, template, manifest.Assets)
+	if err != nil {
+		return componentTemplateManifest{}, nil, err
+	}
+	files = append(files, assetFiles...)
 	return manifest, files, nil
+}
+
+func loadComponentTemplateAssetFiles(templateRoot, template string, assets []string) ([]componentTemplateFile, error) {
+	files := []componentTemplateFile{}
+	for _, rel := range assets {
+		if strings.TrimSpace(rel) == "" {
+			continue
+		}
+		file, err := loadComponentTemplateFile(templateRoot, template, "asset", rel)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, file)
+	}
+	return files, nil
 }
 
 func loadComponentTemplateFiles(templateRoot, template string, source componentTemplateSource) ([]componentTemplateFile, error) {
@@ -6639,6 +6714,9 @@ func writeComponentTemplateFiles(projectRoot string, component model.Component, 
 }
 
 func componentTemplateTargetRel(component model.Component, file componentTemplateFile) string {
+	if file.Role == "asset" {
+		return projectComponentSourceRel(component.ID, file.TemplateRel)
+	}
 	if component.Source.Layout != "generated_wrapper" {
 		return component.Source.Step
 	}
@@ -6670,6 +6748,7 @@ func writeComponentMetadataFile(path string, component model.Component, classNam
 		ParameterDefinitions map[string]model.ParameterDefinition `json:"parameter_defs,omitempty"`
 		StateDefinitions     map[string]model.StateDefinition     `json:"state_defs,omitempty"`
 		SolverBoundary       *model.SolverBoundary                `json:"solver_boundary,omitempty"`
+		MLMetadata           *model.MLMetadata                    `json:"ml_metadata,omitempty"`
 	}{
 		ID:                   component.ID,
 		Name:                 component.Name,
@@ -6683,6 +6762,7 @@ func writeComponentMetadataFile(path string, component model.Component, classNam
 		ParameterDefinitions: component.ParameterDefinitions,
 		StateDefinitions:     component.StateDefinitions,
 		SolverBoundary:       component.SolverBoundary,
+		MLMetadata:           component.MLMetadata,
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -6795,6 +6875,45 @@ func cloneSolverBoundary(value *model.SolverBoundary) *model.SolverBoundary {
 	}
 	cloned := *value
 	return &cloned
+}
+
+func cloneMLMetadata(value *model.MLMetadata) *model.MLMetadata {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	cloned.RequiredPackages = append([]string{}, value.RequiredPackages...)
+	if value.ValidInputRanges != nil {
+		cloned.ValidInputRanges = map[string]model.ValueBounds{}
+		for key, bounds := range value.ValidInputRanges {
+			cloned.ValidInputRanges[key] = bounds
+		}
+	}
+	return &cloned
+}
+
+func componentMLMetadataForTemplate(value *model.MLMetadata, componentID string) *model.MLMetadata {
+	cloned := cloneMLMetadata(value)
+	if cloned == nil {
+		return nil
+	}
+	for _, target := range []struct {
+		value *string
+	}{
+		{&cloned.ModelFile},
+		{&cloned.InputScalerFile},
+		{&cloned.OutputScalerFile},
+		{&cloned.FeatureSchemaFile},
+		{&cloned.TargetSchemaFile},
+		{&cloned.TrainingMetadataFile},
+		{&cloned.ValidationReportFile},
+	} {
+		if strings.TrimSpace(*target.value) == "" || filepath.IsAbs(*target.value) {
+			continue
+		}
+		*target.value = projectComponentSourceRel(componentID, *target.value)
+	}
+	return cloned
 }
 
 func defaultString(value, fallback string) string {

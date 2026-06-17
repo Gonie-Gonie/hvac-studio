@@ -1,0 +1,15 @@
+{
+  "dataset": "template",
+  "metrics": {
+    "supply_air_temperature_c": {
+      "rmse": 0.0,
+      "r2": 1.0
+    },
+    "cooling_power_kw": {
+      "rmse": 0.0,
+      "r2": 1.0
+    }
+  },
+  "feature_schema_version": "1.0",
+  "time_resolution": "step"
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "inputs": {
+    "outdoor_temperature_c": 32.0,
+    "return_air_temperature_c": 24.0,
+    "chw_setpoint_c": 7.0,
+    "fan_speed_fraction": 0.7
+  },
+  "context": {
+    "time": 0,
+    "dt": 300
+  }
+}

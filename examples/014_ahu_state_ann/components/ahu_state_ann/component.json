@@ -1,0 +1,31 @@
+{
+  "id": "ahu_state_ann",
+  "name": "AHU State ANN",
+  "kind": "user_python",
+  "category": "physical_component",
+  "execution_mode": "step",
+  "class_name": "AHUStateANNComponent",
+  "source": {
+    "layout": "generated_wrapper",
+    "metadata": "components/ahu_state_ann/component.json",
+    "init": "components/ahu_state_ann/user_init.py",
+    "step": "components/ahu_state_ann/user_step.py",
+    "helpers": "components/ahu_state_ann/helpers.py",
+    "wrapper": "components/ahu_state_ann/wrapper.py"
+  },
+  "nodes": {
+    "inputs": [],
+    "outputs": []
+  },
+  "parameters": {
+    "output_bias": 0.0
+  },
+  "ml_metadata": {
+    "model_format": "custom",
+    "model_file": "assets/ahu_state_ann/model.json",
+    "feature_schema_file": "assets/ahu_state_ann/feature_schema.json",
+    "target_schema_file": "assets/ahu_state_ann/target_schema.json",
+    "validation_report_file": "assets/ahu_state_ann/validation_report.json",
+    "required_packages": []
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "version": "1.0",
+  "targets": [
+    "supply_air_temperature_c",
+    "cooling_power_kw"
+  ]
+}

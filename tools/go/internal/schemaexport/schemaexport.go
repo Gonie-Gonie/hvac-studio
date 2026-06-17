@@ -17,6 +17,7 @@ type InterfaceSchema struct {
 	System        string           `json:"system"`
 	Inputs        []PublicNodeInfo `json:"inputs"`
 	Outputs       []PublicNodeInfo `json:"outputs"`
+	ModelAssets   []ModelAssetInfo `json:"model_assets,omitempty"`
 }
 
 type PublicNodeInfo struct {
@@ -29,6 +30,14 @@ type PublicNodeInfo struct {
 	Unit      string `json:"unit,omitempty"`
 	Required  bool   `json:"required,omitempty"`
 	Default   any    `json:"default,omitempty"`
+}
+
+type ModelAssetInfo struct {
+	Component        string   `json:"component"`
+	ModelFormat      string   `json:"model_format,omitempty"`
+	Field            string   `json:"field"`
+	Path             string   `json:"path"`
+	RequiredPackages []string `json:"required_packages,omitempty"`
 }
 
 func Export(loaded *project.LoadedProject) (*InterfaceSchema, error) {
@@ -52,6 +61,24 @@ func Export(loaded *project.LoadedProject) (*InterfaceSchema, error) {
 	for _, output := range plan.System.PublicOutputs {
 		node, _ := plan.Index.OutputNode(output.Component, output.Node)
 		schema.Outputs = append(schema.Outputs, publicNodeInfo(output, node, false))
+	}
+	for _, componentID := range plan.System.Components {
+		component := plan.Index.Components[componentID]
+		if component.MLMetadata == nil {
+			continue
+		}
+		for _, asset := range component.MLMetadata.AssetPaths() {
+			if asset.Path == "" {
+				continue
+			}
+			schema.ModelAssets = append(schema.ModelAssets, ModelAssetInfo{
+				Component:        component.ID,
+				ModelFormat:      component.MLMetadata.ModelFormat,
+				Field:            asset.Field,
+				Path:             asset.Path,
+				RequiredPackages: append([]string{}, component.MLMetadata.RequiredPackages...),
+			})
+		}
 	}
 
 	return schema, nil

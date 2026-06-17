@@ -17,9 +17,9 @@ components/<component_id>/helpers.py
 
 New components use the generated-wrapper layout by default. Studio and the runner own the wrapper contract, while the Code workspace opens `user_step.py` as the primary editable function body. Existing single-file components still load and can be edited for compatibility with older projects.
 
-Available component templates include scalar, controller, stateful, data source, data sink, utility, vectorized, external executable, and solver boundary. Vectorized components use `execution_mode: "vectorized"` and may implement `evaluate_batch(inputs, state, params, context)` with the same `(outputs, state)` return contract as `evaluate`. External executable components use `kind: "external_exe"` with `execution_mode: "external_executable"` and run the process named by `parameters.command` and `parameters.args`. Solver boundary components use `category: "solver"` and `solver_boundary` metadata to keep iterative feedback behavior inside one component.
+Available component templates include scalar, controller, stateful, data source, data sink, utility, feature mapper, ML inference, vectorized, external executable, and solver boundary. Vectorized components use `execution_mode: "vectorized"` and may implement `evaluate_batch(inputs, state, params, context)` with the same `(outputs, state)` return contract as `evaluate`. ML inference components use `ml_metadata` to record model assets, feature schemas, target schemas, validation reports, valid ranges, and package requirements. External executable components use `kind: "external_exe"` with `execution_mode: "external_executable"` and run the process named by `parameters.command` and `parameters.args`. Solver boundary components use `category: "solver"` and `solver_boundary` metadata to keep iterative feedback behavior inside one component.
 
-New components are not silently added to the runnable system. Adding a component to a system is an explicit action. Components that are not currently in the entry system are marked as unused in the Project tree and can be added with Use.
+The Project panel can include a newly created component in the entry system immediately when Use in System is checked. When it is unchecked, the component is created as a source artifact only. Components that are not currently in the entry system are marked as unused in the Project tree and can be added with Use.
 
 Workspace component input and output nodes can be added, edited, or deleted from the Inspector. New nodes can be created with display names, media, value types, units, required flags, and input defaults. Node IDs remain stable after creation, but the Inspector can edit the same metadata later. If the component is already in the runnable system, new input nodes are exposed as public inputs and added to the default input file; new output nodes are exposed as public outputs. Editing node metadata updates related public IO, and editing an input default updates the default input file. Deleting a node removes related public IO and connection references.
 
@@ -47,6 +47,7 @@ A component contract includes:
 - parameter definitions
 - state definitions
 - source layout metadata
+- optional ML metadata and model asset paths
 
 Step components implement `evaluate(inputs, state, params, context)`.
 Vectorized components implement `evaluate_batch(inputs, state, params, context)`

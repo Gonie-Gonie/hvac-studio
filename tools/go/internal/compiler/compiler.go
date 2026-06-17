@@ -2,6 +2,8 @@ package compiler
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	graphindex "github.com/goniegonie/hvac-studio/tools/go/internal/graph"
@@ -31,6 +33,9 @@ type Diagnostic struct {
 func Compile(loaded *project.LoadedProject) (*Plan, error) {
 	idx, err := graphindex.NewIndex(loaded.Graph)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateMLAssets(loaded); err != nil {
 		return nil, err
 	}
 
@@ -94,6 +99,52 @@ func Compile(loaded *project.LoadedProject) (*Plan, error) {
 	plan.Order = order
 
 	return plan, nil
+}
+
+func validateMLAssets(loaded *project.LoadedProject) error {
+	if loaded == nil || loaded.Graph == nil {
+		return nil
+	}
+	root, err := filepath.Abs(loaded.Root)
+	if err != nil {
+		return err
+	}
+	for _, component := range loaded.Graph.Components {
+		if component.MLMetadata == nil {
+			continue
+		}
+		for _, asset := range component.MLMetadata.AssetPaths() {
+			assetPath := strings.TrimSpace(asset.Path)
+			if assetPath == "" {
+				continue
+			}
+			if filepath.IsAbs(assetPath) {
+				return fmt.Errorf("component %s ml_metadata.%s must be project-relative: %s", component.ID, asset.Field, asset.Path)
+			}
+			absAsset, err := filepath.Abs(filepath.Join(root, filepath.FromSlash(assetPath)))
+			if err != nil {
+				return err
+			}
+			rel, err := filepath.Rel(root, absAsset)
+			if err != nil {
+				return err
+			}
+			if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+				return fmt.Errorf("component %s ml_metadata.%s must stay inside project root: %s", component.ID, asset.Field, asset.Path)
+			}
+			info, err := os.Stat(absAsset)
+			if os.IsNotExist(err) {
+				return fmt.Errorf("component %s ML asset not found: %s", component.ID, asset.Path)
+			}
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return fmt.Errorf("component %s ML asset is a directory: %s", component.ID, asset.Path)
+			}
+		}
+	}
+	return nil
 }
 
 func validateConnection(idx *graphindex.Index, systemContains map[string]bool, connection model.Connection) ([]Diagnostic, error) {

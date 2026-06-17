@@ -22,6 +22,7 @@ runtime-only delivery paths.
 | Solver boundary | `011_solver_boundary_component` | Internal iterative feedback inside one explicit solver boundary component. |
 | Unit conversion | `012_unit_conversion_component` | Explicit connection-level linear unit conversion and value-type checks. |
 | Composite system | `013_composite_system` | A nested system wrapped behind explicit public input/output IDs. |
+| AHU state ANN | `014_ahu_state_ann` | Feature mapping plus ML-backed component assets and metadata. |
 
 ## Smoke Coverage
 

@@ -175,6 +175,9 @@
         "solver_boundary": {
           "$ref": "#/$defs/solverBoundary"
         },
+        "ml_metadata": {
+          "$ref": "#/$defs/mlMetadata"
+        },
         "composite": {
           "$ref": "#/$defs/compositeReference"
         }
@@ -283,6 +286,52 @@
         },
         "description": {
           "type": "string"
+        }
+      }
+    },
+    "mlMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "model_format": {
+          "type": "string",
+          "enum": ["pickle", "joblib", "onnx", "torch", "tensorflow", "custom"]
+        },
+        "model_file": {
+          "type": "string"
+        },
+        "input_scaler_file": {
+          "type": "string"
+        },
+        "output_scaler_file": {
+          "type": "string"
+        },
+        "feature_schema_file": {
+          "type": "string"
+        },
+        "target_schema_file": {
+          "type": "string"
+        },
+        "training_metadata_file": {
+          "type": "string"
+        },
+        "validation_report_file": {
+          "type": "string"
+        },
+        "required_packages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "valid_time_resolution": {
+          "type": "string"
+        },
+        "valid_input_ranges": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/valueBounds"
+          }
         }
       }
     },

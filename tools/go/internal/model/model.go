@@ -62,6 +62,7 @@ type Component struct {
 	ParameterDefinitions map[string]ParameterDefinition `json:"parameter_defs,omitempty"`
 	StateDefinitions     map[string]StateDefinition     `json:"state_defs,omitempty"`
 	SolverBoundary       *SolverBoundary                `json:"solver_boundary,omitempty"`
+	MLMetadata           *MLMetadata                    `json:"ml_metadata,omitempty"`
 	Composite            *CompositeReference            `json:"composite,omitempty"`
 }
 
@@ -98,6 +99,37 @@ type SolverBoundary struct {
 	MaxIterations int     `json:"max_iterations,omitempty"`
 	Tolerance     float64 `json:"tolerance,omitempty"`
 	Description   string  `json:"description,omitempty"`
+}
+
+type MLMetadata struct {
+	ModelFormat          string                 `json:"model_format,omitempty"`
+	ModelFile            string                 `json:"model_file,omitempty"`
+	InputScalerFile      string                 `json:"input_scaler_file,omitempty"`
+	OutputScalerFile     string                 `json:"output_scaler_file,omitempty"`
+	FeatureSchemaFile    string                 `json:"feature_schema_file,omitempty"`
+	TargetSchemaFile     string                 `json:"target_schema_file,omitempty"`
+	TrainingMetadataFile string                 `json:"training_metadata_file,omitempty"`
+	ValidationReportFile string                 `json:"validation_report_file,omitempty"`
+	RequiredPackages     []string               `json:"required_packages,omitempty"`
+	ValidTimeResolution  string                 `json:"valid_time_resolution,omitempty"`
+	ValidInputRanges     map[string]ValueBounds `json:"valid_input_ranges,omitempty"`
+}
+
+type MLAssetPath struct {
+	Field string
+	Path  string
+}
+
+func (m MLMetadata) AssetPaths() []MLAssetPath {
+	return []MLAssetPath{
+		{Field: "model_file", Path: m.ModelFile},
+		{Field: "input_scaler_file", Path: m.InputScalerFile},
+		{Field: "output_scaler_file", Path: m.OutputScalerFile},
+		{Field: "feature_schema_file", Path: m.FeatureSchemaFile},
+		{Field: "target_schema_file", Path: m.TargetSchemaFile},
+		{Field: "training_metadata_file", Path: m.TrainingMetadataFile},
+		{Field: "validation_report_file", Path: m.ValidationReportFile},
+	}
 }
 
 type CompositeReference struct {

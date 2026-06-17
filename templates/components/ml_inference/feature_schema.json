@@ -1,0 +1,9 @@
+{
+  "version": "1.0",
+  "features": [
+    "outdoor_temperature_c",
+    "return_air_temperature_c",
+    "chw_setpoint_c",
+    "fan_speed_fraction"
+  ]
+}

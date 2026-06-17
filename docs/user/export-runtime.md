@@ -19,6 +19,7 @@ exports/runtime_package/bin/bcs-env.exe
 exports/runtime_package/project/project.bcsproj
 exports/runtime_package/project/graph.json
 exports/runtime_package/project/components/
+exports/runtime_package/project/assets/
 exports/runtime_package/project/inputs/
 exports/runtime_package/project/scenarios/
 exports/runtime_package/project/datasets/
@@ -30,7 +31,7 @@ exports/runtime_package/runtime/python/
 exports/runtime_package/schema/public-io.json
 ```
 
-Runtime export copies the source-of-truth project files needed by the runner, including datasets, parameter sets, validation mappings, calibration setups, and optimization setups. It writes a public input/output schema for consumers, generates Windows scripts for the workflows present in the exported project, and records the exported files plus public IO, execution order, command list, and workflow artifact lists in the manifest. When Studio is running from a portable/runtime package, export also copies the packaged runner tools and Python runtime into the export folder so the exported project can run without a system Python install.
+Runtime export copies the source-of-truth project files needed by the runner, including model assets, datasets, parameter sets, validation mappings, calibration setups, and optimization setups. It writes a public input/output schema for consumers, generates Windows scripts for the workflows present in the exported project, and records the exported files plus public IO, execution order, command list, workflow artifact lists, model asset paths, and SHA-256 checksums in the manifest. When Studio is running from a portable/runtime package, export also copies the packaged runner tools and Python runtime into the export folder so the exported project can run without a system Python install.
 
 Export profiles appear in the Project tree. Before export, selecting the ready runtime package profile opens the Export workspace preview. After export, selecting the saved profile reopens the saved manifest so the exported folder, file list, public IO, command list, self-check command, record count, and paths can be inspected after the original export action has completed.
 

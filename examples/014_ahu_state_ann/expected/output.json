@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "outputs": {
+    "supply_air_temperature_c": 19.46,
+    "cooling_power_kw": 8.36
+  },
+  "component_outputs": {
+    "ahu_state_ann": {
+      "supply_air_temperature_c": 19.46,
+      "cooling_power_kw": 8.36
+    }
+  },
+  "execution_order": [
+    "feature_mapper",
+    "ahu_state_ann"
+  ]
+}

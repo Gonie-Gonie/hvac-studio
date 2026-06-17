@@ -1,6 +1,8 @@
 package compiler
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -124,6 +126,64 @@ func TestCompileAllowsExplicitSolverBoundaryComponentInAcyclicGraph(t *testing.T
 	}
 	if got := strings.Join(plan.Order, ","); got != "solver" {
 		t.Fatalf("unexpected order: %s", got)
+	}
+}
+
+func TestCompileValidatesMLAssetPaths(t *testing.T) {
+	root := t.TempDir()
+	assetPath := filepath.Join(root, "assets", "model.json")
+	if err := os.MkdirAll(filepath.Dir(assetPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(assetPath, []byte(`{"ok":true}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded := &project.LoadedProject{
+		Root:    root,
+		Project: &model.Project{EntrySystem: "MainSystem"},
+		Graph: &model.Graph{
+			SchemaVersion: "0.1.0",
+			Systems: []model.System{
+				{
+					ID:          "MainSystem",
+					Components:  []string{"ann"},
+					Connections: []string{},
+					PublicInputs: []model.PublicNodeRef{
+						{ID: "features", Component: "ann", Node: "features"},
+					},
+					PublicOutputs: []model.PublicNodeRef{
+						{ID: "prediction", Component: "ann", Node: "prediction"},
+					},
+				},
+			},
+			Components: []model.Component{
+				{
+					ID:   "ann",
+					Kind: "user_python",
+					Nodes: model.NodeSet{
+						Inputs:  []model.Node{{ID: "features", Medium: "signal", ValueType: "object"}},
+						Outputs: []model.Node{{ID: "prediction", Medium: "signal", ValueType: "float"}},
+					},
+					MLMetadata: &model.MLMetadata{
+						ModelFormat:       "custom",
+						ModelFile:         "assets/model.json",
+						FeatureSchemaFile: "assets/features.json",
+					},
+				},
+			},
+		},
+	}
+
+	_, err := Compile(loaded)
+	if err == nil || !strings.Contains(err.Error(), "ML asset not found: assets/features.json") {
+		t.Fatalf("error = %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(root, "assets", "features.json"), []byte(`{"features":[]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Compile(loaded); err != nil {
+		t.Fatal(err)
 	}
 }
 

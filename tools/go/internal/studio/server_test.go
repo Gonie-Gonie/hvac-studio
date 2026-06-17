@@ -495,6 +495,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("runOptimizationSetup")) {
 		t.Fatalf("module entrypoint did not include optimization setup execution")
 	}
+	if !bytes.Contains(body, []byte("mlMetadataBlock")) {
+		t.Fatalf("module entrypoint did not include ML metadata inspector rendering")
+	}
 	if !bytes.Contains(body, []byte("/api/calibration/run")) {
 		t.Fatalf("module entrypoint did not call calibration run endpoint")
 	}
@@ -560,6 +563,8 @@ func TestComponentTemplatesEndpointListsManifests(t *testing.T) {
 		!hasComponentTemplate(body.Templates, "stateful") ||
 		!hasComponentTemplate(body.Templates, "data_source") ||
 		!hasComponentTemplate(body.Templates, "data_sink") ||
+		!hasComponentTemplate(body.Templates, "feature_mapper") ||
+		!hasComponentTemplate(body.Templates, "ml_inference") ||
 		!hasComponentTemplate(body.Templates, "utility") ||
 		!hasComponentTemplate(body.Templates, "external_executable") ||
 		!hasComponentTemplate(body.Templates, "vectorized") ||
@@ -4664,6 +4669,78 @@ func TestExportEndpointIncludesGeneratedWrapperSources(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(exportRoot, filepath.FromSlash(rel))); err != nil {
 			t.Fatalf("export file %s: %v", rel, err)
 		}
+	}
+}
+
+func TestExportEndpointIncludesMLAssetsAndChecksums(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	seedTestRuntimeSupport(t, root)
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectRoot := filepath.Join(root, "projects", "ahu-state-ann")
+	if err := copyProjectTree(filepath.Join(repoRoot, "examples", "014_ahu_state_ann"), projectRoot); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path": filepath.Join(projectRoot, "project.bcsproj"),
+		"profile":      "runtime_package",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/export", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Export ExportManifest `json:"export"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	expectedAssets := []string{
+		"project/assets/ahu_state_ann/feature_schema.json",
+		"project/assets/ahu_state_ann/model.json",
+		"project/assets/ahu_state_ann/target_schema.json",
+		"project/assets/ahu_state_ann/validation_report.json",
+	}
+	exportRoot := filepath.Join(projectRoot, "exports", "runtime_package")
+	for _, rel := range expectedAssets {
+		if !containsString(body.Export.Files, rel) {
+			t.Fatalf("export files missing %s in %v", rel, body.Export.Files)
+		}
+		if !containsString(body.Export.ModelAssets, rel) {
+			t.Fatalf("export model assets missing %s in %v", rel, body.Export.ModelAssets)
+		}
+		if checksum := body.Export.Checksums[rel]; len(checksum) != 64 {
+			t.Fatalf("checksum for %s = %q", rel, checksum)
+		}
+		if _, err := os.Stat(filepath.Join(exportRoot, filepath.FromSlash(rel))); err != nil {
+			t.Fatalf("export file %s: %v", rel, err)
+		}
+	}
+	var exportedSchema schemaexport.InterfaceSchema
+	schemaBytes, err := os.ReadFile(filepath.Join(exportRoot, "schema", "public-io.json"))
+	if err != nil {
+		t.Fatalf("schema: %v", err)
+	}
+	if err := json.Unmarshal(schemaBytes, &exportedSchema); err != nil {
+		t.Fatalf("decode schema: %v", err)
+	}
+	if len(exportedSchema.ModelAssets) != len(expectedAssets) {
+		t.Fatalf("schema model assets = %#v", exportedSchema.ModelAssets)
+	}
+	exportedProject, err := project.Load(filepath.Join(exportRoot, "project", "project.bcsproj"))
+	if err != nil {
+		t.Fatalf("load exported project: %v", err)
+	}
+	if _, err := compiler.Compile(exportedProject); err != nil {
+		t.Fatalf("compile exported project: %v", err)
 	}
 }
 
