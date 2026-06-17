@@ -540,6 +540,15 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("/api/project/validation-mapping")) {
 		t.Fatalf("module entrypoint did not create validation mappings from datasets")
 	}
+	if !bytes.Contains(body, []byte("/api/project/validation-mapping/update")) {
+		t.Fatalf("module entrypoint did not update validation mappings")
+	}
+	if !bytes.Contains(body, []byte("copyValidationMapping")) {
+		t.Fatalf("module entrypoint did not copy validation mappings")
+	}
+	if !bytes.Contains(body, []byte("deleteValidationMapping")) {
+		t.Fatalf("module entrypoint did not delete validation mappings")
+	}
 	if !bytes.Contains(body, []byte("/api/project/calibration-setup")) {
 		t.Fatalf("module entrypoint did not create calibration setups")
 	}
@@ -3023,6 +3032,119 @@ func TestCreateValidationMappingEndpointWritesSuggestedMapping(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(projectRoot, "validation", "mappings", "suggested_validation.json")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestValidationMappingManagementEndpointRenamesCopiesAndDeletes(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectRoot := filepath.Join(root, "projects", "mapping-management-project")
+	if err := copyProjectTree(filepath.Join(repoRoot, "examples", "005_chiller_plant_like_system"), projectRoot); err != nil {
+		t.Fatal(err)
+	}
+	projectPath := filepath.Join(projectRoot, "project.bcsproj")
+	mappingPath := filepath.Join("validation", "mappings", "plant_validation.json")
+
+	updatePayload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"mapping_path": mappingPath,
+		"name":         "Plant Baseline Mapping",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updateResponse := httptest.NewRecorder()
+	updateRequest := httptest.NewRequest(http.MethodPost, "/api/project/validation-mapping/update", bytes.NewReader(updatePayload))
+
+	server.Handler().ServeHTTP(updateResponse, updateRequest)
+
+	if updateResponse.Code != http.StatusOK {
+		t.Fatalf("update status = %d body=%s", updateResponse.Code, updateResponse.Body.String())
+	}
+	var updateBody struct {
+		Summary ValidationMappingSummary `json:"summary"`
+		Mapping struct {
+			Name string `json:"name"`
+		} `json:"mapping"`
+	}
+	if err := json.Unmarshal(updateResponse.Body.Bytes(), &updateBody); err != nil {
+		t.Fatal(err)
+	}
+	if updateBody.Summary.Name != "Plant Baseline Mapping" || updateBody.Mapping.Name != "Plant Baseline Mapping" {
+		t.Fatalf("updated mapping = %#v", updateBody)
+	}
+	mappingBytes, err := os.ReadFile(filepath.Join(projectRoot, "validation", "mappings", "plant_validation.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(mappingBytes, []byte(`"name": "Plant Baseline Mapping"`)) {
+		t.Fatalf("updated mapping file = %s", mappingBytes)
+	}
+
+	copyPayload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"mapping_path": mappingPath,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	copyResponse := httptest.NewRecorder()
+	copyRequest := httptest.NewRequest(http.MethodPost, "/api/project/validation-mapping/copy", bytes.NewReader(copyPayload))
+
+	server.Handler().ServeHTTP(copyResponse, copyRequest)
+
+	if copyResponse.Code != http.StatusCreated {
+		t.Fatalf("copy status = %d body=%s", copyResponse.Code, copyResponse.Body.String())
+	}
+	var copyBody struct {
+		Summary ValidationMappingSummary `json:"summary"`
+	}
+	if err := json.Unmarshal(copyResponse.Body.Bytes(), &copyBody); err != nil {
+		t.Fatal(err)
+	}
+	if copyBody.Summary.RelativePath == "" || copyBody.Summary.RelativePath == filepath.ToSlash(mappingPath) || copyBody.Summary.Name != "Plant Baseline Mapping Copy" {
+		t.Fatalf("copied mapping summary = %#v", copyBody.Summary)
+	}
+	if _, err := os.Stat(filepath.Join(projectRoot, filepath.FromSlash(copyBody.Summary.RelativePath))); err != nil {
+		t.Fatal(err)
+	}
+
+	deleteCopyPayload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"mapping_path": copyBody.Summary.RelativePath,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deleteCopyResponse := httptest.NewRecorder()
+	deleteCopyRequest := httptest.NewRequest(http.MethodPost, "/api/project/validation-mapping/delete", bytes.NewReader(deleteCopyPayload))
+
+	server.Handler().ServeHTTP(deleteCopyResponse, deleteCopyRequest)
+
+	if deleteCopyResponse.Code != http.StatusOK {
+		t.Fatalf("delete copy status = %d body=%s", deleteCopyResponse.Code, deleteCopyResponse.Body.String())
+	}
+	if _, err := os.Stat(filepath.Join(projectRoot, filepath.FromSlash(copyBody.Summary.RelativePath))); !os.IsNotExist(err) {
+		t.Fatalf("copied mapping still exists or stat failed unexpectedly: %v", err)
+	}
+
+	deleteReferencedPayload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"mapping_path": mappingPath,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deleteReferencedResponse := httptest.NewRecorder()
+	deleteReferencedRequest := httptest.NewRequest(http.MethodPost, "/api/project/validation-mapping/delete", bytes.NewReader(deleteReferencedPayload))
+
+	server.Handler().ServeHTTP(deleteReferencedResponse, deleteReferencedRequest)
+
+	if deleteReferencedResponse.Code == http.StatusOK || !strings.Contains(deleteReferencedResponse.Body.String(), "calibration setup") {
+		t.Fatalf("referenced delete status = %d body=%s", deleteReferencedResponse.Code, deleteReferencedResponse.Body.String())
 	}
 }
 

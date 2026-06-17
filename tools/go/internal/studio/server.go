@@ -392,6 +392,23 @@ type createValidationMappingRequest struct {
 	MissingValuePolicy    string            `json:"missing_value_policy"`
 }
 
+type updateValidationMappingRequest struct {
+	ProjectPath string `json:"project_path"`
+	MappingPath string `json:"mapping_path"`
+	Name        string `json:"name"`
+}
+
+type copyValidationMappingRequest struct {
+	ProjectPath string `json:"project_path"`
+	MappingPath string `json:"mapping_path"`
+	Name        string `json:"name"`
+}
+
+type deleteValidationMappingRequest struct {
+	ProjectPath string `json:"project_path"`
+	MappingPath string `json:"mapping_path"`
+}
+
 type createCalibrationSetupRequest struct {
 	ProjectPath      string                      `json:"project_path"`
 	MappingPath      string                      `json:"mapping_path"`
@@ -727,6 +744,9 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/project/parameters/delete", s.handleDeleteParameter)
 	s.mux.HandleFunc("POST /api/project/source", s.handleUpdateSource)
 	s.mux.HandleFunc("POST /api/project/validation-mapping", s.handleCreateValidationMapping)
+	s.mux.HandleFunc("POST /api/project/validation-mapping/update", s.handleUpdateValidationMapping)
+	s.mux.HandleFunc("POST /api/project/validation-mapping/copy", s.handleCopyValidationMapping)
+	s.mux.HandleFunc("POST /api/project/validation-mapping/delete", s.handleDeleteValidationMapping)
 	s.mux.HandleFunc("POST /api/project/calibration-setup", s.handleCreateCalibrationSetup)
 	s.mux.HandleFunc("POST /api/project/optimization-setup", s.handleCreateOptimizationSetup)
 	s.mux.HandleFunc("POST /api/project/scenarios", s.handleCreateScenario)
@@ -942,6 +962,90 @@ func (s *Server) handleCreateValidationMapping(w http.ResponseWriter, r *http.Re
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "mapping": mapping, "summary": summary, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleUpdateValidationMapping(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeUpdateValidationMappingRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	summary, mapping, err := updateValidationMapping(loaded, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "mapping": mapping, "summary": summary, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleCopyValidationMapping(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeCopyValidationMappingRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	summary, mapping, err := copyValidationMapping(loaded, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "mapping": mapping, "summary": summary, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleDeleteValidationMapping(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeDeleteValidationMappingRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	deletedPath, err := deleteValidationMapping(loaded, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "mapping_path": deletedPath, "project": projectDetail(reloaded)})
 }
 
 func (s *Server) handleCreateCalibrationSetup(w http.ResponseWriter, r *http.Request) {
@@ -4632,6 +4736,33 @@ func decodeCreateValidationMappingRequest(r *http.Request) (createValidationMapp
 	return req, nil
 }
 
+func decodeUpdateValidationMappingRequest(r *http.Request) (updateValidationMappingRequest, error) {
+	defer r.Body.Close()
+	var req updateValidationMappingRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeCopyValidationMappingRequest(r *http.Request) (copyValidationMappingRequest, error) {
+	defer r.Body.Close()
+	var req copyValidationMappingRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeDeleteValidationMappingRequest(r *http.Request) (deleteValidationMappingRequest, error) {
+	defer r.Body.Close()
+	var req deleteValidationMappingRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
 func decodeUpdateInputRequest(r *http.Request) (updateInputRequest, error) {
 	defer r.Body.Close()
 	var req updateInputRequest
@@ -5708,6 +5839,126 @@ func createValidationMapping(loaded *project.LoadedProject, req createValidation
 	}
 	mapping.Path = summary.RelativePath
 	return summary, mapping, nil
+}
+
+func updateValidationMapping(loaded *project.LoadedProject, req updateValidationMappingRequest) (ValidationMappingSummary, modelvalidation.Mapping, error) {
+	mappingPath, relativePath, err := resolveValidationMappingFile(loaded.Root, req.MappingPath)
+	if err != nil {
+		return ValidationMappingSummary{}, modelvalidation.Mapping{}, err
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		return ValidationMappingSummary{}, modelvalidation.Mapping{}, apperror.Errorf(apperror.CodeValidation, "validation mapping name is required")
+	}
+	mapping, err := modelvalidation.LoadMapping(loaded.Root, relativePath)
+	if err != nil {
+		return ValidationMappingSummary{}, modelvalidation.Mapping{}, err
+	}
+	mapping.Name = name
+	if err := writeJSONFile(mappingPath, mapping); err != nil {
+		return ValidationMappingSummary{}, modelvalidation.Mapping{}, apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	mapping.Path = relativePath
+	return validationMappingSummaryFromMapping(mapping), mapping, nil
+}
+
+func copyValidationMapping(loaded *project.LoadedProject, req copyValidationMappingRequest) (ValidationMappingSummary, modelvalidation.Mapping, error) {
+	_, relativePath, err := resolveValidationMappingFile(loaded.Root, req.MappingPath)
+	if err != nil {
+		return ValidationMappingSummary{}, modelvalidation.Mapping{}, err
+	}
+	mapping, err := modelvalidation.LoadMapping(loaded.Root, relativePath)
+	if err != nil {
+		return ValidationMappingSummary{}, modelvalidation.Mapping{}, err
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		name = strings.TrimSpace(mapping.Name)
+		if name == "" {
+			name = displayNameFromID(mapping.ID)
+		}
+		name += " Copy"
+	}
+	id := uniqueValidationMappingID(loaded.Root, strings.ReplaceAll(slugify(name), "-", "_"))
+	mapping.ID = id
+	mapping.Name = name
+	mapping.Path = ""
+	mappingPath := filepath.Join(loaded.Root, "validation", "mappings", id+".json")
+	if _, err := os.Stat(mappingPath); err == nil {
+		return ValidationMappingSummary{}, modelvalidation.Mapping{}, apperror.Errorf(apperror.CodeValidation, "validation mapping already exists: %s", id)
+	} else if !os.IsNotExist(err) {
+		return ValidationMappingSummary{}, modelvalidation.Mapping{}, apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	if err := os.MkdirAll(filepath.Dir(mappingPath), 0o755); err != nil {
+		return ValidationMappingSummary{}, modelvalidation.Mapping{}, apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	if err := writeJSONFile(mappingPath, mapping); err != nil {
+		return ValidationMappingSummary{}, modelvalidation.Mapping{}, apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	rel, _ := filepath.Rel(loaded.Root, mappingPath)
+	mapping.Path = filepath.ToSlash(rel)
+	return validationMappingSummaryFromMapping(mapping), mapping, nil
+}
+
+func deleteValidationMapping(loaded *project.LoadedProject, req deleteValidationMappingRequest) (string, error) {
+	mappingPath, relativePath, err := resolveValidationMappingFile(loaded.Root, req.MappingPath)
+	if err != nil {
+		return "", err
+	}
+	if reference := calibrationSetupReferencingValidationMapping(loaded.Root, relativePath); reference != "" {
+		return "", apperror.Errorf(apperror.CodeValidation, "validation mapping is used by calibration setup: %s", reference)
+	}
+	if err := os.Remove(mappingPath); err != nil {
+		return "", apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	return relativePath, nil
+}
+
+func resolveValidationMappingFile(projectRoot string, mappingPath string) (string, string, error) {
+	absPath, err := resolveProjectOwnedFile(projectRoot, mappingPath)
+	if err != nil {
+		return "", "", err
+	}
+	rel, err := filepath.Rel(projectRoot, absPath)
+	if err != nil {
+		return "", "", apperror.Wrap(apperror.CodeValidation, err)
+	}
+	rel = filepath.ToSlash(rel)
+	if !strings.HasPrefix(rel, "validation/mappings/") || strings.ToLower(filepath.Ext(rel)) != ".json" {
+		return "", "", apperror.Errorf(apperror.CodeValidation, "validation mapping path must be under validation/mappings: %s", mappingPath)
+	}
+	return absPath, rel, nil
+}
+
+func calibrationSetupReferencingValidationMapping(projectRoot string, mappingPath string) string {
+	target := filepath.ToSlash(mappingPath)
+	for _, summary := range loadCalibrationSetupSummaries(projectRoot) {
+		if filepath.ToSlash(summary.Mapping) == target {
+			return summary.RelativePath
+		}
+	}
+	return ""
+}
+
+func validationMappingSummaryFromMapping(mapping modelvalidation.Mapping) ValidationMappingSummary {
+	name := strings.TrimSpace(mapping.Name)
+	if name == "" {
+		name = displayNameFromID(mapping.ID)
+	}
+	policy, err := modelvalidation.NormalizeMissingValuePolicy(mapping.MissingValuePolicy)
+	if err != nil {
+		policy = modelvalidation.MissingPolicyError
+	}
+	return ValidationMappingSummary{
+		ID:                 mapping.ID,
+		Name:               name,
+		RelativePath:       filepath.ToSlash(mapping.Path),
+		Dataset:            filepath.ToSlash(mapping.Dataset),
+		DatasetChecksum:    mapping.DatasetChecksum,
+		InputCount:         len(mapping.InputColumns),
+		OutputCount:        len(mapping.ObservedOutputColumns),
+		MissingValuePolicy: policy,
+	}
 }
 
 func createCalibrationSetup(loaded *project.LoadedProject, req createCalibrationSetupRequest) (CalibrationSetupSummary, calibration.Setup, error) {

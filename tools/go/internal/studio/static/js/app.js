@@ -2644,6 +2644,11 @@ function structuredResultView(value) {
     wrapper.append(highErrorInspectionSection(value));
     return wrapper;
   }
+  if (value.kind === "validation_mapping" && value.artifact) {
+    wrapper.append(resultHeader("Validation Mapping", value.artifact.relative_path || value.artifact.path || "", `${value.artifact.input_count || 0} in / ${value.artifact.output_count || 0} out`, "/docs/user/data-validation.md"));
+    wrapper.append(validationMappingArtifactSection(value.artifact, value.mapping));
+    return wrapper;
+  }
   if (value.kind && value.artifact) {
     wrapper.append(resultHeader(value.kind.replace(/_/g, " "), value.artifact.relative_path || value.artifact.path || "", value.artifact.state || ""));
     wrapper.append(resultTable("Summary", objectRows(value.artifact)));
@@ -2783,6 +2788,125 @@ async function createValidationMappingFromDataset(dataset) {
     renderProblems();
     setBottomTab("problems");
     log(`Validation mapping failed: ${error.message}`);
+  }
+}
+
+function validationMappingArtifactSection(summary, mapping = null) {
+  const section = document.createElement("div");
+  section.className = "result-grid";
+  section.append(resultTable("Summary", [
+    ["Name", summary.name || summary.id || ""],
+    ["Path", summary.relative_path || ""],
+    ["Dataset", summary.dataset || mapping?.dataset || ""],
+    ["Dataset SHA256", summary.dataset_checksum || mapping?.dataset_checksum || ""],
+    ["Inputs", String(summary.input_count || Object.keys(mapping?.input_columns || {}).length || 0)],
+    ["Observed Outputs", String(summary.output_count || Object.keys(mapping?.observed_output_columns || {}).length || 0)],
+    ["Missing Value Policy", summary.missing_value_policy || mapping?.missing_value_policy || ""],
+  ]));
+  if (mapping?.input_columns) {
+    section.append(resultTable("Input Columns", Object.entries(mapping.input_columns).map(([publicID, column]) => [publicID, column]), ["Public Input", "Dataset Column"]));
+  }
+  if (mapping?.observed_output_columns) {
+    section.append(resultTable("Observed Output Columns", Object.entries(mapping.observed_output_columns).map(([publicID, column]) => [publicID, column]), ["Public Output", "Dataset Column"]));
+  }
+  if (isWorkspaceProject()) {
+    const actions = document.createElement("div");
+    actions.className = "result-actions mapping-actions";
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "mapping-name-input";
+    nameInput.value = summary.name || summary.id || "";
+    nameInput.placeholder = "Mapping name";
+    const save = document.createElement("button");
+    save.type = "button";
+    save.className = "small-action";
+    save.textContent = "Save Name";
+    save.addEventListener("click", () => renameValidationMapping(summary, nameInput.value));
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "small-action";
+    copy.textContent = "Copy";
+    copy.addEventListener("click", () => copyValidationMapping(summary));
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "small-action danger-action";
+    remove.textContent = "Delete";
+    remove.addEventListener("click", () => deleteValidationMapping(summary));
+    actions.append(nameInput, save, copy, remove);
+    section.append(actions);
+  }
+  return section;
+}
+
+async function renameValidationMapping(summary, name) {
+  try {
+    const body = await api("/api/project/validation-mapping/update", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        mapping_path: summary.relative_path || summary.path || "",
+        name,
+      }),
+    });
+    state.detail = body.project;
+    state.latestWorkflowRecord = { kind: "validation_mapping", artifact: body.summary, mapping: body.mapping };
+    renderProjectTree();
+    renderArtifactWorkspace();
+    renderResults();
+    log(`Validation mapping renamed: ${body.summary?.relative_path || body.summary?.id}`);
+  } catch (error) {
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+    log(`Validation mapping rename failed: ${error.message}`);
+  }
+}
+
+async function copyValidationMapping(summary) {
+  try {
+    const body = await api("/api/project/validation-mapping/copy", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        mapping_path: summary.relative_path || summary.path || "",
+      }),
+    });
+    state.detail = body.project;
+    state.latestWorkflowRecord = { kind: "validation_mapping", artifact: body.summary, mapping: body.mapping };
+    renderProjectTree();
+    renderArtifactWorkspace();
+    renderResults();
+    log(`Validation mapping copied: ${body.summary?.relative_path || body.summary?.id}`);
+  } catch (error) {
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+    log(`Validation mapping copy failed: ${error.message}`);
+  }
+}
+
+async function deleteValidationMapping(summary) {
+  const path = summary.relative_path || summary.path || "";
+  if (!path || !window.confirm(`Delete validation mapping ${path}?`)) return;
+  try {
+    const body = await api("/api/project/validation-mapping/delete", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        mapping_path: path,
+      }),
+    });
+    state.detail = body.project;
+    state.latestWorkflowRecord = { kind: "validation_mapping_deleted", artifact: { relative_path: body.mapping_path || path, state: "deleted" } };
+    renderProjectTree();
+    renderArtifactWorkspace();
+    renderResults();
+    log(`Validation mapping deleted: ${body.mapping_path || path}`);
+  } catch (error) {
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+    log(`Validation mapping delete failed: ${error.message}`);
   }
 }
 
