@@ -68,6 +68,7 @@ type ProjectDetail struct {
 	Exports             []ExportSummary                 `json:"exports"`
 	Scenarios           []ScenarioSummary               `json:"scenarios"`
 	Datasets            []DatasetSummary                `json:"datasets"`
+	SeriesInputs        []SeriesInputSummary            `json:"series_inputs"`
 	ParameterSets       []ParameterSetSummary           `json:"parameter_sets"`
 	ValidationMappings  []ValidationMappingSummary      `json:"validation_mappings"`
 	CalibrationSetups   []CalibrationSetupSummary       `json:"calibration_setups"`
@@ -76,6 +77,16 @@ type ProjectDetail struct {
 	CalibrationResults  []calibration.RecordSummary     `json:"calibration_results"`
 	OptimizationResults []optimization.RecordSummary    `json:"optimization_results"`
 	MLValidationReports map[string]MLValidationSummary  `json:"ml_validation_reports,omitempty"`
+}
+
+type SeriesInputSummary struct {
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	RelativePath    string   `json:"relative_path"`
+	StepCount       int      `json:"step_count"`
+	TimeKey         string   `json:"time_key"`
+	BaseContextKeys []string `json:"base_context_keys,omitempty"`
+	StepContextKeys []string `json:"step_context_keys,omitempty"`
 }
 
 type MLValidationSummary struct {
@@ -2587,6 +2598,7 @@ func projectDetail(loaded *project.LoadedProject) ProjectDetail {
 		Exports:             loadExportSummaries(loaded.Root),
 		Scenarios:           loadScenarioSummaries(loaded.Root),
 		Datasets:            loadDatasetSummaries(loaded.Root),
+		SeriesInputs:        loadSeriesInputSummaries(loaded.Root),
 		ParameterSets:       loadParameterSetSummaries(loaded.Root),
 		ValidationMappings:  loadValidationMappingSummaries(loaded.Root),
 		CalibrationSetups:   loadCalibrationSetupSummaries(loaded.Root),
@@ -7260,6 +7272,54 @@ func loadParameterSetSummaries(projectRoot string) []ParameterSetSummary {
 		return summaries[i].RelativePath < summaries[j].RelativePath
 	})
 	return summaries
+}
+
+func loadSeriesInputSummaries(projectRoot string) []SeriesInputSummary {
+	files := appendMatchingFiles(filepath.Join(projectRoot, "inputs"), []string{"*.json"})
+	summaries := []SeriesInputSummary{}
+	for _, path := range files {
+		input, err := runtimecore.LoadSeriesInput(path)
+		if err != nil {
+			continue
+		}
+		rel, _ := filepath.Rel(projectRoot, path)
+		id := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+		summaries = append(summaries, SeriesInputSummary{
+			ID:              id,
+			Name:            displayNameFromID(id),
+			RelativePath:    filepath.ToSlash(rel),
+			StepCount:       len(input.Steps),
+			TimeKey:         seriesInputTimeKey(input),
+			BaseContextKeys: sortedMapKeys(input.Context),
+			StepContextKeys: seriesStepContextKeys(input.Steps),
+		})
+	}
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i].RelativePath < summaries[j].RelativePath
+	})
+	return summaries
+}
+
+func seriesInputTimeKey(input runtimecore.SeriesInput) string {
+	if _, ok := input.Context["time"]; ok {
+		return "context.time"
+	}
+	for _, step := range input.Steps {
+		if _, ok := step.Context["time"]; ok {
+			return "context.time"
+		}
+	}
+	return "step index"
+}
+
+func seriesStepContextKeys(steps []runtimecore.SeriesStep) []string {
+	keys := map[string]bool{}
+	for _, step := range steps {
+		for key := range step.Context {
+			keys[key] = true
+		}
+	}
+	return sortedMapKeys(keys)
 }
 
 func loadValidationMappingSummaries(projectRoot string) []ValidationMappingSummary {

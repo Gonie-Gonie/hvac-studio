@@ -1135,6 +1135,11 @@ h2,
   min-width: 300px;
 }
 
+.series-input-field {
+  grid-template-columns: minmax(105px, auto) minmax(180px, 260px);
+  min-width: 330px;
+}
+
 .timeout-field {
   grid-template-columns: minmax(78px, auto) 76px;
   min-width: 172px;

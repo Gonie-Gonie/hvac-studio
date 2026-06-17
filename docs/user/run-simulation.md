@@ -71,11 +71,16 @@ The output includes:
 Use this for sequential stateful studies. Use Data validation when the workflow
 is comparing model outputs against measured dataset rows.
 
-In Studio, Series uses the current Run input fields as a seed and evaluates a
-short timestep preview. The Run workspace plots numeric public output arrays,
-shows a time-indexed step table with trace counts, and uses the final step as
-the latest canvas/Inspector value. The structured result view can export the
-series as CSV for spreadsheet analysis or JSON for replay/debug tooling.
+In Studio, the Series Input selector can run a saved `inputs/*.json` series
+artifact or fall back to a short preview generated from the current Run input
+fields. The selector shows the selected file, step count, and time key; native
+series artifacts use `context.time` as the displayed timestep key. Top-level
+context is merged into each step context before execution, and one runtime
+session is kept alive so component state carries across steps. The Run
+workspace plots numeric public output arrays, shows a time-indexed step table
+with trace counts, and uses the final step as the latest canvas/Inspector
+value. The structured result view can export the series as CSV for spreadsheet
+analysis or JSON for replay/debug tooling.
 
 ## Scenarios
 

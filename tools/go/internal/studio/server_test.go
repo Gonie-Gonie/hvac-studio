@@ -384,6 +384,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(body, []byte("Time Indexed Steps")) {
 		t.Fatalf("module entrypoint did not expose series export and step inspection")
 	}
+	if !bytes.Contains(body, []byte("seriesInputField")) ||
+		!bytes.Contains(body, []byte("activeSeriesInputPath")) ||
+		!bytes.Contains(body, []byte("input_path")) ||
+		!bytes.Contains(body, []byte("runSeriesInputSelect")) {
+		t.Fatalf("module entrypoint did not expose series input file selection")
+	}
 	if !bytes.Contains(body, []byte("runTimeoutField")) {
 		t.Fatalf("module entrypoint did not include run timeout control rendering")
 	}
@@ -804,6 +810,28 @@ func TestProjectDetailIncludesMLValidationReports(t *testing.T) {
 	}
 }
 
+func TestProjectDetailIncludesSeriesInputs(t *testing.T) {
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := project.Load(filepath.Join(repoRoot, "examples", "004_stateful_controller", "project.bcsproj"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	detail := projectDetail(loaded)
+	if len(detail.SeriesInputs) != 1 {
+		t.Fatalf("series inputs = %#v", detail.SeriesInputs)
+	}
+	series := detail.SeriesInputs[0]
+	if series.RelativePath != "inputs/series01.json" || series.StepCount != 3 || series.TimeKey != "context.time" {
+		t.Fatalf("series input summary = %#v", series)
+	}
+	if !containsString(series.BaseContextKeys, "dt") || !containsString(series.StepContextKeys, "time") {
+		t.Fatalf("series context keys = base %#v step %#v", series.BaseContextKeys, series.StepContextKeys)
+	}
+}
+
 func TestStaticExportWorkspaceModuleServes(t *testing.T) {
 	server := newTestServer(t)
 	response := httptest.NewRecorder()
@@ -908,6 +936,10 @@ func TestStaticRunOutputModuleServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("Output path")) {
 		t.Fatalf("run output module did not expose saved run output path")
+	}
+	if !bytes.Contains(body, []byte("Series time key")) ||
+		!bytes.Contains(body, []byte("activeSeriesInputSummary")) {
+		t.Fatalf("run output module did not expose series input summary context")
 	}
 	if !bytes.Contains(body, []byte("batchCaseErrorSummary")) {
 		t.Fatalf("run output module did not include batch failure problem summaries")

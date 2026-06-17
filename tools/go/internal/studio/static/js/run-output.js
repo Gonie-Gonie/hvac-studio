@@ -296,7 +296,7 @@ function renderOutputChart(state, chart) {
 
 function latestSummaryRows(state) {
   if (state.activeRunAbortController) return pendingRunSummaryRows(state);
-  if (state.latestSeriesResult) return seriesSummaryRows(state.latestSeriesResult);
+  if (state.latestSeriesResult) return seriesSummaryRows(state.latestSeriesResult, state);
   if (state.latestBatchRecord) return batchSummaryRows(state.latestBatchRecord);
   if (state.latestRunRecord) return runRecordSummaryRows(state.latestRunRecord);
   if (state.latestResult) return resultSummaryRows(state.latestResult, "current run");
@@ -312,9 +312,16 @@ function pendingRunSummaryRows(state) {
     : project?.default_input || "current fields";
   const parameterSet = state.activeParameterSetPath || "Baseline graph parameters";
   const saveTarget = projectSummary?.source === "workspace" ? "New record under runs/" : "Not saved for read-only project";
+  const seriesInput = activeSeriesInputSummary(state);
   const rows = [
     { name: "Run target", value: project?.project_name || "No project open", source: projectSummary?.relative_path || state.detail?.project_path || "" },
     { name: "Input source", value: inputSource, source: state.activeRunInput?.relative_path || project?.default_input || "Run fields" },
+    {
+      name: "Series input",
+      value: seriesInput ? `${seriesInput.name || seriesInput.id || seriesInput.relative_path} (${seriesInput.step_count || 0} steps)` : "Current fields preview",
+      source: seriesInput?.relative_path || "Run fields",
+    },
+    { name: "Series time key", value: seriesInput?.time_key || "context.time", source: seriesInput ? "Series input file" : "Preview context" },
     { name: "Parameter set", value: parameterSet, source: state.activeParameterSetPath ? "parameter_sets" : "graph.json" },
     { name: "Context", value: runContextSummary(state), source: "Run fields" },
     { name: "Save target", value: saveTarget, source: "Run command" },
@@ -343,11 +350,18 @@ function timeoutSummary(timeoutMS) {
   return formatDuration(numeric);
 }
 
-function seriesSummaryRows(series) {
+function seriesSummaryRows(series, state) {
   const source = seriesSource(series);
+  const input = activeSeriesInputSummary(state);
   const rows = [
     { name: "Series", value: `${series.step_count || 0} steps`, source },
   ];
+  rows.push({
+    name: "Series input",
+    value: input ? input.relative_path : "Current fields preview",
+    source: input ? `${input.step_count || 0} steps` : "Run fields",
+  });
+  rows.push({ name: "Series time key", value: input?.time_key || "context.time", source: input ? "Series input file" : "Preview context" });
   if (typeof series.duration_ms === "number") {
     rows.push({ name: "Duration", value: formatDuration(series.duration_ms), source });
   }
@@ -387,6 +401,12 @@ function renderSeriesChart(series, chart) {
 
 function seriesSource(series) {
   return series.parameter_set ? `series / ${series.parameter_set}` : "series";
+}
+
+function activeSeriesInputSummary(state) {
+  const path = state?.activeSeriesInputPath || "";
+  if (!path) return null;
+  return (state.detail?.series_inputs || []).find((item) => item.relative_path === path) || null;
 }
 
 function runRecordSummaryRows(record) {

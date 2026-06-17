@@ -211,6 +211,7 @@ async function loadProject(projectPath) {
   state.latestWorkflowRecord = null;
   state.activeParameterSetPath = "";
   state.activeRunInput = null;
+  state.activeSeriesInputPath = "";
   state.activeRunAbortController = null;
   state.activeRunLabel = "";
   state.lastRuntimeAction = "";
@@ -329,6 +330,7 @@ function renderStartRuntimeRows() {
     ["Project File", summary?.relative_path || state.detail?.project_path || "No project open"],
     ["Default Input", project?.default_input || "No default input"],
     ["Run Parameters", state.activeParameterSetPath || "Baseline graph parameters"],
+    ["Series Input", activeSeriesInputSummary()?.relative_path || "Current fields preview"],
     ["Python", project?.environment?.python || "python"],
     ["Environment", project?.environment?.mode || "project"],
   ];
@@ -761,8 +763,10 @@ function renderRunInputs() {
   container.innerHTML = "";
   const inputs = currentSystem()?.public_inputs || [];
   const savedInputs = state.activeRunInput?.inputs || state.detail?.default_run_input?.inputs || {};
+  normalizeSeriesInputSelection();
   container.append(parameterSetField());
   container.append(runTimeoutField());
+  container.append(seriesInputField());
   for (const input of inputs) {
     const field = document.createElement("div");
     field.className = "input-field";
@@ -6011,23 +6015,30 @@ async function runProject() {
 
 async function runSeries() {
   if (!(await saveModelEditsBeforeExecution())) return;
-  const seriesInput = buildSeriesInput();
+  normalizeSeriesInputSelection();
+  const selectedSeriesInput = activeSeriesInputSummary();
+  const seriesInput = selectedSeriesInput ? null : buildSeriesInput();
   const comparisonBaseline = latestRuntimeComparisonContext();
   state.lastRuntimeAction = "series";
   const controller = beginRuntimeRequest("Series");
   if (!controller) return;
   try {
+    const request = {
+      project_path: state.currentProjectPath,
+      parameter_set_path: state.activeParameterSetPath,
+      timeout_ms: state.runTimeoutMS,
+    };
+    if (selectedSeriesInput) {
+      request.input_path = selectedSeriesInput.relative_path;
+    } else {
+      request.schema_version = "0.1.0";
+      request.context = seriesInput.context;
+      request.steps = seriesInput.steps;
+    }
     const body = await api("/api/run-series", {
       method: "POST",
       signal: controller.signal,
-      body: JSON.stringify({
-        project_path: state.currentProjectPath,
-        schema_version: "0.1.0",
-        context: seriesInput.context,
-        steps: seriesInput.steps,
-        parameter_set_path: state.activeParameterSetPath,
-        timeout_ms: state.runTimeoutMS,
-      }),
+      body: JSON.stringify(request),
     });
     state.latestSeriesResult = body.result;
     state.latestResult = null;
@@ -6331,6 +6342,50 @@ function parameterSetField() {
     log(`Parameter set selected: ${state.activeParameterSetPath || "baseline"}`);
   });
   return field;
+}
+
+function seriesInputField() {
+  const field = document.createElement("div");
+  field.className = "input-field series-input-field";
+  const selected = activeSeriesInputSummary();
+  const meta = selected
+    ? `${selected.step_count || 0} steps / time ${selected.time_key || "step index"}`
+    : "current fields preview / context.time";
+  field.innerHTML = `
+    <label for="runSeriesInputSelect">
+      <span class="input-label">Series Input</span>
+      <span class="input-meta">${escapeHTML(meta)}</span>
+    </label>
+    <select id="runSeriesInputSelect" class="run-select"></select>
+  `;
+  const select = field.querySelector("select");
+  select.append(new Option("Current fields preview", ""));
+  for (const item of state.detail?.series_inputs || []) {
+    const label = `${item.name || item.id || item.relative_path} (${item.step_count || 0} steps)`;
+    select.append(new Option(label, item.relative_path || ""));
+  }
+  select.value = state.activeSeriesInputPath || "";
+  select.addEventListener("change", () => {
+    state.activeSeriesInputPath = select.value;
+    markRunResultStale(false);
+    renderSystemHeader();
+    renderRunInputs();
+    renderRunWorkspace();
+    renderStartRuntimeRows();
+    log(`Series input selected: ${state.activeSeriesInputPath || "current fields preview"}`);
+  });
+  return field;
+}
+
+function normalizeSeriesInputSelection() {
+  if (!state.activeSeriesInputPath) return;
+  const exists = (state.detail?.series_inputs || []).some((item) => item.relative_path === state.activeSeriesInputPath);
+  if (!exists) state.activeSeriesInputPath = "";
+}
+
+function activeSeriesInputSummary() {
+  if (!state.activeSeriesInputPath) return null;
+  return (state.detail?.series_inputs || []).find((item) => item.relative_path === state.activeSeriesInputPath) || null;
 }
 
 function runTimeoutField() {
