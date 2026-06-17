@@ -12,8 +12,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/goniegonie/hvac-studio/tools/go/internal/calibration"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/optimization"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
 	runtimecore "github.com/goniegonie/hvac-studio/tools/go/internal/runtime"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/schemaexport"
@@ -482,6 +484,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("/api/project/validation-mapping")) {
 		t.Fatalf("module entrypoint did not create validation mappings from datasets")
+	}
+	if !bytes.Contains(body, []byte("/api/project/calibration-setup")) {
+		t.Fatalf("module entrypoint did not create calibration setups")
+	}
+	if !bytes.Contains(body, []byte("/api/project/optimization-setup")) {
+		t.Fatalf("module entrypoint did not create optimization setups")
 	}
 	if !bytes.Contains(body, []byte("/api/project/parameter-set/apply")) {
 		t.Fatalf("module entrypoint did not apply parameter sets")
@@ -2637,6 +2645,100 @@ func TestCreateValidationMappingEndpointWritesSuggestedMapping(t *testing.T) {
 		t.Fatalf("output columns = %#v", body.Mapping.ObservedOutputColumns)
 	}
 	if _, err := os.Stat(filepath.Join(projectRoot, "validation", "mappings", "suggested_validation.json")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCreateCalibrationSetupEndpointWritesRoleBasedSetup(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectRoot := filepath.Join(root, "projects", "calibration-setup-project")
+	if err := copyProjectTree(filepath.Join(repoRoot, "examples", "005_chiller_plant_like_system"), projectRoot); err != nil {
+		t.Fatal(err)
+	}
+	projectPath := filepath.Join(projectRoot, "project.bcsproj")
+	payload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"mapping_path": filepath.Join("validation", "mappings", "plant_validation.json"),
+		"id":           "auto_calibration",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/calibration-setup", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Summary CalibrationSetupSummary `json:"summary"`
+		Setup   calibration.Setup       `json:"setup"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Summary.RelativePath != "calibration/setups/auto_calibration.json" || body.Summary.ParameterCount == 0 {
+		t.Fatalf("summary = %#v", body.Summary)
+	}
+	if body.Setup.Objective.Metric != "rmse" || body.Setup.Objective.Outputs["total_power_kw"] != 1 {
+		t.Fatalf("objective = %#v", body.Setup.Objective)
+	}
+	if _, err := os.Stat(filepath.Join(projectRoot, "calibration", "setups", "auto_calibration.json")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCreateOptimizationSetupEndpointWritesPublicInputSetup(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectRoot := filepath.Join(root, "projects", "optimization-setup-project")
+	if err := copyProjectTree(filepath.Join(repoRoot, "examples", "006_optimization_case"), projectRoot); err != nil {
+		t.Fatal(err)
+	}
+	projectPath := filepath.Join(projectRoot, "project.bcsproj")
+	payload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"id":           "auto_optimization",
+		"base_inputs": map[string]any{
+			"building_load_kw": 500.0,
+			"chw_setpoint_c":   7.5,
+		},
+		"context": map[string]any{"time": 0.0, "dt": 60.0},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/optimization-setup", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Summary OptimizationSetupSummary `json:"summary"`
+		Setup   optimization.Setup       `json:"setup"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Summary.RelativePath != "optimization/setups/auto_optimization.json" || body.Summary.VariableCount != 1 {
+		t.Fatalf("summary = %#v", body.Summary)
+	}
+	if body.Setup.Objective.Output != "objective_kw" || body.Setup.DecisionVariables[0].Name != "chw_setpoint_c" {
+		t.Fatalf("optimization setup = %#v", body.Setup)
+	}
+	if _, err := os.Stat(filepath.Join(projectRoot, "optimization", "setups", "auto_optimization.json")); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -342,6 +343,26 @@ type createValidationMappingRequest struct {
 	MissingValuePolicy    string            `json:"missing_value_policy"`
 }
 
+type createCalibrationSetupRequest struct {
+	ProjectPath      string                      `json:"project_path"`
+	MappingPath      string                      `json:"mapping_path"`
+	ID               string                      `json:"id"`
+	Name             string                      `json:"name"`
+	BaseParameterSet string                      `json:"base_parameter_set"`
+	ObjectiveOutputs map[string]float64          `json:"objective_outputs"`
+	Parameters       []calibration.ParameterSpec `json:"parameters"`
+}
+
+type createOptimizationSetupRequest struct {
+	ProjectPath       string                          `json:"project_path"`
+	ID                string                          `json:"id"`
+	Name              string                          `json:"name"`
+	BaseInputs        map[string]any                  `json:"base_inputs"`
+	Context           map[string]any                  `json:"context"`
+	Objective         optimization.Objective          `json:"objective"`
+	DecisionVariables []optimization.DecisionVariable `json:"decision_variables"`
+}
+
 type updateInputRequest struct {
 	ProjectPath string         `json:"project_path"`
 	Inputs      map[string]any `json:"inputs"`
@@ -642,6 +663,8 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/project/parameters/delete", s.handleDeleteParameter)
 	s.mux.HandleFunc("POST /api/project/source", s.handleUpdateSource)
 	s.mux.HandleFunc("POST /api/project/validation-mapping", s.handleCreateValidationMapping)
+	s.mux.HandleFunc("POST /api/project/calibration-setup", s.handleCreateCalibrationSetup)
+	s.mux.HandleFunc("POST /api/project/optimization-setup", s.handleCreateOptimizationSetup)
 	s.mux.HandleFunc("POST /api/project/scenarios", s.handleCreateScenario)
 	s.mux.HandleFunc("POST /api/validate", s.handleValidate)
 	s.mux.HandleFunc("POST /api/run", s.handleRun)
@@ -827,6 +850,62 @@ func (s *Server) handleCreateValidationMapping(w http.ResponseWriter, r *http.Re
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "mapping": mapping, "summary": summary, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleCreateCalibrationSetup(w http.ResponseWriter, r *http.Request) {
+	var req createCalibrationSetupRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeInput, err))
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	summary, setup, err := createCalibrationSetup(loaded, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "setup": setup, "summary": summary, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleCreateOptimizationSetup(w http.ResponseWriter, r *http.Request) {
+	var req createOptimizationSetupRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeInput, err))
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	summary, setup, err := createOptimizationSetup(loaded, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "setup": setup, "summary": summary, "project": projectDetail(reloaded)})
 }
 
 func (s *Server) handleValidationRecord(w http.ResponseWriter, r *http.Request) {
@@ -5012,6 +5091,284 @@ func createValidationMapping(loaded *project.LoadedProject, req createValidation
 	return summary, mapping, nil
 }
 
+func createCalibrationSetup(loaded *project.LoadedProject, req createCalibrationSetupRequest) (CalibrationSetupSummary, calibration.Setup, error) {
+	mappingPath := strings.TrimSpace(req.MappingPath)
+	if mappingPath == "" {
+		mappings := loadValidationMappingSummaries(loaded.Root)
+		if len(mappings) == 0 {
+			return CalibrationSetupSummary{}, calibration.Setup{}, apperror.Errorf(apperror.CodeValidation, "calibration setup requires a validation mapping")
+		}
+		mappingPath = mappings[0].RelativePath
+	}
+	mapping, err := modelvalidation.LoadMapping(loaded.Root, mappingPath)
+	if err != nil {
+		return CalibrationSetupSummary{}, calibration.Setup{}, err
+	}
+	if strings.TrimSpace(req.BaseParameterSet) != "" {
+		if _, err := resolveProjectOwnedFile(loaded.Root, req.BaseParameterSet); err != nil {
+			return CalibrationSetupSummary{}, calibration.Setup{}, err
+		}
+	}
+	objectiveOutputs := req.ObjectiveOutputs
+	if len(objectiveOutputs) == 0 {
+		objectiveOutputs = map[string]float64{}
+		for outputID := range mapping.ObservedOutputColumns {
+			objectiveOutputs[outputID] = 1.0
+		}
+	}
+	parameters := req.Parameters
+	if len(parameters) == 0 {
+		parameters = defaultCalibrationParameters(loaded.Graph)
+	}
+	if len(parameters) == 0 {
+		return CalibrationSetupSummary{}, calibration.Setup{}, apperror.Errorf(apperror.CodeValidation, "calibration setup requires at least one calibration_target parameter with numeric bounds")
+	}
+	id := strings.ReplaceAll(slugify(req.ID), "-", "_")
+	if id == "" {
+		id = uniqueCalibrationSetupID(loaded.Root, strings.ReplaceAll(slugify(mapping.ID+"_calibration"), "-", "_"))
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		name = displayNameFromID(id)
+	}
+	setup := calibration.Setup{
+		ID:               id,
+		Name:             name,
+		Algorithm:        "grid",
+		Mapping:          filepath.ToSlash(mapping.Path),
+		BaseParameterSet: filepath.ToSlash(strings.TrimSpace(req.BaseParameterSet)),
+		Objective: calibration.Objective{
+			Metric:  "rmse",
+			Outputs: objectiveOutputs,
+		},
+		Parameters: parameters,
+	}
+	setupPath := filepath.Join(loaded.Root, "calibration", "setups", id+".json")
+	if _, err := os.Stat(setupPath); err == nil {
+		return CalibrationSetupSummary{}, calibration.Setup{}, apperror.Errorf(apperror.CodeValidation, "calibration setup already exists: %s", id)
+	} else if !os.IsNotExist(err) {
+		return CalibrationSetupSummary{}, calibration.Setup{}, apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	if err := writeJSONFile(setupPath, setup); err != nil {
+		return CalibrationSetupSummary{}, calibration.Setup{}, apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	rel, _ := filepath.Rel(loaded.Root, setupPath)
+	setup.Path = filepath.ToSlash(rel)
+	summary := CalibrationSetupSummary{
+		ID:             setup.ID,
+		Name:           setup.Name,
+		RelativePath:   setup.Path,
+		Algorithm:      setup.Algorithm,
+		Mapping:        filepath.ToSlash(setup.Mapping),
+		ParameterCount: len(setup.Parameters),
+	}
+	return summary, setup, nil
+}
+
+func createOptimizationSetup(loaded *project.LoadedProject, req createOptimizationSetupRequest) (OptimizationSetupSummary, optimization.Setup, error) {
+	baseInputs := req.BaseInputs
+	if baseInputs == nil {
+		baseInputs = map[string]any{}
+	}
+	contextValues := req.Context
+	if contextValues == nil {
+		contextValues = map[string]any{"time": 0.0, "dt": 60.0}
+	}
+	objective := req.Objective
+	if strings.TrimSpace(objective.Output) == "" {
+		outputID := defaultOptimizationObjectiveOutput(loaded.Graph, loaded.Project.EntrySystem)
+		if outputID == "" {
+			return OptimizationSetupSummary{}, optimization.Setup{}, apperror.Errorf(apperror.CodeValidation, "optimization setup requires a numeric public output objective")
+		}
+		objective = optimization.Objective{Output: outputID, Sense: "min"}
+	}
+	if objective.Sense == "" {
+		objective.Sense = "min"
+	}
+	variables := req.DecisionVariables
+	if len(variables) == 0 {
+		variable, ok := defaultOptimizationDecisionVariable(loaded.Graph, loaded.Project.EntrySystem, baseInputs)
+		if !ok {
+			return OptimizationSetupSummary{}, optimization.Setup{}, apperror.Errorf(apperror.CodeValidation, "optimization setup requires a numeric public input decision variable")
+		}
+		variables = []optimization.DecisionVariable{variable}
+	}
+	id := strings.ReplaceAll(slugify(req.ID), "-", "_")
+	if id == "" {
+		id = uniqueOptimizationSetupID(loaded.Root, strings.ReplaceAll(slugify(objective.Output+"_optimization"), "-", "_"))
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		name = displayNameFromID(id)
+	}
+	setup := optimization.Setup{
+		ID:                id,
+		Name:              name,
+		Algorithm:         "grid",
+		BaseInputs:        baseInputs,
+		Context:           contextValues,
+		Objective:         objective,
+		DecisionVariables: variables,
+	}
+	setupPath := filepath.Join(loaded.Root, "optimization", "setups", id+".json")
+	if _, err := os.Stat(setupPath); err == nil {
+		return OptimizationSetupSummary{}, optimization.Setup{}, apperror.Errorf(apperror.CodeValidation, "optimization setup already exists: %s", id)
+	} else if !os.IsNotExist(err) {
+		return OptimizationSetupSummary{}, optimization.Setup{}, apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	if err := writeJSONFile(setupPath, setup); err != nil {
+		return OptimizationSetupSummary{}, optimization.Setup{}, apperror.Wrap(apperror.CodeRuntime, err)
+	}
+	rel, _ := filepath.Rel(loaded.Root, setupPath)
+	setup.Path = filepath.ToSlash(rel)
+	summary := OptimizationSetupSummary{
+		ID:            setup.ID,
+		Name:          setup.Name,
+		RelativePath:  setup.Path,
+		Algorithm:     setup.Algorithm,
+		Objective:     setup.Objective,
+		VariableCount: len(setup.DecisionVariables),
+	}
+	return summary, setup, nil
+}
+
+func defaultCalibrationParameters(graph *model.Graph) []calibration.ParameterSpec {
+	if graph == nil {
+		return nil
+	}
+	parameters := []calibration.ParameterSpec{}
+	for _, component := range graph.Components {
+		names := sortedMapKeys(component.ParameterDefinitions)
+		for _, name := range names {
+			definition := component.ParameterDefinitions[name]
+			if definition.Role != "calibration_target" || definition.Bounds == nil {
+				continue
+			}
+			if _, ok := studioNumberValue(component.Parameters[name]); !ok {
+				continue
+			}
+			minValue, minOK := studioNumberValue(definition.Bounds.Min)
+			maxValue, maxOK := studioNumberValue(definition.Bounds.Max)
+			if !minOK || !maxOK || maxValue < minValue {
+				continue
+			}
+			parameters = append(parameters, calibration.ParameterSpec{
+				Component: component.ID,
+				Name:      name,
+				Min:       minValue,
+				Max:       maxValue,
+				Step:      defaultGridStep(minValue, maxValue),
+			})
+		}
+	}
+	return parameters
+}
+
+func defaultOptimizationObjectiveOutput(graph *model.Graph, systemID string) string {
+	system, ok := findSystem(graph, systemID)
+	if !ok {
+		return ""
+	}
+	for _, output := range system.PublicOutputs {
+		if isNumericValueType(output.ValueType) {
+			return output.ID
+		}
+	}
+	return ""
+}
+
+func defaultOptimizationDecisionVariable(graph *model.Graph, systemID string, baseInputs map[string]any) (optimization.DecisionVariable, bool) {
+	system, ok := findSystem(graph, systemID)
+	if !ok {
+		return optimization.DecisionVariable{}, false
+	}
+	candidates := []model.PublicNodeRef{}
+	for _, input := range system.PublicInputs {
+		if !isNumericValueType(input.ValueType) {
+			continue
+		}
+		if _, ok := studioNumberValue(baseInputs[input.ID]); !ok {
+			continue
+		}
+		candidates = append(candidates, input)
+	}
+	if len(candidates) == 0 {
+		return optimization.DecisionVariable{}, false
+	}
+	chosen := candidates[0]
+	for _, candidate := range candidates {
+		id := strings.ToLower(candidate.ID)
+		if strings.Contains(id, "setpoint") || strings.Contains(id, "speed") || strings.Contains(id, "fraction") {
+			chosen = candidate
+			break
+		}
+	}
+	value, _ := studioNumberValue(baseInputs[chosen.ID])
+	minValue, maxValue := defaultDecisionBounds(value)
+	return optimization.DecisionVariable{
+		Kind: "public_input",
+		Name: chosen.ID,
+		Min:  minValue,
+		Max:  maxValue,
+		Step: defaultGridStep(minValue, maxValue),
+	}, true
+}
+
+func defaultDecisionBounds(value float64) (float64, float64) {
+	if value == 0 {
+		return 0, 1
+	}
+	delta := math.Abs(value) * 0.2
+	if delta == 0 {
+		delta = 1
+	}
+	return value - delta, value + delta
+}
+
+func defaultGridStep(minValue float64, maxValue float64) float64 {
+	step := (maxValue - minValue) / 4.0
+	if step <= 0 {
+		return 1
+	}
+	return math.Round(step*1e9) / 1e9
+}
+
+func isNumericValueType(valueType string) bool {
+	switch strings.ToLower(strings.TrimSpace(valueType)) {
+	case "float", "int", "integer", "number":
+		return true
+	default:
+		return false
+	}
+}
+
+func studioNumberValue(value any) (float64, bool) {
+	switch typed := value.(type) {
+	case float64:
+		return typed, true
+	case float32:
+		return float64(typed), true
+	case int:
+		return float64(typed), true
+	case int64:
+		return float64(typed), true
+	case json.Number:
+		number, err := typed.Float64()
+		return number, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func sortedMapKeys[V any](values map[string]V) []string {
+	keys := []string{}
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 func nonEmptyColumns(values map[string]string) map[string]string {
 	result := map[string]string{}
 	for id, column := range values {
@@ -5057,6 +5414,38 @@ func uniqueValidationMappingID(projectRoot string, base string) string {
 	}
 	exists := map[string]bool{}
 	for _, summary := range loadValidationMappingSummaries(projectRoot) {
+		exists[summary.ID] = true
+	}
+	candidate := base
+	for index := 2; exists[candidate]; index++ {
+		candidate = fmt.Sprintf("%s_%d", base, index)
+	}
+	return candidate
+}
+
+func uniqueCalibrationSetupID(projectRoot string, base string) string {
+	base = strings.Trim(base, "_")
+	if base == "" {
+		base = "calibration_setup"
+	}
+	exists := map[string]bool{}
+	for _, summary := range loadCalibrationSetupSummaries(projectRoot) {
+		exists[summary.ID] = true
+	}
+	candidate := base
+	for index := 2; exists[candidate]; index++ {
+		candidate = fmt.Sprintf("%s_%d", base, index)
+	}
+	return candidate
+}
+
+func uniqueOptimizationSetupID(projectRoot string, base string) string {
+	base = strings.Trim(base, "_")
+	if base == "" {
+		base = "optimization_setup"
+	}
+	exists := map[string]bool{}
+	for _, summary := range loadOptimizationSetupSummaries(projectRoot) {
 		exists[summary.ID] = true
 	}
 	candidate := base
@@ -6431,12 +6820,27 @@ func uniqueConnectionID(graph *model.Graph, base string) string {
 }
 
 func findComponent(graph *model.Graph, componentID string) (model.Component, bool) {
+	if graph == nil {
+		return model.Component{}, false
+	}
 	for _, component := range graph.Components {
 		if component.ID == componentID {
 			return component, true
 		}
 	}
 	return model.Component{}, false
+}
+
+func findSystem(graph *model.Graph, systemID string) (model.System, bool) {
+	if graph == nil {
+		return model.System{}, false
+	}
+	for _, system := range graph.Systems {
+		if system.ID == systemID {
+			return system, true
+		}
+	}
+	return model.System{}, false
 }
 
 func findConnection(graph *model.Graph, connectionID string) (model.Connection, bool) {

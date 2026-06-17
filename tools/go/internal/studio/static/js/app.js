@@ -2407,6 +2407,68 @@ async function createValidationMappingFromDataset(dataset) {
   }
 }
 
+async function createCalibrationSetup() {
+  if (!(await saveModelEditsBeforeExecution())) return;
+  const mapping = (state.detail?.validation_mappings || [])[0];
+  if (!mapping) {
+    state.latestValidation = { error: "No validation mapping is available for this project" };
+    renderProblems();
+    setBottomTab("problems");
+    log("Calibration setup unavailable: no mapping");
+    return;
+  }
+  try {
+    const body = await api("/api/project/calibration-setup", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        mapping_path: mapping.relative_path,
+        base_parameter_set: state.activeParameterSetPath,
+      }),
+    });
+    state.detail = body.project;
+    state.latestWorkflowRecord = { kind: "calibration_setup", artifact: body.summary, setup: body.setup };
+    renderProjectTree();
+    renderArtifactWorkspace();
+    renderResults();
+    setMode("artifacts");
+    setBottomTab("results");
+    log(`Calibration setup created: ${body.summary?.relative_path || body.summary?.id}`);
+  } catch (error) {
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+    log(`Calibration setup failed: ${error.message}`);
+  }
+}
+
+async function createOptimizationSetup() {
+  if (!(await saveModelEditsBeforeExecution())) return;
+  try {
+    const body = await api("/api/project/optimization-setup", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        base_inputs: collectRunInputs(),
+        context: currentRunContext(),
+      }),
+    });
+    state.detail = body.project;
+    state.latestWorkflowRecord = { kind: "optimization_setup", artifact: body.summary, setup: body.setup };
+    renderProjectTree();
+    renderArtifactWorkspace();
+    renderResults();
+    setMode("artifacts");
+    setBottomTab("results");
+    log(`Optimization setup created: ${body.summary?.relative_path || body.summary?.id}`);
+  } catch (error) {
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+    log(`Optimization setup failed: ${error.message}`);
+  }
+}
+
 function parameterSetResultSection(detail) {
   const section = document.createElement("div");
   section.className = "result-grid";
@@ -5045,6 +5107,8 @@ function updateCommandState() {
   el("exportButton").disabled = !hasProject || !isWorkspaceProject();
   el("saveProjectButton").disabled = !hasProject || !isWorkspaceProject();
   el("copyProjectButton").disabled = !hasProject;
+  el("createCalibrationSetupButton").disabled = !hasProject || !isWorkspaceProject() || !(state.detail?.validation_mappings || []).length;
+  el("createOptimizationSetupButton").disabled = !hasProject || !isWorkspaceProject() || runtimeBusy;
   el("addComponentButton").disabled = !hasProject || !isWorkspaceProject() || state.componentTemplates.length === 0;
   el("newComponentName").disabled = !hasProject || !isWorkspaceProject();
   el("componentCategorySelect").disabled = !hasProject || !isWorkspaceProject() || state.componentTemplates.length === 0;
@@ -5216,6 +5280,8 @@ function bindEvents() {
   el("cancelRunButton").addEventListener("click", cancelActiveRun);
   el("schemaButton").addEventListener("click", exportSchema);
   el("exportButton").addEventListener("click", exportProject);
+  el("createCalibrationSetupButton").addEventListener("click", createCalibrationSetup);
+  el("createOptimizationSetupButton").addEventListener("click", createOptimizationSetup);
   el("sourceComponentSelect").addEventListener("change", (event) => selectComponent(event.target.value));
   el("saveSourceButton").addEventListener("click", saveCurrentSource);
   el("saveRunSourceButton").addEventListener("click", runProject);
