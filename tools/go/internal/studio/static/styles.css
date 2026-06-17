@@ -1372,6 +1372,10 @@ h2,
   padding: 0 10px;
 }
 
+.artifact-actions {
+  grid-template-columns: minmax(180px, 280px) minmax(96px, 140px) minmax(88px, 112px) auto auto auto;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

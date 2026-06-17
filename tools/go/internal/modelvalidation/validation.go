@@ -2,6 +2,7 @@ package modelvalidation
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -23,6 +24,7 @@ type Mapping struct {
 	ID                    string            `json:"id"`
 	Name                  string            `json:"name"`
 	Dataset               string            `json:"dataset"`
+	DatasetChecksum       string            `json:"dataset_checksum,omitempty"`
 	Path                  string            `json:"-"`
 	TimeColumn            string            `json:"time_column,omitempty"`
 	InputColumns          map[string]string `json:"input_columns"`
@@ -42,6 +44,7 @@ type Result struct {
 	ParameterSet          string                   `json:"parameter_set,omitempty"`
 	SavedRecord           string                   `json:"saved_record,omitempty"`
 	Dataset               string                   `json:"dataset"`
+	DatasetChecksum       string                   `json:"dataset_checksum,omitempty"`
 	RowCount              int                      `json:"row_count"`
 	InputColumns          map[string]string        `json:"input_columns"`
 	ObservedOutputColumns map[string]string        `json:"observed_output_columns"`
@@ -268,6 +271,10 @@ func Run(ctx context.Context, loaded *project.LoadedProject, mapping Mapping, op
 	if err != nil {
 		return nil, err
 	}
+	datasetChecksum := strings.TrimSpace(mapping.DatasetChecksum)
+	if datasetChecksum == "" {
+		datasetChecksum, _ = fileChecksum(datasetPath)
+	}
 	rows, err := readCSVRows(datasetPath)
 	if err != nil {
 		return nil, err
@@ -293,6 +300,7 @@ func Run(ctx context.Context, loaded *project.LoadedProject, mapping Mapping, op
 		MappingName:           mapping.Name,
 		Mapping:               mapping.Path,
 		Dataset:               filepath.ToSlash(mapping.Dataset),
+		DatasetChecksum:       datasetChecksum,
 		RowCount:              len(rows),
 		InputColumns:          mapping.InputColumns,
 		ObservedOutputColumns: mapping.ObservedOutputColumns,
@@ -477,6 +485,15 @@ func outputValue(outputs map[string]any, outputID string) (float64, error) {
 	default:
 		return 0, apperror.Errorf(apperror.CodeRuntime, "validation output %s must be numeric", outputID)
 	}
+}
+
+func fileChecksum(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(data)
+	return fmt.Sprintf("%x", sum), nil
 }
 
 func writeJSONFile(path string, value any) error {

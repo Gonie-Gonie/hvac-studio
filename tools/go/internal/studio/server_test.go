@@ -476,6 +476,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("openArtifactSummary")) {
 		t.Fatalf("module entrypoint did not include artifact summary navigation")
 	}
+	if !bytes.Contains(body, []byte("/api/project/datasets/import")) {
+		t.Fatalf("module entrypoint did not import datasets")
+	}
 	if !bytes.Contains(body, []byte("/api/project/dataset")) {
 		t.Fatalf("module entrypoint did not call dataset preview endpoint")
 	}
@@ -2565,6 +2568,90 @@ func TestDatasetPreviewEndpointSuggestsPublicIOMapping(t *testing.T) {
 	}
 	if !hasColumnSuggestion(body.Dataset.SuggestedOutputs, "total_power_kw", "measured_total_power_kw") {
 		t.Fatalf("output suggestions = %#v", body.Dataset.SuggestedOutputs)
+	}
+}
+
+func TestImportDatasetEndpointCopiesCSVAndCreatesMapping(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectRoot := filepath.Join(root, "projects", "dataset-import-project")
+	if err := copyProjectTree(filepath.Join(repoRoot, "examples", "005_chiller_plant_like_system"), projectRoot); err != nil {
+		t.Fatal(err)
+	}
+	sourcePath := filepath.Join(t.TempDir(), "incoming plant.csv")
+	writeTestFile(t, sourcePath, "time;building_load_kw;outdoor_temp_c;chw_setpoint_c;measured_total_power_kw;measured_chw_supply_temp_c\n0;120;32;6;42.1;6.4\n60;150;34;6;51.2;6.6\n")
+	projectPath := filepath.Join(projectRoot, "project.bcsproj")
+	payload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"source_path":  sourcePath,
+		"id":           "Imported Plant",
+		"delimiter":    "auto",
+		"encoding":     "utf-8",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/datasets/import", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Summary DatasetSummary `json:"summary"`
+		Dataset DatasetPreview `json:"dataset"`
+		Project ProjectDetail  `json:"project"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Summary.RelativePath != "datasets/imported_plant.csv" || body.Summary.RowCount != 2 || len(body.Summary.SHA256) != 64 {
+		t.Fatalf("summary = %#v", body.Summary)
+	}
+	if len(body.Dataset.ColumnProfiles) != 6 || body.Dataset.ColumnProfiles[0].ValueType != "number" {
+		t.Fatalf("column profiles = %#v", body.Dataset.ColumnProfiles)
+	}
+	importedBytes, err := os.ReadFile(filepath.Join(projectRoot, "datasets", "imported_plant.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(importedBytes, []byte("time,building_load_kw,outdoor_temp_c")) {
+		t.Fatalf("imported CSV was not normalized: %s", importedBytes)
+	}
+	if !hasDatasetSummary(body.Project.Datasets, "imported_plant") {
+		t.Fatalf("project datasets = %#v", body.Project.Datasets)
+	}
+
+	mappingPayload, err := json.Marshal(map[string]any{
+		"project_path":         projectPath,
+		"dataset_path":         body.Summary.RelativePath,
+		"id":                   "imported_plant_validation",
+		"missing_value_policy": "fail_fast",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mappingResponse := httptest.NewRecorder()
+	mappingRequest := httptest.NewRequest(http.MethodPost, "/api/project/validation-mapping", bytes.NewReader(mappingPayload))
+
+	server.Handler().ServeHTTP(mappingResponse, mappingRequest)
+
+	if mappingResponse.Code != http.StatusCreated {
+		t.Fatalf("mapping status = %d body=%s", mappingResponse.Code, mappingResponse.Body.String())
+	}
+	var mappingBody struct {
+		Summary ValidationMappingSummary `json:"summary"`
+	}
+	if err := json.Unmarshal(mappingResponse.Body.Bytes(), &mappingBody); err != nil {
+		t.Fatal(err)
+	}
+	if mappingBody.Summary.Dataset != "datasets/imported_plant.csv" || mappingBody.Summary.DatasetChecksum != body.Summary.SHA256 {
+		t.Fatalf("mapping summary = %#v", mappingBody.Summary)
 	}
 }
 
@@ -5046,6 +5133,15 @@ func seedTestRuntimeSupport(t *testing.T, root string) {
 func hasColumnSuggestion(values []ColumnSuggestion, publicID string, column string) bool {
 	for _, item := range values {
 		if item.PublicID == publicID && item.Column == column {
+			return true
+		}
+	}
+	return false
+}
+
+func hasDatasetSummary(values []DatasetSummary, id string) bool {
+	for _, item := range values {
+		if item.ID == id {
 			return true
 		}
 	}

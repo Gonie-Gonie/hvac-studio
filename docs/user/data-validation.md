@@ -12,7 +12,14 @@ Model validation compares simulated outputs against measured or reference data.
 6. Compute validation metrics.
 7. Inspect high-error timesteps.
 
-The current implemented path uses CSV datasets and saved mapping files. See `examples/005_chiller_plant_like_system`:
+In Studio, open the Artifacts workspace, enter a local CSV path, choose the
+delimiter detection mode, and select `Import Data`. Studio copies the CSV into
+the project `datasets/` folder, normalizes it to the runner CSV format, shows a
+header preview, infers basic column types, records the dataset SHA256 checksum,
+and suggests public input/output column matches. Select `Create Mapping` from
+the dataset preview to save a validation mapping without editing JSON.
+
+The saved artifacts use CSV datasets and mapping files. See `examples/005_chiller_plant_like_system`:
 
 ```text
 datasets/plant_validation.csv
@@ -24,6 +31,7 @@ The mapping connects dataset columns to public inputs and observed outputs:
 ```json
 {
   "dataset": "datasets/plant_validation.csv",
+  "dataset_checksum": "<sha256>",
   "time_column": "time",
   "input_columns": {
     "building_load_kw": "building_load_kw"

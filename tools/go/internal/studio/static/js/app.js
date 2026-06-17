@@ -2348,7 +2348,14 @@ function datasetResultSection(dataset) {
     ["Path", dataset.summary?.relative_path || ""],
     ["Shape", `${dataset.summary?.row_count || 0} rows / ${dataset.summary?.column_count || 0} columns`],
     ["Format", dataset.summary?.format || ""],
+    ["SHA256", dataset.summary?.sha256 || ""],
   ]));
+  section.append(resultTable("Column Profiles", (dataset.column_profiles || []).map((item) => [
+    item.column || "",
+    item.value_type || "",
+    String(item.missing_count || 0),
+    (item.samples || []).join(", "),
+  ]), ["Column", "Type", "Missing", "Samples"]));
   section.append(resultTable("Public IO Mapping", [
     ...suggestionRows("input", dataset.suggested_inputs || []),
     ...suggestionRows("output", dataset.suggested_outputs || []),
@@ -2404,6 +2411,45 @@ async function createValidationMappingFromDataset(dataset) {
     renderProblems();
     setBottomTab("problems");
     log(`Validation mapping failed: ${error.message}`);
+  }
+}
+
+async function importDataset() {
+  if (!isWorkspaceProject()) return;
+  const sourcePath = el("datasetSourcePathInput").value.trim();
+  if (!sourcePath) {
+    state.latestValidation = { error: "CSV source path is required" };
+    renderProblems();
+    setBottomTab("problems");
+    log("Dataset import unavailable: missing CSV path");
+    return;
+  }
+  try {
+    const body = await api("/api/project/datasets/import", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        source_path: sourcePath,
+        id: el("datasetIDInput").value.trim(),
+        delimiter: el("datasetDelimiterSelect").value,
+        encoding: "utf-8",
+      }),
+    });
+    state.detail = body.project;
+    state.latestWorkflowRecord = { kind: "dataset", dataset: body.dataset };
+    el("datasetSourcePathInput").value = "";
+    el("datasetIDInput").value = "";
+    renderProjectTree();
+    renderArtifactWorkspace();
+    renderResults();
+    setMode("artifacts");
+    setBottomTab("results");
+    log(`Dataset imported: ${body.summary?.relative_path || body.dataset?.summary?.relative_path || ""}`);
+  } catch (error) {
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+    log(`Dataset import failed: ${error.message}`);
   }
 }
 
@@ -5107,6 +5153,10 @@ function updateCommandState() {
   el("exportButton").disabled = !hasProject || !isWorkspaceProject();
   el("saveProjectButton").disabled = !hasProject || !isWorkspaceProject();
   el("copyProjectButton").disabled = !hasProject;
+  el("datasetSourcePathInput").disabled = !hasProject || !isWorkspaceProject();
+  el("datasetIDInput").disabled = !hasProject || !isWorkspaceProject();
+  el("datasetDelimiterSelect").disabled = !hasProject || !isWorkspaceProject();
+  el("importDatasetButton").disabled = !hasProject || !isWorkspaceProject() || runtimeBusy;
   el("createCalibrationSetupButton").disabled = !hasProject || !isWorkspaceProject() || !(state.detail?.validation_mappings || []).length;
   el("createOptimizationSetupButton").disabled = !hasProject || !isWorkspaceProject() || runtimeBusy;
   el("addComponentButton").disabled = !hasProject || !isWorkspaceProject() || state.componentTemplates.length === 0;
@@ -5280,6 +5330,10 @@ function bindEvents() {
   el("cancelRunButton").addEventListener("click", cancelActiveRun);
   el("schemaButton").addEventListener("click", exportSchema);
   el("exportButton").addEventListener("click", exportProject);
+  el("importDatasetButton").addEventListener("click", importDataset);
+  el("datasetSourcePathInput").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") importDataset();
+  });
   el("createCalibrationSetupButton").addEventListener("click", createCalibrationSetup);
   el("createOptimizationSetupButton").addEventListener("click", createOptimizationSetup);
   el("sourceComponentSelect").addEventListener("change", (event) => selectComponent(event.target.value));

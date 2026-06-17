@@ -178,7 +178,17 @@
             <div class="table-shell">
               <div class="table-title table-title-actions">
                 <span>Project Artifacts</span>
-                <div class="inline-form">
+                <div class="inline-form artifact-actions">
+                  <input id="datasetSourcePathInput" type="text" placeholder="CSV path" aria-label="CSV source path" disabled />
+                  <input id="datasetIDInput" type="text" placeholder="Dataset ID" aria-label="Dataset ID" disabled />
+                  <select id="datasetDelimiterSelect" aria-label="Dataset delimiter" disabled>
+                    <option value="auto">Auto</option>
+                    <option value="comma">Comma</option>
+                    <option value="semicolon">Semicolon</option>
+                    <option value="tab">Tab</option>
+                    <option value="pipe">Pipe</option>
+                  </select>
+                  <button id="importDatasetButton" type="button" disabled>Import Data</button>
                   <button id="createCalibrationSetupButton" type="button" disabled>Cal Setup</button>
                   <button id="createOptimizationSetupButton" type="button" disabled>Opt Setup</button>
                 </div>
