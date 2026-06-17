@@ -27,6 +27,7 @@ outer graph should still expose normal inputs, outputs, and feed-forward
 connections.
 
 The canvas shows node medium badges and labels each connection with its endpoint flow, medium, and latest value when a run result is available. Connection styling calls out medium warnings, explicit medium overrides, incompatible medium mismatches, long paths, and backtracking paths so large systems can be scanned without opening raw JSON.
+Selecting the connected component shows the same medium mismatch, warning, or override badge in the Inspector connection rows.
 
 ## Unit Conversion
 

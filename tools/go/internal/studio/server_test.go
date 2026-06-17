@@ -509,6 +509,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("medium-override")) {
 		t.Fatalf("module entrypoint did not mark explicit canvas medium overrides")
 	}
+	if !bytes.Contains(body, []byte("connectionMediumBadge")) || !bytes.Contains(body, []byte("medium mismatch")) {
+		t.Fatalf("module entrypoint did not mirror canvas medium status in the Inspector")
+	}
 	if !bytes.Contains(body, []byte("long-path")) {
 		t.Fatalf("module entrypoint did not mark long canvas connection paths")
 	}

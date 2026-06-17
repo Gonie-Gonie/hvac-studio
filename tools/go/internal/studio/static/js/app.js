@@ -2308,6 +2308,7 @@ function connectionEditor(targetComponent) {
         ? `<span class="connection-flow ${state.latestResultStale ? "stale" : ""}">${escapeHTML(formatValue(latest.value))}</span>`
         : "";
       const unitState = connectionUnitState(connectionRow.connection);
+      const mediumValue = connectionMediumBadge(connectionRow.connection);
       const conversionValue = connectionRow.connection.unit_conversion
         ? `<span class="connection-flow converted">${escapeHTML(connectionUnitConversionSummary(connectionRow.connection))}</span>`
         : (unitState.status === "warning" ? `<span class="connection-flow warning">unit mismatch</span>` : "");
@@ -2317,6 +2318,7 @@ function connectionEditor(targetComponent) {
         <span class="kv-key">${escapeHTML(connectionRow.key)}</span>
         <span class="connection-value">
           <span>${escapeHTML(connectionRow.value)}</span>
+          ${mediumValue}
           ${conversionValue}
           ${flowValue}
         </span>
@@ -2378,6 +2380,29 @@ function connectionEditor(targetComponent) {
   form.append(sourceSelect, targetSelect, button);
   block.append(form);
   return block;
+}
+
+function connectionMediumBadge(connection) {
+  const mediumState = connectionMediumState(connection);
+  if (!mediumState.label && mediumState.status === "ok") return "";
+  const classes = ["connection-flow", "medium-state"];
+  let label = mediumState.label || "medium";
+  if (mediumState.status === "error") {
+    classes.push("error");
+    label = `medium mismatch ${label}`;
+  } else if (mediumState.status === "override") {
+    classes.push("warning");
+    label = `override ${label}`;
+  } else if (mediumState.status === "warning") {
+    classes.push("warning");
+    label = `signal warning ${label}`;
+  }
+  const title = [
+    mediumState.sourceMedium ? `source ${mediumState.sourceMedium}` : "",
+    mediumState.targetMedium ? `target ${mediumState.targetMedium}` : "",
+    connection.medium_override_reason || "",
+  ].filter(Boolean).join(" / ");
+  return `<span class="${classes.join(" ")}"${title ? ` title="${escapeAttr(title)}"` : ""}>${escapeHTML(label)}</span>`;
 }
 
 function selectedConnectionForInspector(componentID) {

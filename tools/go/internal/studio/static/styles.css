@@ -2093,6 +2093,11 @@ td {
   color: #936400;
 }
 
+.connection-flow.error {
+  background: #ffe9e9;
+  color: #a51d1d;
+}
+
 .connection-flow.converted {
   background: #e7f8ef;
   color: #12733d;
