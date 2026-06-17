@@ -527,6 +527,100 @@ h2,
   background: #2878b8;
 }
 
+.validation-plots {
+  display: grid;
+  gap: 12px;
+  padding: 10px;
+}
+
+.validation-output-plots {
+  display: grid;
+  gap: 8px;
+}
+
+.validation-output-title {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.validation-plot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.validation-plot-panel {
+  min-width: 0;
+  padding: 4px 0 0;
+}
+
+.validation-plot-title {
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.validation-svg {
+  display: block;
+  width: 100%;
+  height: 180px;
+}
+
+.validation-axis,
+.validation-reference {
+  vector-effect: non-scaling-stroke;
+  fill: none;
+  stroke: #c9d5e1;
+  stroke-width: 1;
+}
+
+.validation-reference {
+  stroke-dasharray: 4 4;
+}
+
+.validation-series-observed,
+.validation-series-simulated,
+.validation-series-residual {
+  vector-effect: non-scaling-stroke;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.validation-series-observed {
+  stroke: #2878b8;
+}
+
+.validation-series-simulated {
+  stroke: #a6427a;
+}
+
+.validation-series-residual {
+  stroke: #5f6f7d;
+}
+
+.validation-point {
+  vector-effect: non-scaling-stroke;
+  fill: #2878b8;
+  fill-opacity: 0.78;
+  stroke: #ffffff;
+  stroke-width: 1;
+}
+
+.validation-histogram-bar {
+  fill: #4d8f68;
+}
+
+.validation-legend {
+  fill: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
 .result-raw {
   margin-top: 10px;
   border: 1px solid var(--line);
@@ -2049,6 +2143,10 @@ td {
   }
 
   .metric-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .validation-plot-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

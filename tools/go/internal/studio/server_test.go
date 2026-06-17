@@ -305,6 +305,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("Export CSV")) || !bytes.Contains(body, []byte("downloadCandidateCSV")) {
 		t.Fatalf("module entrypoint did not expose candidate CSV export")
 	}
+	if !bytes.Contains(body, []byte("validationPlotSection")) || !bytes.Contains(body, []byte("Measured vs Simulated")) || !bytes.Contains(body, []byte("Residual Histogram")) {
+		t.Fatalf("module entrypoint did not render validation plots")
+	}
 	if !bytes.Contains(body, []byte("runTimeoutField")) {
 		t.Fatalf("module entrypoint did not include run timeout control rendering")
 	}

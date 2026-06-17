@@ -73,7 +73,7 @@ bcs-runner.exe validate-data `
   --parameter-set parameter_sets/high_efficiency.json
 ```
 
-In Studio, projects with saved mappings show a `Validation` section in the Project tree and enable the `Data` command. The result appears in the Results panel with evaluated row count, input row count, skipped rows, and filled value count.
+In Studio, projects with saved mappings show a `Validation` section in the Project tree and enable the `Data` command. The result appears in the Results panel with evaluated row count, input row count, skipped rows, filled value count, metrics, high-error rows, and output-level plots for measured vs simulated values, scatter, residuals, and residual histograms.
 
 For workspace projects, Studio saves Data command results under `validation/runs/` and shows them in the Project tree as `Validation Runs`. CLI users can do the same with `bcs-runner validate-data --save-record`.
 
