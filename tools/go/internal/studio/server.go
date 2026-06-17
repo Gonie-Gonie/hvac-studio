@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"embed"
+	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -218,6 +219,23 @@ type updateComponentRequest struct {
 	ProjectPath string `json:"project_path"`
 	ComponentID string `json:"component_id"`
 	Name        string `json:"name"`
+}
+
+type updateComponentMLAssetsRequest struct {
+	ProjectPath         string                       `json:"project_path"`
+	ComponentID         string                       `json:"component_id"`
+	ModelFormat         string                       `json:"model_format"`
+	RequiredPackages    []string                     `json:"required_packages"`
+	ValidTimeResolution string                       `json:"valid_time_resolution"`
+	ValidInputRanges    map[string]model.ValueBounds `json:"valid_input_ranges,omitempty"`
+	Assets              []componentMLAssetUpload     `json:"assets"`
+}
+
+type componentMLAssetUpload struct {
+	Field         string `json:"field"`
+	FileName      string `json:"file_name"`
+	Content       string `json:"content,omitempty"`
+	ContentBase64 string `json:"content_base64,omitempty"`
 }
 
 type deleteComponentRequest struct {
@@ -768,6 +786,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/project/components/duplicate", s.handleDuplicateComponent)
 	s.mux.HandleFunc("POST /api/project/components/replace", s.handleReplaceComponent)
 	s.mux.HandleFunc("POST /api/project/components/update", s.handleUpdateComponent)
+	s.mux.HandleFunc("POST /api/project/components/ml-assets", s.handleUpdateComponentMLAssets)
 	s.mux.HandleFunc("POST /api/project/components/delete", s.handleDeleteComponent)
 	s.mux.HandleFunc("POST /api/project/system/components", s.handleIncludeComponent)
 	s.mux.HandleFunc("POST /api/project/system/components/remove", s.handleRemoveComponentFromSystem)
@@ -1384,6 +1403,34 @@ func (s *Server) handleUpdateComponent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "component": component, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleUpdateComponentMLAssets(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeUpdateComponentMLAssetsRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	component, importedFiles, err := updateComponentMLAssets(loaded, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "component": component, "imported_files": importedFiles, "project": projectDetail(reloaded)})
 }
 
 func (s *Server) handleDeleteComponent(w http.ResponseWriter, r *http.Request) {
@@ -2941,6 +2988,172 @@ func updateComponent(loaded *project.LoadedProject, req updateComponentRequest) 
 		return loaded.Graph.Components[index], nil
 	}
 	return model.Component{}, apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
+}
+
+func updateComponentMLAssets(loaded *project.LoadedProject, req updateComponentMLAssetsRequest) (model.Component, []string, error) {
+	componentID := strings.TrimSpace(req.ComponentID)
+	if componentID == "" {
+		return model.Component{}, nil, apperror.Errorf(apperror.CodeValidation, "component_id is required")
+	}
+	componentIndex := -1
+	for index := range loaded.Graph.Components {
+		if loaded.Graph.Components[index].ID == componentID {
+			componentIndex = index
+			break
+		}
+	}
+	if componentIndex < 0 {
+		return model.Component{}, nil, apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
+	}
+
+	metadata := cloneMLMetadata(loaded.Graph.Components[componentIndex].MLMetadata)
+	if metadata == nil {
+		metadata = &model.MLMetadata{}
+	}
+	metadata.ModelFormat = strings.TrimSpace(req.ModelFormat)
+	metadata.RequiredPackages = cleanRequiredPackages(req.RequiredPackages)
+	metadata.ValidTimeResolution = strings.TrimSpace(req.ValidTimeResolution)
+	if req.ValidInputRanges != nil {
+		metadata.ValidInputRanges = cloneValueBoundsMap(req.ValidInputRanges)
+	}
+
+	importedFiles := []string{}
+	for _, asset := range req.Assets {
+		target, err := mlMetadataAssetField(metadata, asset.Field)
+		if err != nil {
+			return model.Component{}, nil, err
+		}
+		content, err := decodeMLAssetContent(asset)
+		if err != nil {
+			return model.Component{}, nil, err
+		}
+		name, err := cleanMLAssetFileName(asset.Field, asset.FileName)
+		if err != nil {
+			return model.Component{}, nil, err
+		}
+		rel := projectComponentSourceRel(componentID, name)
+		path, err := resolveProjectOwnedFile(loaded.Root, rel)
+		if err != nil {
+			return model.Component{}, nil, err
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return model.Component{}, nil, err
+		}
+		if err := os.WriteFile(path, content, 0o644); err != nil {
+			return model.Component{}, nil, err
+		}
+		*target = rel
+		importedFiles = append(importedFiles, rel)
+	}
+
+	loaded.Graph.Components[componentIndex].MLMetadata = metadata
+	if err := syncComponentMetadataFile(loaded, loaded.Graph.Components[componentIndex]); err != nil {
+		return model.Component{}, nil, err
+	}
+	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
+		return model.Component{}, nil, err
+	}
+	return loaded.Graph.Components[componentIndex], importedFiles, nil
+}
+
+func mlMetadataAssetField(metadata *model.MLMetadata, field string) (*string, error) {
+	switch strings.TrimSpace(field) {
+	case "model_file":
+		return &metadata.ModelFile, nil
+	case "input_scaler_file":
+		return &metadata.InputScalerFile, nil
+	case "output_scaler_file":
+		return &metadata.OutputScalerFile, nil
+	case "feature_schema_file":
+		return &metadata.FeatureSchemaFile, nil
+	case "target_schema_file":
+		return &metadata.TargetSchemaFile, nil
+	case "training_metadata_file":
+		return &metadata.TrainingMetadataFile, nil
+	case "validation_report_file":
+		return &metadata.ValidationReportFile, nil
+	default:
+		return nil, apperror.Errorf(apperror.CodeValidation, "unsupported ML asset field: %s", field)
+	}
+}
+
+func decodeMLAssetContent(asset componentMLAssetUpload) ([]byte, error) {
+	if strings.TrimSpace(asset.ContentBase64) != "" {
+		content, err := base64.StdEncoding.DecodeString(asset.ContentBase64)
+		if err != nil {
+			return nil, apperror.Errorf(apperror.CodeInput, "ML asset %s is not valid base64", asset.Field)
+		}
+		return content, nil
+	}
+	if asset.Content != "" {
+		return []byte(asset.Content), nil
+	}
+	return nil, apperror.Errorf(apperror.CodeValidation, "ML asset content is required for %s", asset.Field)
+}
+
+func cleanMLAssetFileName(field string, fileName string) (string, error) {
+	fileName = strings.TrimSpace(fileName)
+	if fileName == "" {
+		fileName = defaultMLAssetFileName(field)
+	}
+	if fileName == "" || strings.ContainsAny(fileName, `/\`) {
+		return "", apperror.Errorf(apperror.CodeValidation, "ML asset file name must be a file name: %s", fileName)
+	}
+	clean := filepath.Clean(fileName)
+	if clean == "." || clean == ".." || clean != filepath.Base(clean) {
+		return "", apperror.Errorf(apperror.CodeValidation, "ML asset file name must be a file name: %s", fileName)
+	}
+	return clean, nil
+}
+
+func defaultMLAssetFileName(field string) string {
+	switch strings.TrimSpace(field) {
+	case "model_file":
+		return "model.bin"
+	case "input_scaler_file":
+		return "input_scaler.json"
+	case "output_scaler_file":
+		return "output_scaler.json"
+	case "feature_schema_file":
+		return "feature_schema.json"
+	case "target_schema_file":
+		return "target_schema.json"
+	case "training_metadata_file":
+		return "training_metadata.json"
+	case "validation_report_file":
+		return "validation_report.json"
+	default:
+		return ""
+	}
+}
+
+func cleanRequiredPackages(values []string) []string {
+	seen := map[string]bool{}
+	cleaned := []string{}
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		cleaned = append(cleaned, value)
+	}
+	return cleaned
+}
+
+func cloneValueBoundsMap(values map[string]model.ValueBounds) map[string]model.ValueBounds {
+	if values == nil {
+		return nil
+	}
+	out := map[string]model.ValueBounds{}
+	for key, value := range values {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		out[key] = value
+	}
+	return out
 }
 
 func deleteComponent(loaded *project.LoadedProject, req deleteComponentRequest) error {
@@ -4615,6 +4828,15 @@ func decodeReplaceComponentRequest(r *http.Request) (replaceComponentRequest, er
 func decodeUpdateComponentRequest(r *http.Request) (updateComponentRequest, error) {
 	defer r.Body.Close()
 	var req updateComponentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeUpdateComponentMLAssetsRequest(r *http.Request) (updateComponentMLAssetsRequest, error) {
+	defer r.Body.Close()
+	var req updateComponentMLAssetsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}

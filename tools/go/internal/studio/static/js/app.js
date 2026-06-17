@@ -36,6 +36,16 @@ const EXECUTION_MODES = [
   ["external_executable", "External Executable"],
   ["initialization_only", "Initialization Only"],
 ];
+const ML_MODEL_FORMATS = ["custom", "pickle", "joblib", "onnx", "torch", "tensorflow"];
+const ML_ASSET_FIELDS = [
+  ["model_file", "Model File"],
+  ["input_scaler_file", "Input Scaler"],
+  ["output_scaler_file", "Output Scaler"],
+  ["feature_schema_file", "Feature Schema"],
+  ["target_schema_file", "Target Schema"],
+  ["training_metadata_file", "Training Metadata"],
+  ["validation_report_file", "Validation Report"],
+];
 const UNIT_CONVERSION_PRESETS = [
   ["custom", "Custom", null],
   ["w_to_kw", "W to kW", { factor: 0.001, offset: 0, description: "Convert W to kW." }],
@@ -1502,6 +1512,7 @@ function renderInspector() {
     ["Class", component.class || ""],
   ]));
   if (component.ml_metadata) container.append(mlMetadataBlock(component));
+  if (component.ml_metadata && isWorkspaceProject()) container.append(mlAssetEditorBlock(component));
   if (isWorkspaceProject()) container.append(componentEditor(component));
   container.append(nodeListBlock("Inputs", component, component.nodes.inputs || [], "input"));
   container.append(nodeListBlock("Outputs", component, component.nodes.outputs || [], "output"));
@@ -2352,6 +2363,120 @@ function mlMetadataBlock(component) {
     ["Time Resolution", metadata.valid_time_resolution || ""],
   ].filter(([, value]) => value);
   return inspectorBlock("ML Metadata", rows);
+}
+
+function mlAssetEditorBlock(component) {
+  const metadata = component.ml_metadata || {};
+  const block = document.createElement("div");
+  block.className = "inspector-block";
+  block.innerHTML = `<div class="inspector-title">ML Assets</div>`;
+
+  const form = document.createElement("div");
+  form.className = "connection-form ml-asset-form";
+
+  const format = document.createElement("select");
+  format.dataset.mlMetadataField = "model_format";
+  format.setAttribute("aria-label", "Model format");
+  for (const value of ML_MODEL_FORMATS) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    format.append(option);
+  }
+  format.value = metadata.model_format || "custom";
+
+  const packages = document.createElement("input");
+  packages.dataset.mlMetadataField = "required_packages";
+  packages.placeholder = "required packages";
+  packages.value = (metadata.required_packages || []).join(", ");
+  packages.setAttribute("aria-label", "Required packages");
+
+  const resolution = document.createElement("input");
+  resolution.dataset.mlMetadataField = "valid_time_resolution";
+  resolution.placeholder = "time resolution";
+  resolution.value = metadata.valid_time_resolution || "";
+  resolution.setAttribute("aria-label", "Valid time resolution");
+
+  form.append(format, packages, resolution);
+
+  for (const [field, label] of ML_ASSET_FIELDS) {
+    const row = document.createElement("div");
+    row.className = "ml-asset-row";
+    row.dataset.mlAssetField = field;
+    const caption = document.createElement("span");
+    caption.textContent = label;
+    const file = document.createElement("input");
+    file.type = "file";
+    file.setAttribute("aria-label", label);
+    row.append(caption, file);
+    form.append(row);
+  }
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = "Save ML Assets";
+  button.addEventListener("click", () => updateMLAssetsFromInspector(component.id, block));
+  form.append(button);
+  block.append(form);
+  return block;
+}
+
+async function updateMLAssetsFromInspector(componentID, block) {
+  if (!componentID || !isWorkspaceProject()) return;
+  const assets = [];
+  for (const row of block.querySelectorAll("[data-ml-asset-field]")) {
+    const file = row.querySelector("input[type='file']")?.files?.[0];
+    if (!file) continue;
+    assets.push({
+      field: row.dataset.mlAssetField,
+      file_name: file.name,
+      content_base64: await fileToBase64(file),
+    });
+  }
+  const packagesValue = block.querySelector("[data-ml-metadata-field='required_packages']")?.value || "";
+  try {
+    const body = await api("/api/project/components/ml-assets", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        component_id: componentID,
+        model_format: block.querySelector("[data-ml-metadata-field='model_format']")?.value || "custom",
+        required_packages: splitRequiredPackages(packagesValue),
+        valid_time_resolution: block.querySelector("[data-ml-metadata-field='valid_time_resolution']")?.value || "",
+        assets,
+      }),
+    });
+    state.detail = body.project;
+    state.selectedComponentId = componentID;
+    markRunResultStale(false);
+    renderAll();
+    log(`ML assets updated: ${componentID} files=${(body.imported_files || []).length}`);
+  } catch (error) {
+    log(`Update ML assets failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+  }
+}
+
+function splitRequiredPackages(value) {
+  return String(value || "")
+    .split(/[\n,]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      const value = String(reader.result || "");
+      const comma = value.indexOf(",");
+      resolve(comma >= 0 ? value.slice(comma + 1) : value);
+    });
+    reader.addEventListener("error", () => reject(reader.error || new Error("File read failed")));
+    reader.readAsDataURL(file);
+  });
 }
 
 function renderParameterAddForm(container, components, editable) {

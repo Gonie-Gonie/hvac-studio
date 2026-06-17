@@ -634,6 +634,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("mlMetadataBlock")) {
 		t.Fatalf("module entrypoint did not include ML metadata inspector rendering")
 	}
+	if !bytes.Contains(body, []byte("mlAssetEditorBlock")) ||
+		!bytes.Contains(body, []byte("/api/project/components/ml-assets")) ||
+		!bytes.Contains(body, []byte("input_scaler_file")) ||
+		!bytes.Contains(body, []byte("fileToBase64")) {
+		t.Fatalf("module entrypoint did not include ML asset import editing")
+	}
 	if !bytes.Contains(body, []byte("/api/calibration/run")) {
 		t.Fatalf("module entrypoint did not call calibration run endpoint")
 	}
@@ -1167,6 +1173,142 @@ func TestCreateComponentEndpointCreatesMLComponentAssets(t *testing.T) {
 	}
 	if persisted.MLMetadata == nil || persisted.MLMetadata.ModelFile != "components/ml_inference/model.json" {
 		t.Fatalf("persisted ML metadata = %#v", persisted.MLMetadata)
+	}
+}
+
+func TestUpdateComponentMLAssetsEndpointImportsFilesAndMetadata(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"ML Asset Import Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	createComponentPayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"name":         "ML Inference",
+		"template":     "ml_inference",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	componentResponse := httptest.NewRecorder()
+	componentRequest := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(createComponentPayload))
+	server.Handler().ServeHTTP(componentResponse, componentRequest)
+	if componentResponse.Code != http.StatusCreated {
+		t.Fatalf("component status = %d body=%s", componentResponse.Code, componentResponse.Body.String())
+	}
+
+	importPayload, err := json.Marshal(map[string]any{
+		"project_path":          createBody.Project.ProjectPath,
+		"component_id":          "ml_inference",
+		"model_format":          "onnx",
+		"required_packages":     []string{"onnxruntime", "numpy", "onnxruntime", " "},
+		"valid_time_resolution": "step",
+		"assets": []map[string]any{
+			{"field": "model_file", "file_name": "uploaded_model.onnx", "content_base64": "AQIDBA=="},
+			{"field": "input_scaler_file", "file_name": "input_scaler.json", "content": `{"mean":[1.0],"scale":[2.0]}`},
+			{"field": "feature_schema_file", "file_name": "uploaded_features.json", "content": `{"features":["temperature_c"]}`},
+			{"field": "training_metadata_file", "file_name": "training_metadata.json", "content": `{"dataset":"train.csv"}`},
+			{"field": "validation_report_file", "file_name": "uploaded_validation.json", "content": `{"metrics":{"rmse":1.25}}`},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	importResponse := httptest.NewRecorder()
+	importRequest := httptest.NewRequest(http.MethodPost, "/api/project/components/ml-assets", bytes.NewReader(importPayload))
+
+	server.Handler().ServeHTTP(importResponse, importRequest)
+
+	if importResponse.Code != http.StatusOK {
+		t.Fatalf("import status = %d body=%s", importResponse.Code, importResponse.Body.String())
+	}
+	var importBody struct {
+		Component     model.Component `json:"component"`
+		ImportedFiles []string        `json:"imported_files"`
+	}
+	if err := json.Unmarshal(importResponse.Body.Bytes(), &importBody); err != nil {
+		t.Fatal(err)
+	}
+	metadata := importBody.Component.MLMetadata
+	if metadata == nil {
+		t.Fatal("ML metadata was not returned")
+	}
+	if metadata.ModelFormat != "onnx" ||
+		metadata.ModelFile != "components/ml_inference/uploaded_model.onnx" ||
+		metadata.InputScalerFile != "components/ml_inference/input_scaler.json" ||
+		metadata.FeatureSchemaFile != "components/ml_inference/uploaded_features.json" ||
+		metadata.TrainingMetadataFile != "components/ml_inference/training_metadata.json" ||
+		metadata.ValidationReportFile != "components/ml_inference/uploaded_validation.json" {
+		t.Fatalf("ML metadata = %#v", metadata)
+	}
+	if len(metadata.RequiredPackages) != 2 || metadata.RequiredPackages[0] != "onnxruntime" || metadata.RequiredPackages[1] != "numpy" {
+		t.Fatalf("required packages = %#v", metadata.RequiredPackages)
+	}
+	for _, rel := range []string{
+		"components/ml_inference/uploaded_model.onnx",
+		"components/ml_inference/input_scaler.json",
+		"components/ml_inference/uploaded_features.json",
+		"components/ml_inference/training_metadata.json",
+		"components/ml_inference/uploaded_validation.json",
+	} {
+		if !containsString(importBody.ImportedFiles, rel) {
+			t.Fatalf("imported files missing %s in %v", rel, importBody.ImportedFiles)
+		}
+		if _, err := os.Stat(filepath.Join(root, "projects", "ml-asset-import-project", filepath.FromSlash(rel))); err != nil {
+			t.Fatalf("imported file %s: %v", rel, err)
+		}
+	}
+	modelBytes, err := os.ReadFile(filepath.Join(root, "projects", "ml-asset-import-project", "components", "ml_inference", "uploaded_model.onnx"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(modelBytes, []byte{1, 2, 3, 4}) {
+		t.Fatalf("model bytes = %v", modelBytes)
+	}
+	metadataBytes, err := os.ReadFile(filepath.Join(root, "projects", "ml-asset-import-project", "components", "ml_inference", "component.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(metadataBytes, []byte(`"input_scaler_file": "components/ml_inference/input_scaler.json"`)) ||
+		!bytes.Contains(metadataBytes, []byte(`"required_packages": [`)) {
+		t.Fatalf("component metadata was not synced:\n%s", string(metadataBytes))
+	}
+	loaded, err := project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	persisted, found := findComponent(loaded.Graph, "ml_inference")
+	if !found || persisted.MLMetadata == nil || persisted.MLMetadata.ModelFile != "components/ml_inference/uploaded_model.onnx" {
+		t.Fatalf("persisted ML metadata = %#v found=%v", persisted.MLMetadata, found)
+	}
+
+	badPayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "ml_inference",
+		"assets": []map[string]any{
+			{"field": "model_file", "file_name": "../escape.onnx", "content": "bad"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	badResponse := httptest.NewRecorder()
+	badRequest := httptest.NewRequest(http.MethodPost, "/api/project/components/ml-assets", bytes.NewReader(badPayload))
+	server.Handler().ServeHTTP(badResponse, badRequest)
+	if badResponse.Code == http.StatusOK {
+		t.Fatalf("escaping file name should be rejected: %s", badResponse.Body.String())
+	}
+	if _, err := os.Stat(filepath.Join(root, "projects", "ml-asset-import-project", "escape.onnx")); !os.IsNotExist(err) {
+		t.Fatalf("escaping asset write state = %v", err)
 	}
 }
 

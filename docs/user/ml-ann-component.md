@@ -14,6 +14,12 @@ creates the generated wrapper plus `model.json`, `feature_schema.json`,
 `target_schema.json`, and `validation_report.json` under the component folder,
 then records those project-relative paths in `ml_metadata`.
 
+After selecting the component, use the Inspector's **ML Assets** block to import
+or replace the model file, optional input/output scaler files, feature schema,
+target schema, training metadata, validation report, required packages, model
+format, and valid time resolution. Imported files are written under the
+component folder and the graph plus component metadata file are kept in sync.
+
 Use `ml_metadata` on the component entry in `graph.json` or the component
 metadata file:
 
