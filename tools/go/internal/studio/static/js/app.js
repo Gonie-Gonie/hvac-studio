@@ -36,6 +36,14 @@ const EXECUTION_MODES = [
   ["external_executable", "External Executable"],
   ["initialization_only", "Initialization Only"],
 ];
+const UNIT_CONVERSION_PRESETS = [
+  ["custom", "Custom", null],
+  ["w_to_kw", "W to kW", { factor: 0.001, offset: 0, description: "Convert W to kW." }],
+  ["kw_to_w", "kW to W", { factor: 1000, offset: 0, description: "Convert kW to W." }],
+  ["degc_to_k", "degC to K", { factor: 1, offset: 273.15, description: "Convert degC to K." }],
+  ["kgs_to_kgh", "kg/s to kg/h", { factor: 3600, offset: 0, description: "Convert kg/s to kg/h." }],
+  ["fraction_to_percent", "fraction to percent", { factor: 100, offset: 0, description: "Convert fraction to percent." }],
+];
 const WORKSPACE_HELP = {
   start: "/docs/user/quick-start.md",
   canvas: "/docs/user/build-system.md",
@@ -1250,12 +1258,15 @@ function canvasConnectionRoute(x1, y1, x2, y2, fanOffset, index) {
 }
 
 function connectionClassList(connection, mediumState, route) {
+  const unitState = connectionUnitState(connection);
   return [
     "connection-line",
     state.selectedConnectionId === connection.id ? "selected" : "",
     mediumState.status === "warning" ? "medium-warning" : "",
     mediumState.status === "override" ? "medium-override" : "",
     mediumState.status === "error" ? "medium-mismatch" : "",
+    unitState.status === "warning" ? "unit-warning" : "",
+    unitState.status === "converted" ? "unit-converted" : "",
     route.backtracking ? "backtracking" : "",
     route.longPath ? "long-path" : "",
     route.fanOffset ? "connection-fan" : "",
@@ -1263,9 +1274,10 @@ function connectionClassList(connection, mediumState, route) {
 }
 
 function connectionMarkerID(connection, mediumState) {
+  const unitState = connectionUnitState(connection);
   if (state.selectedConnectionId === connection.id) return "arrow-selected";
   if (mediumState.status === "error") return "arrow-danger";
-  if (mediumState.status === "warning" || mediumState.status === "override") return "arrow-warning";
+  if (mediumState.status === "warning" || mediumState.status === "override" || unitState.status === "warning") return "arrow-warning";
   return "arrow";
 }
 
@@ -1312,12 +1324,15 @@ function normalizedCanvasMedium(value) {
 
 function connectionAnnotation(connection, mediumState, route) {
   const latest = latestConnectionValue(connection);
+  const unitState = connectionUnitState(connection);
   const sourceName = mediumState.sourceNode?.name || connection.from.node;
   const targetName = mediumState.targetNode?.name || connection.to.node;
-  const status = connectionStatusLabel(connection, mediumState, route);
+  const status = connectionStatusLabel(connection, mediumState, route, unitState);
   const latestValue = latest.hasValue ? formatValue(latest.value) : "";
   const secondary = [
     mediumState.label,
+    unitState.label,
+    unitState.valueTypeLabel,
     latestValue ? `value ${latestValue}` : "",
     status,
   ].filter(Boolean).join(" / ");
@@ -1325,6 +1340,9 @@ function connectionAnnotation(connection, mediumState, route) {
     connection.id,
     `${connection.from.component}.${connection.from.node} -> ${connection.to.component}.${connection.to.node}`,
     mediumState.label ? `medium ${mediumState.label}` : "",
+    unitState.label ? `unit ${unitState.label}` : "",
+    unitState.valueTypeLabel ? `value_type ${unitState.valueTypeLabel}` : "",
+    unitState.conversionLabel,
     latestValue ? `${state.latestResultStale ? "stale " : ""}value ${latestValue}` : "",
     status,
     connection.medium_override_reason || "",
@@ -1336,10 +1354,46 @@ function connectionAnnotation(connection, mediumState, route) {
   };
 }
 
-function connectionStatusLabel(connection, mediumState, route) {
+function connectionUnitState(connection) {
+  const sourceNode = canvasEndpointNode(connection.from, "output");
+  const targetNode = canvasEndpointNode(connection.to, "input");
+  const sourceUnit = sourceNode?.unit || "";
+  const targetUnit = targetNode?.unit || "";
+  const sourceValueType = sourceNode?.value_type || "";
+  const targetValueType = targetNode?.value_type || "";
+  const unitMismatch = normalizedUnitLabel(sourceUnit) && normalizedUnitLabel(targetUnit) && normalizedUnitLabel(sourceUnit) !== normalizedUnitLabel(targetUnit);
+  const hasConversion = Boolean(connection.unit_conversion);
+  const label = sourceUnit || targetUnit
+    ? (unitMismatch ? `${sourceUnit || "?"}->${targetUnit || "?"}` : sourceUnit || targetUnit)
+    : "";
+  const valueTypeLabel = sourceValueType || targetValueType
+    ? (sourceValueType && targetValueType && sourceValueType !== targetValueType ? `${sourceValueType}->${targetValueType}` : sourceValueType || targetValueType)
+    : "";
+  let status = "ok";
+  if (hasConversion) status = "converted";
+  else if (unitMismatch) status = "warning";
+  return {
+    sourceNode,
+    targetNode,
+    sourceUnit,
+    targetUnit,
+    label,
+    valueTypeLabel,
+    status,
+    conversionLabel: hasConversion ? connectionUnitConversionSummary(connection) : "",
+  };
+}
+
+function normalizedUnitLabel(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function connectionStatusLabel(connection, mediumState, route, unitState = connectionUnitState(connection)) {
   if (mediumState.status === "error") return "medium mismatch";
   if (mediumState.status === "override") return connection.medium_override_reason ? "override" : "medium override";
   if (mediumState.status === "warning") return "signal warning";
+  if (unitState.status === "converted") return "converted";
+  if (unitState.status === "warning") return "unit mismatch";
   if (route.backtracking) return "backtracking";
   if (route.longPath) return "long path";
   return "";
@@ -1392,12 +1446,15 @@ function drawConnectionLabel(layer, connection, annotation, route, mediumState) 
 }
 
 function connectionLabelClassList(connection, mediumState, route) {
+  const unitState = connectionUnitState(connection);
   return [
     "connection-label",
     state.selectedConnectionId === connection.id ? "selected" : "",
     mediumState.status === "warning" ? "medium-warning" : "",
     mediumState.status === "override" ? "medium-override" : "",
     mediumState.status === "error" ? "medium-mismatch" : "",
+    unitState.status === "warning" ? "unit-warning" : "",
+    unitState.status === "converted" ? "unit-converted" : "",
     route.backtracking ? "backtracking" : "",
     route.longPath ? "long-path" : "",
   ].filter(Boolean);
@@ -1958,12 +2015,17 @@ function connectionEditor(targetComponent) {
       const flowValue = latest.hasValue
         ? `<span class="connection-flow ${state.latestResultStale ? "stale" : ""}">${escapeHTML(formatValue(latest.value))}</span>`
         : "";
+      const unitState = connectionUnitState(connectionRow.connection);
+      const conversionValue = connectionRow.connection.unit_conversion
+        ? `<span class="connection-flow converted">${escapeHTML(connectionUnitConversionSummary(connectionRow.connection))}</span>`
+        : (unitState.status === "warning" ? `<span class="connection-flow warning">unit mismatch</span>` : "");
       const rowEl = document.createElement("div");
       rowEl.className = `kv connection-row ${connectionRow.id === state.selectedConnectionId ? "selected" : ""}`;
       rowEl.innerHTML = `
         <span class="kv-key">${escapeHTML(connectionRow.key)}</span>
         <span class="connection-value">
           <span>${escapeHTML(connectionRow.value)}</span>
+          ${conversionValue}
           ${flowValue}
         </span>
       `;
@@ -1981,6 +2043,11 @@ function connectionEditor(targetComponent) {
       }
       block.append(rowEl);
     }
+  }
+
+  const selectedConnection = selectedConnectionForInspector(targetComponent.id);
+  if (selectedConnection && canEditConnections) {
+    block.append(connectionUnitConversionEditor(selectedConnection));
   }
 
   if (!canEditConnections) {
@@ -2019,6 +2086,189 @@ function connectionEditor(targetComponent) {
   form.append(sourceSelect, targetSelect, button);
   block.append(form);
   return block;
+}
+
+function selectedConnectionForInspector(componentID) {
+  if (!state.selectedConnectionId) return null;
+  const connection = state.detail?.graph?.connections?.find((item) => item.id === state.selectedConnectionId);
+  if (!connection) return null;
+  if (connection.from.component !== componentID && connection.to.component !== componentID) return null;
+  return connection;
+}
+
+function connectionUnitConversionEditor(connection) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "connection-conversion-editor";
+  const unitState = connectionUnitState(connection);
+  const conversion = connection.unit_conversion || null;
+  const presetID = connectionPresetID(connection, conversion);
+
+  const header = document.createElement("div");
+  header.className = "connection-conversion-header";
+  header.innerHTML = `
+    <span>Unit Conversion</span>
+    <span>${escapeHTML(unitState.label || "same unit")}</span>
+  `;
+
+  const form = document.createElement("div");
+  form.className = "connection-conversion-form";
+
+  const preset = document.createElement("select");
+  preset.id = "connectionUnitConversionPreset";
+  for (const [id, label] of UNIT_CONVERSION_PRESETS) {
+    const option = document.createElement("option");
+    option.value = id;
+    option.textContent = label;
+    preset.append(option);
+  }
+  preset.value = presetID;
+
+  const factor = document.createElement("input");
+  factor.id = "connectionUnitConversionFactor";
+  factor.type = "number";
+  factor.step = "any";
+  factor.value = String(unitConversionInitialNumber(conversion, presetID, "factor", 1));
+  factor.placeholder = "Factor";
+
+  const offset = document.createElement("input");
+  offset.id = "connectionUnitConversionOffset";
+  offset.type = "number";
+  offset.step = "any";
+  offset.value = String(unitConversionInitialNumber(conversion, presetID, "offset", 0));
+  offset.placeholder = "Offset";
+
+  const sample = document.createElement("input");
+  sample.id = "connectionUnitConversionSample";
+  sample.type = "number";
+  sample.step = "any";
+  sample.value = "1";
+  sample.placeholder = "Sample";
+
+  const description = document.createElement("input");
+  description.id = "connectionUnitConversionDescription";
+  description.value = conversion?.description || presetDefinition(presetID)?.description || "";
+  description.placeholder = "Description";
+
+  const preview = document.createElement("div");
+  preview.id = "connectionUnitConversionPreview";
+  preview.className = "connection-conversion-preview";
+
+  const save = document.createElement("button");
+  save.type = "button";
+  save.id = "saveConnectionUnitConversionButton";
+  save.textContent = "Save Conversion";
+  save.addEventListener("click", () => {
+    const parsedFactor = finiteNumberOrDefault(factor.value, 1);
+    const parsedOffset = finiteNumberOrDefault(offset.value, 0);
+    if (!Number.isFinite(parsedFactor) || parsedFactor === 0) {
+      showInlineProblem("Conversion factor must be a non-zero number");
+      return;
+    }
+    if (!Number.isFinite(parsedOffset)) {
+      showInlineProblem("Conversion offset must be numeric");
+      return;
+    }
+    updateConnectionUnitConversion(connection.id, {
+      mode: "linear",
+      factor: parsedFactor,
+      offset: parsedOffset,
+      description: description.value.trim(),
+    });
+  });
+
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.id = "clearConnectionUnitConversionButton";
+  clear.className = "ghost";
+  clear.textContent = "Clear";
+  clear.addEventListener("click", () => updateConnectionUnitConversion(connection.id, null));
+
+  const updatePreview = () => {
+    const parsedFactor = finiteNumberOrDefault(factor.value, 1);
+    const parsedOffset = finiteNumberOrDefault(offset.value, 0);
+    const sampleValue = finiteNumberOrDefault(sample.value, 1);
+    if (!Number.isFinite(parsedFactor) || !Number.isFinite(parsedOffset) || !Number.isFinite(sampleValue) || parsedFactor === 0) {
+      preview.textContent = "Invalid conversion";
+      preview.className = "connection-conversion-preview invalid";
+      return;
+    }
+    const converted = sampleValue * parsedFactor + parsedOffset;
+    const units = [unitState.sourceUnit, unitState.targetUnit].filter(Boolean).join(" to ");
+    preview.textContent = `${formatValue(sampleValue)}${unitState.sourceUnit ? ` ${unitState.sourceUnit}` : ""} = ${formatValue(converted)}${unitState.targetUnit ? ` ${unitState.targetUnit}` : ""}${units ? ` / ${units}` : ""}`;
+    preview.className = "connection-conversion-preview";
+  };
+
+  preset.addEventListener("change", () => {
+    const definition = presetDefinition(preset.value);
+    if (!definition) {
+      updatePreview();
+      return;
+    }
+    factor.value = String(definition.factor);
+    offset.value = String(definition.offset);
+    description.value = definition.description || "";
+    updatePreview();
+  });
+  [factor, offset, sample, description].forEach((input) => input.addEventListener("input", updatePreview));
+  form.append(preset, factor, offset, sample, description, preview, save, clear);
+  wrapper.append(header, form);
+  updatePreview();
+  return wrapper;
+}
+
+function presetDefinition(presetID) {
+  return UNIT_CONVERSION_PRESETS.find(([id]) => id === presetID)?.[2] || null;
+}
+
+function connectionPresetID(connection, conversion) {
+  if (conversion) {
+    const factor = Number(conversion.factor ?? 1);
+    const offset = Number(conversion.offset ?? 0);
+    const match = UNIT_CONVERSION_PRESETS.find(([, , definition]) => (
+      definition && approximatelyEqual(definition.factor, factor) && approximatelyEqual(definition.offset, offset)
+    ));
+    return match?.[0] || "custom";
+  }
+  const unitState = connectionUnitState(connection);
+  const sourceUnit = normalizedUnitLabel(unitState.sourceUnit);
+  const targetUnit = normalizedUnitLabel(unitState.targetUnit);
+  if (sourceUnit === "w" && targetUnit === "kw") return "w_to_kw";
+  if (sourceUnit === "kw" && targetUnit === "w") return "kw_to_w";
+  if (sourceUnit === "degc" && targetUnit === "k") return "degc_to_k";
+  if (sourceUnit === "kg/s" && targetUnit === "kg/h") return "kgs_to_kgh";
+  if (sourceUnit === "fraction" && targetUnit === "percent") return "fraction_to_percent";
+  return "custom";
+}
+
+function unitConversionInitialNumber(conversion, presetID, key, fallback) {
+  if (conversion && conversion[key] !== undefined && conversion[key] !== null) return Number(conversion[key]);
+  const preset = presetDefinition(presetID);
+  if (preset && preset[key] !== undefined) return preset[key];
+  return fallback;
+}
+
+function finiteNumberOrDefault(value, fallback) {
+  const text = String(value ?? "").trim();
+  if (text === "") return fallback;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function approximatelyEqual(a, b) {
+  return Math.abs(Number(a) - Number(b)) < 1e-12;
+}
+
+function connectionUnitConversionSummary(connection) {
+  const conversion = connection.unit_conversion;
+  if (!conversion) return "";
+  const unitState = connectionUnitState(connection);
+  const factor = Number(conversion.factor ?? 1);
+  const offset = Number(conversion.offset ?? 0);
+  const offsetLabel = offset === 0 ? "" : (offset > 0 ? ` + ${formatValue(offset)}` : ` - ${formatValue(Math.abs(offset))}`);
+  return [
+    unitState.label ? `${unitState.label}` : "converted",
+    `x ${formatValue(factor)}${offsetLabel}`,
+  ].filter(Boolean).join(" ");
 }
 
 function connectionRowsFor(component) {
@@ -3032,8 +3282,14 @@ function connectionValueRows(values) {
     item.id || "",
     endpointLabel(item.from),
     endpointLabel(item.to),
-    [item.source_medium || item.target_medium || "", item.value_type || "", item.unit || ""].filter(Boolean).join(" / "),
-    formatValue(item.value),
+    [
+      item.source_medium && item.target_medium ? `${item.source_medium}->${item.target_medium}` : item.source_medium || item.target_medium || "",
+      item.source_unit && item.target_unit ? `${item.source_unit}->${item.target_unit}` : "",
+      item.value_type || "",
+      item.unit || "",
+      item.converted ? "converted" : "",
+    ].filter(Boolean).join(" / "),
+    item.converted ? `${formatValue(item.source_value)} -> ${formatValue(item.converted_value ?? item.value)}` : formatValue(item.value),
   ]);
 }
 
@@ -5314,6 +5570,31 @@ async function createConnection(fromComponent, fromNode, toComponent, toNode) {
     state.pendingConnection = null;
     state.selectedConnectionId = "";
     log(`Connection failed: ${error.message}`);
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    renderCanvas();
+    setBottomTab("problems");
+  }
+}
+
+async function updateConnectionUnitConversion(connectionId, unitConversion) {
+  if (!connectionId || !isWorkspaceProject()) return;
+  try {
+    const body = await api("/api/project/connections/update", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        connection_id: connectionId,
+        unit_conversion: unitConversion,
+      }),
+    });
+    state.detail = body.project;
+    state.selectedConnectionId = body.connection?.id || connectionId;
+    markRunResultStale(false);
+    renderAll();
+    log(unitConversion ? `Connection conversion saved: ${connectionId}` : `Connection conversion cleared: ${connectionId}`);
+  } catch (error) {
+    log(`Connection conversion failed: ${error.message}`);
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderProblems();
     renderCanvas();

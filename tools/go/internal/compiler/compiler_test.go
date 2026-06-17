@@ -343,6 +343,29 @@ func TestCompileAcceptsExplicitUnitConversion(t *testing.T) {
 	}
 }
 
+func TestCompileRejectsInvalidUnitConversion(t *testing.T) {
+	source := componentWithMedia("meter", "signal", "signal")
+	source.Nodes.Outputs[0].Unit = "W"
+	target := componentWithMedia("load", "signal", "signal")
+	target.Nodes.Inputs[0].Unit = "kW"
+	loaded := compileProjectWithConnection(
+		source,
+		target,
+		model.Connection{
+			ID:             "meter_to_load",
+			From:           model.Endpoint{Component: "meter", Node: "out"},
+			To:             model.Endpoint{Component: "load", Node: "in"},
+			UnitConversion: &model.UnitConversion{Mode: "table"},
+		},
+	)
+
+	_, err := Compile(loaded)
+
+	if err == nil || !strings.Contains(err.Error(), "unit_conversion mode is unsupported") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func compileProjectWithConnection(source model.Component, target model.Component, connection model.Connection) *project.LoadedProject {
 	return &project.LoadedProject{
 		Project: &model.Project{EntrySystem: "MainSystem"},

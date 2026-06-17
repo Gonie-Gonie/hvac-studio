@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -163,6 +164,9 @@ func validateConnection(idx *graphindex.Index, systemContains map[string]bool, c
 	if !ok {
 		return nil, fmt.Errorf("connection %s target input node not found: %s.%s", connection.ID, connection.To.Component, connection.To.Node)
 	}
+	if err := validateConnectionUnitConversion(connection); err != nil {
+		return nil, err
+	}
 
 	diagnostics := []Diagnostic{}
 	diagnostic, err := connectionMediumDiagnostic(connection, sourceNode, targetNode)
@@ -176,6 +180,36 @@ func validateConnection(idx *graphindex.Index, systemContains map[string]bool, c
 		diagnostics = append(diagnostics, *diagnostic)
 	}
 	return diagnostics, nil
+}
+
+func validateConnectionUnitConversion(connection model.Connection) error {
+	conversion := connection.UnitConversion
+	if conversion == nil {
+		return nil
+	}
+	mode := strings.TrimSpace(conversion.Mode)
+	if mode == "" {
+		mode = "linear"
+	}
+	if mode != "linear" {
+		return fmt.Errorf("connection %s unit_conversion mode is unsupported: %s", connection.ID, mode)
+	}
+	if conversion.Factor != nil {
+		factor := *conversion.Factor
+		if math.IsNaN(factor) || math.IsInf(factor, 0) {
+			return fmt.Errorf("connection %s unit_conversion factor must be finite", connection.ID)
+		}
+		if factor == 0 {
+			return fmt.Errorf("connection %s unit_conversion factor must not be 0", connection.ID)
+		}
+	}
+	if conversion.Offset != nil {
+		offset := *conversion.Offset
+		if math.IsNaN(offset) || math.IsInf(offset, 0) {
+			return fmt.Errorf("connection %s unit_conversion offset must be finite", connection.ID)
+		}
+	}
+	return nil
 }
 
 func connectionMediumDiagnostic(connection model.Connection, sourceNode model.Node, targetNode model.Node) (*Diagnostic, error) {

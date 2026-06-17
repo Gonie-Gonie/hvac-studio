@@ -359,6 +359,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("selectedConnectionId")) {
 		t.Fatalf("module entrypoint did not include canvas connection selection state")
 	}
+	if !bytes.Contains(body, []byte("connectionUnitConversionEditor")) ||
+		!bytes.Contains(body, []byte("UNIT_CONVERSION_PRESETS")) ||
+		!bytes.Contains(body, []byte("/api/project/connections/update")) ||
+		!bytes.Contains(body, []byte("connectionUnitConversionPreview")) {
+		t.Fatalf("module entrypoint did not expose connection unit conversion editing")
+	}
 	if !bytes.Contains(body, []byte("saveRunSourceButton")) {
 		t.Fatalf("module entrypoint did not include source save-and-run action binding")
 	}
@@ -715,6 +721,9 @@ func TestStaticRunOutputModuleServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("component_logs")) {
 		t.Fatalf("run output module did not read component logs")
+	}
+	if !bytes.Contains(body, []byte("source_value")) || !bytes.Contains(body, []byte("converted_value")) {
+		t.Fatalf("run output module did not render converted connection trace values")
 	}
 }
 
@@ -1906,6 +1915,142 @@ func TestCreateConnectionEndpointConnectsComponents(t *testing.T) {
 	}
 	if _, exists := input.Inputs["second_gain_value"]; !exists {
 		t.Fatal("deleted connection target default input should be restored")
+	}
+}
+
+func TestUpdateConnectionUnitConversionEndpointWritesGraph(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	summary := createWorkspaceProject(t, server, "Connection Conversion Project")
+
+	componentPayload, err := json.Marshal(map[string]any{
+		"project_path": summary.ProjectPath,
+		"name":         "Second Gain",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	componentResponse := httptest.NewRecorder()
+	componentRequest := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(componentPayload))
+	server.Handler().ServeHTTP(componentResponse, componentRequest)
+	if componentResponse.Code != http.StatusCreated {
+		t.Fatalf("component status = %d body=%s", componentResponse.Code, componentResponse.Body.String())
+	}
+
+	includePayload, err := json.Marshal(map[string]any{
+		"project_path": summary.ProjectPath,
+		"component_id": "second_gain",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	includeResponse := httptest.NewRecorder()
+	includeRequest := httptest.NewRequest(http.MethodPost, "/api/project/system/components", bytes.NewReader(includePayload))
+	server.Handler().ServeHTTP(includeResponse, includeRequest)
+	if includeResponse.Code != http.StatusOK {
+		t.Fatalf("include status = %d body=%s", includeResponse.Code, includeResponse.Body.String())
+	}
+
+	loaded, err := project.Load(summary.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for componentIndex := range loaded.Graph.Components {
+		switch loaded.Graph.Components[componentIndex].ID {
+		case "scalar":
+			loaded.Graph.Components[componentIndex].Nodes.Outputs[0].Unit = "W"
+		case "second_gain":
+			loaded.Graph.Components[componentIndex].Nodes.Inputs[0].Unit = "kW"
+		}
+	}
+	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
+		t.Fatal(err)
+	}
+
+	connectionPayload, err := json.Marshal(map[string]any{
+		"project_path":   summary.ProjectPath,
+		"from_component": "scalar",
+		"from_node":      "result",
+		"to_component":   "second_gain",
+		"to_node":        "value",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	connectionResponse := httptest.NewRecorder()
+	connectionRequest := httptest.NewRequest(http.MethodPost, "/api/project/connections", bytes.NewReader(connectionPayload))
+	server.Handler().ServeHTTP(connectionResponse, connectionRequest)
+	if connectionResponse.Code != http.StatusCreated {
+		t.Fatalf("connection status = %d body=%s", connectionResponse.Code, connectionResponse.Body.String())
+	}
+	var connectionBody struct {
+		Connection model.Connection `json:"connection"`
+	}
+	if err := json.Unmarshal(connectionResponse.Body.Bytes(), &connectionBody); err != nil {
+		t.Fatal(err)
+	}
+
+	updatePayload, err := json.Marshal(map[string]any{
+		"project_path":  summary.ProjectPath,
+		"connection_id": connectionBody.Connection.ID,
+		"unit_conversion": map[string]any{
+			"factor":      0.001,
+			"offset":      2,
+			"description": "W to kW with bias",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updateResponse := httptest.NewRecorder()
+	updateRequest := httptest.NewRequest(http.MethodPost, "/api/project/connections/update", bytes.NewReader(updatePayload))
+	server.Handler().ServeHTTP(updateResponse, updateRequest)
+	if updateResponse.Code != http.StatusOK {
+		t.Fatalf("update status = %d body=%s", updateResponse.Code, updateResponse.Body.String())
+	}
+	loaded, err = project.Load(summary.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conversion := loaded.Graph.Connections[0].UnitConversion
+	if conversion == nil || conversion.Mode != "linear" || conversion.Factor == nil || *conversion.Factor != 0.001 || conversion.Offset == nil || *conversion.Offset != 2 {
+		t.Fatalf("conversion = %#v", conversion)
+	}
+
+	invalidPayload, err := json.Marshal(map[string]any{
+		"project_path":    summary.ProjectPath,
+		"connection_id":   connectionBody.Connection.ID,
+		"unit_conversion": map[string]any{"mode": "table", "factor": 1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalidResponse := httptest.NewRecorder()
+	invalidRequest := httptest.NewRequest(http.MethodPost, "/api/project/connections/update", bytes.NewReader(invalidPayload))
+	server.Handler().ServeHTTP(invalidResponse, invalidRequest)
+	if invalidResponse.Code != http.StatusBadRequest {
+		t.Fatalf("invalid status = %d body=%s", invalidResponse.Code, invalidResponse.Body.String())
+	}
+
+	clearPayload, err := json.Marshal(map[string]any{
+		"project_path":    summary.ProjectPath,
+		"connection_id":   connectionBody.Connection.ID,
+		"unit_conversion": nil,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	clearResponse := httptest.NewRecorder()
+	clearRequest := httptest.NewRequest(http.MethodPost, "/api/project/connections/update", bytes.NewReader(clearPayload))
+	server.Handler().ServeHTTP(clearResponse, clearRequest)
+	if clearResponse.Code != http.StatusOK {
+		t.Fatalf("clear status = %d body=%s", clearResponse.Code, clearResponse.Body.String())
+	}
+	loaded, err = project.Load(summary.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Graph.Connections[0].UnitConversion != nil {
+		t.Fatalf("conversion after clear = %#v", loaded.Graph.Connections[0].UnitConversion)
 	}
 }
 

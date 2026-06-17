@@ -1132,9 +1132,14 @@ h2,
 }
 
 .connection-line.medium-warning,
-.connection-line.medium-override {
+.connection-line.medium-override,
+.connection-line.unit-warning {
   stroke: #b7791f;
   stroke-dasharray: 7 5;
+}
+
+.connection-line.unit-converted {
+  stroke: #2f855a;
 }
 
 .connection-line.medium-mismatch {
@@ -1196,9 +1201,15 @@ h2,
 }
 
 .connection-label.medium-warning .connection-label-bg,
-.connection-label.medium-override .connection-label-bg {
+.connection-label.medium-override .connection-label-bg,
+.connection-label.unit-warning .connection-label-bg {
   fill: #fff7e6;
   stroke: #d69e2e;
+}
+
+.connection-label.unit-converted .connection-label-bg {
+  fill: #e7f8ef;
+  stroke: #68b984;
 }
 
 .connection-label.medium-mismatch .connection-label-bg {
@@ -1879,6 +1890,16 @@ td {
   color: #936400;
 }
 
+.connection-flow.warning {
+  background: #fff7e6;
+  color: #936400;
+}
+
+.connection-flow.converted {
+  background: #e7f8ef;
+  color: #12733d;
+}
+
 .case-status {
   display: inline-flex;
   align-items: center;
@@ -1962,6 +1983,57 @@ td {
 .connection-form select,
 .connection-form button {
   width: 100%;
+}
+
+.connection-conversion-editor {
+  padding: 10px;
+  border-top: 1px solid #eef2f6;
+  background: #fbfdff;
+}
+
+.connection-conversion-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.connection-conversion-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.connection-conversion-form input,
+.connection-conversion-form select,
+.connection-conversion-form button {
+  width: 100%;
+}
+
+.connection-conversion-form #connectionUnitConversionDescription,
+.connection-conversion-form #connectionUnitConversionPreview {
+  grid-column: 1 / -1;
+}
+
+.connection-conversion-preview {
+  min-height: 28px;
+  padding: 6px 8px;
+  border: 1px solid #c7dfcf;
+  border-radius: 6px;
+  background: #f1fbf5;
+  color: #17613a;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.connection-conversion-preview.invalid {
+  border-color: #e2b4b4;
+  background: #fff0f0;
+  color: #a51d1d;
 }
 
 .parameter-form {

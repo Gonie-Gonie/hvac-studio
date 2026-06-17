@@ -31,9 +31,15 @@ The canvas shows node medium badges and labels each connection with its endpoint
 ## Unit Conversion
 
 Connections do not infer unit conversion from labels. If a source output and
-target input use different units, declare `unit_conversion` on the connection.
-The current runtime supports explicit linear conversion with `factor` and
-optional `offset` for numeric values.
+target input use different units, select the connection and use the Inspector
+Unit Conversion editor. Studio provides common linear presets for W to kW, kW
+to W, degC to K, kg/s to kg/h, and fraction to percent. Custom conversions use
+`converted = source * factor + offset`, with an immediate sample preview before
+saving.
+
+Without a conversion, a unit mismatch remains a warning. With an explicit
+conversion, the canvas and Inspector mark the connection as converted. Runtime
+trace records include both the source value and the converted target value.
 
 ## Composite Systems
 

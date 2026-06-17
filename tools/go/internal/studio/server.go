@@ -287,6 +287,29 @@ type createConnectionRequest struct {
 	ToNode        string `json:"to_node"`
 }
 
+type updateConnectionRequest struct {
+	ProjectPath              string                `json:"project_path"`
+	SystemID                 string                `json:"system_id"`
+	ConnectionID             string                `json:"connection_id"`
+	UnitConversion           *model.UnitConversion `json:"unit_conversion"`
+	UnitConversionWasPresent bool                  `json:"-"`
+}
+
+func (r *updateConnectionRequest) UnmarshalJSON(data []byte) error {
+	type request updateConnectionRequest
+	var decoded request
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*r = updateConnectionRequest(decoded)
+	_, r.UnitConversionWasPresent = raw["unit_conversion"]
+	return nil
+}
+
 type deleteConnectionRequest struct {
 	ProjectPath  string `json:"project_path"`
 	SystemID     string `json:"system_id"`
@@ -694,6 +717,7 @@ func (s *Server) routes(staticHandler http.Handler) {
 	s.mux.HandleFunc("POST /api/project/nodes/update", s.handleUpdateNode)
 	s.mux.HandleFunc("POST /api/project/nodes/delete", s.handleDeleteNode)
 	s.mux.HandleFunc("POST /api/project/connections", s.handleCreateConnection)
+	s.mux.HandleFunc("POST /api/project/connections/update", s.handleUpdateConnection)
 	s.mux.HandleFunc("POST /api/project/connections/delete", s.handleDeleteConnection)
 	s.mux.HandleFunc("POST /api/project/layout", s.handleUpdateLayout)
 	s.mux.HandleFunc("POST /api/project/input", s.handleUpdateInput)
@@ -1393,6 +1417,34 @@ func (s *Server) handleCreateConnection(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "connection": connection, "project": projectDetail(reloaded)})
+}
+
+func (s *Server) handleUpdateConnection(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeUpdateConnectionRequest(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	loaded, err := s.loadProject(req.ProjectPath)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := s.ensureWorkspaceProject(loaded.Root); err != nil {
+		writeError(w, err)
+		return
+	}
+	connection, err := updateConnection(loaded, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	reloaded, err := project.Load(loaded.Path)
+	if err != nil {
+		writeError(w, apperror.Wrap(apperror.CodeValidation, err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "connection": connection, "project": projectDetail(reloaded)})
 }
 
 func (s *Server) handleDeleteConnection(w http.ResponseWriter, r *http.Request) {
@@ -3553,6 +3605,67 @@ func createConnection(loaded *project.LoadedProject, req createConnectionRequest
 	return connection, nil
 }
 
+func updateConnection(loaded *project.LoadedProject, req updateConnectionRequest) (model.Connection, error) {
+	connectionID := strings.TrimSpace(req.ConnectionID)
+	if connectionID == "" {
+		return model.Connection{}, apperror.Errorf(apperror.CodeValidation, "connection_id is required")
+	}
+	if !req.UnitConversionWasPresent {
+		return model.Connection{}, apperror.Errorf(apperror.CodeValidation, "unit_conversion is required")
+	}
+	systemID := req.SystemID
+	if systemID == "" {
+		systemID = loaded.Project.EntrySystem
+	}
+	systemIndex := -1
+	for index := range loaded.Graph.Systems {
+		if loaded.Graph.Systems[index].ID == systemID {
+			systemIndex = index
+			break
+		}
+	}
+	if systemIndex < 0 {
+		return model.Connection{}, apperror.Errorf(apperror.CodeValidation, "system not found: %s", systemID)
+	}
+
+	connectionIndex := -1
+	for index, item := range loaded.Graph.Connections {
+		if item.ID == connectionID {
+			connectionIndex = index
+			break
+		}
+	}
+	if connectionIndex < 0 {
+		return model.Connection{}, apperror.Errorf(apperror.CodeValidation, "connection not found: %s", connectionID)
+	}
+	system := &loaded.Graph.Systems[systemIndex]
+	if !containsString(system.Connections, connectionID) {
+		return model.Connection{}, apperror.Errorf(apperror.CodeValidation, "connection is not in system %s: %s", systemID, connectionID)
+	}
+
+	loaded.Graph.Connections[connectionIndex].UnitConversion = normalizeUnitConversion(req.UnitConversion)
+	if _, err := compiler.Compile(loaded); err != nil {
+		return model.Connection{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
+		return model.Connection{}, err
+	}
+	return loaded.Graph.Connections[connectionIndex], nil
+}
+
+func normalizeUnitConversion(conversion *model.UnitConversion) *model.UnitConversion {
+	if conversion == nil {
+		return nil
+	}
+	normalized := *conversion
+	normalized.Mode = strings.TrimSpace(normalized.Mode)
+	if normalized.Mode == "" {
+		normalized.Mode = "linear"
+	}
+	normalized.Description = strings.TrimSpace(normalized.Description)
+	return &normalized
+}
+
 func deleteConnection(loaded *project.LoadedProject, req deleteConnectionRequest) (model.Connection, error) {
 	connectionID := strings.TrimSpace(req.ConnectionID)
 	if connectionID == "" {
@@ -4396,6 +4509,15 @@ func decodeDeleteNodeRequest(r *http.Request) (deleteNodeRequest, error) {
 func decodeCreateConnectionRequest(r *http.Request) (createConnectionRequest, error) {
 	defer r.Body.Close()
 	var req createConnectionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, apperror.Wrap(apperror.CodeInput, err)
+	}
+	return req, nil
+}
+
+func decodeUpdateConnectionRequest(r *http.Request) (updateConnectionRequest, error) {
+	defer r.Body.Close()
+	var req updateConnectionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, apperror.Wrap(apperror.CodeInput, err)
 	}

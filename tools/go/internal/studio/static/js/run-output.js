@@ -225,10 +225,13 @@ function renderConnectionTrace(state, tbody) {
     return;
   }
   for (const trace of traces) {
+    const value = trace.converted
+      ? `${formatValue(trace.source_value)} -> ${formatValue(trace.converted_value ?? trace.value)}`
+      : formatValue(trace.value);
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${escapeHTML(connectionLabel(trace))}</td>
-      <td>${escapeHTML(formatValue(trace.value))}</td>
+      <td>${escapeHTML(value)}</td>
       <td>${escapeHTML(traceMeta(trace))}</td>
     `;
     tbody.append(row);
@@ -470,8 +473,10 @@ function connectionLabel(trace) {
 function traceMeta(trace) {
   return [
     trace.source_medium && trace.target_medium ? `${trace.source_medium}->${trace.target_medium}` : trace.medium || "",
+    trace.source_unit && trace.target_unit ? `${trace.source_unit}->${trace.target_unit}` : "",
     trace.value_type || "",
     trace.unit || "",
+    trace.converted ? "converted" : "",
   ].filter(Boolean).join(" / ");
 }
 

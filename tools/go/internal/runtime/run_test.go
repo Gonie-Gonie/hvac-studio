@@ -203,6 +203,70 @@ func TestConnectionValueTracesIncludeEndpointMetadata(t *testing.T) {
 	}
 }
 
+func TestConnectionValueTracesRecordConvertedValues(t *testing.T) {
+	factor := 0.001
+	graph := &model.Graph{
+		SchemaVersion: "0.1.0",
+		Components: []model.Component{
+			{
+				ID:   "meter",
+				Kind: "user_python",
+				Nodes: model.NodeSet{
+					Outputs: []model.Node{{ID: "power", Medium: "signal", ValueType: "float", Unit: "W"}},
+				},
+			},
+			{
+				ID:   "load",
+				Kind: "user_python",
+				Nodes: model.NodeSet{
+					Inputs: []model.Node{{ID: "power", Medium: "signal", ValueType: "float", Unit: "kW"}},
+				},
+			},
+		},
+		Connections: []model.Connection{
+			{
+				ID:   "meter_to_load",
+				From: model.Endpoint{Component: "meter", Node: "power"},
+				To:   model.Endpoint{Component: "load", Node: "power"},
+				UnitConversion: &model.UnitConversion{
+					Mode:        "linear",
+					Factor:      &factor,
+					Description: "W to kW",
+				},
+			},
+		},
+	}
+	index, err := graphindex.NewIndex(graph)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan := &compiler.Plan{
+		System: model.System{Connections: []string{"meter_to_load"}},
+		Index:  index,
+	}
+
+	traces := connectionValueTraces(plan, map[string]map[string]any{
+		"meter": {"power": 2500.0},
+	})
+
+	if len(traces) != 1 {
+		t.Fatalf("traces = %#v", traces)
+	}
+	trace := traces[0]
+	if !trace.Converted {
+		t.Fatalf("trace should be converted: %#v", trace)
+	}
+	if trace.SourceValue != 2500.0 || trace.Value != 2.5 || trace.ConvertedValue != 2.5 {
+		t.Fatalf("trace values = %#v", trace)
+	}
+	if trace.SourceUnit != "W" || trace.TargetUnit != "kW" || trace.Unit != "kW" {
+		t.Fatalf("trace units = %#v", trace)
+	}
+	if trace.UnitConversion == nil || trace.ConversionDescription != "W to kW" {
+		t.Fatalf("trace conversion = %#v", trace)
+	}
+}
+
 func TestNestedCompositeStatesClonesChildState(t *testing.T) {
 	state := map[string]any{
 		"system": "ChildSystem",

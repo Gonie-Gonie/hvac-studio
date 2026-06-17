@@ -63,8 +63,9 @@ example declares `solver_boundary` metadata and performs fixed-point iteration
 inside one component while the project graph remains acyclic.
 
 For explicit unit conversion, use `examples/012_unit_conversion_component`. That
-example declares `unit_conversion` on a connection and validates the target
-component receives the converted value.
+example declares `unit_conversion` on a connection, validates the target
+component receives the converted value, and can be copied into a workspace to
+try the Inspector preset editor.
 
 For nested composition, use `examples/013_composite_system`. That example
 declares a `kind: "composite"` wrapper whose input and output node IDs match the

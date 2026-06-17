@@ -46,14 +46,21 @@ type NodeValueTrace struct {
 }
 
 type ConnectionValueTrace struct {
-	ID           string         `json:"id"`
-	From         model.Endpoint `json:"from"`
-	To           model.Endpoint `json:"to"`
-	SourceMedium string         `json:"source_medium,omitempty"`
-	TargetMedium string         `json:"target_medium,omitempty"`
-	ValueType    string         `json:"value_type,omitempty"`
-	Unit         string         `json:"unit,omitempty"`
-	Value        any            `json:"value"`
+	ID                    string                `json:"id"`
+	From                  model.Endpoint        `json:"from"`
+	To                    model.Endpoint        `json:"to"`
+	SourceMedium          string                `json:"source_medium,omitempty"`
+	TargetMedium          string                `json:"target_medium,omitempty"`
+	SourceUnit            string                `json:"source_unit,omitempty"`
+	TargetUnit            string                `json:"target_unit,omitempty"`
+	ValueType             string                `json:"value_type,omitempty"`
+	Unit                  string                `json:"unit,omitempty"`
+	Value                 any                   `json:"value"`
+	SourceValue           any                   `json:"source_value,omitempty"`
+	ConvertedValue        any                   `json:"converted_value,omitempty"`
+	Converted             bool                  `json:"converted,omitempty"`
+	UnitConversion        *model.UnitConversion `json:"unit_conversion,omitempty"`
+	ConversionDescription string                `json:"conversion_description,omitempty"`
 }
 
 type ComponentTiming struct {
@@ -114,27 +121,47 @@ func connectionValueTraces(plan *compiler.Plan, componentOutputs map[string]map[
 		sourceNode, _ := plan.Index.OutputNode(connection.From.Component, connection.From.Node)
 		targetNode, _ := plan.Index.InputNode(connection.To.Component, connection.To.Node)
 		traceValue := value
+		traceSourceValue := any(nil)
+		traceConvertedValue := any(nil)
 		traceValueType := sourceNode.ValueType
 		traceUnit := sourceNode.Unit
+		traceConverted := false
 		if connection.UnitConversion != nil {
 			if converted, err := applyConnectionUnitConversion(connection, value); err == nil {
 				traceValue = converted
+				traceSourceValue = value
+				traceConvertedValue = converted
 				traceValueType = targetNode.ValueType
 				traceUnit = targetNode.Unit
+				traceConverted = true
 			}
 		}
 		traces = append(traces, ConnectionValueTrace{
-			ID:           connection.ID,
-			From:         connection.From,
-			To:           connection.To,
-			SourceMedium: sourceNode.Medium,
-			TargetMedium: targetNode.Medium,
-			ValueType:    traceValueType,
-			Unit:         traceUnit,
-			Value:        traceValue,
+			ID:                    connection.ID,
+			From:                  connection.From,
+			To:                    connection.To,
+			SourceMedium:          sourceNode.Medium,
+			TargetMedium:          targetNode.Medium,
+			SourceUnit:            sourceNode.Unit,
+			TargetUnit:            targetNode.Unit,
+			ValueType:             traceValueType,
+			Unit:                  traceUnit,
+			Value:                 traceValue,
+			SourceValue:           traceSourceValue,
+			ConvertedValue:        traceConvertedValue,
+			Converted:             traceConverted,
+			UnitConversion:        connection.UnitConversion,
+			ConversionDescription: unitConversionDescription(connection.UnitConversion),
 		})
 	}
 	return traces
+}
+
+func unitConversionDescription(conversion *model.UnitConversion) string {
+	if conversion == nil {
+		return ""
+	}
+	return conversion.Description
 }
 
 func LoadInput(inputPath string) (RunInput, error) {
