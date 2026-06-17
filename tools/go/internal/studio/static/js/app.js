@@ -4291,6 +4291,14 @@ function candidateResultSection(result, savedLabel, savedPath) {
   exportReport.textContent = "Export Report";
   exportReport.addEventListener("click", () => downloadCandidateReport(result));
   actions.append(exportReport);
+  if (isOptimizationResult(result) && result.setup) {
+    const exportSDK = document.createElement("button");
+    exportSDK.type = "button";
+    exportSDK.className = "small-action";
+    exportSDK.textContent = "Export SDK Script";
+    exportSDK.addEventListener("click", () => downloadOptimizationSDKScript(result));
+    actions.append(exportSDK);
+  }
   if (savedLabel === "Saved parameter set" && savedPath && isWorkspaceProject()) {
     const useForRuns = document.createElement("button");
     useForRuns.type = "button";
@@ -4322,6 +4330,10 @@ function candidateResultSection(result, savedLabel, savedPath) {
     section.append(actions);
   }
   return section;
+}
+
+function isOptimizationResult(result) {
+  return result.saved_scenario !== undefined || result.best_inputs !== undefined || result.objective?.output !== undefined;
 }
 
 function candidateObjectiveHistory(result) {
@@ -4637,6 +4649,44 @@ function downloadTextFile(name, content, type) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+function downloadOptimizationSDKScript(result) {
+  const setup = result.setup || "";
+  const saveScenario = result.saved_scenario || "";
+  const saveParameterSet = result.saved_parameter_set || "";
+  const outputName = `${safeFileName(result.setup_id || result.setup_name || "optimization")}-sdk-result.json`;
+  const lines = [
+    "from pathlib import Path",
+    "import json",
+    "",
+    "from bcs_sdk import RunnerClient",
+    "",
+    `PROJECT = Path(${pythonStringLiteral(state.currentProjectPath || "project.bcsproj")})`,
+    `RUNNER = ${pythonStringLiteral("bcs-runner.exe")}`,
+    `SETUP = ${pythonStringLiteral(setup)}`,
+    `OUTPUT = Path(${pythonStringLiteral(outputName)})`,
+    "",
+    "client = RunnerClient(project=PROJECT, runner=RUNNER, persistent=False)",
+    "client.validate_project()",
+    "result = client.run_optimization(",
+    "    setup=SETUP,",
+    saveScenario ? `    save_scenario=${pythonStringLiteral(saveScenario)},` : "    save_scenario=None,",
+    saveParameterSet ? `    save_parameter_set=${pythonStringLiteral(saveParameterSet)},` : "    save_parameter_set=None,",
+    "    save_record=True,",
+    "    output=OUTPUT,",
+    ")",
+    "print(json.dumps({",
+    "    \"ok\": result.get(\"ok\"),",
+    "    \"best_objective\": result.get(\"best_objective\"),",
+    "    \"saved_scenario\": result.get(\"saved_scenario\", \"\"),",
+    "    \"saved_parameter_set\": result.get(\"saved_parameter_set\", \"\"),",
+    "    \"output\": str(OUTPUT),",
+    "}, indent=2, sort_keys=True))",
+    "",
+  ];
+  const name = `${safeFileName(result.setup_id || result.setup_name || "optimization")}-sdk.py`;
+  downloadTextFile(name, lines.join("\n"), "text/x-python;charset=utf-8");
 }
 
 function candidateStatus(item) {
