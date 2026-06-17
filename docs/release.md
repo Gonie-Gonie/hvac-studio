@@ -312,6 +312,8 @@ The runner uses stable exit code categories for external engines:
 
 - Update `CHANGELOG.md`.
 - Run `scripts/release/test-release-candidate.ps1 -Version <version>`.
+  This includes the Studio screenshot matrix; use `-SkipScreenshots` only on
+  machines where Edge/Chrome is intentionally unavailable.
 - Commit and push all changes.
 - Create and push a version tag.
 - Confirm the GitHub Release contains portable, installer, runtime, experimental macOS, and checksum assets.

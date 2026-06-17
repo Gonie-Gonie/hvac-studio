@@ -597,6 +597,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("renderStartWorkspace")) {
 		t.Fatalf("module entrypoint did not include the Start workspace renderer")
 	}
+	if bytes.Contains(body, []byte("currentProjectSummary")) {
+		t.Fatalf("module entrypoint should not reference removed project summary helper")
+	}
 	if !bytes.Contains(body, []byte("datasetTreeItems")) {
 		t.Fatalf("module entrypoint did not include Dataset project tree objects")
 	}

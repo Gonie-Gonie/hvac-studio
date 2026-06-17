@@ -323,7 +323,7 @@ function renderStartRuntimeRows() {
   const tbody = el("startRuntimeRows");
   if (!tbody) return;
   const project = state.detail?.project;
-  const summary = currentProjectSummary();
+  const summary = currentProject();
   const rows = [
     ["Runtime", el("runtimeStatus")?.textContent || "Runtime ready"],
     ["Current Project", project?.project_name || "No project open"],

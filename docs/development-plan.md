@@ -730,7 +730,7 @@ timeouts, and cleanup blocks so automation never waits indefinitely.
 For GUI readability changes:
 
 - start Studio server or desktop build
-- capture desktop and mobile screenshots
+- capture the Studio screenshot matrix with `scripts/dev/test-screenshot-matrix.ps1`
 - check Project tree, command bars, Inspector, canvas, tables, code editor, and results for overlap/truncation
 - keep captures under ignored `artifacts/`
 

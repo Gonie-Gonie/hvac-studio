@@ -1,7 +1,8 @@
 param(
   [string]$Version = '',
   [switch]$SkipSetup,
-  [switch]$SkipFast
+  [switch]$SkipFast,
+  [switch]$SkipScreenshots
 )
 
 $ErrorActionPreference = 'Stop'
@@ -52,6 +53,12 @@ if (-not $SkipSetup) {
 if (-not $SkipFast) {
   Invoke-ReleaseStep 'Run fast verification' {
     Invoke-CheckedPowerShell -Script (Join-Path $RepoRoot 'scripts\dev\test-fast.ps1')
+  }
+}
+
+if (-not $SkipScreenshots) {
+  Invoke-ReleaseStep 'Capture Studio screenshot matrix' {
+    Invoke-CheckedPowerShell -Script (Join-Path $RepoRoot 'scripts\dev\test-screenshot-matrix.ps1')
   }
 }
 
