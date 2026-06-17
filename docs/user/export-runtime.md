@@ -18,6 +18,7 @@ exports/runtime_package/calibrate.ps1
 exports/runtime_package/optimize.ps1
 exports/runtime_package/serve.ps1
 exports/runtime_package/sdk-example.py
+exports/runtime_package/optimize-sdk.py
 exports/runtime_package/bin/bcs-runner.exe
 exports/runtime_package/bin/bcs-env.exe
 exports/runtime_package/docs/CLI_Guide.md
@@ -52,6 +53,7 @@ powershell -ExecutionPolicy Bypass -File .\optimize.ps1
 powershell -ExecutionPolicy Bypass -File .\serve.ps1 -RequestFile requests.jsonl -Output outputs\serve-responses.jsonl
 powershell -ExecutionPolicy Bypass -File .\check-env.ps1 -Json
 .\runtime\python\python.exe .\sdk-example.py
+.\runtime\python\python.exe .\optimize-sdk.py
 ```
 
 Studio exports include generated run, batch, validation, calibration, and optimization records when `include_records` is selected by the caller. Source artifacts are always copied; generated records are listed separately in `manifest.json` under `run_records`, `batch_records`, `validation_records`, `calibration_records`, and `optimization_records`.

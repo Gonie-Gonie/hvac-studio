@@ -6300,6 +6300,7 @@ func runtimeExportEntrypoints(files []string, plan *compiler.Plan, projectPath s
 	}
 	if optimizationSetup != "" {
 		entrypoints = append(entrypoints, runtimeExportEntrypoint{Rel: "optimize.ps1", Content: runtimeExportOptimizationScript(projectPath, optimizationSetup)})
+		entrypoints = append(entrypoints, runtimeExportEntrypoint{Rel: "optimize-sdk.py", Content: runtimeExportOptimizationSDKExample(projectPath, optimizationSetup)})
 	}
 	entrypoints = append([]runtimeExportEntrypoint{{Rel: "README.md", Content: runtimeExportReadme(projectPath, defaultInput, lockfile, entrypoints)}}, entrypoints...)
 	return entrypoints
@@ -6612,6 +6613,58 @@ print(json.dumps(result["outputs"], indent=2, sort_keys=True))
 `, filepath.FromSlash(projectPath), filepath.FromSlash(defaultInput))
 }
 
+func runtimeExportOptimizationSDKExample(projectPath string, setup string) string {
+	return fmt.Sprintf(`from pathlib import Path
+import argparse
+import json
+import sys
+
+
+ROOT = Path(__file__).resolve().parent
+SDK_ROOT = ROOT / "python" / "bcs_sdk"
+if SDK_ROOT.exists():
+    sys.path.insert(0, str(SDK_ROOT))
+
+from bcs_sdk import RunnerClient
+
+
+RUNNER = ROOT / "bin" / "bcs-runner.exe"
+PROJECT = ROOT / %q
+DEFAULT_SETUP = %q
+
+
+parser = argparse.ArgumentParser(description="Run an exported HVAC Studio optimization setup through bcs_sdk.")
+parser.add_argument("--setup", default=DEFAULT_SETUP, help="Project-relative optimization setup path.")
+parser.add_argument("--output", default=str(ROOT / "outputs" / "optimization-sdk-result.json"), help="Output JSON path.")
+parser.add_argument("--save-scenario", default="", help="Project-relative scenario path for the optimized public inputs.")
+parser.add_argument("--save-parameter-set", default="", help="Project-relative parameter set path for optimized component parameters.")
+parser.add_argument("--save-record", action="store_true", help="Save an optimization result record under the exported project.")
+args = parser.parse_args()
+
+output = Path(args.output)
+if not output.is_absolute():
+    output = ROOT / output
+output.parent.mkdir(parents=True, exist_ok=True)
+
+client = RunnerClient(project=PROJECT, runner=RUNNER, persistent=False)
+client.validate_project()
+result = client.run_optimization(
+    setup=args.setup,
+    save_scenario=args.save_scenario or None,
+    save_parameter_set=args.save_parameter_set or None,
+    save_record=args.save_record,
+    output=output,
+)
+print(json.dumps({
+    "ok": result.get("ok"),
+    "best_objective": result.get("best_objective"),
+    "saved_scenario": result.get("saved_scenario", ""),
+    "saved_parameter_set": result.get("saved_parameter_set", ""),
+    "output": str(output),
+}, indent=2, sort_keys=True))
+`, filepath.FromSlash(projectPath), setup)
+}
+
 func runtimeExportScriptPreamble(projectPath string) string {
 	projectLiteral := powerShellSingleQuotedPath(projectPath)
 	return strings.TrimLeft(fmt.Sprintf(`
@@ -6639,10 +6692,18 @@ func runtimeExportReadme(projectPath string, defaultInput string, lockfile strin
 		lockfileLine = fmt.Sprintf("- Python lockfile: `%s`\n", lockfile)
 	}
 	commandLines := []string{}
+	pythonExamples := []string{}
 	for _, entrypoint := range entrypoints {
 		if strings.HasSuffix(entrypoint.Rel, ".ps1") {
 			commandLines = append(commandLines, fmt.Sprintf("- `powershell -ExecutionPolicy Bypass -File .\\%s`", entrypoint.Rel))
 		}
+		if strings.HasSuffix(entrypoint.Rel, ".py") {
+			pythonExamples = append(pythonExamples, fmt.Sprintf("`%s`", entrypoint.Rel))
+		}
+	}
+	pythonLine := "- Python SDK example: `sdk-example.py`\n"
+	if len(pythonExamples) > 0 {
+		pythonLine = fmt.Sprintf("- Python SDK examples: %s\n", strings.Join(pythonExamples, ", "))
 	}
 	return "# Runtime Export\n\n" +
 		"This folder contains a runnable Studio runtime export.\n\n" +
@@ -6651,7 +6712,7 @@ func runtimeExportReadme(projectPath string, defaultInput string, lockfile strin
 		lockfileLine +
 		"- Public IO schema: `schema/public-io.json`\n" +
 		"- CLI guide: `docs/CLI_Guide.md`\n" +
-		"- Python SDK example: `sdk-example.py`\n" +
+		pythonLine +
 		"- Runner: `bin/bcs-runner.exe`\n\n" +
 		"Available Windows commands:\n\n" +
 		strings.Join(commandLines, "\n") +
@@ -6697,6 +6758,7 @@ func runtimeExportCLIGuide(files []string, plan *compiler.Plan, projectPath stri
 	}
 	if len(exportFilesWithPrefix(files, "project/optimization/setups/")) > 0 {
 		sections = append(sections, "- `powershell -ExecutionPolicy Bypass -File .\\optimize.ps1`")
+		sections = append(sections, "- `runtime\\python\\python.exe optimize-sdk.py`")
 	}
 	sections = append(sections,
 		"",

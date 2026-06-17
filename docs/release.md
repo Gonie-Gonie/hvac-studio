@@ -152,7 +152,7 @@ Current portable Studio smoke coverage:
 - Runs saved scenarios as a batch and reopens the saved `runs/batch-*.json` record.
 - Runs the workspace project and writes `runs/run-*.json`.
 - Reopens the saved run record through `/api/project/run`.
-- Writes `exports/runtime_package/manifest.json`, copied project files, public IO schema, runner tools, packaged Python runtime and SDK, README, `docs/CLI_Guide.md`, `sdk-example.py`, and workflow scripts such as `check-env.ps1`, `run-default.ps1`, `run-scenario.ps1`, `run-batch.ps1`, `validate-data.ps1`, `calibrate.ps1`, `optimize.ps1`, and `serve.ps1` when matching artifacts exist.
+- Writes `exports/runtime_package/manifest.json`, copied project files, public IO schema, runner tools, packaged Python runtime and SDK, README, `docs/CLI_Guide.md`, `sdk-example.py`, `optimize-sdk.py` when optimization setups exist, and workflow scripts such as `check-env.ps1`, `run-default.ps1`, `run-scenario.ps1`, `run-batch.ps1`, `validate-data.ps1`, `calibrate.ps1`, `optimize.ps1`, and `serve.ps1` when matching artifacts exist.
 - Runs the exported project through the exported `bin/bcs-runner.exe`.
 - Runs the exported `run-default.ps1`.
 - Runs exported `bin/bcs-env.exe check --root <export>` and verifies `runtime-export` mode.

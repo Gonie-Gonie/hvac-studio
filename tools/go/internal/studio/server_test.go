@@ -4914,6 +4914,7 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 		"check-env.ps1",
 		"docs/CLI_Guide.md",
 		"optimize.ps1",
+		"optimize-sdk.py",
 		"project/project.bcsproj",
 		"project/graph.json",
 		"project/components/__init__.py",
@@ -4982,6 +4983,13 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	if !bytes.Contains(optimizeBytes, []byte("SaveParameterSet")) || !bytes.Contains(optimizeBytes, []byte("--save-parameter-set")) {
 		t.Fatalf("optimize script missing parameter set save option:\n%s", string(optimizeBytes))
 	}
+	optimizeSDKBytes, err := os.ReadFile(filepath.Join(exportRoot, "optimize-sdk.py"))
+	if err != nil {
+		t.Fatalf("optimization sdk script: %v", err)
+	}
+	if !bytes.Contains(optimizeSDKBytes, []byte("RunnerClient")) || !bytes.Contains(optimizeSDKBytes, []byte("run_optimization")) || !bytes.Contains(optimizeSDKBytes, []byte("scalar_grid.json")) {
+		t.Fatalf("optimization sdk script missing SDK optimization workflow:\n%s", string(optimizeSDKBytes))
+	}
 	sdkExampleBytes, err := os.ReadFile(filepath.Join(exportRoot, "sdk-example.py"))
 	if err != nil {
 		t.Fatalf("sdk example: %v", err)
@@ -4993,7 +5001,7 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cli guide: %v", err)
 	}
-	for _, text := range []string{"Runtime CLI Guide", "Public Inputs", "Validation Mappings", "Calibration Setups", "Optimization Setups"} {
+	for _, text := range []string{"Runtime CLI Guide", "Public Inputs", "Validation Mappings", "Calibration Setups", "Optimization Setups", "optimize-sdk.py"} {
 		if !bytes.Contains(guideBytes, []byte(text)) {
 			t.Fatalf("cli guide missing %q:\n%s", text, string(guideBytes))
 		}
