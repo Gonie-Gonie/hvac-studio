@@ -594,6 +594,8 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("calibrationSetupEditorSection")) ||
 		!bytes.Contains(body, []byte("Candidate Parameters")) ||
+		!bytes.Contains(body, []byte("Least Squares")) ||
+		!bytes.Contains(body, []byte("least_squares")) ||
 		!bytes.Contains(body, []byte("Expected Runs")) ||
 		!bytes.Contains(body, []byte("objective_outputs")) {
 		t.Fatalf("module entrypoint did not expose calibration setup editor")
@@ -603,6 +605,8 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("optimizationSetupEditorSection")) ||
 		!bytes.Contains(body, []byte("Decision Variables")) ||
+		!bytes.Contains(body, []byte("Differential Evolution")) ||
+		!bytes.Contains(body, []byte("differential_evolution")) ||
 		!bytes.Contains(body, []byte("Estimated Runs")) ||
 		!bytes.Contains(body, []byte("constraints")) {
 		t.Fatalf("module entrypoint did not expose optimization setup editor")
@@ -3246,7 +3250,7 @@ func TestCreateCalibrationSetupEndpointWritesRoleBasedSetup(t *testing.T) {
 		"project_path": projectPath,
 		"mapping_path": filepath.Join("validation", "mappings", "plant_validation.json"),
 		"id":           "auto_calibration",
-		"algorithm":    "grid",
+		"algorithm":    "least_squares",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -3268,6 +3272,9 @@ func TestCreateCalibrationSetupEndpointWritesRoleBasedSetup(t *testing.T) {
 	}
 	if body.Summary.RelativePath != "calibration/setups/auto_calibration.json" || body.Summary.ParameterCount == 0 {
 		t.Fatalf("summary = %#v", body.Summary)
+	}
+	if body.Summary.Algorithm != "least_squares" || body.Setup.Algorithm != "least_squares" {
+		t.Fatalf("algorithm summary=%#v setup=%#v", body.Summary, body.Setup)
 	}
 	if body.Setup.Objective.Metric != "rmse" || body.Setup.Objective.Outputs["total_power_kw"] != 1 {
 		t.Fatalf("objective = %#v", body.Setup.Objective)
@@ -3292,7 +3299,7 @@ func TestCreateOptimizationSetupEndpointWritesPublicInputSetup(t *testing.T) {
 	payload, err := json.Marshal(map[string]any{
 		"project_path":       projectPath,
 		"id":                 "auto_optimization",
-		"algorithm":          "grid",
+		"algorithm":          "differential_evolution",
 		"base_parameter_set": filepath.Join("parameter_sets", "base.json"),
 		"base_inputs": map[string]any{
 			"building_load_kw": 500.0,
@@ -3323,6 +3330,9 @@ func TestCreateOptimizationSetupEndpointWritesPublicInputSetup(t *testing.T) {
 	}
 	if body.Summary.BaseParameterSet != "parameter_sets/base.json" || body.Setup.BaseParameterSet != "parameter_sets/base.json" {
 		t.Fatalf("base parameter set summary=%#v setup=%#v", body.Summary, body.Setup)
+	}
+	if body.Summary.Algorithm != "differential_evolution" || body.Setup.Algorithm != "differential_evolution" {
+		t.Fatalf("algorithm summary=%#v setup=%#v", body.Summary, body.Setup)
 	}
 	if body.Setup.Objective.Output != "objective_kw" || body.Setup.DecisionVariables[0].Name != "chw_setpoint_c" {
 		t.Fatalf("optimization setup = %#v", body.Setup)

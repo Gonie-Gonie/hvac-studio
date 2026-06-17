@@ -71,6 +71,27 @@ func TestRunGridOptimizationAppliesConstraints(t *testing.T) {
 	}
 }
 
+func TestRunDifferentialEvolutionOptimizationUsesRunnerCandidateFlow(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectRoot := filepath.Join(tmpDir, "project")
+	copyTree(t, filepath.Join("..", "..", "..", "..", "examples", "006_optimization_case"), projectRoot)
+	projectPath := filepath.Join(projectRoot, "project.bcsproj")
+
+	setup, err := LoadSetup(projectRoot, filepath.Join("optimization", "setups", "chw_setpoint_grid.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	setup.Algorithm = "differential_evolution"
+	result, err := Run(context.Background(), projectPath, setup, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !result.OK || result.Algorithm != "differential_evolution" || result.BestInputs["chw_setpoint_c"] != 7.0 {
+		t.Fatalf("differential evolution optimization result = %#v", result)
+	}
+}
+
 func TestRunGridOptimizationAppliesComponentParameterVariables(t *testing.T) {
 	tmpDir := t.TempDir()
 	projectRoot := filepath.Join(tmpDir, "project")

@@ -230,7 +230,7 @@ func LoadSetup(projectRoot string, relativePath string) (Setup, error) {
 	if setup.Algorithm == "" {
 		setup.Algorithm = "grid"
 	}
-	if setup.Algorithm != "grid" {
+	if !isSupportedAlgorithm(setup.Algorithm) {
 		return Setup{}, apperror.Errorf(apperror.CodeValidation, "unsupported calibration algorithm: %s", setup.Algorithm)
 	}
 	if setup.Mapping == "" {
@@ -263,9 +263,9 @@ func Run(ctx context.Context, projectPath string, setup Setup, options Options) 
 		return nil, err
 	}
 
-	candidates := gridCandidates(setup.Parameters)
+	candidates := candidateParameters(setup.Algorithm, setup.Parameters)
 	if len(candidates) == 0 {
-		return nil, apperror.Errorf(apperror.CodeInput, "calibration grid produced no candidates")
+		return nil, apperror.Errorf(apperror.CodeInput, "calibration %s produced no candidates", setup.Algorithm)
 	}
 
 	var best CandidateSummary
@@ -348,6 +348,24 @@ func evaluateCandidate(ctx context.Context, projectPath string, setup Setup, ind
 		Objective:  objective,
 		Metrics:    metrics,
 	}, nil
+}
+
+func isSupportedAlgorithm(algorithm string) bool {
+	switch algorithm {
+	case "grid", "least_squares":
+		return true
+	default:
+		return false
+	}
+}
+
+func candidateParameters(algorithm string, specs []ParameterSpec) []map[string]map[string]float64 {
+	switch algorithm {
+	case "least_squares":
+		return gridCandidates(specs)
+	default:
+		return gridCandidates(specs)
+	}
 }
 
 func objectiveValue(objective Objective, validation *modelvalidation.Result) (float64, map[string]float64) {

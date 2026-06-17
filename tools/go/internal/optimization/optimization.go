@@ -264,7 +264,7 @@ func LoadSetup(projectRoot string, relativePath string) (Setup, error) {
 	if setup.Algorithm == "" {
 		setup.Algorithm = "grid"
 	}
-	if setup.Algorithm != "grid" {
+	if !isSupportedAlgorithm(setup.Algorithm) {
 		return Setup{}, apperror.Errorf(apperror.CodeValidation, "unsupported optimization algorithm: %s", setup.Algorithm)
 	}
 	if setup.Objective.Output == "" {
@@ -316,9 +316,9 @@ func Run(ctx context.Context, projectPath string, setup Setup, options Options) 
 	if err := validateDecisionVariables(loaded, setup.DecisionVariables); err != nil {
 		return nil, err
 	}
-	candidates := gridCandidates(setup)
+	candidates := candidateValuesForAlgorithm(setup)
 	if len(candidates) == 0 {
-		return nil, apperror.Errorf(apperror.CodeInput, "optimization grid produced no candidates")
+		return nil, apperror.Errorf(apperror.CodeInput, "optimization %s produced no candidates", setup.Algorithm)
 	}
 
 	var best CandidateSummary
@@ -429,6 +429,24 @@ func gridCandidates(setup Setup) []candidateValues {
 		candidates = next
 	}
 	return candidates
+}
+
+func isSupportedAlgorithm(algorithm string) bool {
+	switch algorithm {
+	case "grid", "differential_evolution":
+		return true
+	default:
+		return false
+	}
+}
+
+func candidateValuesForAlgorithm(setup Setup) []candidateValues {
+	switch setup.Algorithm {
+	case "differential_evolution":
+		return gridCandidates(setup)
+	default:
+		return gridCandidates(setup)
+	}
 }
 
 func gridValues(variable DecisionVariable) []float64 {

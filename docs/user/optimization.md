@@ -17,10 +17,12 @@ Optimization changes decision variables to improve an objective.
 5. Run optimization.
 6. Save the result as scenario, parameter set, script, or CSV.
 
-In Studio, open `Artifacts` and use `Opt Setup` to create a saved grid-search
-setup without editing JSON. The editor lets you select the objective output,
-minimize or maximize, base parameter set, public-input and component-parameter
+In Studio, open `Artifacts` and use `Opt Setup` to create a saved setup without
+editing JSON. The editor lets you select the objective output, minimize or
+maximize, base parameter set, algorithm, public-input and component-parameter
 decision variables, bounds, output constraints, and estimated run count.
+Supported algorithms are `grid` and `differential_evolution`; both preserve the
+same runner-backed candidate/result artifact flow.
 
 The saved setup uses public inputs or component parameters. A decision variable
 can use:

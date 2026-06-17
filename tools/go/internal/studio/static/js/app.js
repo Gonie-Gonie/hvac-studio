@@ -3109,6 +3109,7 @@ function calibrationSetupControls(context) {
   const algorithmSelect = document.createElement("select");
   algorithmSelect.dataset.calibrationAlgorithm = "true";
   algorithmSelect.append(new Option("Grid Search", "grid"));
+  algorithmSelect.append(new Option("Least Squares", "least_squares"));
   controls.append(
     labeledEditorControl("Mapping", mappingSelect),
     labeledEditorControl("Base Parameter Set", baseSelect),
@@ -3459,6 +3460,7 @@ function optimizationSetupControls(context) {
   const algorithmSelect = document.createElement("select");
   algorithmSelect.dataset.optimizationAlgorithm = "true";
   algorithmSelect.append(new Option("Grid Search", "grid"));
+  algorithmSelect.append(new Option("Differential Evolution", "differential_evolution"));
   controls.append(
     labeledEditorControl("Objective", objectiveSelect),
     labeledEditorControl("Sense", senseSelect),

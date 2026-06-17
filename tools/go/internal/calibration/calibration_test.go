@@ -46,6 +46,27 @@ func TestRunGridCalibrationWritesParameterSetWithoutOverwritingGraph(t *testing.
 	}
 }
 
+func TestRunLeastSquaresCalibrationUsesRunnerCandidateFlow(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectRoot := filepath.Join(tmpDir, "project")
+	copyTree(t, filepath.Join("..", "..", "..", "..", "examples", "005_chiller_plant_like_system"), projectRoot)
+	projectPath := filepath.Join(projectRoot, "project.bcsproj")
+
+	setup, err := LoadSetup(projectRoot, filepath.Join("calibration", "setups", "chiller_cop_grid.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	setup.Algorithm = "least_squares"
+	result, err := Run(context.Background(), projectPath, setup, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !result.OK || result.Algorithm != "least_squares" || len(result.Candidates) != 5 {
+		t.Fatalf("least squares calibration result = %#v", result)
+	}
+}
+
 func copyTree(t *testing.T, sourceRoot string, targetRoot string) {
 	t.Helper()
 	err := filepath.WalkDir(sourceRoot, func(path string, entry os.DirEntry, walkErr error) error {

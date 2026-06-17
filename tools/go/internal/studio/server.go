@@ -6053,7 +6053,7 @@ func createCalibrationSetup(loaded *project.LoadedProject, req createCalibration
 	if algorithm == "" {
 		algorithm = "grid"
 	}
-	if algorithm != "grid" {
+	if algorithm != "grid" && algorithm != "least_squares" {
 		return CalibrationSetupSummary{}, calibration.Setup{}, apperror.Errorf(apperror.CodeValidation, "unsupported calibration algorithm: %s", algorithm)
 	}
 	id := strings.ReplaceAll(slugify(req.ID), "-", "_")
@@ -6122,7 +6122,7 @@ func createOptimizationSetup(loaded *project.LoadedProject, req createOptimizati
 	if algorithm == "" {
 		algorithm = "grid"
 	}
-	if algorithm != "grid" {
+	if algorithm != "grid" && algorithm != "differential_evolution" {
 		return OptimizationSetupSummary{}, optimization.Setup{}, apperror.Errorf(apperror.CodeValidation, "unsupported optimization algorithm: %s", algorithm)
 	}
 	baseParameterSet := strings.TrimSpace(req.BaseParameterSet)
