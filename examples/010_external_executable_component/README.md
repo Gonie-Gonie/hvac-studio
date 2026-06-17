@@ -17,7 +17,9 @@ The request contains:
 ```
 
 The response must contain an `outputs` object and may contain `state`, `logs`,
-or `ok: false` with an error object.
+or `ok: false` with an error object. This example emits one stderr line and one
+structured info log so Studio can show both external stderr capture and
+source-tagged component logs.
 
 Run it from the repo root:
 

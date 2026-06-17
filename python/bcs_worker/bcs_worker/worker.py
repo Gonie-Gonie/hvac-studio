@@ -162,6 +162,7 @@ def handle_request(host: ComponentHost, request: dict[str, Any]) -> dict[str, An
             payload, logs = captured_component_call(
                 component_id=component_id,
                 stage="load",
+                source=str(request.get("class", "")),
                 callback=lambda: host.load_component(
                     component_id=component_id,
                     class_path=str(request.get("class", "")),
@@ -174,6 +175,7 @@ def handle_request(host: ComponentHost, request: dict[str, Any]) -> dict[str, An
             state, logs = captured_component_call(
                 component_id=component_id,
                 stage="initialize",
+                source=component_source(host, component_id),
                 callback=lambda: host.initialize_component(
                     component_id=component_id,
                     params=request.get("params") or {},
@@ -186,6 +188,7 @@ def handle_request(host: ComponentHost, request: dict[str, Any]) -> dict[str, An
             (outputs, state), logs = captured_component_call(
                 component_id=component_id,
                 stage="evaluate",
+                source=component_source(host, component_id),
                 callback=lambda: host.evaluate_component(
                     component_id=component_id,
                     inputs=request.get("inputs") or {},
@@ -200,6 +203,7 @@ def handle_request(host: ComponentHost, request: dict[str, Any]) -> dict[str, An
             (outputs, state), logs = captured_component_call(
                 component_id=component_id,
                 stage="evaluate_batch",
+                source=component_source(host, component_id),
                 callback=lambda: host.evaluate_component_batch(
                     component_id=component_id,
                     inputs=request.get("inputs") or {},
@@ -232,6 +236,7 @@ def handle_request(host: ComponentHost, request: dict[str, Any]) -> dict[str, An
 def captured_component_call(
     component_id: str,
     stage: str,
+    source: str,
     callback: Any,
 ) -> tuple[Any, list[dict[str, Any]]]:
     stdout = io.StringIO()
@@ -240,21 +245,27 @@ def captured_component_call(
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             result = callback()
     except Exception as exc:  # noqa: BLE001 - preserve user exception at worker boundary.
-        logs = component_logs(component_id, stage, stdout.getvalue(), stderr.getvalue())
+        logs = component_logs(component_id, stage, source, stdout.getvalue(), stderr.getvalue())
         raise CapturedComponentError(exc, logs) from exc
-    return result, component_logs(component_id, stage, stdout.getvalue(), stderr.getvalue())
+    return result, component_logs(component_id, stage, source, stdout.getvalue(), stderr.getvalue())
 
 
-def component_logs(component_id: str, stage: str, stdout: str, stderr: str) -> list[dict[str, Any]]:
+def component_source(host: ComponentHost, component_id: str) -> str:
+    record = host.components.get(component_id)
+    return record.class_path if record is not None else ""
+
+
+def component_logs(component_id: str, stage: str, source: str, stdout: str, stderr: str) -> list[dict[str, Any]]:
     logs: list[dict[str, Any]] = []
-    logs.extend(component_log_entries(component_id, stage, "stdout", "info", stdout))
-    logs.extend(component_log_entries(component_id, stage, "stderr", "error", stderr))
+    logs.extend(component_log_entries(component_id, stage, source, "stdout", "info", stdout))
+    logs.extend(component_log_entries(component_id, stage, source, "stderr", "error", stderr))
     return logs
 
 
 def component_log_entries(
     component_id: str,
     stage: str,
+    source: str,
     stream: str,
     severity: str,
     text: str,
@@ -271,6 +282,7 @@ def component_log_entries(
                 "stream": stream,
                 "severity": severity,
                 "message": message,
+                "source": source,
             }
         )
     return entries

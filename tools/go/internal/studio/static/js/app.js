@@ -3093,8 +3093,9 @@ function renderLogRows(container) {
   for (const item of rows) {
     const row = document.createElement("div");
     row.className = `log-row ${logSeverityClassName(item.severity)}`;
+    const time = item.time !== undefined && item.time !== null && item.time !== "" ? `time ${formatValue(item.time)}` : "";
     row.innerHTML = `
-      <span class="log-row-meta">${escapeHTML([item.source, item.component, item.stage, item.stream].filter(Boolean).join(" / "))}</span>
+      <span class="log-row-meta">${escapeHTML([item.source, item.component, item.stage, item.stream, time, item.location].filter(Boolean).join(" / "))}</span>
       <span class="log-row-severity">${escapeHTML(item.severity || "info")}</span>
       <span class="log-row-message">${escapeHTML(item.message || "")}</span>
     `;
@@ -3108,7 +3109,7 @@ function filteredLogRows() {
   return combinedLogRows().filter((item) => {
     if (severity !== "all" && item.severity !== severity && item.source !== severity) return false;
     if (!needle) return true;
-    return [item.source, item.component, item.stage, item.stream, item.severity, item.message]
+    return [item.source, item.component, item.stage, item.stream, item.severity, item.time, item.location, item.message]
       .filter(Boolean)
       .join(" ")
       .toLowerCase()
@@ -3128,9 +3129,17 @@ function combinedLogRows() {
     stage: entry.stage || "",
     stream: entry.stream || "",
     severity: String(entry.severity || "info").toLowerCase(),
+    time: entry.time ?? "",
+    location: logSourceLocation(entry),
     message: entry.message || "",
   }));
   return [...runtimeLogs, ...appLogs];
+}
+
+function logSourceLocation(entry) {
+  const source = entry?.source || "";
+  const line = entry?.line ? `:${entry.line}${entry.column ? `:${entry.column}` : ""}` : "";
+  return `${source}${line}`;
 }
 
 function logSeverityClassName(severity) {

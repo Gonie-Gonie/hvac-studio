@@ -97,7 +97,7 @@ func (s *Session) evaluateExternalComponent(
 	cmd.Stderr = &stderr
 
 	runErr := cmd.Run()
-	logs := externalLogs(component.ID, stderr.String())
+	logs := externalLogs(component.ID, contextValues, stderr.String())
 	if ctx.Err() == context.DeadlineExceeded {
 		return nil, nil, logs, fmt.Errorf("external executable timed out after %s: %s", timeout, displayExternalCommand(command, args))
 	}
@@ -112,7 +112,7 @@ func (s *Session) evaluateExternalComponent(
 	if err := json.Unmarshal(stdout.Bytes(), &response); err != nil {
 		return nil, nil, logs, fmt.Errorf("decode external executable stdout as JSON: %w", err)
 	}
-	logs = append(logs, normalizeExternalLogs(component.ID, response.Logs)...)
+	logs = append(logs, normalizeExternalLogs(component.ID, contextValues, response.Logs)...)
 	if response.OK != nil && !*response.OK {
 		message := response.Error.Message
 		if message == "" {
@@ -226,7 +226,7 @@ func displayExternalCommand(command string, args []string) string {
 	return strings.TrimSpace(command + " " + strings.Join(args, " "))
 }
 
-func externalLogs(componentID string, stderr string) []ComponentLog {
+func externalLogs(componentID string, context map[string]any, stderr string) []ComponentLog {
 	logs := []ComponentLog{}
 	for _, line := range strings.Split(stderr, "\n") {
 		message := strings.TrimRight(line, "\r")
@@ -239,12 +239,13 @@ func externalLogs(componentID string, stderr string) []ComponentLog {
 			Stream:    "stderr",
 			Severity:  "error",
 			Message:   message,
+			Time:      componentLogTime(nil, context),
 		})
 	}
 	return logs
 }
 
-func normalizeExternalLogs(componentID string, entries []ComponentLog) []ComponentLog {
+func normalizeExternalLogs(componentID string, context map[string]any, entries []ComponentLog) []ComponentLog {
 	logs := make([]ComponentLog, 0, len(entries))
 	for _, entry := range entries {
 		if strings.TrimSpace(entry.Message) == "" {
@@ -259,6 +260,7 @@ func normalizeExternalLogs(componentID string, entries []ComponentLog) []Compone
 		if entry.Severity == "" {
 			entry.Severity = "info"
 		}
+		entry.Time = componentLogTime(entry.Time, context)
 		logs = append(logs, entry)
 	}
 	return logs

@@ -75,6 +75,10 @@ type ComponentLog struct {
 	Stream    string `json:"stream,omitempty"`
 	Severity  string `json:"severity"`
 	Message   string `json:"message"`
+	Time      any    `json:"time,omitempty"`
+	Source    string `json:"source,omitempty"`
+	Line      int    `json:"line,omitempty"`
+	Column    int    `json:"column,omitempty"`
 }
 
 func Run(ctx context.Context, loaded *project.LoadedProject, input RunInput) (*RunResult, error) {

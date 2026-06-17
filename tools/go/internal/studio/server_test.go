@@ -171,6 +171,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("componentLogRows")) {
 		t.Fatalf("index did not include component log rows")
 	}
+	if !bytes.Contains(body, []byte("<th>Time</th>")) || !bytes.Contains(body, []byte("<th>Source</th>")) {
+		t.Fatalf("index did not include component log time/source columns")
+	}
 	if !bytes.Contains(body, []byte("connectionTraceRows")) {
 		t.Fatalf("index did not include connection trace rows")
 	}
@@ -413,7 +416,8 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("logSeverityFilter")) ||
 		!bytes.Contains(body, []byte("downloadLogBundle")) ||
-		!bytes.Contains(body, []byte("exportLogBundleButton")) {
+		!bytes.Contains(body, []byte("exportLogBundleButton")) ||
+		!bytes.Contains(body, []byte("logSourceLocation")) {
 		t.Fatalf("module entrypoint did not expose log filtering and export")
 	}
 	if !bytes.Contains(body, []byte("runInputMeta")) {
@@ -918,6 +922,9 @@ func TestStaticRunOutputModuleServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("log-severity")) {
 		t.Fatalf("run output module did not render component log severity badges")
+	}
+	if !bytes.Contains(body, []byte("logSourceLocation")) || !bytes.Contains(body, []byte("log.time")) {
+		t.Fatalf("run output module did not render component log time/source context")
 	}
 	if !bytes.Contains(body, []byte("failureSummaryRows")) {
 		t.Fatalf("run output module did not render failed run summaries")
@@ -4414,6 +4421,7 @@ class ScalarComponent:
 	payload, err := json.Marshal(map[string]any{
 		"project_path": project.ProjectPath,
 		"inputs":       map[string]any{"value": 4},
+		"context":      map[string]any{"time": 123, "dt": 60},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -4440,6 +4448,55 @@ class ScalarComponent:
 	}
 	if !hasComponentLog(body.Result.ComponentLogs, "scalar", "evaluate", "error", "stderr from scalar") {
 		t.Fatalf("stderr log missing from %#v", body.Result.ComponentLogs)
+	}
+	stdoutLog, ok := findComponentLog(body.Result.ComponentLogs, "scalar", "evaluate", "info", "stdout from scalar")
+	if !ok {
+		t.Fatalf("stdout log missing from %#v", body.Result.ComponentLogs)
+	}
+	if stdoutLog.Time != float64(123) {
+		t.Fatalf("stdout log time = %#v, want 123", stdoutLog.Time)
+	}
+	if !strings.Contains(stdoutLog.Source, "ScalarComponent") {
+		t.Fatalf("stdout log source = %q", stdoutLog.Source)
+	}
+}
+
+func TestRunEndpointCapturesExternalExecutableLogs(t *testing.T) {
+	server := newTestServer(t)
+	payload, err := json.Marshal(map[string]any{
+		"project_path": "examples/010_external_executable_component/project.bcsproj",
+		"inputs":       map[string]any{"request": 4},
+		"context":      map[string]any{"time": 0, "dt": 60},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/run", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Result runtimecore.RunResult `json:"result"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !hasComponentLog(body.Result.ComponentLogs, "external_gain", "external_executable", "error", "external gain stderr call 1") {
+		t.Fatalf("external stderr log missing from %#v", body.Result.ComponentLogs)
+	}
+	infoLog, ok := findComponentLog(body.Result.ComponentLogs, "external_gain", "external_executable", "info", "external gain evaluated call 1")
+	if !ok {
+		t.Fatalf("external info log missing from %#v", body.Result.ComponentLogs)
+	}
+	if infoLog.Time != float64(0) {
+		t.Fatalf("external log time = %#v, want 0", infoLog.Time)
+	}
+	if infoLog.Source != "components/external_gain/external_gain.py" {
+		t.Fatalf("external log source = %q", infoLog.Source)
 	}
 }
 
@@ -6505,12 +6562,17 @@ func hasProblemMessageContaining(problems []Problem, text string) bool {
 }
 
 func hasComponentLog(logs []runtimecore.ComponentLog, component string, stage string, severity string, message string) bool {
+	_, ok := findComponentLog(logs, component, stage, severity, message)
+	return ok
+}
+
+func findComponentLog(logs []runtimecore.ComponentLog, component string, stage string, severity string, message string) (runtimecore.ComponentLog, bool) {
 	for _, log := range logs {
 		if log.Component == component && log.Stage == stage && log.Severity == severity && log.Message == message {
-			return true
+			return log, true
 		}
 	}
-	return false
+	return runtimecore.ComponentLog{}, false
 }
 
 func createWorkspaceProject(t *testing.T, server *Server, name string) ProjectSummary {

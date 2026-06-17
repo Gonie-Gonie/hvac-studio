@@ -144,6 +144,7 @@ class ComponentHostTests(unittest.TestCase):
                         "stream": "stdout",
                         "severity": "info",
                         "message": "hello from stdout",
+                        "source": "noisy_components.talker.Talker",
                     },
                     {
                         "component_id": "talker",
@@ -151,6 +152,7 @@ class ComponentHostTests(unittest.TestCase):
                         "stream": "stderr",
                         "severity": "error",
                         "message": "warning from stderr",
+                        "source": "noisy_components.talker.Talker",
                     },
                 ],
             )
@@ -210,6 +212,7 @@ class ComponentHostTests(unittest.TestCase):
                         "stream": "stdout",
                         "severity": "info",
                         "message": "hello from batch",
+                        "source": "batch_components.talker.BatchTalker",
                     },
                 ],
             )

@@ -86,12 +86,12 @@ func (s *Session) loadComponents(initContext map[string]any) error {
 				return apperror.Errorf(apperror.CodeValidation, "component %s kind user_python requires class", component.ID)
 			}
 			loadLogs, err := s.client.LoadComponent(component.ID, component.Class, s.loaded.Root)
-			s.logs = append(s.logs, componentLogsFromWorker(loadLogs)...)
+			s.logs = append(s.logs, componentLogsFromWorkerWithContext(loadLogs, initContext)...)
 			if err != nil {
 				return apperror.Wrap(apperror.CodePythonWorker, fmt.Errorf("load component %s: %w", component.ID, err))
 			}
 			state, initLogs, err := s.client.InitializeComponent(component.ID, component.Parameters, initContext)
-			s.logs = append(s.logs, componentLogsFromWorker(initLogs)...)
+			s.logs = append(s.logs, componentLogsFromWorkerWithContext(initLogs, initContext)...)
 			if err != nil {
 				return apperror.Wrap(apperror.CodePythonWorker, fmt.Errorf("initialize component %s: %w", component.ID, err))
 			}
@@ -208,7 +208,7 @@ func (s *Session) evaluateComponent(
 			stage = "evaluate_batch"
 		}
 		outputs, nextState, evalLogs, err := evaluate(component.ID, inputs, s.states[component.ID], component.Parameters, context)
-		logs := componentLogsFromWorker(evalLogs)
+		logs := componentLogsFromWorkerWithContext(evalLogs, context)
 		if err != nil {
 			return nil, nil, logs, stage, apperror.Wrap(apperror.CodePythonWorker, fmt.Errorf("evaluate component %s: %w", component.ID, err))
 		}
@@ -256,6 +256,10 @@ func durationMilliseconds(duration time.Duration) float64 {
 }
 
 func componentLogsFromWorker(entries []pythonworker.LogEntry) []ComponentLog {
+	return componentLogsFromWorkerWithContext(entries, nil)
+}
+
+func componentLogsFromWorkerWithContext(entries []pythonworker.LogEntry, context map[string]any) []ComponentLog {
 	logs := make([]ComponentLog, 0, len(entries))
 	for _, entry := range entries {
 		if entry.Message == "" {
@@ -282,7 +286,21 @@ func componentLogsFromWorker(entries []pythonworker.LogEntry) []ComponentLog {
 			Stream:    entry.Stream,
 			Severity:  severity,
 			Message:   entry.Message,
+			Time:      componentLogTime(entry.Time, context),
+			Source:    entry.Source,
+			Line:      entry.Line,
+			Column:    entry.Column,
 		})
 	}
 	return logs
+}
+
+func componentLogTime(entryTime any, context map[string]any) any {
+	if entryTime != nil {
+		return entryTime
+	}
+	if context == nil {
+		return nil
+	}
+	return context["time"]
 }

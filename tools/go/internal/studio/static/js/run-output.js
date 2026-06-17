@@ -198,21 +198,30 @@ function renderComponentLogs(state, tbody) {
   const context = latestResultContext(state);
   const logs = context.result?.component_logs || [];
   if (!logs.length) {
-    tbody.innerHTML = `<tr><td colspan="4" class="empty-cell">No component logs yet</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-cell">No component logs yet</td></tr>`;
     return;
   }
   for (const log of logs) {
     const severity = String(log.severity || "info").toLowerCase();
     const severityLabel = [log.severity || "info", log.stream || ""].filter(Boolean).join(" / ");
+    const time = log.time !== undefined && log.time !== null && log.time !== "" ? formatValue(log.time) : "";
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${escapeHTML(log.component || "")}</td>
       <td>${escapeHTML(log.stage || "")}</td>
+      <td>${escapeHTML(time)}</td>
       <td><span class="log-severity ${logSeverityClass(severity)}">${escapeHTML(severityLabel)}</span></td>
+      <td>${escapeHTML(logSourceLocation(log))}</td>
       <td class="log-message">${escapeHTML(log.message || "")}</td>
     `;
     tbody.append(row);
   }
+}
+
+function logSourceLocation(log) {
+  const source = log.source || "";
+  const line = log.line ? `:${log.line}${log.column ? `:${log.column}` : ""}` : "";
+  return `${source}${line}`;
 }
 
 function renderConnectionTrace(state, tbody) {

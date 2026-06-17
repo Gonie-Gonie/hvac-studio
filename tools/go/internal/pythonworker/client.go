@@ -50,6 +50,10 @@ type LogEntry struct {
 	Stream      string `json:"stream"`
 	Severity    string `json:"severity"`
 	Message     string `json:"message"`
+	Time        any    `json:"time,omitempty"`
+	Source      string `json:"source,omitempty"`
+	Line        int    `json:"line,omitempty"`
+	Column      int    `json:"column,omitempty"`
 }
 
 func (e *WorkerError) Error() string {

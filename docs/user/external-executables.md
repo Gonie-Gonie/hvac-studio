@@ -59,7 +59,10 @@ The executable writes one JSON object to stdout:
 
 `outputs` must contain all declared output nodes. `state` is optional and is
 carried to the next evaluation when present. `logs` are attached to the normal
-component log table. Stderr is captured as error-severity component logs.
+component log table, preserving optional fields such as `source`, `line`,
+`column`, and `time`. Stderr is captured as error-severity component logs and
+is tagged with the component, `external_executable` stage, stream, and current
+timestep when available.
 
 For failures, return:
 
