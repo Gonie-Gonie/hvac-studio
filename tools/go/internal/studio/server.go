@@ -194,15 +194,19 @@ type componentTemplateFile struct {
 }
 
 type ComponentTemplateSummary struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	Kind           string `json:"kind"`
-	Category       string `json:"category"`
-	ExecutionMode  string `json:"execution_mode"`
-	SourceLayout   string `json:"source_layout"`
-	InputCount     int    `json:"input_count"`
-	OutputCount    int    `json:"output_count"`
-	ParameterCount int    `json:"parameter_count"`
+	ID                   string                               `json:"id"`
+	Name                 string                               `json:"name"`
+	Kind                 string                               `json:"kind"`
+	Category             string                               `json:"category"`
+	ExecutionMode        string                               `json:"execution_mode"`
+	SourceLayout         string                               `json:"source_layout"`
+	Inputs               []model.Node                         `json:"inputs,omitempty"`
+	Outputs              []model.Node                         `json:"outputs,omitempty"`
+	Parameters           map[string]any                       `json:"parameters,omitempty"`
+	ParameterDefinitions map[string]model.ParameterDefinition `json:"parameter_defs,omitempty"`
+	InputCount           int                                  `json:"input_count"`
+	OutputCount          int                                  `json:"output_count"`
+	ParameterCount       int                                  `json:"parameter_count"`
 }
 
 type duplicateComponentRequest struct {
@@ -212,20 +216,55 @@ type duplicateComponentRequest struct {
 }
 
 type replaceComponentRequest struct {
-	ProjectPath string `json:"project_path"`
-	ComponentID string `json:"component_id"`
-	Name        string `json:"name"`
-	Template    string `json:"template"`
+	ProjectPath   string `json:"project_path"`
+	ComponentID   string `json:"component_id"`
+	Name          string `json:"name"`
+	Template      string `json:"template"`
+	MapParameters *bool  `json:"map_parameters,omitempty"`
 }
 
 type ComponentReplacementSummary struct {
-	OriginalComponent         string `json:"original_component"`
-	ReplacementComponent      string `json:"replacement_component"`
-	SystemReplaced            bool   `json:"system_replaced"`
-	RewiredConnections        int    `json:"rewired_connections"`
-	RewiredPublicInputs       int    `json:"rewired_public_inputs"`
-	RewiredPublicOutputs      int    `json:"rewired_public_outputs"`
-	OriginalComponentRetained bool   `json:"original_component_retained"`
+	OriginalComponent         string                        `json:"original_component"`
+	ReplacementComponent      string                        `json:"replacement_component"`
+	Template                  string                        `json:"template,omitempty"`
+	SystemReplaced            bool                          `json:"system_replaced"`
+	RewiredConnections        int                           `json:"rewired_connections"`
+	RewiredPublicInputs       int                           `json:"rewired_public_inputs"`
+	RewiredPublicOutputs      int                           `json:"rewired_public_outputs"`
+	MappedParameters          int                           `json:"mapped_parameters"`
+	OriginalComponentRetained bool                          `json:"original_component_retained"`
+	MapParameters             bool                          `json:"map_parameters"`
+	NodeMappings              []ComponentReplacementMapping `json:"node_mappings,omitempty"`
+	ParameterMappings         []ComponentReplacementMapping `json:"parameter_mappings,omitempty"`
+	Diff                      ComponentReplacementDiff      `json:"diff"`
+	Problems                  []Problem                     `json:"problems,omitempty"`
+}
+
+type ComponentReplacementMapping struct {
+	Scope  string `json:"scope"`
+	ID     string `json:"id"`
+	From   string `json:"from"`
+	To     string `json:"to"`
+	Status string `json:"status"`
+	Detail string `json:"detail,omitempty"`
+}
+
+type ComponentReplacementDiff struct {
+	OriginalInputs        []string `json:"original_inputs,omitempty"`
+	ReplacementInputs     []string `json:"replacement_inputs,omitempty"`
+	MatchedInputs         []string `json:"matched_inputs,omitempty"`
+	MissingInputs         []string `json:"missing_inputs,omitempty"`
+	AddedInputs           []string `json:"added_inputs,omitempty"`
+	OriginalOutputs       []string `json:"original_outputs,omitempty"`
+	ReplacementOutputs    []string `json:"replacement_outputs,omitempty"`
+	MatchedOutputs        []string `json:"matched_outputs,omitempty"`
+	MissingOutputs        []string `json:"missing_outputs,omitempty"`
+	AddedOutputs          []string `json:"added_outputs,omitempty"`
+	OriginalParameters    []string `json:"original_parameters,omitempty"`
+	ReplacementParameters []string `json:"replacement_parameters,omitempty"`
+	MatchedParameters     []string `json:"matched_parameters,omitempty"`
+	MissingParameters     []string `json:"missing_parameters,omitempty"`
+	AddedParameters       []string `json:"added_parameters,omitempty"`
 }
 
 type updateComponentRequest struct {
@@ -1401,9 +1440,9 @@ func (s *Server) handleReplaceComponent(w http.ResponseWriter, r *http.Request) 
 		writeError(w, err)
 		return
 	}
-	component, summary, err := replaceComponent(loaded, req, s.repoRoot)
+	component, summary, problems, err := replaceComponent(loaded, req, s.repoRoot)
 	if err != nil {
-		writeError(w, err)
+		writeErrorWithProblems(w, err, problems)
 		return
 	}
 	reloaded, err := project.Load(loaded.Path)
@@ -2765,25 +2804,7 @@ func createComponent(loaded *project.LoadedProject, req createComponentRequest, 
 		return model.Component{}, apperror.Errorf(apperror.CodeValidation, "component name must contain letters or numbers")
 	}
 	className := pythonClassName(componentID)
-	componentSource := componentSourceForTemplate(templateManifest.Source, componentID)
-	component := model.Component{
-		ID:            componentID,
-		Name:          componentName,
-		Kind:          defaultString(templateManifest.Kind, "user_python"),
-		Category:      defaultString(templateManifest.Category, "utility"),
-		ExecutionMode: defaultString(templateManifest.ExecutionMode, "step"),
-		Class:         classPathForComponentSource(componentID, componentSource, className),
-		Source:        componentSource,
-		Nodes: model.NodeSet{
-			Inputs:  componentTemplateNodes(templateManifest.Inputs, "inlet"),
-			Outputs: componentTemplateNodes(templateManifest.Outputs, "outlet"),
-		},
-		Parameters:           cloneMap(templateManifest.Parameters),
-		ParameterDefinitions: cloneParameterDefinitions(templateManifest.ParameterDefinitions),
-		StateDefinitions:     cloneStateDefinitions(templateManifest.StateDefinitions),
-		SolverBoundary:       cloneSolverBoundary(templateManifest.SolverBoundary),
-		MLMetadata:           componentMLMetadataForTemplate(templateManifest.MLMetadata, componentID),
-	}
+	component := componentFromTemplateManifest(componentID, componentName, templateManifest)
 
 	componentsRoot := filepath.Join(loaded.Root, "components")
 	if err := os.MkdirAll(componentsRoot, 0o755); err != nil {
@@ -2812,6 +2833,29 @@ func createComponent(loaded *project.LoadedProject, req createComponentRequest, 
 		return model.Component{}, err
 	}
 	return component, nil
+}
+
+func componentFromTemplateManifest(componentID string, componentName string, manifest componentTemplateManifest) model.Component {
+	className := pythonClassName(componentID)
+	componentSource := componentSourceForTemplate(manifest.Source, componentID)
+	return model.Component{
+		ID:            componentID,
+		Name:          componentName,
+		Kind:          defaultString(manifest.Kind, "user_python"),
+		Category:      defaultString(manifest.Category, "utility"),
+		ExecutionMode: defaultString(manifest.ExecutionMode, "step"),
+		Class:         classPathForComponentSource(componentID, componentSource, className),
+		Source:        componentSource,
+		Nodes: model.NodeSet{
+			Inputs:  componentTemplateNodes(manifest.Inputs, "inlet"),
+			Outputs: componentTemplateNodes(manifest.Outputs, "outlet"),
+		},
+		Parameters:           cloneMap(manifest.Parameters),
+		ParameterDefinitions: cloneParameterDefinitions(manifest.ParameterDefinitions),
+		StateDefinitions:     cloneStateDefinitions(manifest.StateDefinitions),
+		SolverBoundary:       cloneSolverBoundary(manifest.SolverBoundary),
+		MLMetadata:           componentMLMetadataForTemplate(manifest.MLMetadata, componentID),
+	}
 }
 
 func duplicateComponent(loaded *project.LoadedProject, req duplicateComponentRequest) (model.Component, error) {
@@ -2891,14 +2935,14 @@ func duplicateComponent(loaded *project.LoadedProject, req duplicateComponentReq
 	return component, nil
 }
 
-func replaceComponent(loaded *project.LoadedProject, req replaceComponentRequest, repoRoot string) (model.Component, ComponentReplacementSummary, error) {
+func replaceComponent(loaded *project.LoadedProject, req replaceComponentRequest, repoRoot string) (model.Component, ComponentReplacementSummary, []Problem, error) {
 	componentID := strings.TrimSpace(req.ComponentID)
 	if componentID == "" {
-		return model.Component{}, ComponentReplacementSummary{}, apperror.Errorf(apperror.CodeValidation, "component_id is required")
+		return model.Component{}, ComponentReplacementSummary{}, nil, apperror.Errorf(apperror.CodeValidation, "component_id is required")
 	}
 	source, found := findComponent(loaded.Graph, componentID)
 	if !found {
-		return model.Component{}, ComponentReplacementSummary{}, apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
+		return model.Component{}, ComponentReplacementSummary{}, nil, apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
 	}
 	replacementName := strings.TrimSpace(req.Name)
 	if replacementName == "" {
@@ -2907,39 +2951,47 @@ func replaceComponent(loaded *project.LoadedProject, req replaceComponentRequest
 	if strings.TrimSpace(replacementName) == "" {
 		replacementName = componentID + " Replacement"
 	}
+	template := strings.TrimSpace(req.Template)
+	if template == "" {
+		template = "scalar"
+	}
+	mapParameters := boolOption(req.MapParameters, true)
 	replacement, err := createComponent(loaded, createComponentRequest{
 		ProjectPath: loaded.Path,
 		Name:        replacementName,
-		Template:    req.Template,
+		Template:    template,
 	}, repoRoot)
 	if err != nil {
-		return model.Component{}, ComponentReplacementSummary{}, err
+		return model.Component{}, ComponentReplacementSummary{}, nil, err
 	}
-	summary, err := rewireReplacementComponent(loaded, source, replacement)
-	if err != nil {
+	summary := replacementSummary(loaded, source, replacement, template, mapParameters)
+	if len(summary.Problems) > 0 {
 		_ = rollbackReplacementComponent(loaded, replacement)
-		return model.Component{}, ComponentReplacementSummary{}, err
+		return model.Component{}, summary, summary.Problems, apperror.Errorf(apperror.CodeValidation, "replacement component is not contract-compatible: %s", strings.Join(problemMessages(summary.Problems), "; "))
 	}
-	return replacement, summary, nil
+	updatedReplacement, parameterMappings, mappedParameters := applyReplacementParameterMapping(loaded, source, replacement, mapParameters)
+	replacement = updatedReplacement
+	summary.ParameterMappings = parameterMappings
+	summary.MappedParameters = mappedParameters
+	if err := syncReplacementComponent(loaded, replacement); err != nil {
+		_ = rollbackReplacementComponent(loaded, replacement)
+		return model.Component{}, summary, nil, err
+	}
+	if err := rewireReplacementComponent(loaded, source, replacement, &summary); err != nil {
+		_ = rollbackReplacementComponent(loaded, replacement)
+		return model.Component{}, summary, nil, err
+	}
+	return replacement, summary, nil, nil
 }
 
-func rewireReplacementComponent(loaded *project.LoadedProject, source model.Component, replacement model.Component) (ComponentReplacementSummary, error) {
-	summary := ComponentReplacementSummary{
-		OriginalComponent:         source.ID,
-		ReplacementComponent:      replacement.ID,
-		OriginalComponentRetained: true,
-	}
+func rewireReplacementComponent(loaded *project.LoadedProject, source model.Component, replacement model.Component, summary *ComponentReplacementSummary) error {
 	systemIndex := entrySystemIndex(loaded)
 	if systemIndex < 0 {
-		return summary, apperror.Errorf(apperror.CodeValidation, "entry system not found: %s", loaded.Project.EntrySystem)
+		return apperror.Errorf(apperror.CodeValidation, "entry system not found: %s", loaded.Project.EntrySystem)
 	}
 	system := &loaded.Graph.Systems[systemIndex]
 	if !containsString(system.Components, source.ID) {
-		return summary, nil
-	}
-	missing := replacementCompatibilityProblems(*system, loaded.Graph, source, replacement)
-	if len(missing) > 0 {
-		return summary, apperror.Errorf(apperror.CodeValidation, "replacement component is not contract-compatible: %s", strings.Join(missing, "; "))
+		return nil
 	}
 	for index, componentID := range system.Components {
 		if componentID == source.ID {
@@ -2978,21 +3030,46 @@ func rewireReplacementComponent(loaded *project.LoadedProject, source model.Comp
 		}
 	}
 	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
-		return summary, err
+		return err
 	}
-	return summary, nil
+	return nil
 }
 
-func replacementCompatibilityProblems(system model.System, graph *model.Graph, source model.Component, replacement model.Component) []string {
-	problems := []string{}
+func replacementSummary(loaded *project.LoadedProject, source model.Component, replacement model.Component, template string, mapParameters bool) ComponentReplacementSummary {
+	summary := ComponentReplacementSummary{
+		OriginalComponent:         source.ID,
+		ReplacementComponent:      replacement.ID,
+		Template:                  template,
+		OriginalComponentRetained: true,
+		MapParameters:             mapParameters,
+		Diff:                      componentReplacementDiff(source, replacement),
+	}
+	systemIndex := entrySystemIndex(loaded)
+	if systemIndex < 0 {
+		summary.Problems = []Problem{{
+			Severity: "error",
+			Message:  fmt.Sprintf("entry system not found: %s", loaded.Project.EntrySystem),
+		}}
+		return summary
+	}
+	system := loaded.Graph.Systems[systemIndex]
+	summary.NodeMappings = replacementNodeMappings(system, loaded.Graph, source, replacement)
+	if containsString(system.Components, source.ID) {
+		summary.Problems = replacementCompatibilityProblems(system, loaded.Graph, source, replacement)
+	}
+	return summary
+}
+
+func replacementCompatibilityProblems(system model.System, graph *model.Graph, source model.Component, replacement model.Component) []Problem {
+	problems := []Problem{}
 	for _, input := range system.PublicInputs {
 		if input.Component == source.ID && !componentHasInputNode(replacement, input.Node) {
-			problems = append(problems, fmt.Sprintf("replacement missing input node for public input %s: %s", input.ID, input.Node))
+			problems = append(problems, Problem{Severity: "error", ComponentID: source.ID, NodeID: input.Node, Message: fmt.Sprintf("replacement missing input node for public input %s: %s", input.ID, input.Node)})
 		}
 	}
 	for _, output := range system.PublicOutputs {
 		if output.Component == source.ID && !componentHasOutputNode(replacement, output.Node) {
-			problems = append(problems, fmt.Sprintf("replacement missing output node for public output %s: %s", output.ID, output.Node))
+			problems = append(problems, Problem{Severity: "error", ComponentID: source.ID, NodeID: output.Node, Message: fmt.Sprintf("replacement missing output node for public output %s: %s", output.ID, output.Node)})
 		}
 	}
 	for _, connectionID := range system.Connections {
@@ -3001,13 +3078,249 @@ func replacementCompatibilityProblems(system model.System, graph *model.Graph, s
 			continue
 		}
 		if connection.From.Component == source.ID && !componentHasOutputNode(replacement, connection.From.Node) {
-			problems = append(problems, fmt.Sprintf("replacement missing output node for connection %s: %s", connection.ID, connection.From.Node))
+			problems = append(problems, Problem{Severity: "error", ComponentID: source.ID, NodeID: connection.From.Node, Message: fmt.Sprintf("replacement missing output node for connection %s: %s", connection.ID, connection.From.Node)})
 		}
 		if connection.To.Component == source.ID && !componentHasInputNode(replacement, connection.To.Node) {
-			problems = append(problems, fmt.Sprintf("replacement missing input node for connection %s: %s", connection.ID, connection.To.Node))
+			problems = append(problems, Problem{Severity: "error", ComponentID: source.ID, NodeID: connection.To.Node, Message: fmt.Sprintf("replacement missing input node for connection %s: %s", connection.ID, connection.To.Node)})
 		}
 	}
 	return problems
+}
+
+func replacementNodeMappings(system model.System, graph *model.Graph, source model.Component, replacement model.Component) []ComponentReplacementMapping {
+	mappings := []ComponentReplacementMapping{}
+	for _, input := range system.PublicInputs {
+		if input.Component != source.ID {
+			continue
+		}
+		status := "preserved"
+		detail := "public input"
+		if !componentHasInputNode(replacement, input.Node) {
+			status = "missing"
+			detail = "replacement input node is missing"
+		}
+		mappings = append(mappings, ComponentReplacementMapping{
+			Scope:  "public_input",
+			ID:     input.ID,
+			From:   endpointLabel(source.ID, input.Node),
+			To:     endpointLabel(replacement.ID, input.Node),
+			Status: status,
+			Detail: detail,
+		})
+	}
+	for _, output := range system.PublicOutputs {
+		if output.Component != source.ID {
+			continue
+		}
+		status := "preserved"
+		detail := "public output"
+		if !componentHasOutputNode(replacement, output.Node) {
+			status = "missing"
+			detail = "replacement output node is missing"
+		}
+		mappings = append(mappings, ComponentReplacementMapping{
+			Scope:  "public_output",
+			ID:     output.ID,
+			From:   endpointLabel(source.ID, output.Node),
+			To:     endpointLabel(replacement.ID, output.Node),
+			Status: status,
+			Detail: detail,
+		})
+	}
+	for _, connectionID := range system.Connections {
+		connection, found := findConnection(graph, connectionID)
+		if !found {
+			continue
+		}
+		if connection.From.Component == source.ID {
+			status := "preserved"
+			detail := "connection source"
+			if !componentHasOutputNode(replacement, connection.From.Node) {
+				status = "missing"
+				detail = "replacement output node is missing"
+			}
+			mappings = append(mappings, ComponentReplacementMapping{
+				Scope:  "connection_output",
+				ID:     connection.ID,
+				From:   endpointLabel(source.ID, connection.From.Node),
+				To:     endpointLabel(replacement.ID, connection.From.Node),
+				Status: status,
+				Detail: detail,
+			})
+		}
+		if connection.To.Component == source.ID {
+			status := "preserved"
+			detail := "connection target"
+			if !componentHasInputNode(replacement, connection.To.Node) {
+				status = "missing"
+				detail = "replacement input node is missing"
+			}
+			mappings = append(mappings, ComponentReplacementMapping{
+				Scope:  "connection_input",
+				ID:     connection.ID,
+				From:   endpointLabel(source.ID, connection.To.Node),
+				To:     endpointLabel(replacement.ID, connection.To.Node),
+				Status: status,
+				Detail: detail,
+			})
+		}
+	}
+	return mappings
+}
+
+func applyReplacementParameterMapping(loaded *project.LoadedProject, source model.Component, replacement model.Component, mapParameters bool) (model.Component, []ComponentReplacementMapping, int) {
+	mappings := []ComponentReplacementMapping{}
+	mapped := 0
+	for _, name := range componentParameterIDs(replacement) {
+		sourceValue, hasSourceValue := source.Parameters[name]
+		status := "missing"
+		detail := "source parameter is not present"
+		if !mapParameters {
+			status = "skipped"
+			detail = "parameter mapping disabled"
+		} else if hasSourceValue {
+			if replacement.Parameters == nil {
+				replacement.Parameters = map[string]any{}
+			}
+			replacement.Parameters[name] = sourceValue
+			if replacement.ParameterDefinitions != nil {
+				definition := replacement.ParameterDefinitions[name]
+				definition.Current = sourceValue
+				replacement.ParameterDefinitions[name] = definition
+			}
+			status = "copied"
+			detail = "same-name parameter value copied"
+			mapped++
+		}
+		mappings = append(mappings, ComponentReplacementMapping{
+			Scope:  "parameter",
+			ID:     name,
+			From:   source.ID + "." + name,
+			To:     replacement.ID + "." + name,
+			Status: status,
+			Detail: detail,
+		})
+	}
+	return replacement, mappings, mapped
+}
+
+func syncReplacementComponent(loaded *project.LoadedProject, replacement model.Component) error {
+	for index := range loaded.Graph.Components {
+		if loaded.Graph.Components[index].ID == replacement.ID {
+			loaded.Graph.Components[index] = replacement
+			if err := syncComponentMetadataFile(loaded, replacement); err != nil {
+				return err
+			}
+			return writeJSONFile(loaded.GraphPath, loaded.Graph)
+		}
+	}
+	return apperror.Errorf(apperror.CodeValidation, "replacement component not found after creation: %s", replacement.ID)
+}
+
+func componentReplacementDiff(source model.Component, replacement model.Component) ComponentReplacementDiff {
+	sourceInputs := inputNodeIDs(source)
+	replacementInputs := inputNodeIDs(replacement)
+	sourceOutputs := outputNodeIDs(source)
+	replacementOutputs := outputNodeIDs(replacement)
+	sourceParameters := componentParameterIDs(source)
+	replacementParameters := componentParameterIDs(replacement)
+	return ComponentReplacementDiff{
+		OriginalInputs:        sourceInputs,
+		ReplacementInputs:     replacementInputs,
+		MatchedInputs:         intersectStrings(sourceInputs, replacementInputs),
+		MissingInputs:         differenceStrings(sourceInputs, replacementInputs),
+		AddedInputs:           differenceStrings(replacementInputs, sourceInputs),
+		OriginalOutputs:       sourceOutputs,
+		ReplacementOutputs:    replacementOutputs,
+		MatchedOutputs:        intersectStrings(sourceOutputs, replacementOutputs),
+		MissingOutputs:        differenceStrings(sourceOutputs, replacementOutputs),
+		AddedOutputs:          differenceStrings(replacementOutputs, sourceOutputs),
+		OriginalParameters:    sourceParameters,
+		ReplacementParameters: replacementParameters,
+		MatchedParameters:     intersectStrings(sourceParameters, replacementParameters),
+		MissingParameters:     differenceStrings(sourceParameters, replacementParameters),
+		AddedParameters:       differenceStrings(replacementParameters, sourceParameters),
+	}
+}
+
+func inputNodeIDs(component model.Component) []string {
+	ids := make([]string, 0, len(component.Nodes.Inputs))
+	for _, node := range component.Nodes.Inputs {
+		ids = append(ids, node.ID)
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+func outputNodeIDs(component model.Component) []string {
+	ids := make([]string, 0, len(component.Nodes.Outputs))
+	for _, node := range component.Nodes.Outputs {
+		ids = append(ids, node.ID)
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+func componentParameterIDs(component model.Component) []string {
+	seen := map[string]bool{}
+	for name := range component.Parameters {
+		if strings.TrimSpace(name) != "" {
+			seen[name] = true
+		}
+	}
+	for name := range component.ParameterDefinitions {
+		if strings.TrimSpace(name) != "" {
+			seen[name] = true
+		}
+	}
+	ids := make([]string, 0, len(seen))
+	for name := range seen {
+		ids = append(ids, name)
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+func intersectStrings(left []string, right []string) []string {
+	rightSet := map[string]bool{}
+	for _, value := range right {
+		rightSet[value] = true
+	}
+	out := []string{}
+	for _, value := range left {
+		if rightSet[value] {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func differenceStrings(left []string, right []string) []string {
+	rightSet := map[string]bool{}
+	for _, value := range right {
+		rightSet[value] = true
+	}
+	out := []string{}
+	for _, value := range left {
+		if !rightSet[value] {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func endpointLabel(componentID string, nodeID string) string {
+	return componentID + "." + nodeID
+}
+
+func problemMessages(problems []Problem) []string {
+	messages := make([]string, 0, len(problems))
+	for _, problem := range problems {
+		if strings.TrimSpace(problem.Message) != "" {
+			messages = append(messages, problem.Message)
+		}
+	}
+	return messages
 }
 
 func rollbackReplacementComponent(loaded *project.LoadedProject, replacement model.Component) error {
@@ -8841,15 +9154,19 @@ func listComponentTemplates(repoRoot string) ([]ComponentTemplateSummary, error)
 			name = displayNameFromID(displayID)
 		}
 		templates = append(templates, ComponentTemplateSummary{
-			ID:             id,
-			Name:           name,
-			Kind:           defaultString(manifest.Kind, "user_python"),
-			Category:       defaultString(manifest.Category, "utility"),
-			ExecutionMode:  defaultString(manifest.ExecutionMode, "step"),
-			SourceLayout:   defaultString(manifest.Source.Layout, "single_file_class"),
-			InputCount:     len(manifest.Inputs),
-			OutputCount:    len(manifest.Outputs),
-			ParameterCount: len(manifest.Parameters),
+			ID:                   id,
+			Name:                 name,
+			Kind:                 defaultString(manifest.Kind, "user_python"),
+			Category:             defaultString(manifest.Category, "utility"),
+			ExecutionMode:        defaultString(manifest.ExecutionMode, "step"),
+			SourceLayout:         defaultString(manifest.Source.Layout, "single_file_class"),
+			Inputs:               componentTemplateNodes(manifest.Inputs, "inlet"),
+			Outputs:              componentTemplateNodes(manifest.Outputs, "outlet"),
+			Parameters:           cloneMap(manifest.Parameters),
+			ParameterDefinitions: cloneParameterDefinitions(manifest.ParameterDefinitions),
+			InputCount:           len(manifest.Inputs),
+			OutputCount:          len(manifest.Outputs),
+			ParameterCount:       len(manifest.Parameters),
 		})
 	}
 	sort.Slice(templates, func(i, j int) bool {

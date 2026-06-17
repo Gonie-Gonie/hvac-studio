@@ -321,6 +321,11 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("replaceSelectedComponent")) || !bytes.Contains(body, []byte("/api/project/components/replace")) || !bytes.Contains(body, []byte("replaceComponentButton")) {
 		t.Fatalf("module entrypoint did not expose model replacement workflow")
 	}
+	if !bytes.Contains(body, []byte("replacementPreviewBlock")) ||
+		!bytes.Contains(body, []byte("replacementMapParameters")) ||
+		!bytes.Contains(body, []byte("Replace And Validate")) {
+		t.Fatalf("module entrypoint did not expose replacement mapping preview")
+	}
 	if !bytes.Contains(body, []byte("createMLComponent")) ||
 		!bytes.Contains(body, []byte("newMLComponentButton")) ||
 		!bytes.Contains(body, []byte(`createComponent("ml_inference")`)) {
@@ -718,6 +723,11 @@ func TestComponentTemplatesEndpointListsManifests(t *testing.T) {
 	if template.InputCount != 1 || template.OutputCount != 1 || template.ParameterCount != 1 {
 		t.Fatalf("template counts = %#v", template)
 	}
+	if len(template.Inputs) != 1 || template.Inputs[0].ID != "value" ||
+		len(template.Outputs) != 1 || template.Outputs[0].ID != "result" ||
+		template.Parameters["gain"] == nil {
+		t.Fatalf("template contract = %#v", template)
+	}
 	if !hasComponentTemplate(body.Templates, "controller") ||
 		!hasComponentTemplate(body.Templates, "stateful") ||
 		!hasComponentTemplate(body.Templates, "data_source") ||
@@ -727,7 +737,8 @@ func TestComponentTemplatesEndpointListsManifests(t *testing.T) {
 		!hasComponentTemplate(body.Templates, "utility") ||
 		!hasComponentTemplate(body.Templates, "external_executable") ||
 		!hasComponentTemplate(body.Templates, "vectorized") ||
-		!hasComponentTemplate(body.Templates, "solver_boundary") {
+		!hasComponentTemplate(body.Templates, "solver_boundary") ||
+		!hasComponentTemplate(body.Templates, "zone_load_ann") {
 		t.Fatalf("expected beta component templates, got %#v", body.Templates)
 	}
 }
@@ -1019,7 +1030,6 @@ func TestCreateComponentEndpointCreatesWorkspaceComponent(t *testing.T) {
 	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
 		t.Fatal(err)
 	}
-
 	payload, err := json.Marshal(map[string]any{
 		"project_path": createBody.Project.ProjectPath,
 		"name":         "Second Gain",
@@ -1145,7 +1155,6 @@ func TestCreateComponentEndpointCreatesMLComponentAssets(t *testing.T) {
 	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
 		t.Fatal(err)
 	}
-
 	payload, err := json.Marshal(map[string]any{
 		"project_path": createBody.Project.ProjectPath,
 		"name":         "ML Inference",
@@ -1572,6 +1581,18 @@ func TestReplaceComponentEndpointCreatesReplacementAndRewiresSystem(t *testing.T
 	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
 		t.Fatal(err)
 	}
+	loaded, err := project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index := range loaded.Graph.Components {
+		if loaded.Graph.Components[index].ID == "scalar" {
+			loaded.Graph.Components[index].Parameters["gain"] = 4.25
+		}
+	}
+	if err := writeJSONFile(loaded.GraphPath, loaded.Graph); err != nil {
+		t.Fatal(err)
+	}
 
 	payload, err := json.Marshal(map[string]any{
 		"project_path": createBody.Project.ProjectPath,
@@ -1601,10 +1622,16 @@ func TestReplaceComponentEndpointCreatesReplacementAndRewiresSystem(t *testing.T
 	if !body.Replacement.SystemReplaced || body.Replacement.RewiredPublicInputs != 1 || body.Replacement.RewiredPublicOutputs != 1 {
 		t.Fatalf("replacement summary = %#v", body.Replacement)
 	}
+	if !body.Replacement.MapParameters || body.Replacement.MappedParameters != 1 ||
+		len(body.Replacement.NodeMappings) < 2 || len(body.Replacement.ParameterMappings) != 1 ||
+		len(body.Replacement.Diff.MatchedInputs) != 1 || len(body.Replacement.Diff.MatchedOutputs) != 1 ||
+		len(body.Replacement.Problems) != 0 {
+		t.Fatalf("replacement mapping summary = %#v", body.Replacement)
+	}
 	if !body.Replacement.OriginalComponentRetained {
 		t.Fatalf("original component should be retained: %#v", body.Replacement)
 	}
-	loaded, err := project.Load(createBody.Project.ProjectPath)
+	loaded, err = project.Load(createBody.Project.ProjectPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1621,8 +1648,138 @@ func TestReplaceComponentEndpointCreatesReplacementAndRewiresSystem(t *testing.T
 	if !hasPublicInputFor(system, "scalar_replacement", "value") || !hasPublicOutputFor(system, "scalar_replacement", "result") {
 		t.Fatalf("system public IO = inputs %#v outputs %#v", system.PublicInputs, system.PublicOutputs)
 	}
+	replacement, found := findComponent(loaded.Graph, "scalar_replacement")
+	if !found {
+		t.Fatal("replacement missing from loaded graph")
+	}
+	if got := replacement.Parameters["gain"]; got != 4.25 {
+		t.Fatalf("replacement gain = %v, want copied source gain", got)
+	}
 	if _, err := os.Stat(filepath.Join(root, "projects", "replacement-component-project", "components", "scalar_replacement", "user_step.py")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestReplaceComponentEndpointReportsBrokenMapping(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Broken Replacement Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "scalar",
+		"name":         "Scalar Replacement",
+		"template":     "data_sink",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/components/replace", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("replace status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Problems []Problem `json:"problems"`
+		Message  string    `json:"message"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Problems) == 0 || !strings.Contains(body.Problems[0].Message, "replacement missing output node") {
+		t.Fatalf("replacement problems = %#v message=%s", body.Problems, body.Message)
+	}
+	loaded, err := project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found := findComponent(loaded.Graph, "scalar_replacement"); found {
+		t.Fatal("incompatible replacement should have been rolled back")
+	}
+	if _, err := os.Stat(filepath.Join(root, "projects", "broken-replacement-project", "components", "scalar_replacement")); !os.IsNotExist(err) {
+		t.Fatalf("replacement source rollback err = %v", err)
+	}
+}
+
+func TestReplaceZoneLoadRCWithANNTemplateRunsExample(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectRoot := filepath.Join(root, "projects", "zone-load-ann-replacement")
+	if err := copyProjectTree(filepath.Join(repoRoot, "examples", "015_rc_ahu_ann_composition"), projectRoot); err != nil {
+		t.Fatal(err)
+	}
+	projectPath := filepath.Join(projectRoot, "project.bcsproj")
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path":   projectPath,
+		"component_id":   "zone_rc",
+		"name":           "Zone Load ANN",
+		"template":       "zone_load_ann",
+		"map_parameters": true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/components/replace", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("replace status = %d body=%s", response.Code, response.Body.String())
+	}
+	var replaceBody struct {
+		Component   model.Component             `json:"component"`
+		Replacement ComponentReplacementSummary `json:"replacement"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &replaceBody); err != nil {
+		t.Fatal(err)
+	}
+	if replaceBody.Component.ID != "zone_load_ann" ||
+		!replaceBody.Replacement.SystemReplaced ||
+		len(replaceBody.Replacement.Diff.MissingInputs) != 0 ||
+		len(replaceBody.Replacement.Diff.MissingOutputs) != 0 ||
+		len(replaceBody.Replacement.Problems) != 0 {
+		t.Fatalf("zone replacement summary = %#v component=%#v", replaceBody.Replacement, replaceBody.Component)
+	}
+
+	validatePayload, err := json.Marshal(map[string]any{"project_path": projectPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	validateResponse := httptest.NewRecorder()
+	validateRequest := httptest.NewRequest(http.MethodPost, "/api/validate", bytes.NewReader(validatePayload))
+	server.Handler().ServeHTTP(validateResponse, validateRequest)
+	if validateResponse.Code != http.StatusOK {
+		t.Fatalf("validate status = %d body=%s", validateResponse.Code, validateResponse.Body.String())
+	}
+
+	runResponse := httptest.NewRecorder()
+	runRequest := httptest.NewRequest(http.MethodPost, "/api/run", bytes.NewReader(validatePayload))
+	server.Handler().ServeHTTP(runResponse, runRequest)
+	if runResponse.Code != http.StatusOK {
+		t.Fatalf("run status = %d body=%s", runResponse.Code, runResponse.Body.String())
+	}
+	var runBody struct {
+		Result runtimecore.RunResult `json:"result"`
+	}
+	if err := json.Unmarshal(runResponse.Body.Bytes(), &runBody); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := runBody.Result.Outputs["total_power_kw"]; !ok {
+		t.Fatalf("replacement run outputs = %#v", runBody.Result.Outputs)
 	}
 }
 

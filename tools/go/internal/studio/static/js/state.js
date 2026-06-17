@@ -31,6 +31,7 @@ export const state = {
   loadingSource: {},
   pendingSourceFocus: null,
   pendingConnection: null,
+  replacementMapParameters: true,
   scenarioDraftName: "",
   logSeverityFilter: "all",
   logTextFilter: "",

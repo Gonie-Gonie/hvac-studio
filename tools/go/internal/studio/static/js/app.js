@@ -1517,7 +1517,10 @@ function renderInspector() {
   if (component.ml_metadata && isWorkspaceProject()) container.append(mlAssetEditorBlock(component));
   const featureMappingSuggestion = featureMappingSuggestionBlock(component);
   if (featureMappingSuggestion) container.append(featureMappingSuggestion);
-  if (isWorkspaceProject()) container.append(componentEditor(component));
+  if (isWorkspaceProject()) {
+    container.append(componentEditor(component));
+    container.append(replacementPreviewBlock(component));
+  }
   container.append(nodeListBlock("Inputs", component, component.nodes.inputs || [], "input"));
   container.append(nodeListBlock("Outputs", component, component.nodes.outputs || [], "output"));
   if (isWorkspaceProject()) container.append(nodeEditor(component));
@@ -1973,6 +1976,227 @@ function componentEditor(component) {
   form.append(name, button, duplicateButton, codeButton);
   block.append(form);
   return block;
+}
+
+function replacementPreviewBlock(component) {
+  const block = document.createElement("div");
+  block.className = "inspector-block replacement-preview-block";
+  block.innerHTML = `<div class="inspector-title">Replacement Preview</div>`;
+  const template = selectedComponentTemplate();
+  if (!template) {
+    block.append(emptyKVRow("No replacement template selected"));
+    return block;
+  }
+  const preview = replacementPreview(component, template);
+  block.append(inspectorKVRow("Template", `${template.name || template.id} (${template.id})`));
+  block.append(inspectorKVRow("Contract", `${preview.diff.matchedInputs.length}/${preview.diff.originalInputs.length} inputs, ${preview.diff.matchedOutputs.length}/${preview.diff.originalOutputs.length} outputs, ${preview.diff.matchedParameters.length}/${preview.diff.originalParameters.length} parameters`));
+  block.append(inspectorKVRow("Status", preview.problems.length ? `${preview.problems.length} broken mapping${preview.problems.length === 1 ? "" : "s"}` : "Compatible"));
+  block.append(replacementMappingTable("Node Mapping", preview.nodeMappings));
+  block.append(replacementMappingTable("Parameter Mapping", preview.parameterMappings));
+  block.append(replacementDiffSummary(preview.diff));
+
+  const form = document.createElement("div");
+  form.className = "connection-form replacement-form";
+  const mapLabel = document.createElement("label");
+  mapLabel.className = "node-required-toggle contract-toggle";
+  const mapParameters = document.createElement("input");
+  mapParameters.id = "replacementMapParameters";
+  mapParameters.type = "checkbox";
+  mapParameters.checked = state.replacementMapParameters !== false;
+  mapParameters.setAttribute("aria-label", "Copy same-name parameters");
+  mapParameters.addEventListener("change", () => {
+    state.replacementMapParameters = mapParameters.checked;
+    renderInspector();
+  });
+  mapLabel.append(mapParameters, document.createTextNode("Copy same-name parameters"));
+  const replaceButton = document.createElement("button");
+  replaceButton.type = "button";
+  replaceButton.textContent = "Replace And Validate";
+  replaceButton.disabled = Boolean(preview.problems.length);
+  replaceButton.addEventListener("click", replaceSelectedComponent);
+  form.append(mapLabel, replaceButton);
+  block.append(form);
+  return block;
+}
+
+function inspectorKVRow(key, value) {
+  const row = document.createElement("div");
+  row.className = "kv";
+  row.innerHTML = `<span class="kv-key">${escapeHTML(key)}</span><span>${escapeHTML(value)}</span>`;
+  return row;
+}
+
+function replacementMappingTable(title, mappings) {
+  const wrap = document.createElement("div");
+  wrap.className = "replacement-table-wrap";
+  const heading = document.createElement("div");
+  heading.className = "replacement-subtitle";
+  heading.textContent = title;
+  const table = document.createElement("table");
+  table.className = "feature-preview-table replacement-preview-table";
+  table.innerHTML = "<thead><tr><th>Scope</th><th>From</th><th>To</th><th>Status</th></tr></thead>";
+  const tbody = document.createElement("tbody");
+  if (!mappings.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-cell">No entry-system references</td></tr>`;
+  } else {
+    for (const mapping of mappings) {
+      const row = document.createElement("tr");
+      row.className = mapping.status === "missing" ? "replacement-missing" : "";
+      row.innerHTML = `
+        <td>${escapeHTML(String(mapping.scope || "").replace(/_/g, " "))}</td>
+        <td>${escapeHTML(mapping.from || "")}</td>
+        <td>${escapeHTML(mapping.to || "")}</td>
+        <td>${escapeHTML(mapping.status || "")}</td>
+      `;
+      if (mapping.detail) row.title = mapping.detail;
+      tbody.append(row);
+    }
+  }
+  table.append(tbody);
+  wrap.append(heading, table);
+  return wrap;
+}
+
+function replacementDiffSummary(diff) {
+  const wrap = document.createElement("div");
+  wrap.className = "replacement-diff";
+  const rows = [
+    ["Input diff", replacementDiffText(diff.matchedInputs, diff.missingInputs, diff.addedInputs)],
+    ["Output diff", replacementDiffText(diff.matchedOutputs, diff.missingOutputs, diff.addedOutputs)],
+    ["Parameter diff", replacementDiffText(diff.matchedParameters, diff.missingParameters, diff.addedParameters)],
+  ];
+  for (const [key, value] of rows) wrap.append(inspectorKVRow(key, value));
+  return wrap;
+}
+
+function replacementDiffText(matched, missing, added) {
+  return [
+    `${matched.length} matched`,
+    missing.length ? `missing ${missing.join(", ")}` : "",
+    added.length ? `new ${added.join(", ")}` : "",
+  ].filter(Boolean).join(" / ");
+}
+
+function replacementPreview(component, template) {
+  const diff = replacementContractDiff(component, template);
+  const nodeMappings = replacementNodeMappings(component, template);
+  const parameterMappings = replacementParameterMappings(component, template, state.replacementMapParameters !== false);
+  const problems = nodeMappings
+    .filter((mapping) => mapping.status === "missing")
+    .map((mapping) => ({
+      severity: "error",
+      component_id: component.id,
+      node_id: mapping.node_id || "",
+      message: `replacement missing ${mapping.direction || "node"} for ${String(mapping.scope || "").replace(/_/g, " ")} ${mapping.id}: ${mapping.node_id || mapping.from}`,
+    }));
+  return { diff, nodeMappings, parameterMappings, problems };
+}
+
+function replacementNodeMappings(component, template) {
+  const system = currentSystem();
+  if (!system) return [];
+  const templateInputs = new Set(contractNodeIDs(template.inputs || []));
+  const templateOutputs = new Set(contractNodeIDs(template.outputs || []));
+  const mappings = [];
+  for (const input of system.public_inputs || []) {
+    if (input.component !== component.id) continue;
+    const found = templateInputs.has(input.node);
+    mappings.push(replacementMapping("public_input", input.id, component.id, template.id, input.node, "input", found, found ? "public input preserved" : "replacement input node is missing"));
+  }
+  for (const output of system.public_outputs || []) {
+    if (output.component !== component.id) continue;
+    const found = templateOutputs.has(output.node);
+    mappings.push(replacementMapping("public_output", output.id, component.id, template.id, output.node, "output", found, found ? "public output preserved" : "replacement output node is missing"));
+  }
+  for (const connectionID of system.connections || []) {
+    const connection = (state.detail?.graph?.connections || []).find((item) => item.id === connectionID);
+    if (!connection) continue;
+    if (connection.from?.component === component.id) {
+      const nodeID = connection.from.node;
+      const found = templateOutputs.has(nodeID);
+      mappings.push(replacementMapping("connection_output", connection.id, component.id, template.id, nodeID, "output", found, found ? "connection source preserved" : "replacement output node is missing"));
+    }
+    if (connection.to?.component === component.id) {
+      const nodeID = connection.to.node;
+      const found = templateInputs.has(nodeID);
+      mappings.push(replacementMapping("connection_input", connection.id, component.id, template.id, nodeID, "input", found, found ? "connection target preserved" : "replacement input node is missing"));
+    }
+  }
+  return mappings;
+}
+
+function replacementMapping(scope, id, sourceComponent, replacementTemplate, nodeID, direction, found, detail) {
+  return {
+    scope,
+    id,
+    node_id: nodeID,
+    direction,
+    from: `${sourceComponent}.${nodeID}`,
+    to: `${replacementTemplate}.${nodeID}`,
+    status: found ? "preserved" : "missing",
+    detail,
+  };
+}
+
+function replacementParameterMappings(component, template, mapParameters) {
+  return contractParameterIDs(template).map((name) => {
+    const found = contractParameterIDs(component).includes(name);
+    return {
+      scope: "parameter",
+      id: name,
+      from: `${component.id}.${name}`,
+      to: `${template.id}.${name}`,
+      status: mapParameters ? (found ? "copied" : "missing") : "skipped",
+      detail: mapParameters ? (found ? "same-name parameter value copied" : "source parameter is not present") : "parameter mapping disabled",
+    };
+  });
+}
+
+function replacementContractDiff(component, template) {
+  const originalInputs = contractNodeIDs(component.nodes?.inputs || []);
+  const replacementInputs = contractNodeIDs(template.inputs || []);
+  const originalOutputs = contractNodeIDs(component.nodes?.outputs || []);
+  const replacementOutputs = contractNodeIDs(template.outputs || []);
+  const originalParameters = contractParameterIDs(component);
+  const replacementParameters = contractParameterIDs(template);
+  return {
+    originalInputs,
+    replacementInputs,
+    matchedInputs: intersectLists(originalInputs, replacementInputs),
+    missingInputs: differenceLists(originalInputs, replacementInputs),
+    addedInputs: differenceLists(replacementInputs, originalInputs),
+    originalOutputs,
+    replacementOutputs,
+    matchedOutputs: intersectLists(originalOutputs, replacementOutputs),
+    missingOutputs: differenceLists(originalOutputs, replacementOutputs),
+    addedOutputs: differenceLists(replacementOutputs, originalOutputs),
+    originalParameters,
+    replacementParameters,
+    matchedParameters: intersectLists(originalParameters, replacementParameters),
+    missingParameters: differenceLists(originalParameters, replacementParameters),
+    addedParameters: differenceLists(replacementParameters, originalParameters),
+  };
+}
+
+function contractNodeIDs(nodes) {
+  return [...new Set((nodes || []).map((node) => node.id).filter(Boolean))].sort();
+}
+
+function contractParameterIDs(contract) {
+  return [...new Set([
+    ...Object.keys(contract.parameters || {}),
+    ...Object.keys(contract.parameter_defs || {}),
+  ].filter(Boolean))].sort();
+}
+
+function intersectLists(left, right) {
+  const rightSet = new Set(right);
+  return left.filter((item) => rightSet.has(item));
+}
+
+function differenceLists(left, right) {
+  const rightSet = new Set(right);
+  return left.filter((item) => !rightSet.has(item));
 }
 
 function openComponentCode(componentID) {
@@ -7019,16 +7243,27 @@ async function replaceSelectedComponent() {
   const component = componentById(state.selectedComponentId);
   if (!component || !isWorkspaceProject()) return;
   const template = el("componentTemplateSelect")?.value || state.componentTemplates[0]?.id || "";
+  const templateContract = selectedComponentTemplate();
   if (!template) {
     showInlineProblem("Component template is required");
     return;
   }
+  const preview = templateContract ? replacementPreview(component, templateContract) : { problems: [] };
+  if (preview.problems.length) {
+    state.latestValidation = { error: "Replacement mapping is broken", problems: preview.problems };
+    renderProblems();
+    setBottomTab("problems");
+    log(`Replace component blocked: ${preview.problems.length} broken mapping${preview.problems.length === 1 ? "" : "s"}`);
+    return;
+  }
   const name = `${component.name || component.id} Replacement`;
-  if (!window.confirm(`Create a replacement for ${component.id} from template ${template}? The original component and source will be retained.`)) return;
+  const mapParameters = state.replacementMapParameters !== false;
+  const parameterText = mapParameters ? "same-name parameters will be copied" : "parameters will use template defaults";
+  if (!window.confirm(`Create a replacement for ${component.id} from template ${template}? The original component and source will be retained; ${parameterText}.`)) return;
   try {
     const body = await api("/api/project/components/replace", {
       method: "POST",
-      body: JSON.stringify({ project_path: state.currentProjectPath, component_id: component.id, name, template }),
+      body: JSON.stringify({ project_path: state.currentProjectPath, component_id: component.id, name, template, map_parameters: mapParameters }),
     });
     state.detail = body.project;
     state.selectedComponentId = body.component.id;
@@ -7036,7 +7271,8 @@ async function replaceSelectedComponent() {
     renderAll();
     setMode("code");
     const replacement = body.replacement || {};
-    log(`Component replacement created: ${component.id} -> ${body.component.id} connections=${replacement.rewired_connections || 0}`);
+    log(`Component replacement created: ${component.id} -> ${body.component.id} connections=${replacement.rewired_connections || 0} parameters=${replacement.mapped_parameters || 0}`);
+    await validateProject();
   } catch (error) {
     log(`Replace component failed: ${error.message}`);
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
@@ -7911,7 +8147,10 @@ function bindEvents() {
   });
   el("componentCategorySelect").addEventListener("change", renderComponentTemplateSelect);
   el("componentExecutionModeSelect").addEventListener("change", renderComponentTemplateSelect);
-  el("componentTemplateSelect").addEventListener("change", renderComponentTemplateMeta);
+  el("componentTemplateSelect").addEventListener("change", () => {
+    renderComponentTemplateMeta();
+    renderInspector();
+  });
   el("includeComponentButton").addEventListener("click", includeSelectedComponent);
   el("removeComponentButton").addEventListener("click", removeSelectedComponentFromSystem);
   el("replaceComponentButton").addEventListener("click", replaceSelectedComponent);

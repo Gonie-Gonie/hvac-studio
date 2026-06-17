@@ -1,0 +1,156 @@
+{
+  "id": "zone_load_ann",
+  "name": "Zone Load ANN Surrogate",
+  "kind": "user_python",
+  "category": "physical_component",
+  "execution_mode": "step",
+  "class_name": "ZoneLoadANNComponent",
+  "source": {
+    "layout": "generated_wrapper",
+    "metadata": "component.json",
+    "init": "user_init.py",
+    "step": "user_step.py",
+    "helpers": "helpers.py",
+    "wrapper": "wrapper.py"
+  },
+  "inputs": [
+    {
+      "id": "outdoor_temperature_c",
+      "name": "Outdoor Temperature",
+      "preset": "scalar_input",
+      "direction": "inlet",
+      "medium": "signal",
+      "value_type": "float",
+      "unit": "degC",
+      "required": true
+    },
+    {
+      "id": "solar_gain_kw",
+      "name": "Solar Gain",
+      "preset": "scalar_input",
+      "direction": "inlet",
+      "medium": "signal",
+      "value_type": "float",
+      "unit": "kW",
+      "required": true
+    },
+    {
+      "id": "internal_gain_kw",
+      "name": "Internal Gain",
+      "preset": "scalar_input",
+      "direction": "inlet",
+      "medium": "signal",
+      "value_type": "float",
+      "unit": "kW",
+      "required": true
+    },
+    {
+      "id": "zone_setpoint_c",
+      "name": "Zone Setpoint",
+      "preset": "control_signal_input",
+      "direction": "inlet",
+      "medium": "signal",
+      "value_type": "float",
+      "unit": "degC",
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "id": "zone_load_kw",
+      "name": "Zone Cooling Load",
+      "preset": "scalar_output",
+      "direction": "outlet",
+      "medium": "signal",
+      "value_type": "float",
+      "unit": "kW"
+    },
+    {
+      "id": "zone_temperature_c",
+      "name": "Zone Temperature",
+      "preset": "air_outlet",
+      "direction": "outlet",
+      "medium": "air",
+      "value_type": "float",
+      "unit": "degC"
+    },
+    {
+      "id": "zone_setpoint_c",
+      "name": "Zone Setpoint",
+      "preset": "control_signal_input",
+      "direction": "outlet",
+      "medium": "signal",
+      "value_type": "float",
+      "unit": "degC"
+    },
+    {
+      "id": "outdoor_temperature_c",
+      "name": "Outdoor Temperature",
+      "preset": "scalar_output",
+      "direction": "outlet",
+      "medium": "signal",
+      "value_type": "float",
+      "unit": "degC"
+    }
+  ],
+  "parameters": {
+    "initial_zone_temperature_c": 24.0,
+    "base_load_kw": 18.0,
+    "ua_kw_per_k": 0.45,
+    "nominal_capacity_kw": 20.0,
+    "outdoor_coupling": 0.05,
+    "gain_temperature_per_kw": 0.02,
+    "cooling_temperature_per_kw": 0.03,
+    "ann_bias_kw": 0.0,
+    "ann_temperature_bias_c": 0.0
+  },
+  "parameter_defs": {
+    "ua_kw_per_k": {
+      "display_name": "Envelope UA",
+      "unit": "kW/K",
+      "default": 0.45,
+      "current": 0.45,
+      "bounds": {
+        "min": 0.2,
+        "max": 0.8
+      },
+      "role": "calibration_target",
+      "group": "Zone",
+      "description": "Effective envelope coefficient used by the surrogate."
+    },
+    "ann_bias_kw": {
+      "display_name": "ANN Load Bias",
+      "unit": "kW",
+      "default": 0.0,
+      "current": 0.0,
+      "bounds": {
+        "min": -20.0,
+        "max": 20.0
+      },
+      "role": "calibration_target",
+      "group": "ANN",
+      "description": "Bias term applied after the surrogate load estimate."
+    },
+    "ann_temperature_bias_c": {
+      "display_name": "ANN Temperature Bias",
+      "unit": "degC",
+      "default": 0.0,
+      "current": 0.0,
+      "bounds": {
+        "min": -5.0,
+        "max": 5.0
+      },
+      "role": "calibration_target",
+      "group": "ANN",
+      "description": "Bias term applied after the surrogate temperature estimate."
+    }
+  },
+  "state_defs": {
+    "zone_temperature_c": {
+      "display_name": "Zone Temperature",
+      "unit": "degC",
+      "initial": 24.0,
+      "description": "Previous zone temperature used by the surrogate recurrence."
+    }
+  }
+}

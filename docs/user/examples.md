@@ -20,6 +20,7 @@ learning path and gives releases repeatable smoke assets.
 | 11 | `examples/006_optimization_case` | Grid-search optimization and SDK-style external search scripting. |
 | 12 | `examples/007_runtime_only_package` | Runtime-only delivery shape and exported-package command style. |
 | 13 | `examples/014_ahu_state_ann` | Feature mapping, ML component metadata, model assets, and export checksums. |
+| 14 | `examples/015_rc_ahu_ann_composition` | RC zone load, ANN surrogate AHU, validation, calibration, optimization, SDK use, and model replacement. |
 
 `examples/002_custom_component` is intentionally reserved for richer custom
 inlet/outlet authoring notes and is not part of the runnable smoke set.
@@ -76,3 +77,8 @@ For ML-backed composition, use `examples/014_ahu_state_ann`. That example maps
 scalar system inputs into a deterministic feature object, loads JSON model
 assets once during component initialization, and exposes the asset requirements
 through `ml_metadata`, schema export, and runtime export manifests.
+
+For a full practical workflow, use `examples/015_rc_ahu_ann_composition`. It
+combines RC zone dynamics, ANN-backed AHU behavior, equipment aggregation,
+dataset validation, calibration, optimization, an SDK script, and a
+`ZoneLoadRC` to `ZoneLoadANN` replacement walkthrough.
