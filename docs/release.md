@@ -78,7 +78,7 @@ Both MVP packages include `bin/bcs-env.exe` and a bundled Python runtime under `
 
 Studio desktop binaries are built through `scripts/release/build-studio.ps1` with Wails production tags: `-tags desktop,production`. A plain `go build` can compile but show a Wails runtime error dialog instead of opening the app window.
 
-User documentation source lives under `docs/user/`. Package scripts include Markdown docs under `docs/` and must build offline HTML under `docs/site/`. The CI fast gate runs the same MkDocs build through `scripts/dev/test-docs.ps1`; package smoke tests fail if `docs/site/index.html` is missing. PDF manual generation remains a later release task.
+User documentation source lives under `docs/user/`. Package scripts include Markdown docs under `docs/`, build offline HTML under `docs/site/`, and build a consolidated Markdown manual under `docs/manual/`. The CI fast gate runs the same MkDocs build through `scripts/dev/test-docs.ps1`; package smoke tests fail if `docs/site/index.html` or `docs/manual/hvac-studio-manual.md` is missing. PDF manual generation runs when `pandoc` is installed and is recorded as `built` or `skipped` in `docs/manual/manual-build.json`.
 
 Each expanded runtime package also includes `release-provenance.json`, which records the package name, version, runtime id, git metadata, tool versions, documentation packaging status, and package file list. `release-checksums.json` stores SHA-256 hashes for package contents and is verified by package smoke tests.
 

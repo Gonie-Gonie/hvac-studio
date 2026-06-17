@@ -140,6 +140,43 @@ function Invoke-MkDocsBuild {
   }
 }
 
+function Invoke-DocsManualBuild {
+  param(
+    [Parameter(Mandatory = $true)][string]$RepoRoot,
+    [Parameter(Mandatory = $true)][string]$DocsRoot,
+    [string]$Version = ''
+  )
+
+  $ManualRoot = Join-Path $DocsRoot 'manual'
+  $Script = Join-Path $RepoRoot 'scripts\release\build-docs-manual.ps1'
+  powershell -NoProfile -ExecutionPolicy Bypass -File $Script -Version $Version -OutputRoot $ManualRoot
+  if ($LASTEXITCODE -ne 0) {
+    throw "manual docs build failed with exit code $LASTEXITCODE"
+  }
+
+  $ManualPath = Join-Path $ManualRoot 'hvac-studio-manual.md'
+  $StatusPath = Join-Path $ManualRoot 'manual-build.json'
+  if (-not (Test-Path -LiteralPath $ManualPath)) {
+    throw "manual docs build did not write $ManualPath"
+  }
+  if (-not (Test-Path -LiteralPath $StatusPath)) {
+    throw "manual docs build did not write $StatusPath"
+  }
+  $Status = Get-Content -Raw -LiteralPath $StatusPath -Encoding UTF8 | ConvertFrom-Json
+  if ($Status.pdf_status -eq 'built' -and -not (Test-Path -LiteralPath (Join-Path $ManualRoot 'hvac-studio-manual.pdf'))) {
+    throw 'manual docs build reported a PDF but did not write hvac-studio-manual.pdf'
+  }
+
+  return [ordered]@{
+    manual = 'docs/manual/hvac-studio-manual.md'
+    manual_status = 'built'
+    manual_build = 'docs/manual/manual-build.json'
+    pdf = 'docs/manual/hvac-studio-manual.pdf'
+    pdf_status = $Status.pdf_status
+    pdf_reason = $Status.pdf_reason
+  }
+}
+
 function Copy-DocumentationAssets {
   param(
     [Parameter(Mandatory = $true)][string]$RepoRoot,
@@ -149,19 +186,24 @@ function Copy-DocumentationAssets {
 
   $DocsRoot = Join-Path $StageRoot 'docs'
   Copy-Tree -Source (Join-Path $RepoRoot 'docs') -Destination $DocsRoot
+  $SiteRoot = Join-Path $DocsRoot 'site'
+  Invoke-MkDocsBuild -RepoRoot $RepoRoot -SiteRoot $SiteRoot
+  $ManualStatus = Invoke-DocsManualBuild -RepoRoot $RepoRoot -DocsRoot $DocsRoot -Version $Version
+
   $DocsVersion = [ordered]@{
     schema = 'hvac-studio.docs.v1'
     version = $Version
     source = 'docs'
     html = 'docs/site'
-    manual = 'docs/manual/hvac-studio-manual.md'
-    pdf = 'docs/manual/hvac-studio-manual.pdf'
-    pdf_status = 'optional'
+    html_status = 'built'
+    manual = $ManualStatus.manual
+    manual_status = $ManualStatus.manual_status
+    manual_build = $ManualStatus.manual_build
+    pdf = $ManualStatus.pdf
+    pdf_status = $ManualStatus.pdf_status
+    pdf_reason = $ManualStatus.pdf_reason
   }
   $DocsVersion | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $DocsRoot 'version.json') -Encoding UTF8
-
-  $SiteRoot = Join-Path $DocsRoot 'site'
-  Invoke-MkDocsBuild -RepoRoot $RepoRoot -SiteRoot $SiteRoot
   $DocsVersion | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $SiteRoot 'version.json') -Encoding UTF8
 
   return [ordered]@{
@@ -171,6 +213,12 @@ function Copy-DocumentationAssets {
     html_version = 'docs/site/version.json'
     html_status = 'built'
     html_reason = ''
+    manual = $ManualStatus.manual
+    manual_status = $ManualStatus.manual_status
+    manual_build = $ManualStatus.manual_build
+    pdf = $ManualStatus.pdf
+    pdf_status = $ManualStatus.pdf_status
+    pdf_reason = $ManualStatus.pdf_reason
   }
 }
 
@@ -459,12 +507,25 @@ function Assert-ReleaseProvenance {
   if ($Provenance.documentation.html_status -ne 'built') {
     throw "release provenance documentation html_status mismatch: $($Provenance.documentation.html_status)"
   }
-  foreach ($RequiredDocPath in @('docs\site\index.html', 'docs\version.json', 'docs\site\version.json')) {
+  if ($Provenance.documentation.manual_status -ne 'built') {
+    throw "release provenance documentation manual_status mismatch: $($Provenance.documentation.manual_status)"
+  }
+  if ($Provenance.documentation.pdf_status -notin @('built', 'skipped')) {
+    throw "release provenance documentation pdf_status mismatch: $($Provenance.documentation.pdf_status)"
+  }
+  foreach ($RequiredDocPath in @('docs\site\index.html', 'docs\version.json', 'docs\site\version.json', 'docs\manual\hvac-studio-manual.md', 'docs\manual\manual-build.json')) {
     if (-not (Test-Path -LiteralPath (Join-Path $PackageRoot $RequiredDocPath))) {
       throw "release package is missing required $RequiredDocPath"
     }
   }
-  foreach ($RequiredFile in @('release-manifest.json', 'release-provenance.json', 'release-checksums.json', 'release-trust.json', 'PACKAGE_README.md', 'docs/version.json', 'docs/site/version.json', 'legal/license-notices.md', 'legal/dependency-notices.md', 'legal/support-matrix.md', 'legal/release-notes-policy.md')) {
+  if ($Provenance.documentation.pdf_status -eq 'built' -and -not (Test-Path -LiteralPath (Join-Path $PackageRoot 'docs\manual\hvac-studio-manual.pdf'))) {
+    throw 'release package documentation reported a PDF but docs\manual\hvac-studio-manual.pdf is missing'
+  }
+  $RequiredReleaseFiles = @('release-manifest.json', 'release-provenance.json', 'release-checksums.json', 'release-trust.json', 'PACKAGE_README.md', 'docs/version.json', 'docs/site/version.json', 'docs/manual/hvac-studio-manual.md', 'docs/manual/manual-build.json', 'legal/license-notices.md', 'legal/dependency-notices.md', 'legal/support-matrix.md', 'legal/release-notes-policy.md')
+  if ($Provenance.documentation.pdf_status -eq 'built') {
+    $RequiredReleaseFiles += 'docs/manual/hvac-studio-manual.pdf'
+  }
+  foreach ($RequiredFile in $RequiredReleaseFiles) {
     if ($Provenance.files -notcontains $RequiredFile) {
       throw "release provenance file list is missing $RequiredFile"
     }
@@ -473,7 +534,11 @@ function Assert-ReleaseProvenance {
     throw "release checksums schema mismatch: $($Checksums.schema)"
   }
   $ChecksumPaths = @($Checksums.files | ForEach-Object { $_.path })
-  foreach ($RequiredFile in @('release-manifest.json', 'release-provenance.json', 'release-trust.json', 'PACKAGE_README.md', 'docs/site/index.html', 'docs/version.json', 'docs/site/version.json', 'legal/license-notices.md', 'legal/dependency-notices.md', 'legal/support-matrix.md', 'legal/release-notes-policy.md')) {
+  $RequiredChecksumFiles = @('release-manifest.json', 'release-provenance.json', 'release-trust.json', 'PACKAGE_README.md', 'docs/site/index.html', 'docs/version.json', 'docs/site/version.json', 'docs/manual/hvac-studio-manual.md', 'docs/manual/manual-build.json', 'legal/license-notices.md', 'legal/dependency-notices.md', 'legal/support-matrix.md', 'legal/release-notes-policy.md')
+  if ($Provenance.documentation.pdf_status -eq 'built') {
+    $RequiredChecksumFiles += 'docs/manual/hvac-studio-manual.pdf'
+  }
+  foreach ($RequiredFile in $RequiredChecksumFiles) {
     if ($ChecksumPaths -notcontains $RequiredFile) {
       throw "release checksums are missing $RequiredFile"
     }

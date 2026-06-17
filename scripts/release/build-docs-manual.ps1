@@ -53,7 +53,7 @@ foreach ($Rel in $Sources) {
   $Lines += ''
   $Lines += '<div style="page-break-after: always;"></div>'
   $Lines += ''
-  $Lines += Get-Content -LiteralPath $Path
+  $Lines += Get-Content -LiteralPath $Path -Encoding UTF8
 }
 $Lines | Set-Content -LiteralPath $ManualPath -Encoding UTF8
 
