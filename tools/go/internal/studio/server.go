@@ -4740,7 +4740,7 @@ func checkComponentSource(ctx context.Context, loaded *project.LoadedProject, re
 	if !strings.Contains(req.Content, "return") {
 		check.Problems = append(check.Problems, Problem{Severity: "warning", Message: "source has no return statement", ComponentID: componentID})
 	}
-	check.Problems = append(check.Problems, sourceContractReferenceProblems(component, req.Content)...)
+	check.Problems = append(check.Problems, sourceContractReferenceProblems(component, req.Content, filepath.ToSlash(rel))...)
 	syntaxProblems := pythonSyntaxProblems(ctx, loaded, componentID, filepath.ToSlash(rel), req.Content)
 	check.Problems = append(check.Problems, syntaxProblems...)
 	if !hasErrorProblems(syntaxProblems) {
@@ -5084,7 +5084,7 @@ func pythonMethodSignatureMatches(actual []string, expected []string) bool {
 	return true
 }
 
-func sourceContractReferenceProblems(component model.Component, content string) []Problem {
+func sourceContractReferenceProblems(component model.Component, content string, relativePath string) []Problem {
 	problems := []Problem{}
 	for _, node := range component.Nodes.Inputs {
 		if node.IsRequired() && !sourceReferencesInput(content, node.ID) {
@@ -5092,6 +5092,8 @@ func sourceContractReferenceProblems(component model.Component, content string) 
 				Severity:    "warning",
 				Message:     fmt.Sprintf("required input node is not referenced in source: %s", node.ID),
 				ComponentID: component.ID,
+				Source:      relativePath,
+				Line:        sourceContractHintLine(component, content),
 			})
 		}
 	}
@@ -5101,10 +5103,52 @@ func sourceContractReferenceProblems(component model.Component, content string) 
 				Severity:    "warning",
 				Message:     fmt.Sprintf("output node is not obviously returned by source: %s", node.ID),
 				ComponentID: component.ID,
+				NodeID:      node.ID,
+				Source:      relativePath,
+				Line:        sourceContractHintLine(component, content),
 			})
 		}
 	}
 	return problems
+}
+
+func sourceContractHintLine(component model.Component, content string) int {
+	targetLine := 0
+	if component.Source.Layout == "generated_wrapper" {
+		line, _ := findPythonFunctionSignature(content, "step")
+		if line != 0 {
+			targetLine = line
+		}
+	} else {
+		line, _ := findPythonMethodSignature(content, "evaluate")
+		if line != 0 {
+			targetLine = line
+		}
+	}
+	if line := firstPythonReturnLineAtOrAfter(content, targetLine); line != 0 {
+		return line
+	}
+	if targetLine != 0 {
+		return targetLine
+	}
+	if strings.TrimSpace(content) != "" {
+		return 1
+	}
+	return 0
+}
+
+func firstPythonReturnLineAtOrAfter(content string, minLine int) int {
+	if minLine <= 0 {
+		minLine = 1
+	}
+	pattern := regexp.MustCompile(`(?m)^\s*return\b`)
+	for _, match := range pattern.FindAllStringIndex(content, -1) {
+		line := regexpLine(content, match)
+		if line >= minLine {
+			return line
+		}
+	}
+	return 0
 }
 
 func sourceReferencesInput(content string, id string) bool {

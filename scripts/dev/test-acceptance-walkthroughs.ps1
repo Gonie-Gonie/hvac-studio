@@ -30,6 +30,8 @@ try {
   Invoke-Checked $env:HVAC_STUDIO_GO @('test', '.\internal\studio', '-run', 'TestAcceptanceWalkthroughFirstProjectComponentRunExport', '-count=1')
   Write-Host 'acceptance walkthrough B: ANN asset export'
   Invoke-Checked $env:HVAC_STUDIO_GO @('test', '.\internal\studio', '-run', 'TestExportEndpointIncludesMLAssetsAndChecksums', '-count=1')
+  Write-Host 'acceptance walkthrough E: error recovery'
+  Invoke-Checked $env:HVAC_STUDIO_GO @('test', '.\internal\studio', '-run', 'TestAcceptanceWalkthroughErrorRecovery', '-count=1')
 } finally {
   Pop-Location
 }
