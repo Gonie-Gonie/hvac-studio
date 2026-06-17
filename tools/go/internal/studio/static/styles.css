@@ -186,7 +186,7 @@ a:focus-visible {
 
 .component-add-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 92px auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 6px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--line);
@@ -196,6 +196,34 @@ a:focus-visible {
 .component-add-row input,
 .component-add-row select {
   min-width: 0;
+}
+
+#newComponentName,
+#componentTemplateSelect,
+.component-template-meta {
+  grid-column: 1 / -1;
+}
+
+.component-use-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.component-use-row input {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+}
+
+.component-template-meta {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
 }
 
 h1,

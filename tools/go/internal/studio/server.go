@@ -113,9 +113,10 @@ type copyProjectRequest struct {
 }
 
 type createComponentRequest struct {
-	ProjectPath string `json:"project_path"`
-	Name        string `json:"name"`
-	Template    string `json:"template"`
+	ProjectPath     string `json:"project_path"`
+	Name            string `json:"name"`
+	Template        string `json:"template"`
+	IncludeInSystem bool   `json:"include_in_system"`
 }
 
 type componentTemplateManifest struct {
@@ -946,6 +947,16 @@ func (s *Server) handleCreateComponent(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, err)
 		return
+	}
+	if req.IncludeInSystem {
+		if err := includeComponentInSystem(loaded, includeComponentRequest{
+			ProjectPath: req.ProjectPath,
+			SystemID:    loaded.Project.EntrySystem,
+			ComponentID: component.ID,
+		}); err != nil {
+			writeError(w, err)
+			return
+		}
 	}
 	reloaded, err := project.Load(loaded.Path)
 	if err != nil {

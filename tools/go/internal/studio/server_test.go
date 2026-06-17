@@ -66,6 +66,15 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("componentTemplateSelect")) {
 		t.Fatalf("index did not include the component template selector")
 	}
+	if !bytes.Contains(body, []byte("componentCategorySelect")) {
+		t.Fatalf("index did not include the component category selector")
+	}
+	if !bytes.Contains(body, []byte("componentExecutionModeSelect")) {
+		t.Fatalf("index did not include the component execution mode selector")
+	}
+	if !bytes.Contains(body, []byte("includeComponentOnCreate")) {
+		t.Fatalf("index did not include the component system inclusion control")
+	}
 	if !bytes.Contains(body, []byte("sourceEditorMeta")) {
 		t.Fatalf("index did not include the source editor metadata status")
 	}
@@ -434,6 +443,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("/api/component-templates")) {
 		t.Fatalf("module entrypoint did not load component templates")
+	}
+	if !bytes.Contains(body, []byte("filteredComponentTemplates")) {
+		t.Fatalf("module entrypoint did not include component category/mode filtering")
+	}
+	if !bytes.Contains(body, []byte("include_in_system")) {
+		t.Fatalf("module entrypoint did not send component system inclusion preference")
 	}
 	if !bytes.Contains(body, []byte("defaultProjectName")) {
 		t.Fatalf("module entrypoint did not include in-app project naming")
@@ -879,6 +894,61 @@ func TestCreateComponentEndpointCreatesWorkspaceComponent(t *testing.T) {
 		if componentID == "second_gain" {
 			t.Fatal("new component should not be added to the runnable system yet")
 		}
+	}
+}
+
+func TestCreateComponentEndpointCanIncludeComponentInSystem(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Included Component Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path":      createBody.Project.ProjectPath,
+		"name":              "Second Gain",
+		"template":          "scalar",
+		"include_in_system": true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	componentResponse := httptest.NewRecorder()
+	componentRequest := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(componentResponse, componentRequest)
+
+	if componentResponse.Code != http.StatusCreated {
+		t.Fatalf("component status = %d body=%s", componentResponse.Code, componentResponse.Body.String())
+	}
+	loaded, err := project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	system := loaded.Graph.Systems[0]
+	if !containsString(system.Components, "second_gain") {
+		t.Fatalf("system components = %v", system.Components)
+	}
+	if !hasPublicInputFor(system, "second_gain", "value") {
+		t.Fatalf("system public inputs = %#v", system.PublicInputs)
+	}
+	if !hasPublicOutputFor(system, "second_gain", "result") {
+		t.Fatalf("system public outputs = %#v", system.PublicOutputs)
+	}
+	input, err := runtimecore.LoadInput(filepath.Join(root, "projects", "included-component-project", filepath.FromSlash(loaded.Project.DefaultInput)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := input.Inputs["second_gain_value"]; !ok {
+		t.Fatalf("default inputs = %#v", input.Inputs)
 	}
 }
 

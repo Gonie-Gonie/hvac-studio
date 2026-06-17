@@ -49,8 +49,15 @@
             </div>
             <div class="component-add-row">
               <input id="newComponentName" type="text" placeholder="Component name" aria-label="Component name" disabled />
+              <select id="componentCategorySelect" aria-label="Component category" disabled></select>
+              <select id="componentExecutionModeSelect" aria-label="Execution mode" disabled></select>
               <select id="componentTemplateSelect" aria-label="Component template" disabled></select>
+              <label class="component-use-row" for="includeComponentOnCreate">
+                <input id="includeComponentOnCreate" type="checkbox" checked disabled />
+                <span>Use in System</span>
+              </label>
               <button id="addComponentButton" type="button" disabled>Add</button>
+              <div id="componentTemplateMeta" class="component-template-meta"></div>
             </div>
             <div id="projectTree" class="project-tree"></div>
           </section>

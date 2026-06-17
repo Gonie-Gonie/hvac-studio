@@ -19,6 +19,23 @@ const CANVAS_NODE_PORT_GAP = 42;
 const CANVAS_COLUMN_GAP = 370;
 const CANVAS_ROW_GAP = 250;
 const CANVAS_PADDING = 96;
+const COMPONENT_CATEGORIES = [
+  ["", "Any category"],
+  ["physical_component", "Physical Component"],
+  ["controller", "Controller"],
+  ["data_source", "Data Source"],
+  ["data_sink", "Data Sink"],
+  ["utility", "Utility"],
+  ["solver", "Solver"],
+  ["composite_wrapper", "Composite Wrapper"],
+];
+const EXECUTION_MODES = [
+  ["", "Any mode"],
+  ["step", "Step"],
+  ["vectorized", "Vectorized"],
+  ["external_executable", "External Executable"],
+  ["initialization_only", "Initialization Only"],
+];
 const WORKSPACE_HELP = {
   start: "/docs/user/quick-start.md",
   canvas: "/docs/user/build-system.md",
@@ -69,17 +86,71 @@ async function loadComponentTemplates() {
 }
 
 function renderComponentTemplateSelect() {
+  renderComponentFilterSelect(el("componentCategorySelect"), COMPONENT_CATEGORIES);
+  renderComponentFilterSelect(el("componentExecutionModeSelect"), EXECUTION_MODES);
   const select = el("componentTemplateSelect");
   if (!select) return;
+  const previous = select.value;
+  const templates = filteredComponentTemplates();
   select.innerHTML = "";
-  for (const template of state.componentTemplates) {
+  for (const template of templates) {
     const option = document.createElement("option");
     option.value = template.id;
     const contract = `${template.input_count || 0} in / ${template.output_count || 0} out`;
     const layout = template.source_layout ? ` / ${String(template.source_layout).replace(/_/g, " ")}` : "";
-    option.textContent = `${template.name || template.id} (${contract}${layout})`;
+    const mode = template.execution_mode ? ` / ${String(template.execution_mode).replace(/_/g, " ")}` : "";
+    option.textContent = `${template.name || template.id} (${contract}${mode}${layout})`;
     select.append(option);
   }
+  if (!templates.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No matching templates";
+    select.append(option);
+  } else if (templates.some((template) => template.id === previous)) {
+    select.value = previous;
+  }
+  renderComponentTemplateMeta();
+}
+
+function renderComponentFilterSelect(select, options) {
+  if (!select || select.options.length) return;
+  for (const [value, label] of options) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    select.append(option);
+  }
+}
+
+function filteredComponentTemplates() {
+  const category = el("componentCategorySelect")?.value || "";
+  const mode = el("componentExecutionModeSelect")?.value || "";
+  return (state.componentTemplates || []).filter((template) => {
+    if (category && template.category !== category) return false;
+    if (mode && template.execution_mode !== mode) return false;
+    return true;
+  });
+}
+
+function selectedComponentTemplate() {
+  const templateID = el("componentTemplateSelect")?.value || "";
+  return (state.componentTemplates || []).find((template) => template.id === templateID) || null;
+}
+
+function renderComponentTemplateMeta() {
+  const meta = el("componentTemplateMeta");
+  if (!meta) return;
+  const template = selectedComponentTemplate();
+  if (!template) {
+    meta.textContent = "";
+    return;
+  }
+  meta.textContent = [
+    template.category || "",
+    template.execution_mode || "",
+    template.source_layout ? String(template.source_layout).replace(/_/g, " ") : "",
+  ].filter(Boolean).join(" / ");
 }
 
 async function ensureEditableProject(preferredProjectPath) {
@@ -4245,15 +4316,17 @@ async function createComponent() {
     showInlineProblem("Component template is required");
     return;
   }
+  const includeInSystem = el("includeComponentOnCreate")?.checked !== false;
   try {
     const body = await api("/api/project/components", {
       method: "POST",
-      body: JSON.stringify({ project_path: state.currentProjectPath, name, template }),
+      body: JSON.stringify({ project_path: state.currentProjectPath, name, template, include_in_system: includeInSystem }),
     });
     state.detail = body.project;
     state.selectedComponentId = body.component.id;
     if (nameInput) nameInput.value = "";
     renderAll();
+    setMode("code");
     log(`Component created: ${body.component.id}`);
   } catch (error) {
     log(`Create component failed: ${error.message}`);
@@ -4959,7 +5032,10 @@ function updateCommandState() {
   el("copyProjectButton").disabled = !hasProject;
   el("addComponentButton").disabled = !hasProject || !isWorkspaceProject() || state.componentTemplates.length === 0;
   el("newComponentName").disabled = !hasProject || !isWorkspaceProject();
+  el("componentCategorySelect").disabled = !hasProject || !isWorkspaceProject() || state.componentTemplates.length === 0;
+  el("componentExecutionModeSelect").disabled = !hasProject || !isWorkspaceProject() || state.componentTemplates.length === 0;
   el("componentTemplateSelect").disabled = !hasProject || !isWorkspaceProject() || state.componentTemplates.length === 0;
+  el("includeComponentOnCreate").disabled = !hasProject || !isWorkspaceProject();
   el("autoLayoutButton").disabled = !hasProject || !isWorkspaceProject();
   el("includeComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || selectedComponentInSystem();
   el("removeComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || !selectedComponentInSystem();
@@ -5109,6 +5185,9 @@ function bindEvents() {
   el("newComponentName").addEventListener("keydown", (event) => {
     if (event.key === "Enter") createComponent();
   });
+  el("componentCategorySelect").addEventListener("change", renderComponentTemplateSelect);
+  el("componentExecutionModeSelect").addEventListener("change", renderComponentTemplateSelect);
+  el("componentTemplateSelect").addEventListener("change", renderComponentTemplateMeta);
   el("includeComponentButton").addEventListener("click", includeSelectedComponent);
   el("removeComponentButton").addEventListener("click", removeSelectedComponentFromSystem);
   el("deleteComponentButton").addEventListener("click", deleteSelectedComponent);
