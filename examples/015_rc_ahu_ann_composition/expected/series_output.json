@@ -1,0 +1,50 @@
+{
+  "ok": true,
+  "step_count": 3,
+  "outputs": {
+    "chw_supply_temperature_c": [
+      6.801989,
+      6.779952,
+      6.562043
+    ],
+    "supply_air_temperature_c": [
+      14.79942,
+      14.741169,
+      14.569856
+    ],
+    "total_power_kw": [
+      8.063438,
+      9.420664,
+      11.199847
+    ],
+    "unmet_load_kw": [
+      0,
+      0,
+      9.605412
+    ],
+    "zone_load_kw": [
+      26.2,
+      28.6,
+      30.2
+    ],
+    "zone_temperature_c": [
+      24.224,
+      24.4948,
+      24.81806
+    ]
+  },
+  "final_states": {
+    "zone_rc": {
+      "zone_temperature_c": 24.81806
+    }
+  },
+  "execution_order": [
+    "zone_rc",
+    "controller",
+    "feature_mapper",
+    "pump",
+    "ahu_state_ann",
+    "chiller",
+    "aggregator"
+  ]
+}

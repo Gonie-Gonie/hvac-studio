@@ -1,0 +1,50 @@
+{
+  "schema_version": "0.1.0",
+  "context": {
+    "dt": 300
+  },
+  "steps": [
+    {
+      "id": "t0",
+      "inputs": {
+        "outdoor_temperature_c": 30.0,
+        "solar_gain_kw": 3.0,
+        "internal_gain_kw": 2.5,
+        "zone_setpoint_c": 24.0,
+        "chw_setpoint_c": 7.0,
+        "pump_speed_fraction": 0.65
+      },
+      "context": {
+        "time": 0
+      }
+    },
+    {
+      "id": "t1",
+      "inputs": {
+        "outdoor_temperature_c": 32.0,
+        "solar_gain_kw": 4.0,
+        "internal_gain_kw": 3.0,
+        "zone_setpoint_c": 24.0,
+        "chw_setpoint_c": 7.0,
+        "pump_speed_fraction": 0.70
+      },
+      "context": {
+        "time": 300
+      }
+    },
+    {
+      "id": "t2",
+      "inputs": {
+        "outdoor_temperature_c": 34.0,
+        "solar_gain_kw": 4.5,
+        "internal_gain_kw": 3.2,
+        "zone_setpoint_c": 24.0,
+        "chw_setpoint_c": 6.8,
+        "pump_speed_fraction": 0.78
+      },
+      "context": {
+        "time": 600
+      }
+    }
+  ]
+}
