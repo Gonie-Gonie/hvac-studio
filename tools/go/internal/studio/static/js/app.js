@@ -3296,7 +3296,8 @@ function datasetResultSection(dataset) {
     String(item.missing_count || 0),
     (item.samples || []).join(", "),
   ]), ["Column", "Type", "Missing", "Samples"]));
-  section.append(resultTable("Public IO Mapping", [
+  section.append(datasetMappingEditorSection(dataset));
+  section.append(resultTable("Public IO Mapping Preview", [
     ...suggestionRows("input", dataset.suggested_inputs || []),
     ...suggestionRows("output", dataset.suggested_outputs || []),
   ], ["Direction", "Public ID", "Column", "Unit"]));
@@ -3313,6 +3314,128 @@ function datasetResultSection(dataset) {
     section.append(actions);
   }
   return section;
+}
+
+function datasetMappingEditorSection(dataset) {
+  const block = document.createElement("div");
+  block.className = "result-block dataset-mapping-editor";
+  block.innerHTML = `<div class="result-block-title">Mapping Editor</div>`;
+
+  const timeField = document.createElement("div");
+  timeField.className = "mapping-time-field";
+  const timeSelect = columnSelect(dataset.columns || [], firstDatasetColumn(dataset.columns || [], "time", "timestamp"));
+  timeSelect.id = "datasetTimeColumnSelect";
+  timeSelect.setAttribute("aria-label", "Dataset time column");
+  timeField.innerHTML = `<label for="datasetTimeColumnSelect">Time column</label>`;
+  timeField.append(timeSelect);
+  block.append(timeField);
+
+  block.append(validationMappingEditorTable("Public Inputs", "input", dataset.suggested_inputs || [], dataset.columns || []));
+  block.append(validationMappingEditorTable("Observed Outputs", "output", dataset.suggested_outputs || [], dataset.columns || []));
+  block.append(datasetUnitHintTable(dataset));
+  return block;
+}
+
+function validationMappingEditorTable(title, direction, suggestions, columns) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "mapping-editor-table";
+  const rows = suggestions || [];
+  wrapper.innerHTML = `
+    <div class="result-block-subtitle">${escapeHTML(title)}</div>
+    <table class="result-table">
+      <thead><tr><th>Public ID</th><th>Contract</th><th>Dataset Column</th><th>Status</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  `;
+  const tbody = wrapper.querySelector("tbody");
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-cell">No ${escapeHTML(title.toLowerCase())}</td></tr>`;
+    return wrapper;
+  }
+  for (const item of rows) {
+    const row = document.createElement("tr");
+    const select = columnSelect(columns, item.column || "");
+    select.dataset.validationDirection = direction;
+    select.dataset.publicId = item.public_id || "";
+    const requiredMissing = item.required && !select.value;
+    if (requiredMissing) row.classList.add("mapping-missing");
+    row.innerHTML = `
+      <td>${escapeHTML(item.public_id || "")}</td>
+      <td>${escapeHTML([item.value_type || "", item.unit || "", item.required ? "required" : "optional"].filter(Boolean).join(" / "))}</td>
+      <td></td>
+      <td>${escapeHTML(requiredMissing ? "required column missing" : (select.value ? "mapped" : "unmapped"))}</td>
+    `;
+    row.children[2].append(select);
+    tbody.append(row);
+  }
+  return wrapper;
+}
+
+function datasetUnitHintTable(dataset) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "mapping-editor-table";
+  const columns = dataset.columns || [];
+  wrapper.innerHTML = `
+    <div class="result-block-subtitle">Column Unit Hints</div>
+    <table class="result-table">
+      <thead><tr><th>Column</th><th>Detected Type</th><th>Unit Hint</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  `;
+  const tbody = wrapper.querySelector("tbody");
+  if (!columns.length) {
+    tbody.innerHTML = `<tr><td colspan="3" class="empty-cell">No columns</td></tr>`;
+    return wrapper;
+  }
+  const profiles = new Map((dataset.column_profiles || []).map((item) => [item.column, item]));
+  for (const column of columns) {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "unit-hint-input";
+    input.dataset.datasetUnitHint = column;
+    input.value = unitHintForColumn(dataset, column);
+    input.placeholder = "unit";
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${escapeHTML(column)}</td>
+      <td>${escapeHTML(profiles.get(column)?.value_type || "")}</td>
+      <td></td>
+    `;
+    row.children[2].append(input);
+    tbody.append(row);
+  }
+  return wrapper;
+}
+
+function columnSelect(columns, selected) {
+  const select = document.createElement("select");
+  select.className = "run-select mapping-column-select";
+  select.append(new Option("Unmapped", ""));
+  for (const column of columns || []) {
+    select.append(new Option(column, column));
+  }
+  select.value = selected || "";
+  return select;
+}
+
+function firstDatasetColumn(columns, ...candidates) {
+  for (const candidate of candidates) {
+    const normalized = normalizeColumnLabel(candidate);
+    const match = (columns || []).find((column) => normalizeColumnLabel(column) === normalized);
+    if (match) return match;
+  }
+  return "";
+}
+
+function normalizeColumnLabel(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function unitHintForColumn(dataset, column) {
+  for (const item of [...(dataset.suggested_inputs || []), ...(dataset.suggested_outputs || [])]) {
+    if (item.column === column && item.unit) return item.unit;
+  }
+  return "";
 }
 
 function suggestionRows(direction, suggestions) {
@@ -3337,6 +3460,10 @@ async function createValidationMappingFromDataset(dataset) {
       body: JSON.stringify({
         project_path: state.currentProjectPath,
         dataset_path: dataset.summary?.relative_path || "",
+        time_column: el("datasetTimeColumnSelect")?.value || "",
+        input_columns: collectValidationColumnMap("input"),
+        observed_output_columns: collectValidationColumnMap("output"),
+        unit_hints: collectDatasetUnitHints(),
         missing_value_policy: el("validationMissingPolicySelect").value || "error",
       }),
     });
@@ -3352,6 +3479,24 @@ async function createValidationMappingFromDataset(dataset) {
     setBottomTab("problems");
     log(`Validation mapping failed: ${error.message}`);
   }
+}
+
+function collectValidationColumnMap(direction) {
+  const values = {};
+  document.querySelectorAll(`[data-validation-direction="${direction}"]`).forEach((select) => {
+    if (select.dataset.publicId && select.value) values[select.dataset.publicId] = select.value;
+  });
+  return values;
+}
+
+function collectDatasetUnitHints() {
+  const values = {};
+  document.querySelectorAll("[data-dataset-unit-hint]").forEach((input) => {
+    const column = input.dataset.datasetUnitHint || "";
+    const unit = input.value.trim();
+    if (column && unit) values[column] = unit;
+  });
+  return values;
 }
 
 function validationMappingArtifactSection(summary, mapping = null) {
@@ -3371,6 +3516,9 @@ function validationMappingArtifactSection(summary, mapping = null) {
   }
   if (mapping?.observed_output_columns) {
     section.append(resultTable("Observed Output Columns", Object.entries(mapping.observed_output_columns).map(([publicID, column]) => [publicID, column]), ["Public Output", "Dataset Column"]));
+  }
+  if (mapping?.unit_hints && Object.keys(mapping.unit_hints).length) {
+    section.append(resultTable("Unit Hints", Object.entries(mapping.unit_hints).map(([column, unit]) => [column, unit]), ["Dataset Column", "Unit"]));
   }
   if (isWorkspaceProject()) {
     const actions = document.createElement("div");
@@ -3491,7 +3639,7 @@ async function importDataset() {
         source_path: sourcePath,
         id: el("datasetIDInput").value.trim(),
         delimiter: el("datasetDelimiterSelect").value,
-        encoding: "utf-8",
+        encoding: el("datasetEncodingSelect").value || "utf-8",
       }),
     });
     state.detail = body.project;
@@ -8074,6 +8222,7 @@ function updateCommandState() {
   el("datasetSourcePathInput").disabled = !hasProject || !isWorkspaceProject();
   el("datasetIDInput").disabled = !hasProject || !isWorkspaceProject();
   el("datasetDelimiterSelect").disabled = !hasProject || !isWorkspaceProject();
+  el("datasetEncodingSelect").disabled = !hasProject || !isWorkspaceProject();
   el("validationMissingPolicySelect").disabled = !hasProject || !isWorkspaceProject();
   el("importDatasetButton").disabled = !hasProject || !isWorkspaceProject() || runtimeBusy;
   el("createCalibrationSetupButton").disabled = !hasProject || !isWorkspaceProject() || !(state.detail?.validation_mappings || []).length;

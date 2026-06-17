@@ -165,6 +165,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("seriesButton")) {
 		t.Fatalf("index did not include time-series run control")
 	}
+	if !bytes.Contains(body, []byte("datasetEncodingSelect")) {
+		t.Fatalf("index did not include dataset encoding selection")
+	}
 	if !bytes.Contains(body, []byte("executionTraceRows")) {
 		t.Fatalf("index did not include execution trace rows")
 	}
@@ -372,6 +375,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("validationPlotSection")) || !bytes.Contains(body, []byte("Measured vs Simulated")) || !bytes.Contains(body, []byte("Residual Histogram")) {
 		t.Fatalf("module entrypoint did not render validation plots")
+	}
+	if !bytes.Contains(body, []byte("datasetMappingEditorSection")) ||
+		!bytes.Contains(body, []byte("datasetTimeColumnSelect")) ||
+		!bytes.Contains(body, []byte("collectValidationColumnMap")) ||
+		!bytes.Contains(body, []byte("unit_hints")) {
+		t.Fatalf("module entrypoint did not expose dataset mapping editor")
 	}
 	if !bytes.Contains(body, []byte("validationComparisonBaseline")) || !bytes.Contains(body, []byte("Parameter Set Comparison")) || !bytes.Contains(body, []byte("compareValidationParameterSet")) {
 		t.Fatalf("module entrypoint did not render validation parameter-set comparisons")
@@ -3553,7 +3562,7 @@ func TestImportDatasetEndpointCopiesCSVAndCreatesMapping(t *testing.T) {
 		"source_path":  sourcePath,
 		"id":           "Imported Plant",
 		"delimiter":    "auto",
-		"encoding":     "utf-8",
+		"encoding":     "utf-8-bom",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -3659,9 +3668,22 @@ func TestCreateValidationMappingEndpointWritesSuggestedMapping(t *testing.T) {
 	}
 	projectPath := filepath.Join(projectRoot, "project.bcsproj")
 	payload, err := json.Marshal(map[string]any{
-		"project_path":         projectPath,
-		"dataset_path":         filepath.Join("datasets", "plant_validation.csv"),
-		"id":                   "suggested_validation",
+		"project_path":  projectPath,
+		"dataset_path":  filepath.Join("datasets", "plant_validation.csv"),
+		"id":            "suggested_validation",
+		"time_column":   "time",
+		"input_columns": map[string]string{"building_load_kw": "building_load_kw"},
+		"observed_output_columns": map[string]string{
+			"total_power_kw":         "measured_total_power_kw",
+			"chw_supply_temp_c":      "measured_chw_supply_temp_c",
+			"chiller_electric_power": "",
+			"pump_electric_power":    "",
+			"cooling_tower_power":    "",
+		},
+		"unit_hints": map[string]string{
+			"building_load_kw":        "kW",
+			"measured_total_power_kw": "kW",
+		},
 		"missing_value_policy": "fail_fast",
 	})
 	if err != nil {
@@ -3680,6 +3702,8 @@ func TestCreateValidationMappingEndpointWritesSuggestedMapping(t *testing.T) {
 		Mapping struct {
 			InputColumns          map[string]string `json:"input_columns"`
 			ObservedOutputColumns map[string]string `json:"observed_output_columns"`
+			TimeColumn            string            `json:"time_column"`
+			UnitHints             map[string]string `json:"unit_hints"`
 			MissingValuePolicy    string            `json:"missing_value_policy"`
 		} `json:"mapping"`
 	}
@@ -3694,6 +3718,9 @@ func TestCreateValidationMappingEndpointWritesSuggestedMapping(t *testing.T) {
 	}
 	if body.Mapping.ObservedOutputColumns["total_power_kw"] != "measured_total_power_kw" {
 		t.Fatalf("output columns = %#v", body.Mapping.ObservedOutputColumns)
+	}
+	if body.Mapping.TimeColumn != "time" || body.Mapping.UnitHints["building_load_kw"] != "kW" {
+		t.Fatalf("mapping time/unit hints = %#v", body.Mapping)
 	}
 	if _, err := os.Stat(filepath.Join(projectRoot, "validation", "mappings", "suggested_validation.json")); err != nil {
 		t.Fatal(err)

@@ -29,6 +29,7 @@ type Mapping struct {
 	TimeColumn            string            `json:"time_column,omitempty"`
 	InputColumns          map[string]string `json:"input_columns"`
 	ObservedOutputColumns map[string]string `json:"observed_output_columns"`
+	UnitHints             map[string]string `json:"unit_hints,omitempty"`
 	MissingValuePolicy    string            `json:"missing_value_policy,omitempty"`
 }
 

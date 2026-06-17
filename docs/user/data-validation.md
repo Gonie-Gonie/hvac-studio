@@ -13,11 +13,13 @@ Model validation compares simulated outputs against measured or reference data.
 7. Inspect high-error timesteps.
 
 In Studio, open the Artifacts workspace, enter a local CSV path, choose the
-delimiter detection mode, and select `Import Data`. Studio copies the CSV into
-the project `datasets/` folder, normalizes it to the runner CSV format, shows a
-header preview, infers basic column types, records the dataset SHA256 checksum,
-and suggests public input/output column matches. Select `Create Mapping` from
-the dataset preview to save a validation mapping without editing JSON.
+delimiter and encoding options, and select `Import Data`. Studio copies the CSV
+into the project `datasets/` folder, normalizes it to the runner CSV format,
+shows a header preview, infers basic column types, records the dataset SHA256
+checksum, and suggests public input/output column matches. The dataset preview
+includes a mapping editor for time column, public input columns, observed output
+columns, and column unit hints. Select `Create Mapping` from the dataset preview
+to save a validation mapping without editing JSON.
 
 The saved artifacts use CSV datasets and mapping files. See `examples/005_chiller_plant_like_system`:
 
@@ -39,6 +41,10 @@ The mapping connects dataset columns to public inputs and observed outputs:
   },
   "observed_output_columns": {
     "total_power_kw": "measured_total_power_kw"
+  },
+  "unit_hints": {
+    "building_load_kw": "kW",
+    "measured_total_power_kw": "kW"
   }
 }
 ```

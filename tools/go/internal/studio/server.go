@@ -524,6 +524,7 @@ type createValidationMappingRequest struct {
 	TimeColumn            string            `json:"time_column"`
 	InputColumns          map[string]string `json:"input_columns"`
 	ObservedOutputColumns map[string]string `json:"observed_output_columns"`
+	UnitHints             map[string]string `json:"unit_hints"`
 	MissingValuePolicy    string            `json:"missing_value_policy"`
 }
 
@@ -6307,7 +6308,7 @@ func importDataset(loaded *project.LoadedProject, req importDatasetRequest) (Dat
 	if sourcePath == "" {
 		return DatasetPreview{}, apperror.Errorf(apperror.CodeValidation, "source_path is required")
 	}
-	if encoding := strings.TrimSpace(strings.ToLower(req.Encoding)); encoding != "" && encoding != "utf-8" && encoding != "utf8" {
+	if encoding := strings.TrimSpace(strings.ToLower(req.Encoding)); encoding != "" && encoding != "utf-8" && encoding != "utf8" && encoding != "utf-8-bom" {
 		return DatasetPreview{}, apperror.Errorf(apperror.CodeValidation, "unsupported dataset encoding: %s", req.Encoding)
 	}
 	if !filepath.IsAbs(sourcePath) {
@@ -6632,6 +6633,7 @@ func createValidationMapping(loaded *project.LoadedProject, req createValidation
 	if len(outputColumns) == 0 {
 		outputColumns = suggestionsToColumns(preview.SuggestedOutputs)
 	}
+	unitHints := datasetUnitHints(req.UnitHints, preview.Columns)
 	if len(inputColumns) == 0 {
 		return ValidationMappingSummary{}, modelvalidation.Mapping{}, apperror.Errorf(apperror.CodeValidation, "validation mapping requires at least one input column")
 	}
@@ -6661,6 +6663,7 @@ func createValidationMapping(loaded *project.LoadedProject, req createValidation
 		TimeColumn:            firstMatchingColumn(preview.Columns, req.TimeColumn, "time", "timestamp"),
 		InputColumns:          inputColumns,
 		ObservedOutputColumns: outputColumns,
+		UnitHints:             unitHints,
 		MissingValuePolicy:    policy,
 	}
 	mappingPath := filepath.Join(loaded.Root, "validation", "mappings", id+".json")
@@ -7164,6 +7167,22 @@ func nonEmptyColumns(values map[string]string) map[string]string {
 		column = strings.TrimSpace(column)
 		if id != "" && column != "" {
 			result[id] = column
+		}
+	}
+	return result
+}
+
+func datasetUnitHints(values map[string]string, columns []string) map[string]string {
+	allowed := map[string]bool{}
+	for _, column := range columns {
+		allowed[column] = true
+	}
+	result := map[string]string{}
+	for column, unit := range values {
+		column = strings.TrimSpace(column)
+		unit = strings.TrimSpace(unit)
+		if column != "" && unit != "" && allowed[column] {
+			result[column] = unit
 		}
 	}
 	return result
