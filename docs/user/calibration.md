@@ -39,13 +39,15 @@ bcs-runner.exe calibrate `
 ```
 
 The result includes the initial objective, best objective, changed parameters,
-candidate objectives, and the new parameter set content. In Studio, saved
+candidate objectives, best candidate details, and the new parameter set content. In Studio, saved
 calibration results show a before/after parameter table and explicit actions for
 the saved parameter set. `Use for Runs` activates the saved parameter set without
 rewriting the baseline graph, `Revert Active` clears that runtime overlay, and
 `Apply Parameter Set` is the deliberate graph-writing path. `Validation
 Before/After` reruns the mapping with the base and saved parameter sets and shows
-the same validation plots and metric deltas used by Data validation. The
+the same validation plots and metric deltas used by Data validation. `Compare
+Existing Set` lets you select any existing parameter set as the before case and
+compare it with the saved calibration result using the same plots and deltas. The
 candidate table can be exported as CSV for spreadsheet review, and `Export
 Report` downloads a Markdown report with the objective summary, parameter
 changes, and candidate table. `--save-record` writes a reproducible result

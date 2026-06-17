@@ -4968,12 +4968,16 @@ function candidateResultSection(result, savedLabel, savedPath) {
   ];
   if (result.base_parameter_set !== undefined) summaryRows.push(["Base parameter set", result.base_parameter_set || "baseline"]);
   if (result.initial_objective !== undefined) summaryRows.push(["Initial objective", shortNumber(result.initial_objective)]);
-  if (result.objective !== undefined) summaryRows.push(["Objective", shortNumber(result.objective)]);
+  if (result.objective !== undefined && (typeof result.objective !== "object" || result.objective === null)) summaryRows.push(["Final objective", shortNumber(result.objective)]);
   if (result.best_objective !== undefined) summaryRows.push(["Best objective", shortNumber(result.best_objective)]);
   summaryRows.push([savedLabel, savedPath || ""]);
   section.append(resultTable("Summary", summaryRows));
   if (result.changed_parameters) {
     section.append(resultTable("Parameter Changes", parameterChangeRows(result.changed_parameters), ["Component", "Parameter", "Initial", "Best", "Delta"]));
+  }
+  const bestRows = bestCandidateRows(result);
+  if (bestRows.length) {
+    section.append(resultTable("Best Candidate", bestRows));
   }
   const bestDecisionRows = optimizationBestDecisionRows(result);
   if (bestDecisionRows.length) {
@@ -5052,6 +5056,23 @@ function candidateResultSection(result, savedLabel, savedPath) {
     compareValidation.disabled = !result.mapping;
     compareValidation.addEventListener("click", () => runCalibrationValidationComparison(result));
     actions.append(compareValidation);
+    const compareSelect = document.createElement("select");
+    compareSelect.className = "validation-compare-select";
+    const compareChoices = calibrationCompareParameterSetChoices(savedPath);
+    if (!compareChoices.length) {
+      compareSelect.append(new Option("No comparison sets", savedPath));
+    } else {
+      for (const item of compareChoices) {
+        compareSelect.append(new Option(item.label, item.value));
+      }
+    }
+    const compareExisting = document.createElement("button");
+    compareExisting.type = "button";
+    compareExisting.className = "small-action";
+    compareExisting.textContent = "Compare Existing Set";
+    compareExisting.disabled = !result.mapping || !compareChoices.length;
+    compareExisting.addEventListener("click", () => runCalibrationParameterSetComparison(result, compareSelect.value));
+    actions.append(compareSelect, compareExisting);
     const apply = document.createElement("button");
     apply.type = "button";
     apply.className = "small-action";
@@ -5147,6 +5168,49 @@ async function runCalibrationValidationComparison(result) {
   }
 }
 
+async function runCalibrationParameterSetComparison(result, parameterSetPath) {
+  if (!result?.mapping || !result?.saved_parameter_set) {
+    showInlineProblem("Calibration parameter-set comparison requires a mapping and saved parameter set");
+    return;
+  }
+  try {
+    const beforeBody = await api("/api/validation/run", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        mapping_path: result.mapping,
+        parameter_set_path: parameterSetPath || "",
+        high_error_rows: 3,
+        save: false,
+      }),
+    });
+    const afterBody = await api("/api/validation/run", {
+      method: "POST",
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        mapping_path: result.mapping,
+        parameter_set_path: result.saved_parameter_set,
+        high_error_rows: 3,
+        save: false,
+      }),
+    });
+    state.latestWorkflowRecord = {
+      kind: "calibration_validation_comparison",
+      calibration_result: result,
+      before: beforeBody.validation_result,
+      after: afterBody.validation_result,
+    };
+    renderResults();
+    setBottomTab("results");
+    log(`Calibration compared with existing parameter set: ${parameterSetPath || "baseline"}`);
+  } catch (error) {
+    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+    renderProblems();
+    setBottomTab("problems");
+    log(`Calibration parameter-set comparison failed: ${error.message}`);
+  }
+}
+
 function calibrationValidationComparisonSection(value) {
   const section = document.createElement("div");
   section.className = "result-grid";
@@ -5235,11 +5299,38 @@ function optimizationOutputComparisonRows(result) {
   ]);
 }
 
+function bestCandidateRows(result) {
+  const candidates = result.candidates || [];
+  const best = bestCandidate(result);
+  if (!best) return [];
+  const ordinal = candidates.indexOf(best);
+  const rows = [
+    ["Index", String(best.index ?? (ordinal >= 0 ? ordinal + 1 : ""))],
+    ["Objective", shortNumber(best.objective)],
+    ["Status", candidateStatus(best)],
+  ];
+  const parameterSummary = parameterCandidateSummary(best.parameters || {});
+  const inputSummary = parameterCandidateSummary(best.inputs || {});
+  const outputSummary = resultPublicOutputSummary(best.outputs || {});
+  if (parameterSummary) rows.push(["Parameters", parameterSummary]);
+  if (inputSummary) rows.push(["Inputs", inputSummary]);
+  if (outputSummary) rows.push(["Outputs", outputSummary]);
+  if (best.error) rows.push(["Error", best.error]);
+  return rows;
+}
+
 function bestCandidate(result) {
   const candidates = result.candidates || [];
   const bestObjective = Number(result.best_objective);
   if (!Number.isFinite(bestObjective)) return candidates.find((item) => !item.error) || null;
   return candidates.find((item) => !item.error && Math.abs(Number(item.objective) - bestObjective) <= 1e-9) || candidates.find((item) => !item.error) || null;
+}
+
+function calibrationCompareParameterSetChoices(savedPath) {
+  return [{ label: "Baseline", value: "" }, ...(state.detail?.parameter_sets || []).map((item) => ({
+    label: item.name || item.id || item.relative_path,
+    value: item.relative_path || "",
+  }))].filter((item) => item.value !== savedPath);
 }
 
 function parameterChangeRows(changes) {

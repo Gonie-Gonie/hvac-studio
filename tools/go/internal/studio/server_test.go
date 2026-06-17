@@ -352,6 +352,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("Validation Before/After")) || !bytes.Contains(body, []byte("calibrationValidationComparisonSection")) {
 		t.Fatalf("module entrypoint did not expose calibration before/after validation plots")
 	}
+	if !bytes.Contains(body, []byte("Best Candidate")) || !bytes.Contains(body, []byte("bestCandidateRows")) {
+		t.Fatalf("module entrypoint did not render calibration best candidate details")
+	}
+	if !bytes.Contains(body, []byte("Compare Existing Set")) || !bytes.Contains(body, []byte("runCalibrationParameterSetComparison")) {
+		t.Fatalf("module entrypoint did not expose calibration parameter-set comparison")
+	}
 	if !bytes.Contains(body, []byte("Export CSV")) || !bytes.Contains(body, []byte("downloadCandidateCSV")) {
 		t.Fatalf("module entrypoint did not expose candidate CSV export")
 	}
