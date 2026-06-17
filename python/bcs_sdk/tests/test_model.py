@@ -243,6 +243,17 @@ class RunnerClientTests(unittest.TestCase):
         self.assertEqual(raised.exception.kind, "input")
         self.assertEqual(raised.exception.code, 3)
 
+    def test_one_shot_runner_timeout_raises_typed_error(self) -> None:
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd=["bcs-runner"], timeout=0.25)) as run:
+            client = RunnerClient(project="project.bcsproj", runner="bcs-runner", persistent=False, request_timeout=0.25)
+            with self.assertRaises(RunnerError) as raised:
+                client.validate_project()
+
+        self.assertEqual(raised.exception.schema, "hvac-studio.error.v1")
+        self.assertEqual(raised.exception.kind, "timeout")
+        self.assertIn("0.25 seconds", str(raised.exception))
+        self.assertEqual(run.call_args.kwargs["timeout"], 0.25)
+
 
 class FakeProcess:
     def __init__(self, responses: list[dict[str, object]]) -> None:

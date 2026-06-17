@@ -88,7 +88,8 @@ reported through the normal CLI exit path.
 `bcs-runner serve` does not currently take a per-request timeout flag. External
 callers should enforce their own timeout, terminate the serve process if it
 expires, and start a new serve process for subsequent work. The Python SDK
-exposes this as `RunnerClient(..., request_timeout=seconds)`.
+exposes this as `RunnerClient(..., request_timeout=seconds)` for persistent
+serve requests and one-shot workflow commands.
 
 ## PowerShell Example
 

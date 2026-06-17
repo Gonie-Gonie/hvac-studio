@@ -275,12 +275,21 @@ class RunnerClient:
         return self._run_runner(args)
 
     def _run_runner(self, args: list[str], expect_json: bool = True) -> Any:
-        completed = subprocess.run(
-            [self.runner, "--error-format", "json", *args],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        try:
+            completed = subprocess.run(
+                [self.runner, "--error-format", "json", *args],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=self.request_timeout,
+            )
+        except subprocess.TimeoutExpired as exc:
+            timeout = self.request_timeout if self.request_timeout is not None else exc.timeout
+            message = f"runner command timed out after {timeout:g} seconds"
+            raise RunnerError(
+                message,
+                error={"schema": "hvac-studio.error.v1", "kind": "timeout", "message": message},
+            ) from exc
         if completed.returncode != 0:
             raise self._runner_error(completed)
         if not expect_json:
