@@ -5368,7 +5368,7 @@ func writeExportManifest(loaded *project.LoadedProject, profile string, includeR
 		return ExportSummary{}, ExportManifest{}, err
 	}
 	files = append(files, interfaceSchemaPath)
-	entrypoints := runtimeExportEntrypoints(files, exportArtifactPath(projectPath), exportArtifactPath(defaultInputPath), exportArtifactPath(environmentLockfilePath))
+	entrypoints := runtimeExportEntrypoints(files, plan, exportArtifactPath(projectPath), exportArtifactPath(defaultInputPath), exportArtifactPath(environmentLockfilePath))
 	entrypointFiles, err := writeRuntimeExportEntrypoints(exportRoot, entrypoints)
 	if err != nil {
 		return ExportSummary{}, ExportManifest{}, err
@@ -5553,12 +5553,17 @@ type runtimeExportEntrypoint struct {
 	Content string
 }
 
-func runtimeExportEntrypoints(files []string, projectPath string, defaultInput string, lockfile string) []runtimeExportEntrypoint {
+func runtimeExportEntrypoints(files []string, plan *compiler.Plan, projectPath string, defaultInput string, lockfile string) []runtimeExportEntrypoint {
 	mapping := firstProjectRelativeExport(files, "project/validation/mappings/")
 	calibrationSetup := firstProjectRelativeExport(files, "project/calibration/setups/")
 	optimizationSetup := firstProjectRelativeExport(files, "project/optimization/setups/")
 	entrypoints := []runtimeExportEntrypoint{
+		{Rel: "check-env.ps1", Content: runtimeExportCheckEnvScript()},
 		{Rel: "run-default.ps1", Content: runtimeExportRunScript(projectPath, defaultInput)},
+		{Rel: "run-scenario.ps1", Content: runtimeExportScenarioScript(projectPath, defaultInput)},
+		{Rel: "serve.ps1", Content: runtimeExportServeScript(projectPath)},
+		{Rel: "sdk-example.py", Content: runtimeExportSDKExample(projectPath, defaultInput)},
+		{Rel: "docs/CLI_Guide.md", Content: runtimeExportCLIGuide(files, plan, projectPath, defaultInput)},
 	}
 	if firstProjectRelativeExport(files, "project/scenarios/") != "" {
 		entrypoints = append(entrypoints, runtimeExportEntrypoint{Rel: "run-batch.ps1", Content: runtimeExportBatchScript(projectPath)})
@@ -5626,6 +5631,64 @@ if ($OutputDir) {
 & $Runner @RunArgs --output $Output
 Write-Host "wrote $Output"
 `, projectLiteral, inputLiteral), "\r\n")
+}
+
+func runtimeExportCheckEnvScript() string {
+	return strings.TrimLeft(`
+param(
+  [switch]$Json
+)
+
+$ErrorActionPreference = 'Stop'
+$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$EnvTool = Join-Path $Root 'bin\bcs-env.exe'
+if (-not (Test-Path -LiteralPath $EnvTool)) {
+  $EnvTool = 'bcs-env.exe'
+}
+$PythonRoot = Join-Path $Root 'runtime\python'
+if (Test-Path -LiteralPath $PythonRoot) {
+  $env:PATH = (@($PythonRoot, (Join-Path $Root 'bin'), $env:PATH) | Where-Object { $_ }) -join [IO.Path]::PathSeparator
+}
+$Args = @('check', '--root', $Root)
+if ($Json) {
+  $Args += '--json'
+}
+& $EnvTool @Args
+`, "\r\n")
+}
+
+func runtimeExportScenarioScript(projectPath string, defaultInput string) string {
+	inputLiteral := powerShellSingleQuotedPath(defaultInput)
+	return strings.TrimLeft(fmt.Sprintf(`
+param(
+  [string]$Input = '%s',
+  [string]$Output = "",
+  [string]$ParameterSet = ""
+)
+
+%s
+if (-not $Input) {
+  throw 'Input is required because this project has no default input.'
+} elseif (-not [IO.Path]::IsPathRooted($Input)) {
+  $Input = Join-Path $Root $Input
+}
+if (-not $Output) {
+  $Output = Join-Path $Root 'outputs\scenario-result.json'
+} elseif (-not [IO.Path]::IsPathRooted($Output)) {
+  $Output = Join-Path $Root $Output
+}
+$OutputDir = Split-Path -Parent $Output
+if ($OutputDir) {
+  New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
+}
+$RunArgs = @('run', '--project', $Project, '--input', $Input, '--output', $Output)
+if ($ParameterSet) {
+  $RunArgs += @('--parameter-set', $ParameterSet)
+}
+& $Runner validate --project $Project
+& $Runner @RunArgs
+Write-Host "wrote $Output"
+`, inputLiteral, runtimeExportScriptPreamble(projectPath)), "\r\n")
 }
 
 func runtimeExportBatchScript(projectPath string) string {
@@ -5754,6 +5817,70 @@ Write-Host "wrote $Output"
 `, powerShellSingleQuotedPath(setup), runtimeExportScriptPreamble(projectPath)), "\r\n")
 }
 
+func runtimeExportServeScript(projectPath string) string {
+	return strings.TrimLeft(fmt.Sprintf(`
+param(
+  [string]$RequestFile = "",
+  [string]$Output = ""
+)
+
+%s
+$ServeArgs = @('serve', '--project', $Project)
+if ($RequestFile) {
+  if (-not [IO.Path]::IsPathRooted($RequestFile)) {
+    $RequestFile = Join-Path $Root $RequestFile
+  }
+  if ($Output -and -not [IO.Path]::IsPathRooted($Output)) {
+    $Output = Join-Path $Root $Output
+  }
+  if ($Output) {
+    $OutputDir = Split-Path -Parent $Output
+    if ($OutputDir) {
+      New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
+    }
+    Get-Content -LiteralPath $RequestFile | & $Runner @ServeArgs | Tee-Object -FilePath $Output
+  } else {
+    Get-Content -LiteralPath $RequestFile | & $Runner @ServeArgs
+  }
+} else {
+  & $Runner @ServeArgs
+}
+`, runtimeExportScriptPreamble(projectPath)), "\r\n")
+}
+
+func runtimeExportSDKExample(projectPath string, defaultInput string) string {
+	return fmt.Sprintf(`from pathlib import Path
+import json
+import subprocess
+
+
+ROOT = Path(__file__).resolve().parent
+RUNNER = ROOT / "bin" / "bcs-runner.exe"
+PROJECT = ROOT / %q
+INPUT_REL = %q
+if not INPUT_REL:
+    raise SystemExit("This export has no default input. Pass an input file to bcs-runner directly.")
+INPUT = ROOT / INPUT_REL
+OUTPUT = ROOT / "outputs" / "sdk-example-output.json"
+
+OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+subprocess.run([str(RUNNER), "validate", "--project", str(PROJECT)], check=True)
+subprocess.run([
+    str(RUNNER),
+    "run",
+    "--project",
+    str(PROJECT),
+    "--input",
+    str(INPUT),
+    "--output",
+    str(OUTPUT),
+], check=True)
+with OUTPUT.open("r", encoding="utf-8") as handle:
+    result = json.load(handle)
+print(json.dumps(result["outputs"], indent=2, sort_keys=True))
+`, filepath.FromSlash(projectPath), filepath.FromSlash(defaultInput))
+}
+
 func runtimeExportScriptPreamble(projectPath string) string {
 	projectLiteral := powerShellSingleQuotedPath(projectPath)
 	return strings.TrimLeft(fmt.Sprintf(`
@@ -5792,10 +5919,136 @@ func runtimeExportReadme(projectPath string, defaultInput string, lockfile strin
 		inputLine +
 		lockfileLine +
 		"- Public IO schema: `schema/public-io.json`\n" +
+		"- CLI guide: `docs/CLI_Guide.md`\n" +
+		"- Python subprocess example: `sdk-example.py`\n" +
 		"- Runner: `bin/bcs-runner.exe`\n\n" +
 		"Available Windows commands:\n\n" +
 		strings.Join(commandLines, "\n") +
 		"\n"
+}
+
+func runtimeExportCLIGuide(files []string, plan *compiler.Plan, projectPath string, defaultInput string) string {
+	inputs := []model.PublicNodeRef{}
+	outputs := []model.PublicNodeRef{}
+	components := []string{}
+	if plan != nil {
+		inputs = plan.System.PublicInputs
+		outputs = plan.System.PublicOutputs
+		components = plan.System.Components
+	}
+	scenarioInput := strings.ReplaceAll(defaultInput, "/", `\`)
+	if scenarioInput == "" {
+		scenarioInput = "project\\inputs\\input.json"
+	}
+	sections := []string{
+		"# Runtime CLI Guide",
+		"",
+		fmt.Sprintf("- Project: `%s`", projectPath),
+		fmt.Sprintf("- Default input: `%s`", defaultInput),
+		"- Public schema: `schema/public-io.json`",
+		"",
+		"## Commands",
+		"",
+		"- `powershell -ExecutionPolicy Bypass -File .\\check-env.ps1 -Json`",
+		"- `powershell -ExecutionPolicy Bypass -File .\\run-default.ps1`",
+		fmt.Sprintf("- `powershell -ExecutionPolicy Bypass -File .\\run-scenario.ps1 -Input %s`", scenarioInput),
+		"- `powershell -ExecutionPolicy Bypass -File .\\serve.ps1 -RequestFile requests.jsonl -Output outputs\\serve-responses.jsonl`",
+		"- `runtime\\python\\python.exe sdk-example.py`",
+	}
+	if len(exportFilesWithPrefix(files, "project/scenarios/")) > 0 {
+		sections = append(sections, "- `powershell -ExecutionPolicy Bypass -File .\\run-batch.ps1`")
+	}
+	if len(exportFilesWithPrefix(files, "project/validation/mappings/")) > 0 {
+		sections = append(sections, "- `powershell -ExecutionPolicy Bypass -File .\\validate-data.ps1`")
+	}
+	if len(exportFilesWithPrefix(files, "project/calibration/setups/")) > 0 {
+		sections = append(sections, "- `powershell -ExecutionPolicy Bypass -File .\\calibrate.ps1`")
+	}
+	if len(exportFilesWithPrefix(files, "project/optimization/setups/")) > 0 {
+		sections = append(sections, "- `powershell -ExecutionPolicy Bypass -File .\\optimize.ps1`")
+	}
+	sections = append(sections,
+		"",
+		"## Public Inputs",
+		"",
+		runtimeExportPublicNodeTable(inputs),
+		"",
+		"## Public Outputs",
+		"",
+		runtimeExportPublicNodeTable(outputs),
+		"",
+		"## Components",
+		"",
+		runtimeExportBulletList(components),
+		"",
+		"## Included Artifacts",
+		"",
+		"### Parameter Sets",
+		"",
+		runtimeExportBulletList(exportFilesWithPrefix(files, "project/parameter_sets/")),
+		"",
+		"### Validation Mappings",
+		"",
+		runtimeExportBulletList(exportFilesWithPrefix(files, "project/validation/mappings/")),
+		"",
+		"### Calibration Setups",
+		"",
+		runtimeExportBulletList(exportFilesWithPrefix(files, "project/calibration/setups/")),
+		"",
+		"### Optimization Setups",
+		"",
+		runtimeExportBulletList(exportFilesWithPrefix(files, "project/optimization/setups/")),
+		"",
+		"## Troubleshooting",
+		"",
+		"- Run `check-env.ps1 -Json` first and inspect any reported problem.",
+		"- Keep input paths relative to the export root unless you intentionally pass an absolute path.",
+		"- Runner errors use stable exit codes and structured JSON when called with `--error-format json`.",
+		"",
+	)
+	return strings.Join(sections, "\n")
+}
+
+func runtimeExportPublicNodeTable(nodes []model.PublicNodeRef) string {
+	if len(nodes) == 0 {
+		return "_None._"
+	}
+	var builder strings.Builder
+	builder.WriteString("| ID | Name | Type | Unit | Required |\n")
+	builder.WriteString("|---|---|---|---|---|\n")
+	for _, node := range nodes {
+		required := "no"
+		if node.IsRequired() {
+			required = "yes"
+		}
+		builder.WriteString(fmt.Sprintf("| `%s` | %s | `%s` | `%s` | %s |\n",
+			node.ID,
+			markdownTableCell(node.Name),
+			node.ValueType,
+			node.Unit,
+			required,
+		))
+	}
+	return strings.TrimRight(builder.String(), "\n")
+}
+
+func runtimeExportBulletList(values []string) string {
+	if len(values) == 0 {
+		return "_None._"
+	}
+	lines := []string{}
+	for _, value := range values {
+		lines = append(lines, fmt.Sprintf("- `%s`", value))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func markdownTableCell(value string) string {
+	value = strings.ReplaceAll(value, "|", `\|`)
+	if strings.TrimSpace(value) == "" {
+		return ""
+	}
+	return value
 }
 
 func powerShellSingleQuotedPath(path string) string {

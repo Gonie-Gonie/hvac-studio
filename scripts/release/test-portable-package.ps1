@@ -471,7 +471,7 @@ try {
   if ($ExportJson.export.interface_schema -ne 'schema/public-io.json') {
     throw "workspace export interface schema mismatch: $($ExportJson.export.interface_schema)"
   }
-  foreach ($ExportFile in @('README.md', 'bin/bcs-runner.exe', 'bin/bcs-env.exe', 'project/project.bcsproj', 'project/graph.json', 'project/components/scalar.py', 'project/inputs/case01.json', 'run-default.ps1', 'runtime/python/python.exe', 'schema/public-io.json')) {
+  foreach ($ExportFile in @('README.md', 'bin/bcs-runner.exe', 'bin/bcs-env.exe', 'project/project.bcsproj', 'project/graph.json', 'project/components/scalar.py', 'project/inputs/case01.json', 'check-env.ps1', 'docs/CLI_Guide.md', 'run-default.ps1', 'run-scenario.ps1', 'sdk-example.py', 'serve.ps1', 'runtime/python/python.exe', 'schema/public-io.json')) {
     if ($ExportJson.export.files -notcontains $ExportFile) {
       throw "workspace export file missing from manifest: $ExportFile"
     }

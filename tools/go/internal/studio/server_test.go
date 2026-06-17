@@ -4486,6 +4486,8 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 		"bin/bcs-env.exe",
 		"bin/bcs-runner.exe",
 		"calibrate.ps1",
+		"check-env.ps1",
+		"docs/CLI_Guide.md",
 		"optimize.ps1",
 		"project/project.bcsproj",
 		"project/graph.json",
@@ -4503,7 +4505,10 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 		"runtime/python/python.exe",
 		"run-batch.ps1",
 		"run-default.ps1",
+		"run-scenario.ps1",
 		"schema/public-io.json",
+		"sdk-example.py",
+		"serve.ps1",
 		"validate-data.ps1",
 	}
 	exportRoot := filepath.Join(root, "projects", "export-project", "exports", "runtime_package")
@@ -4538,9 +4543,18 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	if body.Export.IncludeRecords {
 		t.Fatal("default API export should not include generated records")
 	}
-	for _, command := range []string{"run-default.ps1", "run-batch.ps1", "validate-data.ps1", "calibrate.ps1", "optimize.ps1"} {
+	for _, command := range []string{"check-env.ps1", "run-default.ps1", "run-scenario.ps1", "run-batch.ps1", "validate-data.ps1", "calibrate.ps1", "optimize.ps1", "serve.ps1"} {
 		if !containsString(body.Export.Commands, command) {
 			t.Fatalf("export commands missing %s in %v", command, body.Export.Commands)
+		}
+	}
+	guideBytes, err := os.ReadFile(filepath.Join(exportRoot, "docs", "CLI_Guide.md"))
+	if err != nil {
+		t.Fatalf("cli guide: %v", err)
+	}
+	for _, text := range []string{"Runtime CLI Guide", "Public Inputs", "Validation Mappings", "Calibration Setups", "Optimization Setups"} {
+		if !bytes.Contains(guideBytes, []byte(text)) {
+			t.Fatalf("cli guide missing %q:\n%s", text, string(guideBytes))
 		}
 	}
 	if _, err := os.Stat(filepath.Join(exportRoot, "manifest.json")); err != nil {
