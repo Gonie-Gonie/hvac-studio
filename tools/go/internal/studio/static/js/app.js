@@ -6634,7 +6634,7 @@ async function copyProject() {
   }
 }
 
-async function createComponent() {
+async function createComponent(templateOverride = "") {
   if (!isWorkspaceProject()) {
     log("Only workspace projects can be edited");
     return;
@@ -6646,7 +6646,8 @@ async function createComponent() {
     nameInput?.focus();
     return;
   }
-  const template = el("componentTemplateSelect")?.value || state.componentTemplates[0]?.id || "";
+  const selectedTemplate = typeof templateOverride === "string" ? templateOverride : "";
+  const template = selectedTemplate || el("componentTemplateSelect")?.value || state.componentTemplates[0]?.id || "";
   if (!template) {
     showInlineProblem("Component template is required");
     return;
@@ -6669,6 +6670,21 @@ async function createComponent() {
     renderProblems();
     setBottomTab("problems");
   }
+}
+
+async function createMLComponent() {
+  if (!state.componentTemplates.some((template) => template.id === "ml_inference")) {
+    showInlineProblem("ML component template is not available");
+    return;
+  }
+  const nameInput = el("newComponentName");
+  if (nameInput && !nameInput.value.trim()) nameInput.value = "ML Inference";
+  const templateSelect = el("componentTemplateSelect");
+  if (templateSelect) {
+    templateSelect.value = "ml_inference";
+    renderComponentTemplateMeta();
+  }
+  await createComponent("ml_inference");
 }
 
 async function updateComponentFromInspector(componentID) {
@@ -7453,6 +7469,7 @@ function updateCommandState() {
   el("createCalibrationSetupButton").disabled = !hasProject || !isWorkspaceProject() || !(state.detail?.validation_mappings || []).length;
   el("createOptimizationSetupButton").disabled = !hasProject || !isWorkspaceProject() || runtimeBusy;
   el("addComponentButton").disabled = !hasProject || !isWorkspaceProject() || state.componentTemplates.length === 0;
+  el("newMLComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.componentTemplates.some((template) => template.id === "ml_inference");
   el("newComponentName").disabled = !hasProject || !isWorkspaceProject();
   el("componentCategorySelect").disabled = !hasProject || !isWorkspaceProject() || state.componentTemplates.length === 0;
   el("componentExecutionModeSelect").disabled = !hasProject || !isWorkspaceProject() || state.componentTemplates.length === 0;
@@ -7604,6 +7621,7 @@ function bindEvents() {
   el("newProjectButton").addEventListener("click", createProject);
   el("copyProjectButton").addEventListener("click", copyProject);
   el("addComponentButton").addEventListener("click", createComponent);
+  el("newMLComponentButton").addEventListener("click", createMLComponent);
   el("autoLayoutButton").addEventListener("click", autoLayoutCanvas);
   el("newComponentName").addEventListener("keydown", (event) => {
     if (event.key === "Enter") createComponent();

@@ -7,6 +7,13 @@ generated-wrapper component that loads project-owned assets during
 
 ## Component Metadata
 
+In Studio, start from a workspace project and use the Project panel. Press
+**New ML** to create an ML Inference component directly, or choose
+**ML Inference Component** in the template selector and press **Add**. Studio
+creates the generated wrapper plus `model.json`, `feature_schema.json`,
+`target_schema.json`, and `validation_report.json` under the component folder,
+then records those project-relative paths in `ml_metadata`.
+
 Use `ml_metadata` on the component entry in `graph.json` or the component
 metadata file:
 

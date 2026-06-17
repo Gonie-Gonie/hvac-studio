@@ -78,6 +78,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("includeComponentOnCreate")) {
 		t.Fatalf("index did not include the component system inclusion control")
 	}
+	if !bytes.Contains(body, []byte("newMLComponentButton")) || !bytes.Contains(body, []byte("New ML")) {
+		t.Fatalf("index did not include the ML component quick-create control")
+	}
 	if !bytes.Contains(body, []byte("sourceEditorMeta")) {
 		t.Fatalf("index did not include the source editor metadata status")
 	}
@@ -317,6 +320,11 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("replaceSelectedComponent")) || !bytes.Contains(body, []byte("/api/project/components/replace")) || !bytes.Contains(body, []byte("replaceComponentButton")) {
 		t.Fatalf("module entrypoint did not expose model replacement workflow")
+	}
+	if !bytes.Contains(body, []byte("createMLComponent")) ||
+		!bytes.Contains(body, []byte("newMLComponentButton")) ||
+		!bytes.Contains(body, []byte(`createComponent("ml_inference")`)) {
+		t.Fatalf("module entrypoint did not expose ML component quick creation")
 	}
 	if !bytes.Contains(body, []byte("parameterChangeRows")) {
 		t.Fatalf("module entrypoint did not render calibration parameter change rows")
@@ -1039,6 +1047,126 @@ func TestCreateComponentEndpointCreatesWorkspaceComponent(t *testing.T) {
 		if componentID == "second_gain" {
 			t.Fatal("new component should not be added to the runnable system yet")
 		}
+	}
+}
+
+func TestCreateComponentEndpointCreatesMLComponentAssets(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"ML Component Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"name":         "ML Inference",
+		"template":     "ml_inference",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	componentResponse := httptest.NewRecorder()
+	componentRequest := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(componentResponse, componentRequest)
+
+	if componentResponse.Code != http.StatusCreated {
+		t.Fatalf("component status = %d body=%s", componentResponse.Code, componentResponse.Body.String())
+	}
+	var componentBody struct {
+		Component model.Component `json:"component"`
+	}
+	if err := json.Unmarshal(componentResponse.Body.Bytes(), &componentBody); err != nil {
+		t.Fatal(err)
+	}
+	component := componentBody.Component
+	if component.ID != "ml_inference" {
+		t.Fatalf("component id = %s, want ml_inference", component.ID)
+	}
+	if component.Category != "physical_component" || component.ExecutionMode != "step" {
+		t.Fatalf("component authoring metadata = %#v", component)
+	}
+	if component.Source.Layout != "generated_wrapper" ||
+		component.Source.Metadata != "components/ml_inference/component.json" ||
+		component.Source.Init != "components/ml_inference/user_init.py" ||
+		component.Source.Step != "components/ml_inference/user_step.py" ||
+		component.Source.Helpers != "components/ml_inference/helpers.py" ||
+		component.Source.Wrapper != "components/ml_inference/wrapper.py" {
+		t.Fatalf("component source metadata = %#v", component.Source)
+	}
+	if component.Class != "components.ml_inference.wrapper.MlInferenceComponent" {
+		t.Fatalf("component class = %s", component.Class)
+	}
+	if len(component.Nodes.Inputs) != 1 || component.Nodes.Inputs[0].ID != "features" || component.Nodes.Inputs[0].ValueType != "object" {
+		t.Fatalf("input nodes = %#v", component.Nodes.Inputs)
+	}
+	if len(component.Nodes.Outputs) != 2 || component.Nodes.Outputs[0].ID != "supply_air_temperature_c" || component.Nodes.Outputs[1].ID != "cooling_power_kw" {
+		t.Fatalf("output nodes = %#v", component.Nodes.Outputs)
+	}
+	if component.MLMetadata == nil {
+		t.Fatal("ML metadata was not created")
+	}
+	if component.MLMetadata.ModelFormat != "custom" ||
+		component.MLMetadata.ModelFile != "components/ml_inference/model.json" ||
+		component.MLMetadata.FeatureSchemaFile != "components/ml_inference/feature_schema.json" ||
+		component.MLMetadata.TargetSchemaFile != "components/ml_inference/target_schema.json" ||
+		component.MLMetadata.ValidationReportFile != "components/ml_inference/validation_report.json" ||
+		component.MLMetadata.ValidTimeResolution != "step" {
+		t.Fatalf("ML metadata = %#v", component.MLMetadata)
+	}
+	if component.MLMetadata.ValidInputRanges["outdoor_temperature_c"].Min != -20.0 ||
+		component.MLMetadata.ValidInputRanges["fan_speed_fraction"].Max != 1.0 {
+		t.Fatalf("ML valid input ranges = %#v", component.MLMetadata.ValidInputRanges)
+	}
+	componentRoot := filepath.Join(root, "projects", "ml-component-project", "components", "ml_inference")
+	for _, name := range []string{
+		"component.json",
+		"wrapper.py",
+		"user_init.py",
+		"user_step.py",
+		"helpers.py",
+		"model.json",
+		"feature_schema.json",
+		"target_schema.json",
+		"validation_report.json",
+	} {
+		if _, err := os.Stat(filepath.Join(componentRoot, name)); err != nil {
+			t.Fatalf("expected ML component file %s: %v", name, err)
+		}
+	}
+	metadataBytes, err := os.ReadFile(filepath.Join(componentRoot, "component.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(metadataBytes, []byte(`"ml_metadata"`)) ||
+		!bytes.Contains(metadataBytes, []byte(`"components/ml_inference/model.json"`)) {
+		t.Fatalf("component metadata did not include rebased ML asset paths:\n%s", string(metadataBytes))
+	}
+	loaded, err := project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var persisted model.Component
+	found := false
+	for _, item := range loaded.Graph.Components {
+		if item.ID == "ml_inference" {
+			persisted = item
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("created ML component was not written to graph")
+	}
+	if persisted.MLMetadata == nil || persisted.MLMetadata.ModelFile != "components/ml_inference/model.json" {
+		t.Fatalf("persisted ML metadata = %#v", persisted.MLMetadata)
 	}
 }
 
