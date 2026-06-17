@@ -322,9 +322,41 @@ type updateLayoutRequest struct {
 }
 
 type exportRequest struct {
-	ProjectPath    string `json:"project_path"`
-	Profile        string `json:"profile"`
-	IncludeRecords bool   `json:"include_records"`
+	ProjectPath               string `json:"project_path"`
+	Profile                   string `json:"profile"`
+	IncludeDatasets           *bool  `json:"include_datasets,omitempty"`
+	IncludeCalibrationSetups  *bool  `json:"include_calibration_setups,omitempty"`
+	IncludeOptimizationSetups *bool  `json:"include_optimization_setups,omitempty"`
+	IncludeMLAssets           *bool  `json:"include_ml_assets,omitempty"`
+	IncludeSDKExamples        *bool  `json:"include_sdk_examples,omitempty"`
+	IncludeRecords            bool   `json:"include_records"`
+}
+
+type exportOptions struct {
+	IncludeDatasets           bool
+	IncludeCalibrationSetups  bool
+	IncludeOptimizationSetups bool
+	IncludeMLAssets           bool
+	IncludeSDKExamples        bool
+	IncludeRecords            bool
+}
+
+func exportOptionsFromRequest(req exportRequest) exportOptions {
+	return exportOptions{
+		IncludeDatasets:           boolOption(req.IncludeDatasets, true),
+		IncludeCalibrationSetups:  boolOption(req.IncludeCalibrationSetups, true),
+		IncludeOptimizationSetups: boolOption(req.IncludeOptimizationSetups, true),
+		IncludeMLAssets:           boolOption(req.IncludeMLAssets, true),
+		IncludeSDKExamples:        boolOption(req.IncludeSDKExamples, true),
+		IncludeRecords:            req.IncludeRecords,
+	}
+}
+
+func boolOption(value *bool, fallback bool) bool {
+	if value == nil {
+		return fallback
+	}
+	return *value
 }
 
 type sourceRequest struct {
@@ -648,6 +680,11 @@ type ExportManifest struct {
 	CalibrationRecords  []string              `json:"calibration_records,omitempty"`
 	OptimizationRecords []string              `json:"optimization_records,omitempty"`
 	Commands            []string              `json:"commands,omitempty"`
+	IncludeDatasets     bool                  `json:"include_datasets"`
+	IncludeCalibration  bool                  `json:"include_calibration_setups"`
+	IncludeOptimization bool                  `json:"include_optimization_setups"`
+	IncludeMLAssets     bool                  `json:"include_ml_assets"`
+	IncludeSDKExamples  bool                  `json:"include_sdk_examples"`
 	IncludeRecords      bool                  `json:"include_records"`
 }
 
@@ -2366,7 +2403,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		writeErrorWithProblems(w, apperror.Errorf(apperror.CodeValidation, "project source validation failed"), problems)
 		return
 	}
-	summary, manifest, err := writeExportManifest(loaded, req.Profile, req.IncludeRecords)
+	summary, manifest, err := writeExportManifest(loaded, req.Profile, exportOptionsFromRequest(req))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -6673,7 +6710,7 @@ func parameterSetDifferences(graph *model.Graph, set parameterset.Set) []Paramet
 	return diffs
 }
 
-func writeExportManifest(loaded *project.LoadedProject, profile string, includeRecords bool) (ExportSummary, ExportManifest, error) {
+func writeExportManifest(loaded *project.LoadedProject, profile string, options exportOptions) (ExportSummary, ExportManifest, error) {
 	if profile == "" {
 		profile = "runtime_package"
 	}
@@ -6711,11 +6748,11 @@ func writeExportManifest(loaded *project.LoadedProject, profile string, includeR
 	if err := resetGeneratedDir(filepath.Join(loaded.Root, "exports"), exportRoot); err != nil {
 		return ExportSummary{}, ExportManifest{}, err
 	}
-	files, err := writeRuntimeExportProject(loaded, filepath.Join(exportRoot, "project"), includeRecords)
+	files, err := writeRuntimeExportProject(loaded, filepath.Join(exportRoot, "project"), options)
 	if err != nil {
 		return ExportSummary{}, ExportManifest{}, err
 	}
-	supportFiles, err := writeRuntimeExportSupportFiles(loaded.Root, exportRoot)
+	supportFiles, err := writeRuntimeExportSupportFiles(loaded.Root, exportRoot, options)
 	if err != nil {
 		return ExportSummary{}, ExportManifest{}, err
 	}
@@ -6729,7 +6766,7 @@ func writeExportManifest(loaded *project.LoadedProject, profile string, includeR
 		return ExportSummary{}, ExportManifest{}, err
 	}
 	files = append(files, interfaceSchemaPath)
-	entrypoints := runtimeExportEntrypoints(files, plan, exportArtifactPath(projectPath), exportArtifactPath(defaultInputPath), exportArtifactPath(environmentLockfilePath))
+	entrypoints := runtimeExportEntrypoints(files, plan, exportArtifactPath(projectPath), exportArtifactPath(defaultInputPath), exportArtifactPath(environmentLockfilePath), options)
 	entrypointFiles, err := writeRuntimeExportEntrypoints(exportRoot, entrypoints)
 	if err != nil {
 		return ExportSummary{}, ExportManifest{}, err
@@ -6760,7 +6797,7 @@ func writeExportManifest(loaded *project.LoadedProject, profile string, includeR
 		RuntimePython:       "runtime/python/python.exe",
 		Files:               files,
 		Components:          append([]string{}, plan.System.Components...),
-		ModelAssets:         modelAssetExportPaths(loaded.Graph),
+		ModelAssets:         modelAssetExportPaths(loaded.Graph, options.IncludeMLAssets),
 		Checksums:           checksums,
 		PublicInputs:        append([]model.PublicNodeRef{}, plan.System.PublicInputs...),
 		PublicOutputs:       append([]model.PublicNodeRef{}, plan.System.PublicOutputs...),
@@ -6776,7 +6813,12 @@ func writeExportManifest(loaded *project.LoadedProject, profile string, includeR
 		CalibrationRecords:  exportFilesWithPrefix(files, "project/calibration/results/"),
 		OptimizationRecords: exportFilesWithPrefix(files, "project/optimization/results/"),
 		Commands:            commands,
-		IncludeRecords:      includeRecords,
+		IncludeDatasets:     options.IncludeDatasets,
+		IncludeCalibration:  options.IncludeCalibrationSetups,
+		IncludeOptimization: options.IncludeOptimizationSetups,
+		IncludeMLAssets:     options.IncludeMLAssets,
+		IncludeSDKExamples:  options.IncludeSDKExamples,
+		IncludeRecords:      options.IncludeRecords,
 	}
 	exportPath := filepath.Join(exportRoot, "manifest.json")
 	if err := os.MkdirAll(filepath.Dir(exportPath), 0o755); err != nil {
@@ -6800,8 +6842,8 @@ func exportArtifactPath(path string) string {
 	return filepath.ToSlash(filepath.Join("project", path))
 }
 
-func modelAssetExportPaths(graph *model.Graph) []string {
-	if graph == nil {
+func modelAssetExportPaths(graph *model.Graph, includeMLAssets bool) []string {
+	if graph == nil || !includeMLAssets {
 		return nil
 	}
 	paths := []string{}
@@ -6841,7 +6883,7 @@ func exportFileChecksums(exportRoot string, files []string) (map[string]string, 
 	return checksums, nil
 }
 
-func writeRuntimeExportProject(loaded *project.LoadedProject, targetRoot string, includeRecords bool) ([]string, error) {
+func writeRuntimeExportProject(loaded *project.LoadedProject, targetRoot string, options exportOptions) ([]string, error) {
 	if err := resetGeneratedDir(filepath.Dir(targetRoot), targetRoot); err != nil {
 		return nil, err
 	}
@@ -6866,20 +6908,37 @@ func writeRuntimeExportProject(loaded *project.LoadedProject, targetRoot string,
 	}
 	for _, rel := range []string{
 		"components",
-		"assets",
 		"inputs",
 		"scenarios",
-		"datasets",
 		"parameter_sets",
-		"validation/mappings",
-		"calibration/setups",
-		"optimization/setups",
 	} {
 		if err := copyRuntimeExportDir(loaded.Root, targetRoot, rel, &files, seen); err != nil {
 			return nil, err
 		}
 	}
-	if includeRecords {
+	if options.IncludeMLAssets {
+		if err := copyRuntimeExportDir(loaded.Root, targetRoot, "assets", &files, seen); err != nil {
+			return nil, err
+		}
+	}
+	if options.IncludeDatasets {
+		for _, rel := range []string{"datasets", "validation/mappings"} {
+			if err := copyRuntimeExportDir(loaded.Root, targetRoot, rel, &files, seen); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if options.IncludeCalibrationSetups {
+		if err := copyRuntimeExportDir(loaded.Root, targetRoot, "calibration/setups", &files, seen); err != nil {
+			return nil, err
+		}
+	}
+	if options.IncludeOptimizationSetups {
+		if err := copyRuntimeExportDir(loaded.Root, targetRoot, "optimization/setups", &files, seen); err != nil {
+			return nil, err
+		}
+	}
+	if options.IncludeRecords {
 		for _, rel := range []string{"runs", "batches", "validation/runs", "calibration/results", "optimization/results"} {
 			if err := copyRuntimeExportDir(loaded.Root, targetRoot, rel, &files, seen); err != nil {
 				return nil, err
@@ -6890,7 +6949,7 @@ func writeRuntimeExportProject(loaded *project.LoadedProject, targetRoot string,
 	return files, nil
 }
 
-func writeRuntimeExportSupportFiles(projectRoot string, exportRoot string) ([]string, error) {
+func writeRuntimeExportSupportFiles(projectRoot string, exportRoot string, options exportOptions) ([]string, error) {
 	supportRoot := findRuntimeSupportRoot(projectRoot)
 	if supportRoot == "" {
 		return []string{}, nil
@@ -6905,8 +6964,10 @@ func writeRuntimeExportSupportFiles(projectRoot string, exportRoot string) ([]st
 	if err := copyExternalExportDir(supportRoot, exportRoot, "runtime/python", &files, seen); err != nil {
 		return nil, err
 	}
-	if err := copyExternalExportDir(supportRoot, exportRoot, "python/bcs_sdk", &files, seen); err != nil {
-		return nil, err
+	if options.IncludeSDKExamples {
+		if err := copyExternalExportDir(supportRoot, exportRoot, "python/bcs_sdk", &files, seen); err != nil {
+			return nil, err
+		}
 	}
 	sort.Strings(files)
 	return files, nil
@@ -6917,7 +6978,7 @@ type runtimeExportEntrypoint struct {
 	Content string
 }
 
-func runtimeExportEntrypoints(files []string, plan *compiler.Plan, projectPath string, defaultInput string, lockfile string) []runtimeExportEntrypoint {
+func runtimeExportEntrypoints(files []string, plan *compiler.Plan, projectPath string, defaultInput string, lockfile string, options exportOptions) []runtimeExportEntrypoint {
 	mapping := firstProjectRelativeExport(files, "project/validation/mappings/")
 	calibrationSetup := firstProjectRelativeExport(files, "project/calibration/setups/")
 	optimizationSetup := firstProjectRelativeExport(files, "project/optimization/setups/")
@@ -6926,8 +6987,10 @@ func runtimeExportEntrypoints(files []string, plan *compiler.Plan, projectPath s
 		{Rel: "run-default.ps1", Content: runtimeExportRunScript(projectPath, defaultInput)},
 		{Rel: "run-scenario.ps1", Content: runtimeExportScenarioScript(projectPath, defaultInput)},
 		{Rel: "serve.ps1", Content: runtimeExportServeScript(projectPath)},
-		{Rel: "sdk-example.py", Content: runtimeExportSDKExample(projectPath, defaultInput)},
-		{Rel: "docs/CLI_Guide.md", Content: runtimeExportCLIGuide(files, plan, projectPath, defaultInput)},
+		{Rel: "docs/CLI_Guide.md", Content: runtimeExportCLIGuide(files, plan, projectPath, defaultInput, options.IncludeSDKExamples)},
+	}
+	if options.IncludeSDKExamples {
+		entrypoints = append(entrypoints, runtimeExportEntrypoint{Rel: "sdk-example.py", Content: runtimeExportSDKExample(projectPath, defaultInput)})
 	}
 	if firstProjectRelativeExport(files, "project/scenarios/") != "" {
 		entrypoints = append(entrypoints, runtimeExportEntrypoint{Rel: "run-batch.ps1", Content: runtimeExportBatchScript(projectPath)})
@@ -6940,7 +7003,9 @@ func runtimeExportEntrypoints(files []string, plan *compiler.Plan, projectPath s
 	}
 	if optimizationSetup != "" {
 		entrypoints = append(entrypoints, runtimeExportEntrypoint{Rel: "optimize.ps1", Content: runtimeExportOptimizationScript(projectPath, optimizationSetup)})
-		entrypoints = append(entrypoints, runtimeExportEntrypoint{Rel: "optimize-sdk.py", Content: runtimeExportOptimizationSDKExample(projectPath, optimizationSetup)})
+		if options.IncludeSDKExamples {
+			entrypoints = append(entrypoints, runtimeExportEntrypoint{Rel: "optimize-sdk.py", Content: runtimeExportOptimizationSDKExample(projectPath, optimizationSetup)})
+		}
 	}
 	entrypoints = append([]runtimeExportEntrypoint{{Rel: "README.md", Content: runtimeExportReadme(projectPath, defaultInput, lockfile, entrypoints)}}, entrypoints...)
 	return entrypoints
@@ -7341,7 +7406,7 @@ func runtimeExportReadme(projectPath string, defaultInput string, lockfile strin
 			pythonExamples = append(pythonExamples, fmt.Sprintf("`%s`", entrypoint.Rel))
 		}
 	}
-	pythonLine := "- Python SDK example: `sdk-example.py`\n"
+	pythonLine := ""
 	if len(pythonExamples) > 0 {
 		pythonLine = fmt.Sprintf("- Python SDK examples: %s\n", strings.Join(pythonExamples, ", "))
 	}
@@ -7359,7 +7424,7 @@ func runtimeExportReadme(projectPath string, defaultInput string, lockfile strin
 		"\n"
 }
 
-func runtimeExportCLIGuide(files []string, plan *compiler.Plan, projectPath string, defaultInput string) string {
+func runtimeExportCLIGuide(files []string, plan *compiler.Plan, projectPath string, defaultInput string, includeSDKExamples bool) string {
 	inputs := []model.PublicNodeRef{}
 	outputs := []model.PublicNodeRef{}
 	components := []string{}
@@ -7385,7 +7450,9 @@ func runtimeExportCLIGuide(files []string, plan *compiler.Plan, projectPath stri
 		"- `powershell -ExecutionPolicy Bypass -File .\\run-default.ps1`",
 		fmt.Sprintf("- `powershell -ExecutionPolicy Bypass -File .\\run-scenario.ps1 -Input %s`", scenarioInput),
 		"- `powershell -ExecutionPolicy Bypass -File .\\serve.ps1 -RequestFile requests.jsonl -Output outputs\\serve-responses.jsonl`",
-		"- `runtime\\python\\python.exe sdk-example.py`",
+	}
+	if includeSDKExamples {
+		sections = append(sections, "- `runtime\\python\\python.exe sdk-example.py`")
 	}
 	if len(exportFilesWithPrefix(files, "project/scenarios/")) > 0 {
 		sections = append(sections, "- `powershell -ExecutionPolicy Bypass -File .\\run-batch.ps1`")
@@ -7398,7 +7465,9 @@ func runtimeExportCLIGuide(files []string, plan *compiler.Plan, projectPath stri
 	}
 	if len(exportFilesWithPrefix(files, "project/optimization/setups/")) > 0 {
 		sections = append(sections, "- `powershell -ExecutionPolicy Bypass -File .\\optimize.ps1`")
-		sections = append(sections, "- `runtime\\python\\python.exe optimize-sdk.py`")
+		if includeSDKExamples {
+			sections = append(sections, "- `runtime\\python\\python.exe optimize-sdk.py`")
+		}
 	}
 	sections = append(sections,
 		"",

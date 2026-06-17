@@ -101,7 +101,19 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("serveButton")) {
 		t.Fatalf("index did not include the Serve command slot")
 	}
-	if !bytes.Contains(body, []byte("exportIncludeRecordsInput")) || !bytes.Contains(body, []byte("Include Records")) {
+	for _, id := range []string{
+		"exportIncludeDatasetsInput",
+		"exportIncludeCalibrationInput",
+		"exportIncludeOptimizationInput",
+		"exportIncludeMLAssetsInput",
+		"exportIncludeSDKInput",
+		"exportIncludeRecordsInput",
+	} {
+		if !bytes.Contains(body, []byte(id)) {
+			t.Fatalf("index did not include runtime export option %s", id)
+		}
+	}
+	if !bytes.Contains(body, []byte("SDK Examples")) || !bytes.Contains(body, []byte("Records")) {
 		t.Fatalf("index did not include the runtime export record selection control")
 	}
 	if !bytes.Contains(body, []byte("startView")) {
@@ -332,7 +344,13 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("Export SDK Script")) || !bytes.Contains(body, []byte("downloadOptimizationSDKScript")) || !bytes.Contains(body, []byte("run_optimization")) {
 		t.Fatalf("module entrypoint did not expose optimization SDK script export")
 	}
-	if !bytes.Contains(body, []byte("exportIncludeRecordsInput")) || !bytes.Contains(body, []byte("include_records: includeRecords")) {
+	if !bytes.Contains(body, []byte("exportIncludeRecordsInput")) ||
+		!bytes.Contains(body, []byte("include_datasets: includeDatasets")) ||
+		!bytes.Contains(body, []byte("include_calibration_setups: includeCalibration")) ||
+		!bytes.Contains(body, []byte("include_optimization_setups: includeOptimization")) ||
+		!bytes.Contains(body, []byte("include_ml_assets: includeMLAssets")) ||
+		!bytes.Contains(body, []byte("include_sdk_examples: includeSDKExamples")) ||
+		!bytes.Contains(body, []byte("include_records: includeRecords")) {
 		t.Fatalf("module entrypoint did not send runtime export record selection")
 	}
 	if !bytes.Contains(body, []byte("validationPlotSection")) || !bytes.Contains(body, []byte("Measured vs Simulated")) || !bytes.Contains(body, []byte("Residual Histogram")) {
@@ -704,7 +722,10 @@ func TestStaticExportWorkspaceModuleServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("Commands")) {
 		t.Fatalf("export workspace module did not render commands")
 	}
-	if !bytes.Contains(body, []byte("Include records")) || !bytes.Contains(body, []byte("exportIncludeRecordsInput")) {
+	if !bytes.Contains(body, []byte("Include datasets")) ||
+		!bytes.Contains(body, []byte("Include SDK examples")) ||
+		!bytes.Contains(body, []byte("Include records")) ||
+		!bytes.Contains(body, []byte("exportIncludeRecordsInput")) {
 		t.Fatalf("export workspace module did not render record selection summary")
 	}
 	if !bytes.Contains(body, []byte("Records")) {
@@ -5437,6 +5458,9 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	if !containsString(body.Export.OptimizationSetups, "project/optimization/setups/scalar_grid.json") {
 		t.Fatalf("export optimization setups = %v", body.Export.OptimizationSetups)
 	}
+	if !body.Export.IncludeDatasets || !body.Export.IncludeCalibration || !body.Export.IncludeOptimization || !body.Export.IncludeMLAssets || !body.Export.IncludeSDKExamples {
+		t.Fatalf("default export options = %#v", body.Export)
+	}
 	for _, rel := range body.Export.Files {
 		if strings.HasPrefix(rel, "project/runs/") || strings.HasPrefix(rel, "project/batches/") || strings.HasPrefix(rel, "project/validation/runs/") || strings.HasPrefix(rel, "project/calibration/results/") || strings.HasPrefix(rel, "project/optimization/results/") || strings.HasPrefix(rel, "project/exports/") {
 			t.Fatalf("export should not include generated project artifact %s", rel)
@@ -5521,6 +5545,50 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	}
 	if len(openBody.Export.Files) != len(body.Export.Files) {
 		t.Fatalf("opened export file count = %d, want %d", len(openBody.Export.Files), len(body.Export.Files))
+	}
+
+	slimPayload, err := json.Marshal(map[string]any{
+		"project_path":                createBody.Project.ProjectPath,
+		"profile":                     "runtime_package",
+		"include_datasets":            false,
+		"include_calibration_setups":  false,
+		"include_optimization_setups": false,
+		"include_ml_assets":           false,
+		"include_sdk_examples":        false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	slimResponse := httptest.NewRecorder()
+	slimRequest := httptest.NewRequest(http.MethodPost, "/api/export", bytes.NewReader(slimPayload))
+	server.Handler().ServeHTTP(slimResponse, slimRequest)
+	if slimResponse.Code != http.StatusOK {
+		t.Fatalf("slim export status = %d body=%s", slimResponse.Code, slimResponse.Body.String())
+	}
+	var slimBody struct {
+		Export ExportManifest `json:"export"`
+	}
+	if err := json.Unmarshal(slimResponse.Body.Bytes(), &slimBody); err != nil {
+		t.Fatal(err)
+	}
+	if slimBody.Export.IncludeDatasets || slimBody.Export.IncludeCalibration || slimBody.Export.IncludeOptimization || slimBody.Export.IncludeMLAssets || slimBody.Export.IncludeSDKExamples {
+		t.Fatalf("slim export options = %#v", slimBody.Export)
+	}
+	for _, rel := range []string{
+		"project/datasets/scalar_validation.csv",
+		"project/validation/mappings/scalar_validation.json",
+		"project/calibration/setups/scalar_gain.json",
+		"project/optimization/setups/scalar_grid.json",
+		"python/bcs_sdk/bcs_sdk/client.py",
+		"sdk-example.py",
+		"validate-data.ps1",
+		"calibrate.ps1",
+		"optimize.ps1",
+		"optimize-sdk.py",
+	} {
+		if containsString(slimBody.Export.Files, rel) {
+			t.Fatalf("slim export should not include %s in %v", rel, slimBody.Export.Files)
+		}
 	}
 
 	recordPayload, err := json.Marshal(map[string]any{
@@ -5678,6 +5746,35 @@ func TestExportEndpointIncludesMLAssetsAndChecksums(t *testing.T) {
 	}
 	if _, err := compiler.Compile(exportedProject); err != nil {
 		t.Fatalf("compile exported project: %v", err)
+	}
+
+	slimPayload, err := json.Marshal(map[string]any{
+		"project_path":      filepath.Join(projectRoot, "project.bcsproj"),
+		"profile":           "runtime_package",
+		"include_ml_assets": false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	slimResponse := httptest.NewRecorder()
+	slimRequest := httptest.NewRequest(http.MethodPost, "/api/export", bytes.NewReader(slimPayload))
+	server.Handler().ServeHTTP(slimResponse, slimRequest)
+	if slimResponse.Code != http.StatusOK {
+		t.Fatalf("slim status = %d body=%s", slimResponse.Code, slimResponse.Body.String())
+	}
+	var slimBody struct {
+		Export ExportManifest `json:"export"`
+	}
+	if err := json.Unmarshal(slimResponse.Body.Bytes(), &slimBody); err != nil {
+		t.Fatal(err)
+	}
+	if slimBody.Export.IncludeMLAssets || len(slimBody.Export.ModelAssets) != 0 {
+		t.Fatalf("slim ML asset manifest = %#v", slimBody.Export)
+	}
+	for _, rel := range expectedAssets {
+		if containsString(slimBody.Export.Files, rel) {
+			t.Fatalf("slim ML export should not include %s in %v", rel, slimBody.Export.Files)
+		}
 	}
 }
 

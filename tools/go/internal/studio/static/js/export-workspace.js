@@ -36,7 +36,12 @@ function renderSummaryRows(state, manifest, tbody) {
     ["Interface schema", manifest.interface_schema || ""],
     ["Self check", "bin/bcs-env.exe check --root ."],
     ["Commands", (manifest.commands || ["run-default.ps1"]).join(", ")],
-    ["Include records", includeRecordsLabel(manifest)],
+    ["Include datasets", includeOptionLabel(manifest, "include_datasets", "exportIncludeDatasetsInput", true)],
+    ["Include calibration setups", includeOptionLabel(manifest, "include_calibration_setups", "exportIncludeCalibrationInput", true)],
+    ["Include optimization setups", includeOptionLabel(manifest, "include_optimization_setups", "exportIncludeOptimizationInput", true)],
+    ["Include ML assets", includeOptionLabel(manifest, "include_ml_assets", "exportIncludeMLAssetsInput", true)],
+    ["Include SDK examples", includeOptionLabel(manifest, "include_sdk_examples", "exportIncludeSDKInput", true)],
+    ["Include records", includeOptionLabel(manifest, "include_records", "exportIncludeRecordsInput", true)],
     ["Records", recordCount(manifest).toString()],
     ["Files", String((manifest.files || []).length)],
   ];
@@ -44,10 +49,10 @@ function renderSummaryRows(state, manifest, tbody) {
   for (const [name, value] of rows) tbody.append(row([name, value]));
 }
 
-function includeRecordsLabel(manifest) {
-  if (manifest.created_at_utc) return manifest.include_records ? "yes" : "no";
-  const input = document.getElementById("exportIncludeRecordsInput");
-  return input?.checked ? "yes" : "no";
+function includeOptionLabel(manifest, key, inputID, defaultValue) {
+  if (manifest.created_at_utc && manifest[key] !== undefined) return manifest[key] ? "yes" : "no";
+  const input = document.getElementById(inputID);
+  return (input?.checked ?? defaultValue) ? "yes" : "no";
 }
 
 function recordCount(manifest) {

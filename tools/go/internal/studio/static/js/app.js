@@ -6509,9 +6509,23 @@ async function exportProject() {
   if (!(await saveModelEditsBeforeExecution())) return;
   try {
     const includeRecords = el("exportIncludeRecordsInput")?.checked ?? true;
+    const includeDatasets = el("exportIncludeDatasetsInput")?.checked ?? true;
+    const includeCalibration = el("exportIncludeCalibrationInput")?.checked ?? true;
+    const includeOptimization = el("exportIncludeOptimizationInput")?.checked ?? true;
+    const includeMLAssets = el("exportIncludeMLAssetsInput")?.checked ?? true;
+    const includeSDKExamples = el("exportIncludeSDKInput")?.checked ?? true;
     const body = await api("/api/export", {
       method: "POST",
-      body: JSON.stringify({ project_path: state.currentProjectPath, profile: "runtime_package", include_records: includeRecords }),
+      body: JSON.stringify({
+        project_path: state.currentProjectPath,
+        profile: "runtime_package",
+        include_datasets: includeDatasets,
+        include_calibration_setups: includeCalibration,
+        include_optimization_setups: includeOptimization,
+        include_ml_assets: includeMLAssets,
+        include_sdk_examples: includeSDKExamples,
+        include_records: includeRecords,
+      }),
     });
     state.latestExport = body.export;
     state.latestExportSummary = body.summary;
@@ -7417,7 +7431,16 @@ function updateCommandState() {
   el("schemaButton").disabled = !hasProject;
   el("serveButton").disabled = true;
   el("exportButton").disabled = !hasProject || !isWorkspaceProject();
-  el("exportIncludeRecordsInput").disabled = !hasProject || !isWorkspaceProject();
+  for (const id of [
+    "exportIncludeDatasetsInput",
+    "exportIncludeCalibrationInput",
+    "exportIncludeOptimizationInput",
+    "exportIncludeMLAssetsInput",
+    "exportIncludeSDKInput",
+    "exportIncludeRecordsInput",
+  ]) {
+    el(id).disabled = !hasProject || !isWorkspaceProject();
+  }
   el("saveProjectButton").disabled = !hasProject || !isWorkspaceProject();
   el("copyProjectButton").disabled = !hasProject;
   el("datasetSourcePathInput").disabled = !hasProject || !isWorkspaceProject();

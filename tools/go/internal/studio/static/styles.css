@@ -563,6 +563,14 @@ h2,
   height: auto;
 }
 
+.export-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 0 12px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
 .calibration-candidate-block {
   grid-column: 1 / -1;
   overflow-x: auto;
