@@ -61,6 +61,12 @@ Run every runnable example and compare against its golden output:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-examples.ps1
 ```
 
+Run the first-project authoring acceptance walkthrough:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-acceptance-walkthroughs.ps1
+```
+
 Run validation golden cases:
 
 ```powershell

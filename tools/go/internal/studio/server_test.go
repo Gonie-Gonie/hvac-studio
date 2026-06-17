@@ -4692,6 +4692,153 @@ func TestBatchEndpointRejectsExamples(t *testing.T) {
 	}
 }
 
+func TestAcceptanceWalkthroughFirstProjectComponentRunExport(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Acceptance Walkthrough"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	componentPayload, err := json.Marshal(map[string]any{
+		"project_path":      createBody.Project.ProjectPath,
+		"name":              "Walkthrough Gain",
+		"template":          "scalar",
+		"include_in_system": true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	componentResponse := httptest.NewRecorder()
+	componentRequest := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(componentPayload))
+	server.Handler().ServeHTTP(componentResponse, componentRequest)
+	if componentResponse.Code != http.StatusCreated {
+		t.Fatalf("component status = %d body=%s", componentResponse.Code, componentResponse.Body.String())
+	}
+	var componentBody struct {
+		Component model.Component `json:"component"`
+	}
+	if err := json.Unmarshal(componentResponse.Body.Bytes(), &componentBody); err != nil {
+		t.Fatal(err)
+	}
+	if componentBody.Component.ID != "walkthrough_gain" || componentBody.Component.Source.Layout != "generated_wrapper" {
+		t.Fatalf("component = %#v", componentBody.Component)
+	}
+
+	source := `from .helpers import apply_gain
+
+
+def step(inputs, state, params, context):
+    value = float(inputs["value"])
+    gain = float(params.get("gain", 2.0))
+    return {"result": apply_gain(value, gain) + 1.0}, state
+`
+	sourcePayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "walkthrough_gain",
+		"content":      source,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceResponse := httptest.NewRecorder()
+	sourceRequest := httptest.NewRequest(http.MethodPost, "/api/project/source", bytes.NewReader(sourcePayload))
+	server.Handler().ServeHTTP(sourceResponse, sourceRequest)
+	if sourceResponse.Code != http.StatusOK {
+		t.Fatalf("source status = %d body=%s", sourceResponse.Code, sourceResponse.Body.String())
+	}
+	var sourceBody struct {
+		Check SourceCheck `json:"check"`
+	}
+	if err := json.Unmarshal(sourceResponse.Body.Bytes(), &sourceBody); err != nil {
+		t.Fatal(err)
+	}
+	if !sourceBody.Check.OK {
+		t.Fatalf("source check = %#v", sourceBody.Check)
+	}
+
+	runPayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"inputs": map[string]any{
+			"value":                  3.0,
+			"walkthrough_gain_value": 4.0,
+		},
+		"context": map[string]any{"time": 0.0, "dt": 60.0},
+		"save":    true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runResponse := httptest.NewRecorder()
+	runRequest := httptest.NewRequest(http.MethodPost, "/api/run", bytes.NewReader(runPayload))
+	server.Handler().ServeHTTP(runResponse, runRequest)
+	if runResponse.Code != http.StatusOK {
+		t.Fatalf("run status = %d body=%s", runResponse.Code, runResponse.Body.String())
+	}
+	var runBody struct {
+		Result struct {
+			Outputs map[string]float64 `json:"outputs"`
+		} `json:"result"`
+		RunRecord RunSummary `json:"run_record"`
+	}
+	if err := json.Unmarshal(runResponse.Body.Bytes(), &runBody); err != nil {
+		t.Fatal(err)
+	}
+	if runBody.Result.Outputs["result"] != 6.0 || runBody.Result.Outputs["walkthrough_gain_result"] != 9.0 {
+		t.Fatalf("run outputs = %#v", runBody.Result.Outputs)
+	}
+	if runBody.RunRecord.ID == "" {
+		t.Fatalf("run record = %#v", runBody.RunRecord)
+	}
+
+	seedTestRuntimeSupport(t, root)
+	exportPayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"profile":      "runtime_package",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	exportResponse := httptest.NewRecorder()
+	exportRequest := httptest.NewRequest(http.MethodPost, "/api/export", bytes.NewReader(exportPayload))
+	server.Handler().ServeHTTP(exportResponse, exportRequest)
+	if exportResponse.Code != http.StatusOK {
+		t.Fatalf("export status = %d body=%s", exportResponse.Code, exportResponse.Body.String())
+	}
+	var exportBody struct {
+		Export ExportManifest `json:"export"`
+	}
+	if err := json.Unmarshal(exportResponse.Body.Bytes(), &exportBody); err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{
+		"project/components/walkthrough_gain/user_step.py",
+		"run-default.ps1",
+		"sdk-example.py",
+		"python/bcs_sdk/bcs_sdk/client.py",
+	} {
+		if !containsString(exportBody.Export.Files, rel) {
+			t.Fatalf("export files missing %s in %v", rel, exportBody.Export.Files)
+		}
+	}
+	exportedProject := filepath.Join(root, "projects", "acceptance-walkthrough", "exports", "runtime_package", "project", "project.bcsproj")
+	exportedLoaded, err := project.Load(exportedProject)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := compiler.Compile(exportedLoaded); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	root, server := newIsolatedTestServer(t)
 	seedTestRuntimeSupport(t, root)
