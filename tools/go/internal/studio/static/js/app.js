@@ -3771,7 +3771,7 @@ function calibrationSetupEditorSection(context) {
   });
   actions.append(runCount, create);
   section.append(actions);
-  section.querySelectorAll("[data-calibration-filter], [data-cal-param-check], [data-cal-param-field], [data-cal-output-check], [data-cal-output-weight]").forEach((control) => {
+  section.querySelectorAll("[data-calibration-filter], [data-calibration-stop-max], [data-calibration-stop-tolerance], [data-cal-param-check], [data-cal-param-field], [data-cal-output-check], [data-cal-output-weight]").forEach((control) => {
     control.addEventListener("input", () => updateCalibrationEditorState(section));
     control.addEventListener("change", () => updateCalibrationEditorState(section));
   });
@@ -3802,11 +3802,26 @@ function calibrationSetupControls(context) {
   const algorithmSelect = document.createElement("select");
   algorithmSelect.dataset.calibrationAlgorithm = "true";
   algorithmSelect.append(new Option("Grid Search", "grid"));
+  algorithmSelect.append(new Option("Differential Evolution", "differential_evolution"));
   algorithmSelect.append(new Option("Least Squares", "least_squares"));
+  const maxCandidates = document.createElement("input");
+  maxCandidates.type = "number";
+  maxCandidates.min = "1";
+  maxCandidates.step = "1";
+  maxCandidates.placeholder = "optional";
+  maxCandidates.dataset.calibrationStopMax = "true";
+  const tolerance = document.createElement("input");
+  tolerance.type = "number";
+  tolerance.min = "0";
+  tolerance.step = "any";
+  tolerance.placeholder = "optional";
+  tolerance.dataset.calibrationStopTolerance = "true";
   controls.append(
     labeledEditorControl("Mapping", mappingSelect),
     labeledEditorControl("Base Parameter Set", baseSelect),
     labeledEditorControl("Algorithm", algorithmSelect),
+    labeledEditorControl("Max Candidates", maxCandidates),
+    labeledEditorControl("Objective Tolerance", tolerance),
     labeledEditorInput("Setup ID", "text", "auto", "calibration-setup-id"),
     labeledEditorInput("Setup Name", "text", "auto", "calibration-setup-name"),
   );
@@ -3934,7 +3949,9 @@ function updateCalibrationEditorState(section) {
     row.hidden = !visible;
   }
   const selectedRows = [...section.querySelectorAll("[data-cal-param]")].filter((row) => row.querySelector("[data-cal-param-check]")?.checked);
-  const expectedRuns = selectedRows.length ? selectedRows.reduce((product, row) => product * calibrationGridPointCount(row), 1) : 0;
+  let expectedRuns = selectedRows.length ? selectedRows.reduce((product, row) => product * calibrationGridPointCount(row), 1) : 0;
+  const maxCandidates = Number(section.querySelector("[data-calibration-stop-max]")?.value);
+  if (Number.isFinite(maxCandidates) && maxCandidates > 0) expectedRuns = Math.min(expectedRuns, Math.floor(maxCandidates));
   const runCount = section.querySelector(".calibration-run-count");
   if (runCount) {
     runCount.textContent = `Selected ${selectedRows.length} / Expected Runs ${formatExpectedRunCount(expectedRuns)}`;
@@ -3993,6 +4010,11 @@ function collectCalibrationSetupEditorPayload(section, context) {
     showInlineProblem("Select at least one calibration parameter");
     return null;
   }
+  const stoppingRules = {};
+  const maxCandidates = Number(section.querySelector("[data-calibration-stop-max]")?.value);
+  if (Number.isFinite(maxCandidates) && maxCandidates > 0) stoppingRules.max_candidates = Math.floor(maxCandidates);
+  const objectiveTolerance = Number(section.querySelector("[data-calibration-stop-tolerance]")?.value);
+  if (Number.isFinite(objectiveTolerance) && objectiveTolerance > 0) stoppingRules.objective_tolerance = objectiveTolerance;
   return {
     mapping_path: mappingPath,
     id: section.querySelector("[data-calibration-setup-id]")?.value.trim() || "",
@@ -4001,6 +4023,7 @@ function collectCalibrationSetupEditorPayload(section, context) {
     base_parameter_set: section.querySelector("[data-calibration-base]")?.value || "",
     objective_outputs: outputs,
     parameters,
+    stopping_rules: stoppingRules,
   };
 }
 

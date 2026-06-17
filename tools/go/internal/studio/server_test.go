@@ -632,9 +632,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("calibrationSetupEditorSection")) ||
 		!bytes.Contains(body, []byte("Candidate Parameters")) ||
+		!bytes.Contains(body, []byte("Differential Evolution")) ||
+		!bytes.Contains(body, []byte("differential_evolution")) ||
 		!bytes.Contains(body, []byte("Least Squares")) ||
 		!bytes.Contains(body, []byte("least_squares")) ||
 		!bytes.Contains(body, []byte("Expected Runs")) ||
+		!bytes.Contains(body, []byte("stopping_rules")) ||
 		!bytes.Contains(body, []byte("objective_outputs")) {
 		t.Fatalf("module entrypoint did not expose calibration setup editor")
 	}
@@ -3883,7 +3886,11 @@ func TestCreateCalibrationSetupEndpointWritesRoleBasedSetup(t *testing.T) {
 		"project_path": projectPath,
 		"mapping_path": filepath.Join("validation", "mappings", "plant_validation.json"),
 		"id":           "auto_calibration",
-		"algorithm":    "least_squares",
+		"algorithm":    "differential_evolution",
+		"stopping_rules": map[string]any{
+			"max_candidates":      3,
+			"objective_tolerance": 0.01,
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -3906,8 +3913,11 @@ func TestCreateCalibrationSetupEndpointWritesRoleBasedSetup(t *testing.T) {
 	if body.Summary.RelativePath != "calibration/setups/auto_calibration.json" || body.Summary.ParameterCount == 0 {
 		t.Fatalf("summary = %#v", body.Summary)
 	}
-	if body.Summary.Algorithm != "least_squares" || body.Setup.Algorithm != "least_squares" {
+	if body.Summary.Algorithm != "differential_evolution" || body.Setup.Algorithm != "differential_evolution" {
 		t.Fatalf("algorithm summary=%#v setup=%#v", body.Summary, body.Setup)
+	}
+	if body.Setup.StoppingRules.MaxCandidates != 3 || body.Setup.StoppingRules.ObjectiveTolerance != 0.01 {
+		t.Fatalf("stopping rules = %#v", body.Setup.StoppingRules)
 	}
 	if body.Setup.Objective.Metric != "rmse" || body.Setup.Objective.Outputs["total_power_kw"] != 1 {
 		t.Fatalf("objective = %#v", body.Setup.Objective)

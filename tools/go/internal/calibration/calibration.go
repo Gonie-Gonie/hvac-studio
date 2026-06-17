@@ -26,6 +26,7 @@ type Setup struct {
 	BaseParameterSet string          `json:"base_parameter_set,omitempty"`
 	Objective        Objective       `json:"objective"`
 	Parameters       []ParameterSpec `json:"parameters"`
+	StoppingRules    StoppingRules   `json:"stopping_rules,omitempty"`
 }
 
 type Objective struct {
@@ -39,6 +40,11 @@ type ParameterSpec struct {
 	Min       float64 `json:"min"`
 	Max       float64 `json:"max"`
 	Step      float64 `json:"step"`
+}
+
+type StoppingRules struct {
+	MaxCandidates      int     `json:"max_candidates,omitempty"`
+	ObjectiveTolerance float64 `json:"objective_tolerance,omitempty"`
 }
 
 type Options struct {
@@ -264,6 +270,9 @@ func Run(ctx context.Context, projectPath string, setup Setup, options Options) 
 	}
 
 	candidates := candidateParameters(setup.Algorithm, setup.Parameters)
+	if setup.StoppingRules.MaxCandidates > 0 && setup.StoppingRules.MaxCandidates < len(candidates) {
+		candidates = candidates[:setup.StoppingRules.MaxCandidates]
+	}
 	if len(candidates) == 0 {
 		return nil, apperror.Errorf(apperror.CodeInput, "calibration %s produced no candidates", setup.Algorithm)
 	}
@@ -282,6 +291,9 @@ func Run(ctx context.Context, projectPath string, setup Setup, options Options) 
 		}
 		if index == 0 || summary.Objective < best.Objective {
 			best = summary
+		}
+		if setup.StoppingRules.ObjectiveTolerance > 0 && summary.Objective <= setup.StoppingRules.ObjectiveTolerance {
+			break
 		}
 	}
 	if initialObjective == 0 {
@@ -352,7 +364,7 @@ func evaluateCandidate(ctx context.Context, projectPath string, setup Setup, ind
 
 func isSupportedAlgorithm(algorithm string) bool {
 	switch algorithm {
-	case "grid", "least_squares":
+	case "grid", "least_squares", "differential_evolution":
 		return true
 	default:
 		return false
@@ -361,6 +373,8 @@ func isSupportedAlgorithm(algorithm string) bool {
 
 func candidateParameters(algorithm string, specs []ParameterSpec) []map[string]map[string]float64 {
 	switch algorithm {
+	case "differential_evolution":
+		return gridCandidates(specs)
 	case "least_squares":
 		return gridCandidates(specs)
 	default:

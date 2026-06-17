@@ -554,6 +554,7 @@ type createCalibrationSetupRequest struct {
 	BaseParameterSet string                      `json:"base_parameter_set"`
 	ObjectiveOutputs map[string]float64          `json:"objective_outputs"`
 	Parameters       []calibration.ParameterSpec `json:"parameters"`
+	StoppingRules    calibration.StoppingRules   `json:"stopping_rules"`
 }
 
 type createOptimizationSetupRequest struct {
@@ -6849,7 +6850,7 @@ func createCalibrationSetup(loaded *project.LoadedProject, req createCalibration
 	if algorithm == "" {
 		algorithm = "grid"
 	}
-	if algorithm != "grid" && algorithm != "least_squares" {
+	if algorithm != "grid" && algorithm != "least_squares" && algorithm != "differential_evolution" {
 		return CalibrationSetupSummary{}, calibration.Setup{}, apperror.Errorf(apperror.CodeValidation, "unsupported calibration algorithm: %s", algorithm)
 	}
 	id := strings.ReplaceAll(slugify(req.ID), "-", "_")
@@ -6870,7 +6871,8 @@ func createCalibrationSetup(loaded *project.LoadedProject, req createCalibration
 			Metric:  "rmse",
 			Outputs: objectiveOutputs,
 		},
-		Parameters: parameters,
+		Parameters:    parameters,
+		StoppingRules: req.StoppingRules,
 	}
 	setupPath := filepath.Join(loaded.Root, "calibration", "setups", id+".json")
 	if _, err := os.Stat(setupPath); err == nil {

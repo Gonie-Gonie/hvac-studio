@@ -15,11 +15,12 @@ Calibration estimates model parameters to reduce the difference between simulate
 
 In Studio, open `Artifacts` and use `Cal Setup` to create a setup without
 editing JSON. The editor lets you select the validation mapping, target outputs
-and weights, candidate parameters, bounds, base parameter set, and algorithm.
-Supported algorithms are `grid` and `least_squares`; both preserve the same
-runner-backed candidate/result artifact flow. Candidate filters cover role,
-component, unit, and bounds presence; the selected candidate count and expected
-run count update before saving.
+and weights, candidate parameters, bounds, base parameter set, algorithm, and
+stopping rules. Supported algorithms are `grid`, `differential_evolution`, and
+`least_squares`; all preserve the same runner-backed candidate/result artifact
+flow. Candidate filters cover role, component, unit, and bounds presence; the
+selected candidate count and expected run count update before saving, including
+any max-candidate stopping limit.
 
 The saved setup can also be inspected or reproduced from JSON. See:
 
