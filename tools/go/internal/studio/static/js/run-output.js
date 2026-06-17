@@ -295,6 +295,7 @@ function renderOutputChart(state, chart) {
 }
 
 function latestSummaryRows(state) {
+  if (state.activeRunAbortController) return pendingRunSummaryRows(state);
   if (state.latestSeriesResult) return seriesSummaryRows(state.latestSeriesResult);
   if (state.latestBatchRecord) return batchSummaryRows(state.latestBatchRecord);
   if (state.latestRunRecord) return runRecordSummaryRows(state.latestRunRecord);
@@ -311,7 +312,7 @@ function pendingRunSummaryRows(state) {
     : project?.default_input || "current fields";
   const parameterSet = state.activeParameterSetPath || "Baseline graph parameters";
   const saveTarget = projectSummary?.source === "workspace" ? "New record under runs/" : "Not saved for read-only project";
-  return [
+  const rows = [
     { name: "Run target", value: project?.project_name || "No project open", source: projectSummary?.relative_path || state.detail?.project_path || "" },
     { name: "Input source", value: inputSource, source: state.activeRunInput?.relative_path || project?.default_input || "Run fields" },
     { name: "Parameter set", value: parameterSet, source: state.activeParameterSetPath ? "parameter_sets" : "graph.json" },
@@ -319,6 +320,10 @@ function pendingRunSummaryRows(state) {
     { name: "Save target", value: saveTarget, source: "Run command" },
     { name: "Timeout", value: timeoutSummary(state.runTimeoutMS), source: "Run command" },
   ];
+  if (state.activeRunAbortController) {
+    rows.unshift({ name: "Status", value: `${state.activeRunLabel || "Run"} in progress`, source: "Runtime request" });
+  }
+  return rows;
 }
 
 function currentProject(state) {

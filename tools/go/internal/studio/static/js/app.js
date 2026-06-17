@@ -4593,7 +4593,9 @@ function beginRuntimeRequest(label) {
   const controller = new AbortController();
   state.activeRunAbortController = controller;
   state.activeRunLabel = label;
+  el("runtimeStatus").textContent = `${label} in progress`;
   updateCommandState();
+  renderRunWorkspace();
   return controller;
 }
 
@@ -4601,7 +4603,9 @@ function finishRuntimeRequest(controller) {
   if (state.activeRunAbortController !== controller) return;
   state.activeRunAbortController = null;
   state.activeRunLabel = "";
+  el("runtimeStatus").textContent = "Runtime ready";
   updateCommandState();
+  renderRunWorkspace();
 }
 
 function cancelActiveRun() {

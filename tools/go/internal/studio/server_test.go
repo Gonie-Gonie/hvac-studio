@@ -349,6 +349,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("activeRunAbortController")) {
 		t.Fatalf("module entrypoint did not track active runtime requests")
 	}
+	if !bytes.Contains(body, []byte("in progress")) || !bytes.Contains(body, []byte("Runtime ready")) {
+		t.Fatalf("module entrypoint did not expose runtime progress status")
+	}
 	if !bytes.Contains(body, []byte("logSeverityFilter")) ||
 		!bytes.Contains(body, []byte("downloadLogBundle")) ||
 		!bytes.Contains(body, []byte("exportLogBundleButton")) {
@@ -719,6 +722,9 @@ func TestStaticRunOutputModuleServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("pendingRunSummaryRows")) {
 		t.Fatalf("run output module did not render pending run context")
+	}
+	if !bytes.Contains(body, []byte("Runtime request")) {
+		t.Fatalf("run output module did not render runtime progress context")
 	}
 	if !bytes.Contains(body, []byte("Baseline graph parameters")) {
 		t.Fatalf("run output module did not expose baseline parameter context")
