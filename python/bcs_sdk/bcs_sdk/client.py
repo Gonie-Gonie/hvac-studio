@@ -173,12 +173,15 @@ class RunnerClient:
         self,
         setup: str | Path,
         save_scenario: str | Path | None = None,
+        save_parameter_set: str | Path | None = None,
         save_record: bool = False,
         output: str | Path | None = None,
     ) -> dict[str, Any]:
         args = ["optimize", "--project", str(self.project), "--setup", str(setup)]
         if save_scenario is not None:
             args.extend(["--save-scenario", str(save_scenario)])
+        if save_parameter_set is not None:
+            args.extend(["--save-parameter-set", str(save_parameter_set)])
         if save_record:
             args.append("--save-record")
         return self._run_workflow_json(args, output)

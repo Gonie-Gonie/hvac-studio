@@ -1,0 +1,34 @@
+{
+  "id": "parameter_credit_grid",
+  "name": "Power Credit Parameter Grid",
+  "algorithm": "grid",
+  "base_inputs": {
+    "building_load_kw": 500.0,
+    "chw_setpoint_c": 7.0
+  },
+  "context": {
+    "time": 0,
+    "dt": 60
+  },
+  "objective": {
+    "output": "chiller_power_kw",
+    "sense": "min"
+  },
+  "decision_variables": [
+    {
+      "kind": "component_parameter",
+      "component": "tradeoff",
+      "name": "power_credit_kw_per_k",
+      "min": 4.0,
+      "max": 12.0,
+      "step": 4.0
+    }
+  ],
+  "constraints": [
+    {
+      "output": "comfort_penalty_kw",
+      "operator": "<=",
+      "value": 0.0
+    }
+  ]
+}

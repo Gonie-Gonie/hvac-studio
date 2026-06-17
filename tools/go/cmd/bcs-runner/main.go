@@ -408,6 +408,7 @@ func optimize(args []string) error {
 	setupPath := flags.String("setup", "", "project-relative optimization setup JSON")
 	outputPath := flags.String("output", "", "path to output JSON")
 	saveScenario := flags.String("save-scenario", "", "project-relative scenario output JSON")
+	saveParameterSet := flags.String("save-parameter-set", "", "project-relative parameter set output JSON")
 	saveRecord := flags.Bool("save-record", false, "save an optimization result record under optimization/results")
 	if err := flags.Parse(args); err != nil {
 		return apperror.Wrap(apperror.CodeValidation, err)
@@ -424,7 +425,8 @@ func optimize(args []string) error {
 		return err
 	}
 	result, err := optimization.Run(context.Background(), loaded.Path, setup, optimization.Options{
-		SaveScenario: *saveScenario,
+		SaveScenario:     *saveScenario,
+		SaveParameterSet: *saveParameterSet,
 	})
 	if err != nil {
 		return err

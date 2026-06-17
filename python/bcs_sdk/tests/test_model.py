@@ -168,6 +168,7 @@ class RunnerClientTests(unittest.TestCase):
             optimization = client.run_optimization(
                 "optimization/setups/case.json",
                 save_scenario="scenarios/best.json",
+                save_parameter_set="parameter_sets/optimized.json",
                 save_record=True,
             )
 
@@ -182,6 +183,7 @@ class RunnerClientTests(unittest.TestCase):
         self.assertIn("--save-parameter-set parameter_sets/calibrated.json", calls[1])
         self.assertIn("optimize --project project.bcsproj --setup optimization/setups/case.json", calls[2])
         self.assertIn("--save-scenario scenarios/best.json", calls[2])
+        self.assertIn("--save-parameter-set parameter_sets/optimized.json", calls[2])
 
     def test_subprocess_errors_preserve_structured_payload(self) -> None:
         completed = subprocess.CompletedProcess(

@@ -2646,10 +2646,19 @@ function candidateResultSection(result, savedLabel, savedPath) {
   section.append(resultTable("Candidates", (result.candidates || []).slice(0, 12).map((item, index) => [
     String(item.index ?? index + 1),
     shortNumber(item.objective),
-    "candidate",
+    candidateStatus(item),
     parameterCandidateSummary(item.parameters || item.inputs || item.outputs || {}),
   ]), ["#", "Objective", "Status", "Values"]));
   return section;
+}
+
+function candidateStatus(item) {
+  if (item.error) return `failed: ${item.error}`;
+  if (item.feasible === false) {
+    const count = (item.constraint_violations || []).length;
+    return `${count || 1} constraint${count === 1 ? "" : "s"}`;
+  }
+  return "feasible";
 }
 
 function parameterCandidateSummary(values) {

@@ -68,6 +68,9 @@ function Invoke-WorkflowSmoke {
   $ValidationOutput = Join-Path ([IO.Path]::GetTempPath()) 'hvac-studio-plant-validation.json'
   $CalibrationOutput = Join-Path ([IO.Path]::GetTempPath()) 'hvac-studio-plant-calibration.json'
   $OptimizationOutput = Join-Path ([IO.Path]::GetTempPath()) 'hvac-studio-optimization.json'
+  $ParameterOptimizationOutput = Join-Path ([IO.Path]::GetTempPath()) 'hvac-studio-parameter-optimization.json'
+  $ParameterOptimizationSet = 'parameter_sets/parameter_credit_grid_smoke.json'
+  $ParameterOptimizationSetPath = Join-Path (Split-Path -Parent $OptimizationProject) $ParameterOptimizationSet
   $CompositionValidationOutput = Join-Path ([IO.Path]::GetTempPath()) 'hvac-studio-composition-validation.json'
   $CompositionCalibrationOutput = Join-Path ([IO.Path]::GetTempPath()) 'hvac-studio-composition-calibration.json'
   $CompositionOptimizationOutput = Join-Path ([IO.Path]::GetTempPath()) 'hvac-studio-composition-optimization.json'
@@ -107,6 +110,19 @@ function Invoke-WorkflowSmoke {
       throw 'optimization smoke did not report best chw_setpoint_c input'
     }
 
+    Write-Host 'example workflow: parameter optimization'
+    Invoke-Checked $env:HVAC_STUDIO_GO @('run', '.\cmd\bcs-runner', 'optimize', '--project', $OptimizationProject, '--setup', 'optimization/setups/parameter_credit_grid.json', '--save-parameter-set', $ParameterOptimizationSet, '--output', $ParameterOptimizationOutput)
+    $ParameterOptimization = Get-Content -Raw -LiteralPath $ParameterOptimizationOutput | ConvertFrom-Json
+    if (-not $ParameterOptimization.ok -or $ParameterOptimization.best_objective -ne 88) {
+      throw "parameter optimization smoke failed: ok=$($ParameterOptimization.ok) best=$($ParameterOptimization.best_objective)"
+    }
+    if ($null -eq $ParameterOptimization.best_parameters.tradeoff.power_credit_kw_per_k) {
+      throw 'parameter optimization smoke did not report best component parameter'
+    }
+    if (-not (Test-Path -LiteralPath $ParameterOptimizationSetPath)) {
+      throw 'parameter optimization smoke did not write a parameter set'
+    }
+
     Write-Host 'example workflow: rc ahu validation'
     Invoke-Checked $env:HVAC_STUDIO_GO @('run', '.\cmd\bcs-runner', 'validate-data', '--project', $CompositionProject, '--mapping', 'validation/mappings/rc_ahu_validation.json', '--output', $CompositionValidationOutput)
     $CompositionValidation = Get-Content -Raw -LiteralPath $CompositionValidationOutput | ConvertFrom-Json
@@ -141,6 +157,8 @@ function Invoke-WorkflowSmoke {
     Remove-Item -LiteralPath $ValidationOutput -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $CalibrationOutput -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $OptimizationOutput -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $ParameterOptimizationOutput -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $ParameterOptimizationSetPath -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $CompositionValidationOutput -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $CompositionCalibrationOutput -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $CompositionOptimizationOutput -Force -ErrorAction SilentlyContinue

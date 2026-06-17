@@ -17,7 +17,17 @@ Optimization changes decision variables to improve an objective.
 5. Run optimization.
 6. Save the result as scenario, parameter set, script, or CSV.
 
-The current implemented path uses a saved grid-search setup over public inputs. See:
+The implemented path uses saved grid-search setups over public inputs or
+component parameters. A decision variable can use:
+
+- `kind: "public_input"` with `name`
+- `kind: "component_parameter"` with `component` and `name`
+
+Output constraints use `output`, `operator`, and `value`. Supported operators
+are `<=`, `>=`, and `==`. Candidate rows record feasibility, failed runs, and
+constraint violations without mutating the baseline graph.
+
+See:
 
 ```text
 examples/006_optimization_case/optimization/setups/chw_setpoint_grid.json
@@ -34,6 +44,15 @@ bcs-runner.exe optimize `
 ```
 
 The result includes each candidate objective, the best inputs, best outputs, and the saved scenario path. `--save-record` writes a reproducible result artifact under `optimization/results/`.
+
+For component-parameter studies, save the best parameter values separately:
+
+```powershell
+bcs-runner.exe optimize `
+  --project examples/006_optimization_case/project.bcsproj `
+  --setup optimization/setups/parameter_credit_grid.json `
+  --save-parameter-set parameter_sets/optimized_credit.json
+```
 
 ## SDK Path
 

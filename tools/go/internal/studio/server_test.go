@@ -3069,6 +3069,89 @@ func TestOptimizationRunEndpointSavesWorkspaceRecord(t *testing.T) {
 	}
 }
 
+func TestOptimizationRunEndpointSavesParameterSetForParameterVariables(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectRoot := filepath.Join(root, "projects", "parameter-optimization-project")
+	if err := copyProjectTree(filepath.Join(repoRoot, "examples", "006_optimization_case"), projectRoot); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(projectRoot, "optimization", "setups", "parameter_credit_grid.json"), `{
+  "id": "parameter_credit_grid",
+  "name": "Parameter Credit Grid",
+  "algorithm": "grid",
+  "base_inputs": {
+    "building_load_kw": 500.0,
+    "chw_setpoint_c": 7.0
+  },
+  "context": {
+    "time": 0,
+    "dt": 60
+  },
+  "objective": {
+    "output": "chiller_power_kw",
+    "sense": "min"
+  },
+  "decision_variables": [
+    {
+      "kind": "component_parameter",
+      "component": "tradeoff",
+      "name": "power_credit_kw_per_k",
+      "min": 4.0,
+      "max": 12.0,
+      "step": 4.0
+    }
+  ],
+  "constraints": [
+    {
+      "output": "comfort_penalty_kw",
+      "operator": "<=",
+      "value": 0
+    }
+  ]
+}
+`)
+	projectPath := filepath.Join(projectRoot, "project.bcsproj")
+	payload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"setup_path":   filepath.Join("optimization", "setups", "parameter_credit_grid.json"),
+		"save":         true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/optimization/run", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		OptimizationResult struct {
+			OK                bool   `json:"ok"`
+			SavedScenario     string `json:"saved_scenario"`
+			SavedParameterSet string `json:"saved_parameter_set"`
+		} `json:"optimization_result"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !body.OptimizationResult.OK || body.OptimizationResult.SavedParameterSet != "parameter_sets/parameter_credit_grid_optimized.json" {
+		t.Fatalf("optimization result = %#v", body.OptimizationResult)
+	}
+	if body.OptimizationResult.SavedScenario != "scenarios/parameter_credit_grid_optimized.json" {
+		t.Fatalf("saved scenario = %q", body.OptimizationResult.SavedScenario)
+	}
+	if _, err := os.Stat(filepath.Join(projectRoot, "parameter_sets", "parameter_credit_grid_optimized.json")); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestUpdateLayoutEndpointWritesWorkspaceLayout(t *testing.T) {
 	root, server := newIsolatedTestServer(t)
 	project := createWorkspaceProject(t, server, "Layout Project")
@@ -4736,6 +4819,13 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 		if !containsString(body.Export.Commands, command) {
 			t.Fatalf("export commands missing %s in %v", command, body.Export.Commands)
 		}
+	}
+	optimizeBytes, err := os.ReadFile(filepath.Join(exportRoot, "optimize.ps1"))
+	if err != nil {
+		t.Fatalf("optimize script: %v", err)
+	}
+	if !bytes.Contains(optimizeBytes, []byte("SaveParameterSet")) || !bytes.Contains(optimizeBytes, []byte("--save-parameter-set")) {
+		t.Fatalf("optimize script missing parameter set save option:\n%s", string(optimizeBytes))
 	}
 	guideBytes, err := os.ReadFile(filepath.Join(exportRoot, "docs", "CLI_Guide.md"))
 	if err != nil {

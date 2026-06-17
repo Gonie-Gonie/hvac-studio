@@ -370,6 +370,7 @@ type createOptimizationSetupRequest struct {
 	Context           map[string]any                  `json:"context"`
 	Objective         optimization.Objective          `json:"objective"`
 	DecisionVariables []optimization.DecisionVariable `json:"decision_variables"`
+	Constraints       []optimization.Constraint       `json:"constraints"`
 }
 
 type updateInputRequest struct {
@@ -394,10 +395,11 @@ type calibrationRunRequest struct {
 }
 
 type optimizationRunRequest struct {
-	ProjectPath  string `json:"project_path"`
-	SetupPath    string `json:"setup_path"`
-	SaveScenario string `json:"save_scenario"`
-	Save         bool   `json:"save"`
+	ProjectPath      string `json:"project_path"`
+	SetupPath        string `json:"setup_path"`
+	SaveScenario     string `json:"save_scenario"`
+	SaveParameterSet string `json:"save_parameter_set"`
+	Save             bool   `json:"save"`
 }
 
 type RunSummary struct {
@@ -2080,9 +2082,15 @@ func (s *Server) handleOptimizationRun(w http.ResponseWriter, r *http.Request) {
 	if req.Save && req.SaveScenario == "" {
 		req.SaveScenario = filepath.ToSlash(filepath.Join("scenarios", setup.ID+"_optimized.json"))
 	}
+	if req.Save && req.SaveParameterSet == "" && optimizationSetupHasParameterVariables(setup) {
+		req.SaveParameterSet = filepath.ToSlash(filepath.Join("parameter_sets", setup.ID+"_optimized.json"))
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
 	defer cancel()
-	result, err := optimization.Run(ctx, loaded.Path, setup, optimization.Options{SaveScenario: req.SaveScenario})
+	result, err := optimization.Run(ctx, loaded.Path, setup, optimization.Options{
+		SaveScenario:     req.SaveScenario,
+		SaveParameterSet: req.SaveParameterSet,
+	})
 	if err != nil {
 		writeErrorWithProblems(w, err, inferProblems(loaded, err))
 		return
@@ -5455,7 +5463,7 @@ func createOptimizationSetup(loaded *project.LoadedProject, req createOptimizati
 	if len(variables) == 0 {
 		variable, ok := defaultOptimizationDecisionVariable(loaded.Graph, loaded.Project.EntrySystem, baseInputs)
 		if !ok {
-			return OptimizationSetupSummary{}, optimization.Setup{}, apperror.Errorf(apperror.CodeValidation, "optimization setup requires a numeric public input decision variable")
+			return OptimizationSetupSummary{}, optimization.Setup{}, apperror.Errorf(apperror.CodeValidation, "optimization setup requires a numeric public input or optimization_variable parameter")
 		}
 		variables = []optimization.DecisionVariable{variable}
 	}
@@ -5475,6 +5483,7 @@ func createOptimizationSetup(loaded *project.LoadedProject, req createOptimizati
 		Context:           contextValues,
 		Objective:         objective,
 		DecisionVariables: variables,
+		Constraints:       req.Constraints,
 	}
 	setupPath := filepath.Join(loaded.Root, "optimization", "setups", id+".json")
 	if _, err := os.Stat(setupPath); err == nil {
@@ -5496,6 +5505,15 @@ func createOptimizationSetup(loaded *project.LoadedProject, req createOptimizati
 		VariableCount: len(setup.DecisionVariables),
 	}
 	return summary, setup, nil
+}
+
+func optimizationSetupHasParameterVariables(setup optimization.Setup) bool {
+	for _, variable := range setup.DecisionVariables {
+		if variable.Kind == "component_parameter" {
+			return true
+		}
+	}
+	return false
 }
 
 func defaultCalibrationParameters(graph *model.Graph) []calibration.ParameterSpec {
@@ -5559,7 +5577,7 @@ func defaultOptimizationDecisionVariable(graph *model.Graph, systemID string, ba
 		candidates = append(candidates, input)
 	}
 	if len(candidates) == 0 {
-		return optimization.DecisionVariable{}, false
+		return defaultOptimizationParameterDecisionVariable(graph)
 	}
 	chosen := candidates[0]
 	for _, candidate := range candidates {
@@ -5578,6 +5596,43 @@ func defaultOptimizationDecisionVariable(graph *model.Graph, systemID string, ba
 		Max:  maxValue,
 		Step: defaultGridStep(minValue, maxValue),
 	}, true
+}
+
+func defaultOptimizationParameterDecisionVariable(graph *model.Graph) (optimization.DecisionVariable, bool) {
+	if graph == nil {
+		return optimization.DecisionVariable{}, false
+	}
+	for _, component := range graph.Components {
+		names := sortedMapKeys(component.ParameterDefinitions)
+		for _, name := range names {
+			definition := component.ParameterDefinitions[name]
+			if definition.Role != "optimization_variable" {
+				continue
+			}
+			value, ok := studioNumberValue(component.Parameters[name])
+			if !ok {
+				continue
+			}
+			minValue, maxValue := defaultDecisionBounds(value)
+			if definition.Bounds != nil {
+				if minBound, ok := studioNumberValue(definition.Bounds.Min); ok {
+					minValue = minBound
+				}
+				if maxBound, ok := studioNumberValue(definition.Bounds.Max); ok {
+					maxValue = maxBound
+				}
+			}
+			return optimization.DecisionVariable{
+				Kind:      "component_parameter",
+				Component: component.ID,
+				Name:      name,
+				Min:       minValue,
+				Max:       maxValue,
+				Step:      defaultGridStep(minValue, maxValue),
+			}, true
+		}
+	}
+	return optimization.DecisionVariable{}, false
 }
 
 func defaultDecisionBounds(value float64) (float64, float64) {
@@ -6459,6 +6514,7 @@ param(
   [string]$Setup = '%s',
   [string]$Output = "",
   [string]$SaveScenario = "",
+  [string]$SaveParameterSet = "",
   [switch]$SaveRecord
 )
 
@@ -6475,6 +6531,9 @@ if ($OutputDir) {
 $WorkflowArgs = @('optimize', '--project', $Project, '--setup', $Setup, '--output', $Output)
 if ($SaveScenario) {
   $WorkflowArgs += @('--save-scenario', $SaveScenario)
+}
+if ($SaveParameterSet) {
+  $WorkflowArgs += @('--save-parameter-set', $SaveParameterSet)
 }
 if ($SaveRecord) {
   $WorkflowArgs += '--save-record'
