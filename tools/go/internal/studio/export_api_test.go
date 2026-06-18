@@ -461,6 +461,21 @@ func TestExportEndpointIncludesMLAssetsAndChecksums(t *testing.T) {
 	if len(exportedSchema.ModelAssets) != len(expectedAssets) {
 		t.Fatalf("schema model assets = %#v", exportedSchema.ModelAssets)
 	}
+	var modelAsset schemaexport.ModelAssetInfo
+	for _, asset := range exportedSchema.ModelAssets {
+		if asset.Component == "ahu_state_ann" && asset.Field == "model_file" {
+			modelAsset = asset
+			break
+		}
+	}
+	if modelAsset.Path != "assets/ahu_state_ann/model.json" ||
+		modelAsset.ModelFormat != "custom" ||
+		modelAsset.ValidTimeResolution != "step" {
+		t.Fatalf("schema model asset contract = %#v", modelAsset)
+	}
+	if bounds := modelAsset.ValidInputRanges["fan_speed_fraction"]; bounds.Min != float64(0) || bounds.Max != float64(1) {
+		t.Fatalf("schema model asset valid input ranges = %#v", modelAsset.ValidInputRanges)
+	}
 	exportedProject, err := project.Load(filepath.Join(exportRoot, "project", "project.bcsproj"))
 	if err != nil {
 		t.Fatalf("load exported project: %v", err)

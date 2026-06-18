@@ -33,11 +33,13 @@ type PublicNodeInfo struct {
 }
 
 type ModelAssetInfo struct {
-	Component        string   `json:"component"`
-	ModelFormat      string   `json:"model_format,omitempty"`
-	Field            string   `json:"field"`
-	Path             string   `json:"path"`
-	RequiredPackages []string `json:"required_packages,omitempty"`
+	Component           string                       `json:"component"`
+	ModelFormat         string                       `json:"model_format,omitempty"`
+	Field               string                       `json:"field"`
+	Path                string                       `json:"path"`
+	RequiredPackages    []string                     `json:"required_packages,omitempty"`
+	ValidTimeResolution string                       `json:"valid_time_resolution,omitempty"`
+	ValidInputRanges    map[string]model.ValueBounds `json:"valid_input_ranges,omitempty"`
 }
 
 func Export(loaded *project.LoadedProject) (*InterfaceSchema, error) {
@@ -72,11 +74,13 @@ func Export(loaded *project.LoadedProject) (*InterfaceSchema, error) {
 				continue
 			}
 			schema.ModelAssets = append(schema.ModelAssets, ModelAssetInfo{
-				Component:        component.ID,
-				ModelFormat:      component.MLMetadata.ModelFormat,
-				Field:            asset.Field,
-				Path:             asset.Path,
-				RequiredPackages: append([]string{}, component.MLMetadata.RequiredPackages...),
+				Component:           component.ID,
+				ModelFormat:         component.MLMetadata.ModelFormat,
+				Field:               asset.Field,
+				Path:                asset.Path,
+				RequiredPackages:    append([]string{}, component.MLMetadata.RequiredPackages...),
+				ValidTimeResolution: component.MLMetadata.ValidTimeResolution,
+				ValidInputRanges:    cloneValueBoundsMap(component.MLMetadata.ValidInputRanges),
 			})
 		}
 	}
@@ -125,4 +129,15 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func cloneValueBoundsMap(values map[string]model.ValueBounds) map[string]model.ValueBounds {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make(map[string]model.ValueBounds, len(values))
+	for key, value := range values {
+		out[key] = value
+	}
+	return out
 }
