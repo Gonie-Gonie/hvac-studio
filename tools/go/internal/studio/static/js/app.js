@@ -31,6 +31,7 @@ import {
   mlAssetEditorBlock,
   mlMetadataBlock,
   mlValidationReportBlock,
+  parseValidInputRanges,
   splitRequiredPackages,
 } from "./ml-inspector.js";
 import { renderExportWorkspace } from "./export-workspace.js";
@@ -2436,6 +2437,13 @@ async function updateMLAssetsFromInspector(componentID, block) {
     });
   }
   const packagesValue = block.querySelector("[data-ml-metadata-field='required_packages']")?.value || "";
+  let validInputRanges;
+  try {
+    validInputRanges = parseValidInputRanges(block.querySelector("[data-ml-metadata-field='valid_input_ranges']")?.value || "");
+  } catch (error) {
+    showInlineProblem(error.message);
+    return;
+  }
   try {
     const body = await api("/api/project/components/ml-assets", {
       method: "POST",
@@ -2445,6 +2453,7 @@ async function updateMLAssetsFromInspector(componentID, block) {
         model_format: block.querySelector("[data-ml-metadata-field='model_format']")?.value || "custom",
         required_packages: splitRequiredPackages(packagesValue),
         valid_time_resolution: block.querySelector("[data-ml-metadata-field='valid_time_resolution']")?.value || "",
+        valid_input_ranges: validInputRanges,
         assets,
       }),
     });

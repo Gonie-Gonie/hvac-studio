@@ -20,8 +20,9 @@ then records those project-relative paths in `ml_metadata`.
 After selecting the component, use the Inspector's **ML Assets** block to import
 or replace the model file, optional input/output scaler files, feature schema,
 target schema, training metadata, validation report, required packages, model
-format, and valid time resolution. Imported files are written under the
-component folder and the graph plus component metadata file are kept in sync.
+format, valid time resolution, and valid input ranges. Imported files are
+written under the component folder and the graph plus component metadata file
+are kept in sync.
 Use **Apply Schema Nodes** after importing schema files to ensure the component
 has the `features` object input and target-based output nodes. For components
 already included in a system, added nodes also update related public IO.
@@ -40,7 +41,13 @@ metadata file:
     "target_schema_file": "assets/ahu_state_ann/target_schema.json",
     "validation_report_file": "assets/ahu_state_ann/validation_report.json",
     "required_packages": [],
-    "valid_time_resolution": "step"
+    "valid_time_resolution": "step",
+    "valid_input_ranges": {
+      "outdoor_temperature_c": {
+        "min": -20,
+        "max": 45
+      }
+    }
   }
 }
 ```

@@ -2289,8 +2289,14 @@ td {
 
 .connection-form input,
 .connection-form select,
+.connection-form textarea,
 .connection-form button {
   width: 100%;
+}
+
+.connection-form textarea {
+  min-height: 76px;
+  resize: vertical;
 }
 
 .ml-asset-form input[type="file"] {

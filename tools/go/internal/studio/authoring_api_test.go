@@ -510,6 +510,9 @@ func TestUpdateComponentMLAssetsEndpointImportsFilesAndMetadata(t *testing.T) {
 		"model_format":          "onnx",
 		"required_packages":     []string{"onnxruntime", "numpy", "onnxruntime", " "},
 		"valid_time_resolution": "step",
+		"valid_input_ranges": map[string]map[string]float64{
+			"temperature_c": {"min": -10, "max": 50},
+		},
 		"assets": []map[string]any{
 			{"field": "model_file", "file_name": "uploaded_model.onnx", "content_base64": "AQIDBA=="},
 			{"field": "input_scaler_file", "file_name": "input_scaler.json", "content": `{"mean":[1.0],"scale":[2.0]}`},
@@ -552,6 +555,10 @@ func TestUpdateComponentMLAssetsEndpointImportsFilesAndMetadata(t *testing.T) {
 	}
 	if len(metadata.RequiredPackages) != 2 || metadata.RequiredPackages[0] != "onnxruntime" || metadata.RequiredPackages[1] != "numpy" {
 		t.Fatalf("required packages = %#v", metadata.RequiredPackages)
+	}
+	bounds, ok := metadata.ValidInputRanges["temperature_c"]
+	if !ok || bounds.Min != float64(-10) || bounds.Max != float64(50) {
+		t.Fatalf("valid input ranges = %#v", metadata.ValidInputRanges)
 	}
 	for _, rel := range []string{
 		"components/ml_inference/uploaded_model.onnx",

@@ -812,6 +812,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(mlInspectorBody, []byte("Apply Schema Nodes")) ||
 		!bytes.Contains(mlInspectorBody, []byte(`mlMetadataField = "required_packages"`)) ||
 		!bytes.Contains(mlInspectorBody, []byte(`mlMetadataField = "valid_time_resolution"`)) ||
+		!bytes.Contains(mlInspectorBody, []byte(`mlMetadataField = "valid_input_ranges"`)) ||
+		!bytes.Contains(mlInspectorBody, []byte("parseValidInputRanges")) ||
+		!bytes.Contains(mlInspectorBody, []byte("Input Ranges")) ||
 		!bytes.Contains(configBody, []byte("input_scaler_file")) ||
 		!bytes.Contains(body, []byte("fileToBase64")) {
 		t.Fatalf("module entrypoint did not include ML asset import editing")

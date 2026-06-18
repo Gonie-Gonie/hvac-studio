@@ -11,6 +11,7 @@ export function mlMetadataBlock(component, inspectorBlock) {
     ["Validation Report", metadata.validation_report_file || ""],
     ["Required Packages", (metadata.required_packages || []).join(", ")],
     ["Time Resolution", metadata.valid_time_resolution || ""],
+    ["Input Ranges", Object.keys(metadata.valid_input_ranges || {}).join(", ")],
   ].filter(([, value]) => value);
   return inspectorBlock("ML Metadata", rows);
 }
@@ -81,7 +82,14 @@ export function mlAssetEditorBlock(component, config) {
   resolution.value = metadata.valid_time_resolution || "";
   resolution.setAttribute("aria-label", "Valid time resolution");
 
-  form.append(format, packages, resolution);
+  const ranges = document.createElement("textarea");
+  ranges.dataset.mlMetadataField = "valid_input_ranges";
+  ranges.placeholder = '{"feature_name": {"min": 0, "max": 1}}';
+  ranges.value = metadata.valid_input_ranges ? JSON.stringify(metadata.valid_input_ranges, null, 2) : "";
+  ranges.rows = 4;
+  ranges.setAttribute("aria-label", "Valid input ranges");
+
+  form.append(format, packages, resolution, ranges);
 
   for (const [field, label] of config.assetFields) {
     const row = document.createElement("div");
@@ -171,6 +179,46 @@ export function splitRequiredPackages(value) {
     .split(/[\n,]+/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+export function parseValidInputRanges(value) {
+  const text = String(value || "").trim();
+  if (!text) return undefined;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error('Valid input ranges must be JSON such as {"feature": {"min": 0, "max": 1}}');
+  }
+  if (!isPlainObject(parsed)) {
+    throw new Error("Valid input ranges must be an object keyed by feature name");
+  }
+
+  const ranges = {};
+  for (const [name, bounds] of Object.entries(parsed)) {
+    const feature = String(name || "").trim();
+    if (!feature) {
+      throw new Error("Valid input ranges cannot include an empty feature name");
+    }
+    if (!isPlainObject(bounds)) {
+      throw new Error(`Valid input range for ${feature} must be an object`);
+    }
+    const clean = {};
+    for (const key of ["min", "max"]) {
+      if (bounds[key] === undefined || bounds[key] === "") continue;
+      const value = Number(bounds[key]);
+      if (!Number.isFinite(value)) {
+        throw new Error(`Valid input range ${key} must be numeric: ${feature}`);
+      }
+      clean[key] = value;
+    }
+    if (clean.min !== undefined && clean.max !== undefined && clean.min > clean.max) {
+      throw new Error(`Valid input range min must be <= max: ${feature}`);
+    }
+    ranges[feature] = clean;
+  }
+  return ranges;
 }
 
 export function fileToBase64(file) {
