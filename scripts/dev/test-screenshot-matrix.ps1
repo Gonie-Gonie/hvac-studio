@@ -107,15 +107,16 @@ function Assert-Png {
 }
 
 function Assert-ScreenshotStaticCoverage {
-  $StaticFiles = @(
+  $StaticFiles = New-Object System.Collections.Generic.List[string]
+  @(
     'tools\go\internal\studio\static\index.html',
-    'tools\go\internal\studio\static\styles.css',
-    'tools\go\internal\studio\static\js\app.js',
-    'tools\go\internal\studio\static\js\run-output.js',
-    'tools\go\internal\studio\static\js\export-workspace.js'
-  )
+    'tools\go\internal\studio\static\styles.css'
+  ) | ForEach-Object { $StaticFiles.Add((Join-Path $RepoRoot $_)) }
+  Get-ChildItem -LiteralPath (Join-Path $RepoRoot 'tools\go\internal\studio\static\js') -Filter '*.js' -File |
+    ForEach-Object { $StaticFiles.Add($_.FullName) }
+
   $StaticText = ($StaticFiles | ForEach-Object {
-    Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $RepoRoot $_)
+    Get-Content -Raw -Encoding UTF8 -LiteralPath $_
   }) -join "`n"
 
   $Coverage = @(
@@ -139,6 +140,31 @@ function Assert-ScreenshotStaticCoverage {
     foreach ($Token in $Item.Tokens) {
       Assert-StaticToken -Text $StaticText -Token $Token -Label $Item.Label
     }
+  }
+}
+
+function Stop-ScreenshotStudioProcesses {
+  param(
+    [string]$FixtureRoot,
+    [string]$Addr,
+    $StudioProcess
+  )
+
+  if ($null -ne $StudioProcess -and -not $StudioProcess.HasExited) {
+    Stop-Process -Id $StudioProcess.Id -Force -ErrorAction SilentlyContinue
+  }
+
+  $Candidates = Get-CimInstance Win32_Process | Where-Object {
+    $_.CommandLine -and
+    ($_.Name -in @('go.exe', 'studio.exe')) -and
+    (
+      $_.CommandLine.IndexOf($FixtureRoot, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+      $_.CommandLine.IndexOf($Addr, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    )
+  }
+
+  foreach ($Process in $Candidates) {
+    Stop-Process -Id $Process.ProcessId -Force -ErrorAction SilentlyContinue
   }
 }
 
@@ -225,9 +251,7 @@ try {
     throw "screenshot matrix did not capture distinct workspace states; unique screenshots=$($UniqueHashes.Count)"
   }
 } finally {
-  if ($null -ne $StudioProcess -and -not $StudioProcess.HasExited) {
-    Stop-Process -Id $StudioProcess.Id -Force -ErrorAction SilentlyContinue
-  }
+  Stop-ScreenshotStudioProcesses -FixtureRoot $FixtureRoot -Addr $Addr -StudioProcess $StudioProcess
 }
 
 Write-Host "screenshot matrix ok: $OutputRoot"
