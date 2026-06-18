@@ -3,12 +3,14 @@ package studio
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -6845,6 +6847,24 @@ func TestExportEndpointIncludesMLAssetsAndChecksums(t *testing.T) {
 	if _, err := compiler.Compile(exportedProject); err != nil {
 		t.Fatalf("compile exported project: %v", err)
 	}
+	exportedProject.Project.Environment.Python = testPythonExecutable(t)
+	exportedInput, err := runtimecore.LoadInput(filepath.Join(exportedProject.Root, filepath.FromSlash(exportedProject.Project.DefaultInput)))
+	if err != nil {
+		t.Fatalf("load exported ANN input: %v", err)
+	}
+	exportedResult, err := runtimecore.Run(context.Background(), exportedProject, exportedInput)
+	if err != nil {
+		t.Fatalf("run exported ANN project: %v", err)
+	}
+	if !exportedResult.OK {
+		t.Fatalf("exported ANN result was not ok: %#v", exportedResult)
+	}
+	if got := exportedResult.Outputs["supply_air_temperature_c"]; got != 19.46 {
+		t.Fatalf("exported ANN supply_air_temperature_c = %#v, want 19.46", got)
+	}
+	if len(exportedResult.ExecutionOrder) < 2 || exportedResult.ExecutionOrder[1] != "ahu_state_ann" {
+		t.Fatalf("exported ANN execution order = %#v", exportedResult.ExecutionOrder)
+	}
 
 	slimPayload, err := json.Marshal(map[string]any{
 		"project_path":      filepath.Join(projectRoot, "project.bcsproj"),
@@ -7071,6 +7091,20 @@ func seedTestRuntimeSupport(t *testing.T, root string) {
 			t.Fatal(err)
 		}
 	}
+}
+
+func testPythonExecutable(t *testing.T) string {
+	t.Helper()
+	if path := strings.TrimSpace(os.Getenv("HVAC_STUDIO_PYTHON")); path != "" {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+	path, err := exec.LookPath("python")
+	if err != nil {
+		t.Skip("python executable is not available for exported project runtime smoke")
+	}
+	return path
 }
 
 func hasColumnSuggestion(values []ColumnSuggestion, publicID string, column string) bool {
