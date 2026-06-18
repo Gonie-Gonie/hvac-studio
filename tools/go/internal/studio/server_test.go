@@ -6946,6 +6946,7 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 		"validate-data.ps1",
 	}
 	exportRoot := filepath.Join(root, "projects", "export-project", "exports", "runtime_package")
+	assertRuntimeExportHasNoSourceCheckoutPaths(t, exportRoot, root, filepath.Join(root, "projects", "export-project"))
 	for _, rel := range expectedFiles {
 		if !containsString(body.Export.Files, rel) {
 			t.Fatalf("export files missing %s in %v", rel, body.Export.Files)
@@ -7634,6 +7635,52 @@ func assertRuntimeExportCompiles(t *testing.T, exportRoot string) {
 	}
 	if _, err := compiler.Compile(loaded); err != nil {
 		t.Fatalf("compile relocated export: %v", err)
+	}
+}
+
+func assertRuntimeExportHasNoSourceCheckoutPaths(t *testing.T, exportRoot string, forbiddenPaths ...string) {
+	t.Helper()
+	forbidden := []string{}
+	for _, path := range forbiddenPaths {
+		if strings.TrimSpace(path) == "" {
+			continue
+		}
+		cleanPath := filepath.Clean(path)
+		forbidden = append(forbidden, cleanPath, filepath.ToSlash(cleanPath))
+	}
+
+	textExtensions := map[string]bool{
+		".bcsproj": true,
+		".cfg":     true,
+		".csv":     true,
+		".json":    true,
+		".jsonl":   true,
+		".lock":    true,
+		".md":      true,
+		".ps1":     true,
+		".py":      true,
+		".txt":     true,
+	}
+	if err := filepath.WalkDir(exportRoot, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !textExtensions[strings.ToLower(filepath.Ext(path))] {
+			return nil
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		text := string(content)
+		for _, forbiddenPath := range forbidden {
+			if strings.Contains(text, forbiddenPath) {
+				t.Fatalf("exported text file %s references source checkout path %s", path, forbiddenPath)
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("scan exported text files for source checkout paths: %v", err)
 	}
 }
 
