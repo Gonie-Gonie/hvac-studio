@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
@@ -146,6 +147,19 @@ func loadEditableDefaultInput(loaded *project.LoadedProject) (string, runtimecor
 		input.Context = map[string]any{}
 	}
 	return inputPath, input, nil
+}
+
+func appendMatchingFiles(root string, patterns []string) []string {
+	files := []string{}
+	for _, pattern := range patterns {
+		matches, err := filepath.Glob(filepath.Join(root, pattern))
+		if err != nil {
+			continue
+		}
+		files = append(files, matches...)
+	}
+	sort.Strings(files)
+	return files
 }
 
 func writeJSONFile(path string, value any) error {
