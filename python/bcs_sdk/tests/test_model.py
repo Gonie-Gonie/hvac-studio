@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import subprocess
+import tempfile
 import unittest
 import uuid
 from contextlib import contextmanager
@@ -176,6 +177,26 @@ class RunnerClientTests(unittest.TestCase):
         self.assertIn("run", args)
         self.assertIn("--parameter-set", args)
         self.assertIn("parameter_sets/high.json", args)
+
+    def test_run_once_removes_sdk_temporary_input_directory(self) -> None:
+        completed = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout=json.dumps({"outputs": {"result": 12}}),
+            stderr="",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.dict(os.environ, {"HVAC_STUDIO_TMP": tmp}):
+                with patch("subprocess.run", return_value=completed) as run:
+                    client = RunnerClient(project="project.bcsproj", runner="bcs-runner", persistent=False)
+                    result = client.run_once({"value": 4})
+
+                args = run.call_args.args[0]
+                input_path = Path(args[args.index("--input") + 1])
+                self.assertEqual(result["outputs"]["result"], 12)
+                self.assertFalse(input_path.exists())
+                self.assertFalse((Path(tmp) / "bcs-sdk").exists())
 
     def test_workflow_helpers_build_cli_json_commands(self) -> None:
         completed = subprocess.CompletedProcess(

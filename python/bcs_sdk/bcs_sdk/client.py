@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
 import subprocess
 import threading
 import uuid
@@ -335,4 +336,11 @@ def sdk_temporary_directory() -> Iterator[str]:
     tmp_root.mkdir(parents=True, exist_ok=True)
     tmp_dir = tmp_root / f"tmp-{uuid.uuid4().hex}"
     tmp_dir.mkdir(parents=True, exist_ok=False)
-    yield str(tmp_dir)
+    try:
+        yield str(tmp_dir)
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        try:
+            tmp_root.rmdir()
+        except OSError:
+            pass
