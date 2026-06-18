@@ -250,6 +250,88 @@ func TestCreateComponentEndpointCreatesWorkspaceComponent(t *testing.T) {
 	}
 }
 
+func TestCreateComponentEndpointSuffixesDuplicateComponentID(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Duplicate Component ID Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+
+	createComponentNamed := func(name string) model.Component {
+		t.Helper()
+		payload, err := json.Marshal(map[string]any{
+			"project_path": createBody.Project.ProjectPath,
+			"name":         name,
+			"template":     "scalar",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		response := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(payload))
+		server.Handler().ServeHTTP(response, request)
+		if response.Code != http.StatusCreated {
+			t.Fatalf("component status = %d body=%s", response.Code, response.Body.String())
+		}
+		var body struct {
+			Component model.Component `json:"component"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		return body.Component
+	}
+
+	first := createComponentNamed("Second Gain")
+	second := createComponentNamed("Second Gain")
+
+	if first.ID != "second_gain" {
+		t.Fatalf("first component id = %s, want second_gain", first.ID)
+	}
+	if second.ID != "second_gain_2" {
+		t.Fatalf("second component id = %s, want second_gain_2", second.ID)
+	}
+	if second.Name != "Second Gain" {
+		t.Fatalf("second component name = %s, want Second Gain", second.Name)
+	}
+	if second.Source.Metadata != "components/second_gain_2/component.json" ||
+		second.Source.Step != "components/second_gain_2/user_step.py" ||
+		second.Source.Wrapper != "components/second_gain_2/wrapper.py" {
+		t.Fatalf("second component source metadata = %#v", second.Source)
+	}
+	if second.Class != "components.second_gain_2.wrapper.SecondGain2Component" {
+		t.Fatalf("second component class = %s", second.Class)
+	}
+	for _, rel := range []string{
+		"components/second_gain/user_step.py",
+		"components/second_gain/component.json",
+		"components/second_gain_2/user_step.py",
+		"components/second_gain_2/component.json",
+	} {
+		if _, err := os.Stat(filepath.Join(root, "projects", "duplicate-component-id-project", filepath.FromSlash(rel))); err != nil {
+			t.Fatalf("expected component artifact %s: %v", rel, err)
+		}
+	}
+	loaded, err := project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found := findComponent(loaded.Graph, "second_gain"); !found {
+		t.Fatalf("first component missing from graph: %#v", loaded.Graph.Components)
+	}
+	if _, found := findComponent(loaded.Graph, "second_gain_2"); !found {
+		t.Fatalf("suffixed component missing from graph: %#v", loaded.Graph.Components)
+	}
+}
+
 func TestCreateComponentEndpointCreatesMLComponentAssets(t *testing.T) {
 	root, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
