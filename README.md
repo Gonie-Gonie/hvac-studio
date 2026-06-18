@@ -122,7 +122,7 @@ The portable package includes root-level `HVAC Studio.exe`, `bin/studio.exe`, `b
 Users launch the app by double-clicking `HVAC Studio.exe`; automation can run `bin\studio.exe --server`.
 Use `bin\bcs-env.exe check` inside a package to verify the bundled Python runtime, worker, schemas, examples, and executables.
 Studio-created projects live under `projects/`; workspace edits persist to project artifacts such as `graph.json`, `inputs/`, `components/`, `scenarios/`, `runs/`, and `exports/`.
-Runtime exports under `projects/<name>/exports/runtime_package/` include workflow scripts such as `check-env.ps1`, `run-default.ps1`, `run-scenario.ps1`, `run-batch.ps1`, `validate-data.ps1`, `calibrate.ps1`, `optimize.ps1`, and `serve.ps1` when those artifacts exist, plus `docs/CLI_Guide.md` and `sdk-example.py`.
+Runtime exports under `projects/<name>/exports/runtime_package/` include workflow scripts such as `check-env.ps1`, `run-default.ps1`, `run-scenario.ps1`, `run-batch.ps1`, `validate-data.ps1`, `calibrate.ps1`, `optimize.ps1`, and `serve.ps1` when those artifacts exist, plus `docs/CLI_Guide.md` and `sdk-example.py`. Run scripts write result JSON under `outputs/` and component-log diagnostic bundles under `outputs/logs/`.
 
 Build and smoke-test the Windows installer bundle:
 

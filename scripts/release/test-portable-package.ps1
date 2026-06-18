@@ -247,7 +247,7 @@ try {
   if ($SourceJson.source.read_only) {
     throw "workspace component source should be editable"
   }
-  $EditedSource = $SourceJson.source.content -replace 'return \{"result": value \* gain\}, state', "bias = float(inputs.get(`"bias`", 0.0))`n        offset = float(params.get(`"offset`", 0.0))`n        return {`"result`": value * gain + offset + bias}, state"
+  $EditedSource = $SourceJson.source.content -replace 'return \{"result": value \* gain\}, state', "bias = float(inputs.get(`"bias`", 0.0))`n        offset = float(params.get(`"offset`", 0.0))`n        print(`"portable smoke scalar log`")`n        return {`"result`": value * gain + offset + bias}, state"
   if ($EditedSource -eq $SourceJson.source.content) {
     throw "workspace source edit pattern was not found"
   }
@@ -515,6 +515,17 @@ try {
   $ExportScriptRunJson = Get-Content -Raw -LiteralPath $ExportScriptOutputPath | ConvertFrom-Json
   if ($ExportScriptRunJson.outputs.result -ne 21) {
     throw "exported runtime script result mismatch: result=$($ExportScriptRunJson.outputs.result)"
+  }
+  $ExportScriptLogBundlePath = Join-Path (Split-Path -Parent $ExportManifestPath) 'outputs\logs\exported-runtime-script-output-logs.json'
+  if (-not (Test-Path -LiteralPath $ExportScriptLogBundlePath)) {
+    throw "exported runtime script log bundle was not written: $ExportScriptLogBundlePath"
+  }
+  $ExportScriptLogBundle = Get-Content -Raw -LiteralPath $ExportScriptLogBundlePath | ConvertFrom-Json
+  if ($ExportScriptLogBundle.schema -ne 'hvac-studio.runtime-log-bundle.v1') {
+    throw "exported runtime script log bundle schema mismatch: $($ExportScriptLogBundle.schema)"
+  }
+  if (-not (@($ExportScriptLogBundle.component_logs) | Where-Object { $_.message -eq 'portable smoke scalar log' })) {
+    throw "exported runtime script log bundle missing component stdout log"
   }
 
   $DeleteConnectionBody = @{

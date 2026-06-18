@@ -6466,6 +6466,20 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 			t.Fatalf("export commands missing %s in %v", command, body.Export.Commands)
 		}
 	}
+	runDefaultBytes, err := os.ReadFile(filepath.Join(exportRoot, "run-default.ps1"))
+	if err != nil {
+		t.Fatalf("run default script: %v", err)
+	}
+	if !bytes.Contains(runDefaultBytes, []byte("Write-RunLogBundle")) || !bytes.Contains(runDefaultBytes, []byte("LogBundle")) || !bytes.Contains(runDefaultBytes, []byte("outputs\\logs")) {
+		t.Fatalf("run default script missing runtime log bundle support:\n%s", string(runDefaultBytes))
+	}
+	runBatchBytes, err := os.ReadFile(filepath.Join(exportRoot, "run-batch.ps1"))
+	if err != nil {
+		t.Fatalf("run batch script: %v", err)
+	}
+	if !bytes.Contains(runBatchBytes, []byte("Write-RunLogBundle -ResultPath $Output")) {
+		t.Fatalf("run batch script missing per-case log bundles:\n%s", string(runBatchBytes))
+	}
 	optimizeBytes, err := os.ReadFile(filepath.Join(exportRoot, "optimize.ps1"))
 	if err != nil {
 		t.Fatalf("optimize script: %v", err)
@@ -6491,7 +6505,7 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cli guide: %v", err)
 	}
-	for _, text := range []string{"Runtime CLI Guide", "Public Inputs", "Validation Mappings", "Calibration Setups", "Optimization Setups", "optimize-sdk.py"} {
+	for _, text := range []string{"Runtime CLI Guide", "Public Inputs", "Validation Mappings", "Calibration Setups", "Optimization Setups", "optimize-sdk.py", "outputs\\logs"} {
 		if !bytes.Contains(guideBytes, []byte(text)) {
 			t.Fatalf("cli guide missing %q:\n%s", text, string(guideBytes))
 		}

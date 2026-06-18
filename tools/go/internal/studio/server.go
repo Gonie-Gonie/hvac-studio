@@ -6806,24 +6806,14 @@ func writeRuntimeExportEntrypoints(exportRoot string, files []runtimeExportEntry
 }
 
 func runtimeExportRunScript(projectPath string, defaultInput string) string {
-	projectLiteral := powerShellSingleQuotedPath(projectPath)
 	inputLiteral := powerShellSingleQuotedPath(defaultInput)
 	return strings.TrimLeft(fmt.Sprintf(`
 param(
-  [string]$Output = ""
+  [string]$Output = "",
+  [string]$LogBundle = ""
 )
 
-$ErrorActionPreference = 'Stop'
-$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Runner = Join-Path $Root 'bin\bcs-runner.exe'
-if (-not (Test-Path -LiteralPath $Runner)) {
-  $Runner = 'bcs-runner.exe'
-}
-$PythonRoot = Join-Path $Root 'runtime\python'
-if (Test-Path -LiteralPath $PythonRoot) {
-  $env:PATH = (@($PythonRoot, (Join-Path $Root 'bin'), $env:PATH) | Where-Object { $_ }) -join [IO.Path]::PathSeparator
-}
-$Project = Join-Path $Root '%s'
+%s
 $DefaultInput = '%s'
 $RunArgs = @('run', '--project', $Project)
 if ($DefaultInput) {
@@ -6831,6 +6821,8 @@ if ($DefaultInput) {
 }
 if (-not $Output) {
   $Output = Join-Path $Root 'outputs\latest.json'
+} elseif (-not [IO.Path]::IsPathRooted($Output)) {
+  $Output = Join-Path $Root $Output
 }
 $OutputDir = Split-Path -Parent $Output
 if ($OutputDir) {
@@ -6838,8 +6830,9 @@ if ($OutputDir) {
 }
 & $Runner validate --project $Project
 & $Runner @RunArgs --output $Output
+Write-RunLogBundle -ResultPath $Output -LogPath $LogBundle
 Write-Host "wrote $Output"
-`, projectLiteral, inputLiteral), "\r\n")
+`, runtimeExportScriptPreamble(projectPath), inputLiteral), "\r\n")
 }
 
 func runtimeExportCheckEnvScript() string {
@@ -6872,7 +6865,8 @@ func runtimeExportScenarioScript(projectPath string, defaultInput string) string
 param(
   [string]$Input = '%s',
   [string]$Output = "",
-  [string]$ParameterSet = ""
+  [string]$ParameterSet = "",
+  [string]$LogBundle = ""
 )
 
 %s
@@ -6896,6 +6890,7 @@ if ($ParameterSet) {
 }
 & $Runner validate --project $Project
 & $Runner @RunArgs
+Write-RunLogBundle -ResultPath $Output -LogPath $LogBundle
 Write-Host "wrote $Output"
 `, inputLiteral, runtimeExportScriptPreamble(projectPath)), "\r\n")
 }
@@ -6927,6 +6922,7 @@ if ($ParameterSet) {
 Get-ChildItem -LiteralPath $ScenarioDir -Filter '*.json' | Sort-Object Name | ForEach-Object {
   $Output = Join-Path $OutputDir ($_.BaseName + '.json')
   & $Runner @RunArgs --input $_.FullName --output $Output
+  Write-RunLogBundle -ResultPath $Output
   Write-Host "wrote $Output"
 }
 `, runtimeExportScriptPreamble(projectPath)), "\r\n")
@@ -7163,6 +7159,45 @@ if (Test-Path -LiteralPath $PythonRoot) {
   $env:PATH = (@($PythonRoot, (Join-Path $Root 'bin'), $env:PATH) | Where-Object { $_ }) -join [IO.Path]::PathSeparator
 }
 $Project = Join-Path $Root '%s'
+
+function Write-RunLogBundle {
+  param(
+    [Parameter(Mandatory = $true)][string]$ResultPath,
+    [string]$LogPath = ""
+  )
+
+  if (-not (Test-Path -LiteralPath $ResultPath)) {
+    return
+  }
+  if ($LogPath -and -not [IO.Path]::IsPathRooted($LogPath)) {
+    $LogPath = Join-Path $Root $LogPath
+  }
+  if (-not $LogPath) {
+    $BaseName = [IO.Path]::GetFileNameWithoutExtension($ResultPath)
+    if (-not $BaseName) {
+      $BaseName = 'run'
+    }
+    $LogPath = Join-Path (Join-Path $Root 'outputs\logs') ($BaseName + '-logs.json')
+  }
+  $LogDir = Split-Path -Parent $LogPath
+  if ($LogDir) {
+    New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+  }
+
+  $Result = Get-Content -Raw -LiteralPath $ResultPath | ConvertFrom-Json
+  $Logs = @()
+  if ($null -ne $Result.component_logs) {
+    $Logs = @($Result.component_logs)
+  }
+  [ordered]@{
+    schema = 'hvac-studio.runtime-log-bundle.v1'
+    generated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
+    project = $Project
+    result = $ResultPath
+    component_logs = $Logs
+  } | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $LogPath -Encoding UTF8
+  Write-Host "wrote $LogPath"
+}
 `, projectLiteral), "\r\n")
 }
 
@@ -7198,6 +7233,7 @@ func runtimeExportReadme(projectPath string, defaultInput string, lockfile strin
 		"- CLI guide: `docs/CLI_Guide.md`\n" +
 		pythonLine +
 		"- Runner: `bin/bcs-runner.exe`\n\n" +
+		"Run scripts write result JSON under `outputs/` and component-log diagnostic bundles under `outputs/logs/`.\n\n" +
 		"Available Windows commands:\n\n" +
 		strings.Join(commandLines, "\n") +
 		"\n"
@@ -7227,6 +7263,7 @@ func runtimeExportCLIGuide(files []string, plan *compiler.Plan, projectPath stri
 		"",
 		"- `powershell -ExecutionPolicy Bypass -File .\\check-env.ps1 -Json`",
 		"- `powershell -ExecutionPolicy Bypass -File .\\run-default.ps1`",
+		"- `powershell -ExecutionPolicy Bypass -File .\\run-default.ps1 -LogBundle outputs\\logs\\default-logs.json`",
 		fmt.Sprintf("- `powershell -ExecutionPolicy Bypass -File .\\run-scenario.ps1 -Input %s`", scenarioInput),
 		"- `powershell -ExecutionPolicy Bypass -File .\\serve.ps1 -RequestFile requests.jsonl -Output outputs\\serve-responses.jsonl`",
 	}
@@ -7283,6 +7320,7 @@ func runtimeExportCLIGuide(files []string, plan *compiler.Plan, projectPath stri
 		"## Troubleshooting",
 		"",
 		"- Run `check-env.ps1 -Json` first and inspect any reported problem.",
+		"- Run scripts also write component-log diagnostic bundles to `outputs\\logs\\*-logs.json`.",
 		"- Keep input paths relative to the export root unless you intentionally pass an absolute path.",
 		"- Runner errors use stable exit codes and structured JSON when called with `--error-format json`.",
 		"",

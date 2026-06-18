@@ -91,4 +91,7 @@ Then run the default case:
 powershell -ExecutionPolicy Bypass -File .\run-default.ps1
 ```
 
+The script writes the run result to `outputs\latest.json` and component logs to
+`outputs\logs\latest-logs.json` unless you pass `-Output` or `-LogBundle`.
+
 If source-check errors are reported, open the project in Studio, use the Code workspace Problems panel, fix the Python component source, save, and export again.

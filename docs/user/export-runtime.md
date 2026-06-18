@@ -43,10 +43,13 @@ Runtime export copies the source-of-truth project files needed by the runner, in
 
 Export profiles appear in the Project tree. Before export, selecting the ready runtime package profile opens the Export workspace preview. After export, selecting the saved profile reopens the saved manifest so the exported folder, file list, public IO, command list, self-check command, record count, and paths can be inspected after the original export action has completed.
 
+Run scripts write result JSON under `outputs/` and component-log diagnostic bundles under `outputs/logs/`. Use `-LogBundle outputs\logs\my-run-logs.json` with `run-default.ps1` or `run-scenario.ps1` when you want a specific diagnostics path.
+
 From the export folder:
 
 ```text
 powershell -ExecutionPolicy Bypass -File .\run-default.ps1
+powershell -ExecutionPolicy Bypass -File .\run-default.ps1 -LogBundle outputs\logs\default-logs.json
 powershell -ExecutionPolicy Bypass -File .\run-scenario.ps1 -Input project\inputs\case01.json
 powershell -ExecutionPolicy Bypass -File .\run-batch.ps1
 powershell -ExecutionPolicy Bypass -File .\validate-data.ps1
