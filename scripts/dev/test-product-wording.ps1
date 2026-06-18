@@ -8,7 +8,7 @@ $Forbidden = @(
   @{ Label = 'demo'; Pattern = '\bdemo\b' },
   @{ Label = 'placeholder'; Pattern = '\bplaceholder\b' },
   @{ Label = 'future'; Pattern = '\bfuture\b' },
-  @{ Label = 'dev only'; Pattern = '\bdev\s+only\b' }
+  @{ Label = 'dev only'; Pattern = '\bdev[\s_-]+only\b' }
 )
 
 $SurfaceRoots = @(
