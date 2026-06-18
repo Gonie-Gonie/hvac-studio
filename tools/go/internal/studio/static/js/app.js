@@ -7832,7 +7832,6 @@ function updateCommandState() {
   el("cancelRunButton").disabled = !runtimeBusy;
   el("retryRunButton").disabled = !hasProject || runtimeBusy || !state.lastRuntimeAction;
   el("schemaButton").disabled = !hasProject;
-  el("serveButton").disabled = true;
   el("exportButton").disabled = !hasProject || !isWorkspaceProject();
   for (const id of [
     "exportIncludeDatasetsInput",

@@ -107,8 +107,8 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("startWorkflowRows")) {
 		t.Fatalf("index did not include the Start workflow readiness rows")
 	}
-	if !bytes.Contains(body, []byte("serveButton")) {
-		t.Fatalf("index did not include the Serve command slot")
+	if bytes.Contains(body, []byte("serveButton")) {
+		t.Fatalf("index should not include a disabled Serve command slot")
 	}
 	for _, id := range []string{
 		"exportIncludeDatasetsInput",
@@ -801,8 +801,8 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(startBody, []byte("Baseline graph parameters")) {
 		t.Fatalf("module entrypoint did not expose baseline run parameter state")
 	}
-	if !bytes.Contains(body, []byte("serveButton")) {
-		t.Fatalf("module entrypoint did not reserve the Serve command state")
+	if bytes.Contains(body, []byte("serveButton")) {
+		t.Fatalf("module entrypoint should not reserve disabled Serve command state")
 	}
 	if bytes.Contains(body, []byte(`window.prompt("Project name"`)) || bytes.Contains(body, []byte(`window.prompt("Copy project as"`)) {
 		t.Fatalf("module entrypoint should not use prompts for project creation or copy")
