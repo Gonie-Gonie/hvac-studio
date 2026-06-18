@@ -62,9 +62,9 @@ Standalone Studio smoke builds write the latest executable to
 rewritten by `scripts/dev/test-studio.ps1` and removed by
 `scripts/dev/clean-generated.ps1`.
 
-Other transient local outputs include `artifacts/`, `dist/docs/`, and `.tmp/`.
-Run this after local checks when you want only tracked files and retained package
-zips left behind:
+Other transient local outputs include `artifacts/`, `dist/docs/`, `.tmp/`, and
+Python `__pycache__/` directories. Run this after local checks when you want
+only tracked files and retained package zips left behind:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\clean-generated.ps1

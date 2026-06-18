@@ -1,0 +1,233 @@
+{
+  "schema_version": "0.1.0",
+  "systems": [
+    {
+      "id": "MainSystem",
+      "name": "Custom Mixing Box",
+      "components": ["mixing_box"],
+      "connections": [],
+      "public_inputs": [
+        {
+          "id": "outdoor_air_temp_c",
+          "name": "Outdoor Air Temperature",
+          "component": "mixing_box",
+          "node": "outdoor_air_temp_c",
+          "medium": "air",
+          "value_type": "float",
+          "unit": "degC",
+          "required": true
+        },
+        {
+          "id": "return_air_temp_c",
+          "name": "Return Air Temperature",
+          "component": "mixing_box",
+          "node": "return_air_temp_c",
+          "medium": "air",
+          "value_type": "float",
+          "unit": "degC",
+          "required": true
+        },
+        {
+          "id": "outdoor_air_fraction",
+          "name": "Requested Outdoor Air Fraction",
+          "component": "mixing_box",
+          "node": "outdoor_air_fraction",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "fraction",
+          "required": true
+        },
+        {
+          "id": "supply_airflow_kg_s",
+          "name": "Supply Airflow",
+          "component": "mixing_box",
+          "node": "supply_airflow_kg_s",
+          "medium": "air",
+          "value_type": "float",
+          "unit": "kg/s",
+          "required": true
+        },
+        {
+          "id": "outdoor_air_co2_ppm",
+          "name": "Outdoor Air CO2",
+          "component": "mixing_box",
+          "node": "outdoor_air_co2_ppm",
+          "medium": "air",
+          "value_type": "float",
+          "unit": "ppm",
+          "required": true
+        },
+        {
+          "id": "return_air_co2_ppm",
+          "name": "Return Air CO2",
+          "component": "mixing_box",
+          "node": "return_air_co2_ppm",
+          "medium": "air",
+          "value_type": "float",
+          "unit": "ppm",
+          "required": true
+        }
+      ],
+      "public_outputs": [
+        {
+          "id": "mixed_air_temp_c",
+          "name": "Mixed Air Temperature",
+          "component": "mixing_box",
+          "node": "mixed_air_temp_c",
+          "medium": "air",
+          "value_type": "float",
+          "unit": "degC"
+        },
+        {
+          "id": "outdoor_airflow_kg_s",
+          "name": "Outdoor Airflow",
+          "component": "mixing_box",
+          "node": "outdoor_airflow_kg_s",
+          "medium": "air",
+          "value_type": "float",
+          "unit": "kg/s"
+        },
+        {
+          "id": "return_airflow_kg_s",
+          "name": "Return Airflow",
+          "component": "mixing_box",
+          "node": "return_airflow_kg_s",
+          "medium": "air",
+          "value_type": "float",
+          "unit": "kg/s"
+        },
+        {
+          "id": "mixed_air_co2_ppm",
+          "name": "Mixed Air CO2",
+          "component": "mixing_box",
+          "node": "mixed_air_co2_ppm",
+          "medium": "air",
+          "value_type": "float",
+          "unit": "ppm"
+        },
+        {
+          "id": "effective_outdoor_air_fraction",
+          "name": "Effective Outdoor Air Fraction",
+          "component": "mixing_box",
+          "node": "effective_outdoor_air_fraction",
+          "medium": "signal",
+          "value_type": "float",
+          "unit": "fraction"
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "mixing_box",
+      "name": "Custom Mixing Box",
+      "kind": "user_python",
+      "class": "components.mixing_box.MixingBox",
+      "nodes": {
+        "inputs": [
+          {
+            "id": "outdoor_air_temp_c",
+            "name": "Outdoor Air Temperature",
+            "direction": "inlet",
+            "medium": "air",
+            "value_type": "float",
+            "unit": "degC",
+            "required": true
+          },
+          {
+            "id": "return_air_temp_c",
+            "name": "Return Air Temperature",
+            "direction": "inlet",
+            "medium": "air",
+            "value_type": "float",
+            "unit": "degC",
+            "required": true
+          },
+          {
+            "id": "outdoor_air_fraction",
+            "name": "Requested Outdoor Air Fraction",
+            "direction": "inlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "fraction",
+            "required": true
+          },
+          {
+            "id": "supply_airflow_kg_s",
+            "name": "Supply Airflow",
+            "direction": "inlet",
+            "medium": "air",
+            "value_type": "float",
+            "unit": "kg/s",
+            "required": true
+          },
+          {
+            "id": "outdoor_air_co2_ppm",
+            "name": "Outdoor Air CO2",
+            "direction": "inlet",
+            "medium": "air",
+            "value_type": "float",
+            "unit": "ppm",
+            "required": true
+          },
+          {
+            "id": "return_air_co2_ppm",
+            "name": "Return Air CO2",
+            "direction": "inlet",
+            "medium": "air",
+            "value_type": "float",
+            "unit": "ppm",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "mixed_air_temp_c",
+            "name": "Mixed Air Temperature",
+            "direction": "outlet",
+            "medium": "air",
+            "value_type": "float",
+            "unit": "degC"
+          },
+          {
+            "id": "outdoor_airflow_kg_s",
+            "name": "Outdoor Airflow",
+            "direction": "outlet",
+            "medium": "air",
+            "value_type": "float",
+            "unit": "kg/s"
+          },
+          {
+            "id": "return_airflow_kg_s",
+            "name": "Return Airflow",
+            "direction": "outlet",
+            "medium": "air",
+            "value_type": "float",
+            "unit": "kg/s"
+          },
+          {
+            "id": "mixed_air_co2_ppm",
+            "name": "Mixed Air CO2",
+            "direction": "outlet",
+            "medium": "air",
+            "value_type": "float",
+            "unit": "ppm"
+          },
+          {
+            "id": "effective_outdoor_air_fraction",
+            "name": "Effective Outdoor Air Fraction",
+            "direction": "outlet",
+            "medium": "signal",
+            "value_type": "float",
+            "unit": "fraction"
+          }
+        ]
+      },
+      "parameters": {
+        "minimum_outdoor_air_fraction": 0.1,
+        "maximum_outdoor_air_fraction": 0.8
+      }
+    }
+  ],
+  "connections": []
+}

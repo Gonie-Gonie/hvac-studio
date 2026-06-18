@@ -11,7 +11,7 @@ under `examples/sdk/`.
 | Path | Example | Use it for |
 | --- | --- | --- |
 | First scalar run | `001_scalar_component` | A minimal public input, Python component, public output, and expected output. |
-| Custom component authoring notes | `002_custom_component` | Design notes for richer custom inlet/outlet authoring. |
+| Custom component | `002_custom_component` | A user-defined component with several custom inlet/outlet nodes and public IO mappings. |
 | Feed-forward system | `003_feedforward_system` | Multiple connected components and system-level public IO. |
 | Stateful controller | `004_stateful_controller` | Step component state, controller logic, native `run-series`, and serve-mode repeated evaluations. |
 | Plant workflow | `005_chiller_plant_like_system` | Plant-like composition, dataset validation, parameter sets, calibration, and CSV time columns. |

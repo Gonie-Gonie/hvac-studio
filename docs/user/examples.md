@@ -8,22 +8,20 @@ learning path and gives releases repeatable smoke assets.
 | Step | Example | What to learn |
 | --- | --- | --- |
 | 1 | `examples/001_scalar_component` | Public inputs, public outputs, Python component calls, and expected outputs. |
-| 2 | `examples/003_feedforward_system` | Feed-forward system composition and connection validation. |
-| 3 | `examples/008_generated_wrapper_component` | Generated-wrapper component authoring and export-safe source layout. |
-| 4 | `examples/009_vectorized_component` | Vectorized array input/output execution through `evaluate_batch`. |
-| 5 | `examples/010_external_executable_component` | External process execution through stdin/stdout JSON. |
-| 6 | `examples/011_solver_boundary_component` | Internal iterative feedback inside an explicit solver boundary. |
-| 7 | `examples/012_unit_conversion_component` | Explicit connection-level linear unit conversion and value-type checks. |
-| 8 | `examples/013_composite_system` | Nested systems behind explicit public IO boundaries. |
-| 9 | `examples/004_stateful_controller` | Controller state, native `run-series`, and serve-mode repeated evaluations. |
-| 10 | `examples/005_chiller_plant_like_system` | Plant composition, dataset validation, parameter sets, calibration, and time-column validation rows. |
-| 11 | `examples/006_optimization_case` | Grid-search optimization and SDK-style external search scripting. |
-| 12 | `examples/007_runtime_only_package` | Runtime-only delivery shape and exported-package command style. |
-| 13 | `examples/014_ahu_state_ann` | Feature mapping, ML component metadata, model assets, and export checksums. |
-| 14 | `examples/015_rc_ahu_ann_composition` | RC zone load, ANN surrogate AHU, validation, calibration, optimization, SDK use, and model replacement. |
-
-`examples/002_custom_component` is intentionally reserved for richer custom
-inlet/outlet authoring notes and is not part of the runnable smoke set.
+| 2 | `examples/002_custom_component` | User-defined inlet/outlet metadata, custom public IO mappings, and a runnable Python component. |
+| 3 | `examples/003_feedforward_system` | Feed-forward system composition and connection validation. |
+| 4 | `examples/008_generated_wrapper_component` | Generated-wrapper component authoring and export-safe source layout. |
+| 5 | `examples/009_vectorized_component` | Vectorized array input/output execution through `evaluate_batch`. |
+| 6 | `examples/010_external_executable_component` | External process execution through stdin/stdout JSON. |
+| 7 | `examples/011_solver_boundary_component` | Internal iterative feedback inside an explicit solver boundary. |
+| 8 | `examples/012_unit_conversion_component` | Explicit connection-level linear unit conversion and value-type checks. |
+| 9 | `examples/013_composite_system` | Nested systems behind explicit public IO boundaries. |
+| 10 | `examples/004_stateful_controller` | Controller state, native `run-series`, and serve-mode repeated evaluations. |
+| 11 | `examples/005_chiller_plant_like_system` | Plant composition, dataset validation, parameter sets, calibration, and time-column validation rows. |
+| 12 | `examples/006_optimization_case` | Grid-search optimization and SDK-style external search scripting. |
+| 13 | `examples/007_runtime_only_package` | Runtime-only delivery shape and exported-package command style. |
+| 14 | `examples/014_ahu_state_ann` | Feature mapping, ML component metadata, model assets, and export checksums. |
+| 15 | `examples/015_rc_ahu_ann_composition` | RC zone load, ANN surrogate AHU, validation, calibration, optimization, SDK use, and model replacement. |
 
 ## Regression Role
 

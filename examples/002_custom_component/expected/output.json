@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "outputs": {
+    "mixed_air_temp_c": 16.9,
+    "outdoor_airflow_kg_s": 0.75,
+    "return_airflow_kg_s": 1.75,
+    "mixed_air_co2_ppm": 756.0,
+    "effective_outdoor_air_fraction": 0.3
+  }
+}

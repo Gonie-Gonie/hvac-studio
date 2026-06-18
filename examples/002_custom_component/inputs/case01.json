@@ -1,0 +1,14 @@
+{
+  "inputs": {
+    "outdoor_air_temp_c": 5.0,
+    "return_air_temp_c": 22.0,
+    "outdoor_air_fraction": 0.3,
+    "supply_airflow_kg_s": 2.5,
+    "outdoor_air_co2_ppm": 420.0,
+    "return_air_co2_ppm": 900.0
+  },
+  "context": {
+    "time": 0,
+    "dt": 60
+  }
+}

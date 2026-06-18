@@ -23,8 +23,21 @@ function Resolve-RepoTarget {
   return $Resolved
 }
 
+function ConvertTo-RepoRelative {
+  param([Parameter(Mandatory = $true)][string]$Path)
+
+  if ($Path.Length -eq $RepoRoot.Length) {
+    return '.'
+  }
+  return $Path.Substring($RepoRoot.Length).TrimStart(
+    [System.IO.Path]::DirectorySeparatorChar,
+    [System.IO.Path]::AltDirectorySeparatorChar
+  )
+}
+
 $Removed = New-Object System.Collections.Generic.List[string]
 $Skipped = New-Object System.Collections.Generic.List[string]
+$RemovedPythonCaches = New-Object System.Collections.Generic.List[string]
 
 foreach ($RelativePath in $Targets) {
   $Resolved = Resolve-RepoTarget -RelativePath $RelativePath
@@ -42,10 +55,37 @@ foreach ($RelativePath in $Targets) {
   $Removed.Add($RelativePath)
 }
 
+$PythonCaches = @(Get-ChildItem -LiteralPath $RepoRoot -Recurse -Directory -Filter '__pycache__' -ErrorAction SilentlyContinue | Sort-Object FullName)
+foreach ($PythonCache in $PythonCaches) {
+  $Resolved = (Resolve-Path -LiteralPath $PythonCache.FullName).Path
+  if (-not $Resolved.StartsWith($RepoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "refusing cleanup outside repo: $Resolved"
+  }
+
+  $RelativePath = ConvertTo-RepoRelative -Path $Resolved
+  if ($DryRun) {
+    $RemovedPythonCaches.Add("$RelativePath (dry run)")
+    continue
+  }
+
+  Remove-Item -LiteralPath $Resolved -Recurse -Force
+  $RemovedPythonCaches.Add($RelativePath)
+}
+
 if ($Removed.Count -gt 0) {
   Write-Host "removed generated paths: $($Removed -join ', ')"
 } else {
   Write-Host 'no generated paths to remove'
+}
+
+if ($RemovedPythonCaches.Count -gt 0) {
+  if ($DryRun) {
+    Write-Host "would remove Python cache directories: $($RemovedPythonCaches.Count)"
+  } else {
+    Write-Host "removed Python cache directories: $($RemovedPythonCaches.Count)"
+  }
+} else {
+  Write-Host 'no Python cache directories to remove'
 }
 
 if ($Skipped.Count -gt 0) {
