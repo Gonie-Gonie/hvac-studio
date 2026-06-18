@@ -88,7 +88,7 @@ func validateSystem(system model.System) error {
 
 func validateComponent(component model.Component) error {
 	switch component.Kind {
-	case "user_python", "builtin_go", "external_exe", "future_compiled", "composite":
+	case "user_python", "external_exe", "composite":
 	default:
 		if strings.TrimSpace(component.Kind) == "" {
 			return fmt.Errorf("component %s kind is required", component.ID)

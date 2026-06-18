@@ -16,7 +16,7 @@
     },
     "kind": {
       "type": "string",
-      "enum": ["user_python", "builtin_go", "external_exe", "future_compiled", "composite"]
+      "enum": ["user_python", "external_exe", "composite"]
     },
     "category": {
       "type": "string",

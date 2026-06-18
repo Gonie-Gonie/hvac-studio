@@ -123,6 +123,17 @@ func TestNewIndexRejectsInvalidComponentCategory(t *testing.T) {
 	}
 }
 
+func TestNewIndexRejectsUnsupportedComponentKind(t *testing.T) {
+	graph := validGraph()
+	graph.Components[0].Kind = "builtin_go"
+
+	_, err := NewIndex(graph)
+
+	if err == nil || !strings.Contains(err.Error(), "component gain kind is invalid: builtin_go") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestNewIndexRejectsInvalidComponentSourceLayout(t *testing.T) {
 	graph := validGraph()
 	graph.Components[0].Source = model.ComponentSource{Layout: "managed_region"}
