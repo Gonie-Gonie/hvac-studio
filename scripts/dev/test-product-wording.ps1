@@ -8,7 +8,11 @@ $Forbidden = @(
   @{ Label = 'demo'; Pattern = '\bdemo\b' },
   @{ Label = 'placeholder'; Pattern = '\bplaceholder\b' },
   @{ Label = 'future'; Pattern = '\bfuture\b' },
-  @{ Label = 'dev only'; Pattern = '\bdev[\s_-]+only\b' }
+  @{ Label = 'dev only'; Pattern = '\bdev[\s_-]+only\b' },
+  @{ Label = 'legacy milestone abbreviation'; Pattern = ('\b' + 'M' + 'VP\b') },
+  @{ Label = 'legacy post milestone wording'; Pattern = ('\bpost-' + 'M' + 'VP\b') },
+  @{ Label = 'old alpha baseline 3'; Pattern = ('\balpha' + '\.3\b') },
+  @{ Label = 'old alpha baseline 5'; Pattern = ('\balpha' + '\.5\b') }
 )
 
 $SurfaceRoots = @(

@@ -13,7 +13,7 @@
       "includes_embedded_python": true
     },
     {
-      "id": "windows-amd64-runtime-mvp",
+      "id": "windows-amd64-runtime",
       "artifact": "hvac-studio-runtime-<version>-windows-amd64.zip",
       "entrypoint": "bin/bcs-runner.exe",
       "includes_embedded_python": true
