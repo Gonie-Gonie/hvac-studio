@@ -150,6 +150,9 @@ func TestDatasetPreviewEndpointSuggestsPublicIOMapping(t *testing.T) {
 	if body.Dataset.Summary.RowCount != 3 || len(body.Dataset.Columns) != 6 || len(body.Dataset.PreviewRows) == 0 {
 		t.Fatalf("dataset preview = %#v", body.Dataset)
 	}
+	if body.Dataset.SuggestedTimeColumn != "time" {
+		t.Fatalf("suggested time column = %q", body.Dataset.SuggestedTimeColumn)
+	}
 	if !hasColumnSuggestion(body.Dataset.SuggestedInputs, "building_load_kw", "building_load_kw") {
 		t.Fatalf("input suggestions = %#v", body.Dataset.SuggestedInputs)
 	}
@@ -202,6 +205,9 @@ func TestImportDatasetEndpointCopiesCSVAndCreatesMapping(t *testing.T) {
 	}
 	if len(body.Dataset.ColumnProfiles) != 6 || body.Dataset.ColumnProfiles[0].ValueType != "number" {
 		t.Fatalf("column profiles = %#v", body.Dataset.ColumnProfiles)
+	}
+	if body.Dataset.SuggestedTimeColumn != "time" {
+		t.Fatalf("suggested time column = %q", body.Dataset.SuggestedTimeColumn)
 	}
 	importedBytes, err := os.ReadFile(filepath.Join(projectRoot, "datasets", "imported_plant.csv"))
 	if err != nil {

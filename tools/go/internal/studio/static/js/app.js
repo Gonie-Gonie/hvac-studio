@@ -2762,8 +2762,9 @@ function datasetResultSection(dataset) {
     ["Path", dataset.summary?.relative_path || ""],
     ["Shape", `${dataset.summary?.row_count || 0} rows / ${dataset.summary?.column_count || 0} columns`],
     ["Format", dataset.summary?.format || ""],
+    ["Suggested Time", dataset.suggested_time_column || ""],
     ["SHA256", dataset.summary?.sha256 || ""],
-  ]));
+  ].filter(([, value]) => value)));
   section.append(resultTable("Column Profiles", (dataset.column_profiles || []).map((item) => [
     item.column || "",
     item.value_type || "",
@@ -2797,7 +2798,7 @@ function datasetMappingEditorSection(dataset) {
 
   const timeField = document.createElement("div");
   timeField.className = "mapping-time-field";
-  const timeSelect = columnSelect(dataset.columns || [], firstDatasetColumn(dataset.columns || [], "time", "timestamp"));
+  const timeSelect = columnSelect(dataset.columns || [], dataset.suggested_time_column || firstDatasetColumn(dataset.columns || [], "time", "timestamp"));
   timeSelect.id = "datasetTimeColumnSelect";
   timeSelect.setAttribute("aria-label", "Dataset time column");
   timeField.innerHTML = `<label for="datasetTimeColumnSelect">Time column</label>`;

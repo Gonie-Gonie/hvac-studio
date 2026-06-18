@@ -28,12 +28,13 @@ type DatasetSummary struct {
 }
 
 type DatasetPreview struct {
-	Summary          DatasetSummary      `json:"summary"`
-	Columns          []string            `json:"columns"`
-	ColumnProfiles   []ColumnProfile     `json:"column_profiles,omitempty"`
-	PreviewRows      []map[string]string `json:"preview_rows"`
-	SuggestedInputs  []ColumnSuggestion  `json:"suggested_inputs"`
-	SuggestedOutputs []ColumnSuggestion  `json:"suggested_outputs"`
+	Summary             DatasetSummary      `json:"summary"`
+	Columns             []string            `json:"columns"`
+	SuggestedTimeColumn string              `json:"suggested_time_column,omitempty"`
+	ColumnProfiles      []ColumnProfile     `json:"column_profiles,omitempty"`
+	PreviewRows         []map[string]string `json:"preview_rows"`
+	SuggestedInputs     []ColumnSuggestion  `json:"suggested_inputs"`
+	SuggestedOutputs    []ColumnSuggestion  `json:"suggested_outputs"`
 }
 
 type ColumnProfile struct {
@@ -166,12 +167,13 @@ func datasetPreview(loaded *project.LoadedProject, relativePath string) (Dataset
 	}
 	system := entrySystem(loaded)
 	return DatasetPreview{
-		Summary:          summary,
-		Columns:          columns,
-		ColumnProfiles:   inferColumnProfiles(columns, rows),
-		PreviewRows:      rows,
-		SuggestedInputs:  columnSuggestions(system.PublicInputs, columns),
-		SuggestedOutputs: columnSuggestions(system.PublicOutputs, columns),
+		Summary:             summary,
+		Columns:             columns,
+		SuggestedTimeColumn: suggestedTimeColumn(columns),
+		ColumnProfiles:      inferColumnProfiles(columns, rows),
+		PreviewRows:         rows,
+		SuggestedInputs:     columnSuggestions(system.PublicInputs, columns),
+		SuggestedOutputs:    columnSuggestions(system.PublicOutputs, columns),
 	}, nil
 }
 
@@ -360,6 +362,24 @@ func columnSuggestions(refs []model.PublicNodeRef, columns []string) []ColumnSug
 		})
 	}
 	return suggestions
+}
+
+func suggestedTimeColumn(columns []string) string {
+	for _, candidate := range []string{"time", "timestamp", "datetime", "date", "timestep", "step"} {
+		normalizedCandidate := normalizeColumnName(candidate)
+		for _, column := range columns {
+			if normalizeColumnName(column) == normalizedCandidate {
+				return column
+			}
+		}
+	}
+	for _, column := range columns {
+		normalized := normalizeColumnName(column)
+		if strings.Contains(normalized, "timestamp") || strings.Contains(normalized, "datetime") || strings.Contains(normalized, "time") {
+			return column
+		}
+	}
+	return ""
 }
 
 func matchColumn(ref model.PublicNodeRef, columns []string) string {
