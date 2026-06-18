@@ -2807,7 +2807,14 @@ function datasetMappingEditorSection(dataset) {
 
   block.append(validationMappingEditorTable("Public Inputs", "input", dataset.suggested_inputs || [], dataset.columns || []));
   block.append(validationMappingEditorTable("Observed Outputs", "output", dataset.suggested_outputs || [], dataset.columns || []));
+  const samplePreview = datasetSampleRowPreview(dataset);
+  block.append(samplePreview);
   block.append(datasetUnitHintTable(dataset));
+  block.addEventListener("change", (event) => {
+    if (event.target?.matches("[data-validation-direction], #datasetTimeColumnSelect")) {
+      updateSampleRowPreview(dataset, samplePreview);
+    }
+  });
   return block;
 }
 
@@ -2844,6 +2851,57 @@ function validationMappingEditorTable(title, direction, suggestions, columns) {
     tbody.append(row);
   }
   return wrapper;
+}
+
+function datasetSampleRowPreview(dataset) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "mapping-editor-table sample-row-preview";
+  wrapper.innerHTML = `
+    <div class="result-block-subtitle">Sample Row Preview</div>
+    <table class="result-table">
+      <thead><tr><th>Role</th><th>Public ID</th><th>Dataset Column</th><th>Sample Value</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  `;
+  queueMicrotask(() => updateSampleRowPreview(dataset, wrapper));
+  return wrapper;
+}
+
+function updateSampleRowPreview(dataset, wrapper) {
+  const tbody = wrapper.querySelector("tbody");
+  if (!tbody) return;
+  renderSampleRowPreview(dataset, tbody, wrapper.closest(".dataset-mapping-editor") || document);
+}
+
+function renderSampleRowPreview(dataset, tbody, root) {
+  const sample = dataset.preview_rows?.[0] || {};
+  const rows = [];
+  const timeColumn = root.querySelector("#datasetTimeColumnSelect")?.value || "";
+  if (timeColumn) {
+    rows.push({ role: "time", publicID: "context.time", column: timeColumn, value: sample[timeColumn] ?? "" });
+  }
+  root.querySelectorAll("[data-validation-direction]").forEach((select) => {
+    const direction = select.dataset.validationDirection === "output" ? "observed output" : "public input";
+    const column = select.value || "";
+    rows.push({
+      role: direction,
+      publicID: select.dataset.publicId || "",
+      column: column || "unmapped",
+      value: column ? sample[column] ?? "" : "",
+    });
+  });
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-cell">No mapped sample values</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((row) => `
+    <tr class="${row.column === "unmapped" ? "mapping-missing" : ""}">
+      <td>${escapeHTML(row.role)}</td>
+      <td>${escapeHTML(row.publicID)}</td>
+      <td>${escapeHTML(row.column)}</td>
+      <td>${escapeHTML(row.value)}</td>
+    </tr>
+  `).join("");
 }
 
 function datasetUnitHintTable(dataset) {

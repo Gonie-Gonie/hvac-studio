@@ -479,6 +479,8 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("datasetMappingEditorSection")) ||
 		!bytes.Contains(body, []byte("datasetTimeColumnSelect")) ||
 		!bytes.Contains(body, []byte("suggested_time_column")) ||
+		!bytes.Contains(body, []byte("datasetSampleRowPreview")) ||
+		!bytes.Contains(body, []byte("Sample Row Preview")) ||
 		!bytes.Contains(body, []byte("collectValidationColumnMap")) ||
 		!bytes.Contains(body, []byte("unit_hints")) {
 		t.Fatalf("module entrypoint did not expose dataset mapping editor")

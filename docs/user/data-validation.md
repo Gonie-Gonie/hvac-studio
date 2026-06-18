@@ -16,10 +16,11 @@ In Studio, open the Artifacts workspace, enter a local CSV path, choose the
 delimiter and encoding options, and select `Import Data`. Studio copies the CSV
 into the project `datasets/` folder, normalizes it to the runner CSV format,
 shows a header preview, infers basic column types, records the dataset SHA256
-checksum, and suggests public input/output column matches. The dataset preview
-includes a mapping editor for time column, public input columns, observed output
-columns, and column unit hints. Select `Create Mapping` from the dataset preview
-to save a validation mapping without editing JSON.
+checksum, suggests a time column, and suggests public input/output column
+matches. The dataset preview includes a mapping editor for time column, public
+input columns, observed output columns, column unit hints, and a sample row
+preview of the selected mappings. Select `Create Mapping` from the dataset
+preview to save a validation mapping without editing JSON.
 
 The saved artifacts use CSV datasets and mapping files. See `examples/005_chiller_plant_like_system`:
 
