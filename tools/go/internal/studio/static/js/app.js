@@ -5669,7 +5669,11 @@ function sourceIssueRow(problem) {
     button.title = quickFix.title;
     button.addEventListener("click", (event) => {
       event.stopPropagation();
-      insertSourceText(quickFix.snippet);
+      if (quickFix.apply) {
+        quickFix.apply();
+      } else {
+        insertSourceText(quickFix.snippet);
+      }
     });
     row.append(button);
   }
@@ -5712,7 +5716,68 @@ function sourceQuickFixForProblem(problem, component) {
       snippet: stepSnippet(component, pythonInputBindings(component)),
     };
   }
+  match = message.match(/^(parameter|state) reference is not in component contract: (.+)$/);
+  if (match && problem.line && problem.column) {
+    const scope = match[1];
+    const missingName = match[2];
+    const candidates = scope === "parameter"
+      ? parameterSourceItems(component).map((item) => item.name)
+      : stateSourceItems(component).map((item) => item.name);
+    const replacement = closestSourceName(missingName, candidates);
+    if (!replacement) return null;
+    return {
+      title: `Replace ${scope} reference with ${replacement}`,
+      apply: () => replaceSourceIssueText(problem, missingName, replacement),
+    };
+  }
   return null;
+}
+
+function closestSourceName(name, candidates) {
+  const source = String(name || "").toLowerCase();
+  if (!source || !candidates.length) return "";
+  let best = "";
+  let bestDistance = Infinity;
+  for (const candidate of candidates) {
+    const target = String(candidate || "");
+    const distance = editDistance(source, target.toLowerCase());
+    if (distance < bestDistance || (distance === bestDistance && target.localeCompare(best) < 0)) {
+      best = target;
+      bestDistance = distance;
+    }
+  }
+  const limit = Math.max(1, Math.ceil(Math.max(source.length, best.length) * 0.4));
+  return bestDistance <= limit ? best : "";
+}
+
+function editDistance(left, right) {
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= left.length; i += 1) {
+    let diagonal = previous[0];
+    previous[0] = i;
+    for (let j = 1; j <= right.length; j += 1) {
+      const saved = previous[j];
+      const cost = left[i - 1] === right[j - 1] ? 0 : 1;
+      previous[j] = Math.min(previous[j] + 1, previous[j - 1] + 1, diagonal + cost);
+      diagonal = saved;
+    }
+  }
+  return previous[right.length];
+}
+
+function replaceSourceIssueText(problem, expected, replacement) {
+  const component = componentById(problem.component_id || state.selectedComponentId);
+  const source = component ? state.sourceByComponent[component.id] : null;
+  const editor = el("sourceEditor") || el("pythonPanel");
+  if (!component || !source || source.read_only || !isWorkspaceProject() || !editor || editor.readOnly) return;
+  const start = sourceOffsetForLineColumn(editor.value, problem.line, problem.column);
+  const end = start + expected.length;
+  if (editor.value.slice(start, end) !== expected) return;
+  editor.value = `${editor.value.slice(0, start)}${replacement}${editor.value.slice(end)}`;
+  editor.selectionStart = editor.selectionEnd = start + replacement.length;
+  updateSourceDraftFromEditor(editor);
+  hideSourceCompletionPanel();
+  editor.focus();
 }
 
 function focusSourceIssue(problem) {
