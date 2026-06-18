@@ -38,6 +38,7 @@ Update that file deliberately when the project decides to move toolchains.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-fast.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\clean-generated.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\run-runner.ps1 validate --project .\examples\001_scalar_component\project.bcsproj
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\freeze-project-python.ps1 -Project .\examples\001_scalar_component\project.bcsproj
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\run-studio.ps1
@@ -46,6 +47,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\run-studio.ps1
 `freeze-project-python.ps1` writes the project Python package snapshot to the project's declared `environment.lockfile`, or to `requirements.lock.txt` when the project has not declared one yet.
 
 `run-studio.ps1` opens the Wails Studio desktop app by default. Add `-Server` to run only the local HTTP API for automation.
+
+`clean-generated.ps1` removes transient local outputs such as `artifacts/`, `dist/build/`, `dist/docs/`, and `.tmp/` while preserving release zip files already written under `dist/`.
 
 ## Documentation Screenshots
 
