@@ -1576,21 +1576,37 @@ function stateDefinitionBlock(component) {
   const form = document.createElement("div");
   form.className = "connection-form state-form";
   const name = document.createElement("input");
+  name.id = "newStateName";
   name.placeholder = "state name";
   name.setAttribute("aria-label", "State name");
   const initial = document.createElement("input");
+  initial.id = "newStateInitial";
   initial.placeholder = "initial";
   initial.setAttribute("aria-label", "State initial value");
+  const unit = document.createElement("input");
+  unit.id = "newStateUnit";
+  unit.placeholder = "unit";
+  unit.setAttribute("aria-label", "State unit");
+  const description = document.createElement("input");
+  description.id = "newStateDescription";
+  description.placeholder = "description";
+  description.setAttribute("aria-label", "State description");
   const button = document.createElement("button");
   button.type = "button";
   button.textContent = "Add State";
-  button.addEventListener("click", () => addStateDefinition(component.id, name.value, initial.value));
-  for (const input of [name, initial]) {
+  button.addEventListener("click", () => addStateDefinition(component.id, name.value, initial.value, {
+    unit: unit.value,
+    description: description.value,
+  }));
+  for (const input of [name, initial, unit, description]) {
     input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") addStateDefinition(component.id, name.value, initial.value);
+      if (event.key === "Enter") addStateDefinition(component.id, name.value, initial.value, {
+        unit: unit.value,
+        description: description.value,
+      });
     });
   }
-  form.append(name, initial, button);
+  form.append(name, initial, unit, description, button);
   block.append(form);
   return block;
 }
@@ -7647,7 +7663,7 @@ async function deleteParameterDefinition(componentID, name) {
   }
 }
 
-async function addStateDefinition(componentID, name, initial) {
+async function addStateDefinition(componentID, name, initial, options = {}) {
   name = (name || "").trim();
   if (!componentID || !name || !isWorkspaceProject()) {
     showInlineProblem("Select a component and state name");
@@ -7657,10 +7673,13 @@ async function addStateDefinition(componentID, name, initial) {
     showInlineProblem("State name must start with a letter or underscore and contain only letters, numbers, and underscores");
     return;
   }
-  await saveStateDefinitionPayload(componentID, name, {
+  const definition = {
     display_name: displayNameFromIdentifier(name),
     initial: (initial || "").trim() === "" ? 0.0 : coerceParameter(initial),
-  }, `State definition added: ${componentID}.${name}`);
+  };
+  if ((options.unit || "").trim() !== "") definition.unit = options.unit.trim();
+  if ((options.description || "").trim() !== "") definition.description = options.description.trim();
+  await saveStateDefinitionPayload(componentID, name, definition, `State definition added: ${componentID}.${name}`);
 }
 
 async function saveStateDefinition(componentID, name, row) {

@@ -8,6 +8,10 @@ Workspace component parameters can be added, edited, or deleted in the Parameter
 
 The Inspector edits parameter definitions for the selected component. Definition fields include display name, current value, default, unit, role, bounds, group, description, and visibility. For generated-wrapper components, Studio also keeps `components/<component_id>/component.json` synchronized with the edited contract.
 
+The Inspector also creates state definitions with initial value, unit, and
+description fields so stateful generated-wrapper components can document their
+carryover state without editing JSON.
+
 Bounds are numeric when provided, and Studio rejects `min > max` before saving
 the component contract. Calibration and optimization setup creation use these
 bounds to build candidate grids for parameters with `calibration_target` or

@@ -640,6 +640,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("stateDefinitionBlock")) {
 		t.Fatalf("module entrypoint did not include inspector state definition editing")
 	}
+	if !bytes.Contains(body, []byte("newStateUnit")) || !bytes.Contains(body, []byte("newStateDescription")) {
+		t.Fatalf("module entrypoint did not include state unit/description creation fields")
+	}
 	if !bytes.Contains(body, []byte("/api/project/component-contract")) {
 		t.Fatalf("module entrypoint did not call component contract endpoint")
 	}
