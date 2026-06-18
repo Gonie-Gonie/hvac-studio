@@ -48,6 +48,9 @@ function Test-ManualSourceCoverage {
       $Missing.Add($ManualSource)
     }
   }
+  if (-not $ManualScript.Contains('docs\status.md')) {
+    $Missing.Add('docs\status.md')
+  }
 
   if ($Missing.Count -gt 0) {
     throw "manual source list is missing user guide pages:`n$($Missing -join "`n")"

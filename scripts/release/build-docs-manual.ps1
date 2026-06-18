@@ -20,6 +20,7 @@ $StatusPath = Join-Path $OutputRoot 'manual-build.json'
 
 $Sources = @(
   'docs\index.md',
+  'docs\status.md',
   'docs\user\index.md',
   'docs\user\quick-start.md',
   'docs\user\tutorials.md',
