@@ -219,6 +219,21 @@ func pythonMethodSignatureMatches(actual []string, expected []string) bool {
 
 func sourceContractReferenceProblems(component model.Component, content string, relativePath string) []Problem {
 	problems := []Problem{}
+	inputNames := sourceContractNodeNames(component.Nodes.Inputs)
+	for _, ref := range sourceNamespaceReferences(content, "inputs") {
+		if _, ok := inputNames[ref.Name]; ok {
+			continue
+		}
+		problems = append(problems, Problem{
+			Severity:    "warning",
+			Message:     fmt.Sprintf("input node reference is not in component contract: %s", ref.Name),
+			ComponentID: component.ID,
+			NodeID:      ref.Name,
+			Source:      relativePath,
+			Line:        ref.Line,
+			Column:      ref.Column,
+		})
+	}
 	for _, node := range component.Nodes.Inputs {
 		if node.IsRequired() && !sourceReferencesInput(content, node.ID) {
 			problems = append(problems, Problem{
@@ -229,6 +244,21 @@ func sourceContractReferenceProblems(component model.Component, content string, 
 				Line:        sourceContractHintLine(component, content),
 			})
 		}
+	}
+	outputNames := sourceContractNodeNames(component.Nodes.Outputs)
+	for _, ref := range sourceReturnOutputKeyReferences(content) {
+		if _, ok := outputNames[ref.Name]; ok {
+			continue
+		}
+		problems = append(problems, Problem{
+			Severity:    "warning",
+			Message:     fmt.Sprintf("output node reference is not in component contract: %s", ref.Name),
+			ComponentID: component.ID,
+			NodeID:      ref.Name,
+			Source:      relativePath,
+			Line:        ref.Line,
+			Column:      ref.Column,
+		})
 	}
 	for _, node := range component.Nodes.Outputs {
 		if !sourceReferencesQuotedName(content, node.ID) {
@@ -271,6 +301,14 @@ func sourceContractReferenceProblems(component model.Component, content string, 
 		})
 	}
 	return problems
+}
+
+func sourceContractNodeNames(nodes []model.Node) map[string]struct{} {
+	names := map[string]struct{}{}
+	for _, node := range nodes {
+		names[node.ID] = struct{}{}
+	}
+	return names
 }
 
 func sourceContractParameterNames(component model.Component) map[string]struct{} {
@@ -384,6 +422,107 @@ func firstMatchedGroup(match []int, groups ...int) (int, int) {
 		}
 	}
 	return -1, -1
+}
+
+func sourceReturnOutputKeyReferences(content string) []sourceNamespaceReference {
+	returnPattern := regexp.MustCompile(`\breturn\b`)
+	matches := returnPattern.FindAllStringIndex(content, -1)
+	seen := map[string]struct{}{}
+	refs := []sourceNamespaceReference{}
+	for _, match := range matches {
+		braceStart := sourceReturnOutputDictStart(content, match[1])
+		if braceStart < 0 {
+			continue
+		}
+		for _, ref := range sourceDictKeyReferences(content, braceStart) {
+			if _, ok := seen[ref.Name]; ok {
+				continue
+			}
+			seen[ref.Name] = struct{}{}
+			refs = append(refs, ref)
+		}
+	}
+	return refs
+}
+
+func sourceReturnOutputDictStart(content string, index int) int {
+	for index < len(content) {
+		switch content[index] {
+		case ' ', '\t', '\r', '\n', '(':
+			index++
+		case '{':
+			return index
+		default:
+			return -1
+		}
+	}
+	return -1
+}
+
+func sourceDictKeyReferences(content string, braceStart int) []sourceNamespaceReference {
+	if braceStart < 0 || braceStart >= len(content) || content[braceStart] != '{' {
+		return nil
+	}
+	refs := []sourceNamespaceReference{}
+	depth := 1
+	for index := braceStart + 1; index < len(content) && depth > 0; {
+		switch content[index] {
+		case '\'', '"':
+			name, start, end, next, ok := sourceStringLiteralAt(content, index)
+			if !ok {
+				return refs
+			}
+			if depth == 1 && sourceStringIsDictKey(content, next) {
+				refs = append(refs, sourceNamespaceReference{
+					Name:   name,
+					Line:   regexpLine(content, []int{start, end}),
+					Column: regexpColumn(content, start),
+				})
+			}
+			index = next
+		case '{':
+			depth++
+			index++
+		case '}':
+			depth--
+			index++
+		default:
+			index++
+		}
+	}
+	return refs
+}
+
+func sourceStringLiteralAt(content string, quoteIndex int) (string, int, int, int, bool) {
+	if quoteIndex < 0 || quoteIndex >= len(content) {
+		return "", 0, 0, 0, false
+	}
+	quote := content[quoteIndex]
+	if quote != '\'' && quote != '"' {
+		return "", 0, 0, 0, false
+	}
+	for index := quoteIndex + 1; index < len(content); index++ {
+		if content[index] == '\\' {
+			index++
+			continue
+		}
+		if content[index] == quote {
+			return content[quoteIndex+1 : index], quoteIndex + 1, index, index + 1, true
+		}
+	}
+	return "", 0, 0, 0, false
+}
+
+func sourceStringIsDictKey(content string, index int) bool {
+	for index < len(content) {
+		switch content[index] {
+		case ' ', '\t', '\r', '\n':
+			index++
+		default:
+			return content[index] == ':'
+		}
+	}
+	return false
 }
 
 func sourceReferencesQuotedName(content string, id string) bool {

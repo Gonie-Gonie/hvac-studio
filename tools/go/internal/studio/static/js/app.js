@@ -5716,13 +5716,11 @@ function sourceQuickFixForProblem(problem, component) {
       snippet: stepSnippet(component, pythonInputBindings(component)),
     };
   }
-  match = message.match(/^(parameter|state) reference is not in component contract: (.+)$/);
+  match = message.match(/^(input node|output node|parameter|state) reference is not in component contract: (.+)$/);
   if (match && problem.line && problem.column) {
     const scope = match[1];
     const missingName = match[2];
-    const candidates = scope === "parameter"
-      ? parameterSourceItems(component).map((item) => item.name)
-      : stateSourceItems(component).map((item) => item.name);
+    const candidates = sourceReferenceCandidates(scope, component);
     const replacement = closestSourceName(missingName, candidates);
     if (!replacement) return null;
     return {
@@ -5731,6 +5729,21 @@ function sourceQuickFixForProblem(problem, component) {
     };
   }
   return null;
+}
+
+function sourceReferenceCandidates(scope, component) {
+  switch (scope) {
+    case "input node":
+      return (component.nodes?.inputs || []).map((node) => node.id);
+    case "output node":
+      return (component.nodes?.outputs || []).map((node) => node.id);
+    case "parameter":
+      return parameterSourceItems(component).map((item) => item.name);
+    case "state":
+      return stateSourceItems(component).map((item) => item.name);
+    default:
+      return [];
+  }
 }
 
 function closestSourceName(name, candidates) {

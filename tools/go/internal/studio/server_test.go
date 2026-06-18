@@ -357,7 +357,8 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		t.Fatalf("module entrypoint did not include source quick fixes")
 	}
 	if !bytes.Contains(body, []byte("replaceSourceIssueText")) ||
-		!bytes.Contains(body, []byte("closestSourceName")) {
+		!bytes.Contains(body, []byte("closestSourceName")) ||
+		!bytes.Contains(body, []byte("sourceReferenceCandidates")) {
 		t.Fatalf("module entrypoint did not include typo-like source quick fixes")
 	}
 	if !bytes.Contains(body, []byte("stepSnippet")) {
@@ -5665,6 +5666,77 @@ func TestCheckSourceEndpointWarnsAboutUnknownParameterAndStateReferences(t *test
 	}
 	if hasProblemMessageContaining(body.Check.Problems, "state reference is not in component contract: ignored") {
 		t.Fatalf("local state-like variable should not warn: %#v", body.Check.Problems)
+	}
+}
+
+func TestCheckSourceEndpointWarnsAboutUnknownInputAndOutputReferences(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	projectSummary := createWorkspaceProject(t, server, "Source IO Reference Warning Project")
+
+	source := strings.Join([]string{
+		"class ScalarComponent:",
+		"    def evaluate(self, inputs, state, params, context):",
+		"        value = inputs.get(\"valeu\", 0.0)",
+		"        return {\"reslt\": value}, {\"calls\": 1.0}",
+		"",
+	}, "\n")
+	payload, err := json.Marshal(map[string]any{
+		"project_path": projectSummary.ProjectPath,
+		"component_id": "scalar",
+		"content":      source,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/source/check", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Check SourceCheck `json:"check"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !body.Check.OK {
+		t.Fatalf("warnings should not fail source check = %#v", body.Check.Problems)
+	}
+	inputProblem, ok := findProblemMessageContaining(body.Check.Problems, "input node reference is not in component contract: valeu")
+	if !ok {
+		t.Fatalf("input warning missing from %#v", body.Check.Problems)
+	}
+	if inputProblem.Source != "components/scalar.py" || inputProblem.Line != 3 || inputProblem.Column == 0 {
+		t.Fatalf("input problem location = %#v", inputProblem)
+	}
+	outputProblem, ok := findProblemMessageContaining(body.Check.Problems, "output node reference is not in component contract: reslt")
+	if !ok {
+		t.Fatalf("output warning missing from %#v", body.Check.Problems)
+	}
+	if outputProblem.Source != "components/scalar.py" || outputProblem.Line != 4 || outputProblem.Column == 0 {
+		t.Fatalf("output problem location = %#v", outputProblem)
+	}
+	if hasProblemMessageContaining(body.Check.Problems, "output node reference is not in component contract: calls") {
+		t.Fatalf("state return dictionary should not be treated as output keys: %#v", body.Check.Problems)
+	}
+}
+
+func TestSourceReturnOutputKeyReferencesOnlyReadsReturnedOutputDict(t *testing.T) {
+	refs := sourceReturnOutputKeyReferences("def f():\n    return value, state\nCONFIG = {\"reslt\": 1}\n")
+	if len(refs) != 0 {
+		t.Fatalf("non-dict return references = %#v, want none", refs)
+	}
+
+	refs = sourceReturnOutputKeyReferences(strings.Join([]string{
+		"def f():",
+		"    return ({",
+		"        \"reslt\": value,",
+		"    }, {\"calls\": 1.0})",
+		"",
+	}, "\n"))
+	if len(refs) != 1 || refs[0].Name != "reslt" || refs[0].Line != 3 {
+		t.Fatalf("returned output dict references = %#v, want reslt on line 3", refs)
 	}
 }
 
