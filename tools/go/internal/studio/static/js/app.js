@@ -5484,11 +5484,9 @@ function renderSourceContract(component) {
     meta: nodeTypeLabel(node),
     snippet: `${pythonStringLiteral(node.id)}: value`,
   })), component));
-  container.append(sourceReferenceBlock("Parameters", Object.entries(component.parameters || {}).map(([name, value]) => ({
-    name,
-    meta: parameterInputValue(value),
-    snippet: `params.get(${pythonStringLiteral(name)}, ${pythonLiteral(value)})`,
-  })), component));
+  container.append(sourceReferenceBlock("Parameters", parameterSourceItems(component), component));
+  container.append(sourceReferenceBlock("State", stateSourceItems(component), component));
+  container.append(sourceReferenceBlock("Context", contextSourceItems(), component));
   container.append(sourceReferenceBlock("Completions", sourceCompletionItems(component), component));
   const runtimeBlock = sourceRuntimeBlock(component);
   if (runtimeBlock) container.append(runtimeBlock);
@@ -5579,7 +5577,43 @@ function canEditSource(component) {
 }
 
 function nodeTypeLabel(node) {
-  return `${node.value_type || ""} ${node.unit || ""}`.trim() || node.medium || "";
+  return [node.medium || "", node.value_type || "", node.unit || ""].filter(Boolean).join(" / ");
+}
+
+function parameterSourceItems(component) {
+  const definitions = component.parameter_defs || {};
+  const names = new Set([...Object.keys(component.parameters || {}), ...Object.keys(definitions)]);
+  return [...names].sort().map((name) => {
+    const definition = definitions[name] || {};
+    const value = component.parameters?.[name] ?? definition.current ?? definition.default ?? 0.0;
+    return {
+      name,
+      meta: [
+        parameterInputValue(value),
+        definition.unit || "",
+        roleLabel(definition.role || "parameter"),
+      ].filter(Boolean).join(" / "),
+      snippet: `params.get(${pythonStringLiteral(name)}, ${pythonLiteral(value)})`,
+    };
+  });
+}
+
+function stateSourceItems(component) {
+  return Object.entries(component.state_defs || {})
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([name, definition]) => ({
+      name,
+      meta: [definition.unit || "", "state"].filter(Boolean).join(" / "),
+      snippet: `state.get(${pythonStringLiteral(name)}, ${pythonLiteral(definition.initial)})`,
+    }));
+}
+
+function contextSourceItems() {
+  return ["time", "dt"].map((name) => ({
+    name,
+    meta: "context",
+    snippet: `context.get(${pythonStringLiteral(name)}, 0.0)`,
+  }));
 }
 
 function renderSourceCheck(componentID) {
@@ -6686,29 +6720,25 @@ function sourceCompletionItems(component) {
       snippet: `${pythonStringLiteral(node.id)}: value`,
     });
   }
-  const parameterDefinitions = component.parameter_defs || {};
-  const parameterNames = new Set([...Object.keys(component.parameters || {}), ...Object.keys(parameterDefinitions)]);
-  for (const name of [...parameterNames].sort()) {
-    const definition = parameterDefinitions[name] || {};
-    const value = component.parameters?.[name] ?? definition.current ?? definition.default ?? 0.0;
+  for (const item of parameterSourceItems(component)) {
     items.push({
-      name: `params[${pythonStringLiteral(name)}]`,
-      meta: [definition.unit || "", roleLabel(definition.role || "parameter")].filter(Boolean).join(" / "),
-      snippet: `params.get(${pythonStringLiteral(name)}, ${pythonLiteral(value)})`,
+      name: `params[${pythonStringLiteral(item.name)}]`,
+      meta: item.meta,
+      snippet: item.snippet,
     });
   }
-  for (const [name, definition] of Object.entries(component.state_defs || {})) {
+  for (const item of stateSourceItems(component)) {
     items.push({
-      name: `state[${pythonStringLiteral(name)}]`,
-      meta: [definition.unit || "", "state"].filter(Boolean).join(" / "),
-      snippet: `state.get(${pythonStringLiteral(name)}, ${pythonLiteral(definition.initial)})`,
+      name: `state[${pythonStringLiteral(item.name)}]`,
+      meta: item.meta,
+      snippet: item.snippet,
     });
   }
-  for (const name of ["time", "dt"]) {
+  for (const item of contextSourceItems()) {
     items.push({
-      name: `context[${pythonStringLiteral(name)}]`,
-      meta: "context",
-      snippet: `context.get(${pythonStringLiteral(name)}, 0.0)`,
+      name: `context[${pythonStringLiteral(item.name)}]`,
+      meta: item.meta,
+      snippet: item.snippet,
     });
   }
   return items;

@@ -330,6 +330,11 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("sourceCompletionItems")) {
 		t.Fatalf("module entrypoint did not include contract-derived source completion items")
 	}
+	if !bytes.Contains(body, []byte("parameterSourceItems")) ||
+		!bytes.Contains(body, []byte("stateSourceItems")) ||
+		!bytes.Contains(body, []byte("contextSourceItems")) {
+		t.Fatalf("module entrypoint did not include state/context source reference inserts")
+	}
 	if !bytes.Contains(body, []byte("bracketCheck")) {
 		t.Fatalf("module entrypoint did not include bracket status checking")
 	}
