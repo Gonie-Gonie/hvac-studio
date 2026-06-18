@@ -8,8 +8,8 @@ button beside the workspace tabs when you want the matching local reference page
 ![Code workspace with Python source, runtime contract, and contract-aware insert helpers](assets/tutorials/studio-code.png)
 
 1. Create or copy a workspace project.
-2. Select a component in the Project tree or System canvas.
-3. Open the Code workspace.
+2. Create a component from the Project panel or select one in the Project tree.
+3. Let Studio open the Code workspace for the selected component.
 4. Edit the component source inside the declared contract.
 5. Use source check feedback before saving and running.
 

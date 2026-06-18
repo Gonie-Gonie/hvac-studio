@@ -4,7 +4,23 @@ Use components when you need to add a new calculation unit to a project.
 
 ## Current Studio Behavior
 
-Workspace projects can create a Python component template from the Project panel by entering a component name, selecting a template, and pressing New Component. If the name is left blank, Studio uses the selected template name and the project API derives a stable, collision-safe component ID. Use New ML Component as the direct path for an ML Inference component; it selects the ML template, creates the wrapper and model/schema assets, and records `ml_metadata` automatically. Studio reads the selected template manifest and Python source from `templates/components/<template>/`, then writes:
+Workspace projects can create a Python component template from the Project panel
+by entering a component name, selecting a template, and pressing New Component.
+If the name is left blank, Studio uses the selected template name and the
+project API derives a stable, collision-safe component ID.
+
+Component IDs are generated from the display name by using a lowercase
+identifier form, replacing separators with underscores, and appending `_2`,
+`_3`, and so on when an ID already exists. The display name stays as entered,
+while the generated ID becomes the stable reference used by source folders,
+Python class paths, connections, records, and exports.
+
+After creation, Studio selects the new component and opens the Code workspace so
+the editable function body is the next step. Use New ML Component as the direct
+path for an ML Inference component; it selects the ML template, creates the
+wrapper and model/schema assets, and records `ml_metadata` automatically. Studio
+reads the selected template manifest and Python source from
+`templates/components/<template>/`, then writes:
 
 ```text
 graph.json
