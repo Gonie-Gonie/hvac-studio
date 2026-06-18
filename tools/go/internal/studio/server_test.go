@@ -234,6 +234,18 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	configResponse := httptest.NewRecorder()
+	configRequest := httptest.NewRequest(http.MethodGet, "/js/workspace-config.js", nil)
+
+	server.Handler().ServeHTTP(configResponse, configRequest)
+
+	if configResponse.Code != http.StatusOK {
+		t.Fatalf("config status = %d body=%s", configResponse.Code, configResponse.Body.String())
+	}
+	configBody, err := io.ReadAll(configResponse.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
 		t.Fatalf("module entrypoint did not contain expected imports")
 	}
@@ -710,7 +722,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(body, []byte("/api/project/components/ml-assets")) ||
 		!bytes.Contains(body, []byte("/api/project/components/ml-schema-nodes")) ||
 		!bytes.Contains(body, []byte("Apply Schema Nodes")) ||
-		!bytes.Contains(body, []byte("input_scaler_file")) ||
+		!bytes.Contains(configBody, []byte("input_scaler_file")) ||
 		!bytes.Contains(body, []byte("fileToBase64")) {
 		t.Fatalf("module entrypoint did not include ML asset import editing")
 	}

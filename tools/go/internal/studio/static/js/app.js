@@ -10,59 +10,22 @@ import {
 import { renderExportWorkspace } from "./export-workspace.js";
 import { renderRunOutputWorkspace } from "./run-output.js";
 import { state } from "./state.js";
-
-const CANVAS_NODE_WIDTH = 300;
-const CANVAS_NODE_HEIGHT = 220;
-const CANVAS_NODE_ANCHOR_Y = 92;
-const CANVAS_NODE_FIRST_PORT_Y = 84;
-const CANVAS_NODE_PORT_GAP = 42;
-const CANVAS_COLUMN_GAP = 370;
-const CANVAS_ROW_GAP = 250;
-const CANVAS_PADDING = 96;
-const COMPONENT_CATEGORIES = [
-  ["", "Any category"],
-  ["physical_component", "Physical Component"],
-  ["controller", "Controller"],
-  ["data_source", "Data Source"],
-  ["data_sink", "Data Sink"],
-  ["utility", "Utility"],
-  ["solver", "Solver"],
-  ["composite_wrapper", "Composite Wrapper"],
-];
-const EXECUTION_MODES = [
-  ["", "Any mode"],
-  ["step", "Step"],
-  ["vectorized", "Vectorized"],
-  ["external_executable", "External Executable"],
-  ["initialization_only", "Initialization Only"],
-];
-const ML_MODEL_FORMATS = ["custom", "pickle", "joblib", "onnx", "torch", "tensorflow"];
-const ML_ASSET_FIELDS = [
-  ["model_file", "Model File"],
-  ["input_scaler_file", "Input Scaler"],
-  ["output_scaler_file", "Output Scaler"],
-  ["feature_schema_file", "Feature Schema"],
-  ["target_schema_file", "Target Schema"],
-  ["training_metadata_file", "Training Metadata"],
-  ["validation_report_file", "Validation Report"],
-];
-const UNIT_CONVERSION_PRESETS = [
-  ["custom", "Custom", null],
-  ["w_to_kw", "W to kW", { factor: 0.001, offset: 0, description: "Convert W to kW." }],
-  ["kw_to_w", "kW to W", { factor: 1000, offset: 0, description: "Convert kW to W." }],
-  ["degc_to_k", "degC to K", { factor: 1, offset: 273.15, description: "Convert degC to K." }],
-  ["kgs_to_kgh", "kg/s to kg/h", { factor: 3600, offset: 0, description: "Convert kg/s to kg/h." }],
-  ["fraction_to_percent", "fraction to percent", { factor: 100, offset: 0, description: "Convert fraction to percent." }],
-];
-const WORKSPACE_HELP = {
-  start: "/docs/user/quick-start.md",
-  canvas: "/docs/user/build-system.md",
-  code: "/docs/user/edit-python-function.md",
-  parameters: "/docs/user/parameter-management.md",
-  artifacts: "/docs/user/how-it-works.md",
-  run: "/docs/user/run-simulation.md",
-  export: "/docs/user/export-runtime.md",
-};
+import {
+  CANVAS_COLUMN_GAP,
+  CANVAS_NODE_ANCHOR_Y,
+  CANVAS_NODE_FIRST_PORT_Y,
+  CANVAS_NODE_HEIGHT,
+  CANVAS_NODE_PORT_GAP,
+  CANVAS_NODE_WIDTH,
+  CANVAS_PADDING,
+  CANVAS_ROW_GAP,
+  COMPONENT_CATEGORIES,
+  EXECUTION_MODES,
+  ML_ASSET_FIELDS,
+  ML_MODEL_FORMATS,
+  UNIT_CONVERSION_PRESETS,
+  WORKSPACE_HELP,
+} from "./workspace-config.js";
 
 function log(message) {
   const time = new Date().toLocaleTimeString();

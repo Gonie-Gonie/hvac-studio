@@ -6,31 +6,36 @@ nav:
   - Home: index.md
   - User Guide:
       - Overview: user/index.md
-      - Screenshot Tutorials: user/tutorials.md
-      - Examples: user/examples.md
-      - Quick Start: user/quick-start.md
-      - Core Concepts: user/core-concepts.md
-      - Concept Map: user/concept-map.md
-      - How It Works: user/how-it-works.md
-      - Create Component: user/create-component.md
-      - Model Replacement: user/model-replacement.md
-      - ML/ANN Component: user/ml-ann-component.md
-      - External Executables: user/external-executables.md
-      - Edit Python Function: user/edit-python-function.md
-      - Build System: user/build-system.md
-      - Parameter Management: user/parameter-management.md
-      - Run Simulation: user/run-simulation.md
-      - Data Validation: user/data-validation.md
-      - Calibration: user/calibration.md
-      - Optimization: user/optimization.md
-      - Python SDK: user/python-sdk.md
-      - CLI Runner: user/cli-runner.md
-      - External Engine Protocol: user/external-engine-protocol.md
-      - Export Runtime: user/export-runtime.md
-      - Artifact Compatibility: user/artifact-compatibility.md
-      - Troubleshooting: user/troubleshooting.md
-      - Glossary: user/glossary.md
-  - Project Docs:
+      - First Run:
+          - Quick Start: user/quick-start.md
+          - Screenshot Tutorials: user/tutorials.md
+          - Examples: user/examples.md
+      - Modeling Basics:
+          - Core Concepts: user/core-concepts.md
+          - Concept Map: user/concept-map.md
+          - How It Works: user/how-it-works.md
+          - Glossary: user/glossary.md
+      - Authoring:
+          - Create Component: user/create-component.md
+          - Edit Python Function: user/edit-python-function.md
+          - Build System: user/build-system.md
+          - Parameter Management: user/parameter-management.md
+          - Model Replacement: user/model-replacement.md
+          - ML/ANN Component: user/ml-ann-component.md
+          - External Executables: user/external-executables.md
+      - Workflows:
+          - Run Simulation: user/run-simulation.md
+          - Data Validation: user/data-validation.md
+          - Calibration: user/calibration.md
+          - Optimization: user/optimization.md
+          - Export Runtime: user/export-runtime.md
+          - Artifact Compatibility: user/artifact-compatibility.md
+          - Troubleshooting: user/troubleshooting.md
+      - Integration:
+          - Python SDK: user/python-sdk.md
+          - CLI Runner: user/cli-runner.md
+          - External Engine Protocol: user/external-engine-protocol.md
+  - Maintainer Docs:
       - Setup: setup.md
       - Release Process: release.md
       - Release Trust: release-trust.md
@@ -39,5 +44,10 @@ nav:
           - Dependency Notices: legal/dependency-notices.md
           - Support Matrix: legal/support-matrix.md
           - Release Notes Policy: legal/release-notes-policy.md
-      - Development Plan: development-plan.md
       - Repository Design: repository-design.md
+      - Architecture Decisions:
+          - Source Of Truth Files: adr/0001-source-of-truth-files.md
+          - Runner Before GUI: adr/0002-runner-before-gui.md
+          - Public IO Mapping: adr/0003-explicit-public-io-mapping.md
+          - Feedback Loops And Solver Boundaries: adr/0004-feedback-loops-and-solver-boundaries.md
+      - Planning Archive: development-plan.md

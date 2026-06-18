@@ -23,8 +23,7 @@ The Studio UI is intentionally built as the full product workspace first. Indivi
 ## Repository Map
 
 ```text
-app/studio/          Studio GUI direction and installed app notes
-tools/go/            Go runner, compiler, scheduler, runtime packages
+tools/go/            Go runner, compiler, scheduler, runtime packages, and Studio host
 python/bcs_worker/   Python component evaluator process
 python/bcs_sdk/      Python wrapper around the runner
 schema/              JSON schemas for project, graph, protocol, input, output
@@ -89,13 +88,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-fast.ps1
 
 See [docs/setup.md](docs/setup.md) for the repo-local Go/Python layout.
 
-Read the milestone plan:
+Read the maintainer planning archive when changing roadmap or release scope:
 
 ```text
 docs/development-plan.md
 ```
 
-Read the user guide draft:
+Read the user guide:
 
 ```text
 docs/user/index.md

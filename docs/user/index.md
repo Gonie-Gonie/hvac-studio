@@ -22,17 +22,15 @@ It is not a fixed HVAC component library. Users define components, nodes, parame
 
 ## How To Read This Guide
 
-- Start with [Quick Start](quick-start.md) if you want to run a model immediately.
-- Use [Screenshot Tutorials](tutorials.md) when you want a guided map of the current Studio screens.
-- Use [Examples](examples.md) when you want runnable learning projects that also serve as regression assets.
-- Read [Core Concepts](core-concepts.md) before creating custom components.
-- Read [Concept Map](concept-map.md) to see how project files connect to Studio, CLI, SDK, and exports.
-- Read [How It Works](how-it-works.md) to understand why project files, the runner, and Python worker exist.
-- Use [External Executables](external-executables.md) when a component must run through a separate command-line process.
-- Use [Model Replacement](model-replacement.md) when you need to swap a component implementation without overwriting the original source artifact.
-- Use [ML/ANN Component](ml-ann-component.md) when a component should load model assets, feature schemas, and validation metadata.
-- Read [Artifact Compatibility](artifact-compatibility.md) before depending on saved project files across releases.
-- Use [Python SDK](python-sdk.md), [CLI Runner](cli-runner.md), [External Engine Protocol](external-engine-protocol.md), and [Export Runtime](export-runtime.md) when integrating with external tools.
+Use the guide in this order:
+
+1. [Quick Start](quick-start.md), [Screenshot Tutorials](tutorials.md), and [Examples](examples.md) for the first successful run.
+2. [Core Concepts](core-concepts.md), [Concept Map](concept-map.md), and [How It Works](how-it-works.md) before changing a model contract.
+3. [Create Component](create-component.md), [Edit Python Function](edit-python-function.md), [Build System](build-system.md), and [Parameter Management](parameter-management.md) while authoring.
+4. [Run Simulation](run-simulation.md), [Data Validation](data-validation.md), [Calibration](calibration.md), [Optimization](optimization.md), and [Export Runtime](export-runtime.md) for project workflows.
+5. [Python SDK](python-sdk.md), [CLI Runner](cli-runner.md), and [External Engine Protocol](external-engine-protocol.md) for external integration.
+
+Use [Model Replacement](model-replacement.md), [ML/ANN Component](ml-ann-component.md), [External Executables](external-executables.md), [Artifact Compatibility](artifact-compatibility.md), [Troubleshooting](troubleshooting.md), and [Glossary](glossary.md) as reference pages when those topics appear in a workflow.
 
 ## Shared Execution Model
 
