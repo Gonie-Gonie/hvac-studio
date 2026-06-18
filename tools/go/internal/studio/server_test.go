@@ -282,6 +282,18 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	mlInspectorResponse := httptest.NewRecorder()
+	mlInspectorRequest := httptest.NewRequest(http.MethodGet, "/js/ml-inspector.js", nil)
+
+	server.Handler().ServeHTTP(mlInspectorResponse, mlInspectorRequest)
+
+	if mlInspectorResponse.Code != http.StatusOK {
+		t.Fatalf("ml inspector status = %d body=%s", mlInspectorResponse.Code, mlInspectorResponse.Body.String())
+	}
+	mlInspectorBody, err := io.ReadAll(mlInspectorResponse.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
 		t.Fatalf("module entrypoint did not contain expected imports")
 	}
@@ -368,6 +380,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte(`from "./result-ui.js"`)) {
 		t.Fatalf("module entrypoint did not import result UI helpers")
+	}
+	if !bytes.Contains(body, []byte(`from "./ml-inspector.js"`)) {
+		t.Fatalf("module entrypoint did not import ML inspector helpers")
 	}
 	if !bytes.Contains(body, []byte("renderDiagnostics")) || !bytes.Contains(body, []byte("diagnosticsPanel")) {
 		t.Fatalf("module entrypoint did not keep raw result JSON in diagnostics")
@@ -750,24 +765,24 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		t.Fatalf("module entrypoint did not include ML metadata inspector rendering")
 	}
 	if !bytes.Contains(body, []byte("mlValidationReportBlock")) ||
-		!bytes.Contains(body, []byte("ML Validation")) ||
-		!bytes.Contains(body, []byte("model_asset_checksum")) {
+		!bytes.Contains(mlInspectorBody, []byte("ML Validation")) ||
+		!bytes.Contains(mlInspectorBody, []byte("model_asset_checksum")) {
 		t.Fatalf("module entrypoint did not include ML validation report rendering")
 	}
 	if !bytes.Contains(body, []byte("featurePreviewBlock")) ||
-		!bytes.Contains(body, []byte("Feature Preview")) ||
-		!bytes.Contains(body, []byte("Received Features")) {
+		!bytes.Contains(mlInspectorBody, []byte("Feature Preview")) ||
+		!bytes.Contains(mlInspectorBody, []byte("Received Features")) {
 		t.Fatalf("module entrypoint did not include feature preview rendering")
 	}
 	if !bytes.Contains(body, []byte("featureMappingSuggestionBlock")) ||
-		!bytes.Contains(body, []byte("Feature Mapping Suggestion")) ||
-		!bytes.Contains(body, []byte("Connect Feature Mapper")) {
+		!bytes.Contains(mlInspectorBody, []byte("Feature Mapping Suggestion")) ||
+		!bytes.Contains(mlInspectorBody, []byte("Connect Feature Mapper")) {
 		t.Fatalf("module entrypoint did not include feature mapping suggestions")
 	}
 	if !bytes.Contains(body, []byte("mlAssetEditorBlock")) ||
 		!bytes.Contains(body, []byte("/api/project/components/ml-assets")) ||
 		!bytes.Contains(body, []byte("/api/project/components/ml-schema-nodes")) ||
-		!bytes.Contains(body, []byte("Apply Schema Nodes")) ||
+		!bytes.Contains(mlInspectorBody, []byte("Apply Schema Nodes")) ||
 		!bytes.Contains(configBody, []byte("input_scaler_file")) ||
 		!bytes.Contains(body, []byte("fileToBase64")) {
 		t.Fatalf("module entrypoint did not include ML asset import editing")
