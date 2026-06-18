@@ -258,6 +258,18 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	logsResponse := httptest.NewRecorder()
+	logsRequest := httptest.NewRequest(http.MethodGet, "/js/logs-panel.js", nil)
+
+	server.Handler().ServeHTTP(logsResponse, logsRequest)
+
+	if logsResponse.Code != http.StatusOK {
+		t.Fatalf("logs panel status = %d body=%s", logsResponse.Code, logsResponse.Body.String())
+	}
+	logsBody, err := io.ReadAll(logsResponse.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
 		t.Fatalf("module entrypoint did not contain expected imports")
 	}
@@ -463,10 +475,10 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		(!bytes.Contains(body, []byte("Runtime ready")) && !bytes.Contains(startBody, []byte("Runtime ready"))) {
 		t.Fatalf("module entrypoint did not expose runtime progress status")
 	}
-	if !bytes.Contains(body, []byte("logSeverityFilter")) ||
-		!bytes.Contains(body, []byte("downloadLogBundle")) ||
-		!bytes.Contains(body, []byte("exportLogBundleButton")) ||
-		!bytes.Contains(body, []byte("logSourceLocation")) {
+	if !bytes.Contains(logsBody, []byte("logSeverityFilter")) ||
+		!bytes.Contains(logsBody, []byte("downloadLogBundle")) ||
+		!bytes.Contains(logsBody, []byte("exportLogBundleButton")) ||
+		!bytes.Contains(logsBody, []byte("logSourceLocation")) {
 		t.Fatalf("module entrypoint did not expose log filtering and export")
 	}
 	if !bytes.Contains(body, []byte("runInputMeta")) {
