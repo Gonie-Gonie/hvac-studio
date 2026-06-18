@@ -235,6 +235,7 @@ try {
     @{ Name = 'optimization'; Mode = 'artifacts' },
     @{ Name = 'export'; Mode = 'export' },
     @{ Name = 'artifacts'; Mode = 'artifacts' },
+    @{ Name = 'diagnostics'; Mode = 'run:diagnostics' },
     @{ Name = 'error-state'; Mode = 'code' },
     @{ Name = 'empty-state'; Mode = 'run' },
     @{ Name = 'busy-state'; Mode = 'run' }
@@ -273,7 +274,7 @@ try {
   $UniqueHashes = @(Get-ChildItem -LiteralPath $OutputRoot -Filter '*.png' |
     Get-FileHash -Algorithm SHA256 |
     Select-Object -ExpandProperty Hash -Unique)
-  if ($UniqueHashes.Count -lt 6) {
+  if ($UniqueHashes.Count -lt 7) {
     throw "screenshot matrix did not capture distinct workspace states; unique screenshots=$($UniqueHashes.Count)"
   }
 

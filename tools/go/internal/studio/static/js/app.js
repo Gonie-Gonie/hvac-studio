@@ -242,7 +242,7 @@ async function loadProject(projectPath) {
     state.selectedComponentId = components[0].id;
   }
   renderAll();
-  setMode(workspaceModeFromHash());
+  applyWorkspaceHash();
   log(`Opened ${state.detail.project.project_name}`);
 }
 
@@ -8060,7 +8060,7 @@ function parameterUpdatesExcluding(componentID, name) {
   return updates;
 }
 
-function setMode(mode) {
+function setMode(mode, options = {}) {
   if (!WORKSPACE_HELP[mode]) mode = "canvas";
   document.querySelectorAll(".mode-button").forEach((button) => {
     button.classList.toggle("active", button.dataset.mode === mode);
@@ -8069,8 +8069,9 @@ function setMode(mode) {
     view.classList.toggle("active", view.id === `${mode}View`);
   });
   updateWorkspaceHelp(mode);
-  if (window.location.hash !== `#${mode}`) {
-    window.history.replaceState(null, "", `#${mode}`);
+  const hash = options.bottom ? `#${mode}:${options.bottom}` : `#${mode}`;
+  if (window.location.hash !== hash) {
+    window.history.replaceState(null, "", hash);
   }
 }
 
@@ -8082,9 +8083,23 @@ function updateWorkspaceHelp(mode) {
   link.title = `Open ${displayNameFromIdentifier(mode || "workspace")} help`;
 }
 
-function workspaceModeFromHash() {
+function workspaceStateFromHash() {
   const mode = window.location.hash.replace(/^#/, "");
-  return WORKSPACE_HELP[mode] ? mode : "canvas";
+  const [workspaceMode, bottomTab] = mode.split(":");
+  return {
+    mode: WORKSPACE_HELP[workspaceMode] ? workspaceMode : "canvas",
+    bottom: isKnownBottomTab(bottomTab) ? bottomTab : "",
+  };
+}
+
+function applyWorkspaceHash() {
+  const hashState = workspaceStateFromHash();
+  setMode(hashState.mode, { bottom: hashState.bottom });
+  if (hashState.bottom) setBottomTab(hashState.bottom);
+}
+
+function isKnownBottomTab(name) {
+  return Boolean(name) && Array.from(document.querySelectorAll(".bottom-tab")).some((button) => button.dataset.bottom === name);
 }
 
 function setBottomTab(name) {
@@ -8332,7 +8347,7 @@ function bindEvents() {
   document.querySelectorAll(".bottom-tab").forEach((button) => {
     button.addEventListener("click", () => setBottomTab(button.dataset.bottom));
   });
-  window.addEventListener("hashchange", () => setMode(workspaceModeFromHash()));
+  window.addEventListener("hashchange", applyWorkspaceHash);
 }
 
 bindEvents();

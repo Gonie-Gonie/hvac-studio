@@ -392,8 +392,11 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("updateWorkspaceHelp")) {
 		t.Fatalf("module entrypoint did not update contextual help links")
 	}
-	if !bytes.Contains(body, []byte("workspaceModeFromHash")) {
+	if !bytes.Contains(body, []byte("workspaceStateFromHash")) || !bytes.Contains(body, []byte("applyWorkspaceHash")) {
 		t.Fatalf("module entrypoint did not support workspace hash links")
+	}
+	if !bytes.Contains(body, []byte("isKnownBottomTab")) {
+		t.Fatalf("module entrypoint did not support bottom-panel hash links")
 	}
 	if !bytes.Contains(body, []byte("hashchange")) {
 		t.Fatalf("module entrypoint did not react to workspace hash changes")
