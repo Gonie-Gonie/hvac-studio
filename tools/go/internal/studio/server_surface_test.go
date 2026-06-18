@@ -219,6 +219,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	server := newTestServer(t)
 	body := getRouteBody(t, server, "/js/app.js")
 	configBody := getRouteBody(t, server, "/js/workspace-config.js")
+	connectionsBody := getRouteBody(t, server, "/js/connections.js")
 	assertStaticOptions(t, configBody, "component category options", []staticOption{
 		{"physical_component", "Physical Component"},
 		{"controller", "Controller"},
@@ -387,6 +388,17 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte(`from "./ml-inspector.js"`)) {
 		t.Fatalf("module entrypoint did not import ML inspector helpers")
+	}
+	if !bytes.Contains(body, []byte(`from "./connections.js"`)) {
+		t.Fatalf("module entrypoint did not import connection display helpers")
+	}
+	if !bytes.Contains(connectionsBody, []byte("connectionMediumStateForNodes")) ||
+		!bytes.Contains(connectionsBody, []byte("connectionUnitStateForNodes")) ||
+		!bytes.Contains(connectionsBody, []byte("connectionContractLabels")) ||
+		!bytes.Contains(connectionsBody, []byte("value_type")) ||
+		!bytes.Contains(connectionsBody, []byte("unit mismatch")) ||
+		!bytes.Contains(connectionsBody, []byte("medium mismatch")) {
+		t.Fatalf("connection helper module did not expose canvas and Inspector contract labels")
 	}
 	if !bytes.Contains(body, []byte("renderDiagnostics")) || !bytes.Contains(body, []byte("diagnosticsPanel")) {
 		t.Fatalf("module entrypoint did not keep raw result JSON in diagnostics")
@@ -622,6 +634,11 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("connectionMediumBadge")) || !bytes.Contains(body, []byte("medium mismatch")) {
 		t.Fatalf("module entrypoint did not mirror canvas medium status in the Inspector")
+	}
+	if !bytes.Contains(body, []byte("connectionContractBadge")) ||
+		!bytes.Contains(body, []byte("contract-state")) ||
+		!bytes.Contains(body, []byte("value_type")) {
+		t.Fatalf("module entrypoint did not mirror connection unit and value_type status in the Inspector")
 	}
 	if !bytes.Contains(body, []byte("long-path")) {
 		t.Fatalf("module entrypoint did not mark long canvas connection paths")

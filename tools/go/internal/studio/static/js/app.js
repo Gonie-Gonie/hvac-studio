@@ -22,6 +22,14 @@ import {
   formatValue,
   parameterInputValue,
 } from "./format.js";
+import {
+  connectionContractLabels,
+  connectionMediumStateForNodes,
+  connectionStatusLabel as connectionStatusLabelText,
+  connectionUnitConversionSummary as connectionUnitConversionSummaryText,
+  connectionUnitStateForNodes,
+  normalizedUnit,
+} from "./connections.js";
 import { renderLogs as renderLogsView } from "./logs-panel.js";
 import {
   featureMappingSuggestionBlock,
@@ -1028,42 +1036,13 @@ function connectionMarkerID(connection, mediumState) {
 function connectionMediumState(connection) {
   const sourceNode = canvasEndpointNode(connection.from, "output");
   const targetNode = canvasEndpointNode(connection.to, "input");
-  const sourceMedium = sourceNode?.medium || "";
-  const targetMedium = targetNode?.medium || "";
-  const normalizedSource = normalizedCanvasMedium(sourceMedium);
-  const normalizedTarget = normalizedCanvasMedium(targetMedium);
-  let status = "ok";
-  if (!canvasMediumCompatible(sourceMedium, targetMedium)) {
-    if (connection.allow_medium_mismatch) {
-      status = "override";
-    } else if (normalizedSource === "signal" && normalizedTarget && normalizedTarget !== "signal") {
-      status = "warning";
-    } else {
-      status = "error";
-    }
-  }
-  const label = sourceMedium && targetMedium && normalizedSource !== normalizedTarget
-    ? `${sourceMedium}->${targetMedium}`
-    : sourceMedium || targetMedium || "";
-  return { sourceNode, targetNode, sourceMedium, targetMedium, label, status };
+  return connectionMediumStateForNodes(connection, sourceNode, targetNode);
 }
 
 function canvasEndpointNode(endpoint, direction) {
   const component = componentById(endpoint.component);
   const nodes = direction === "output" ? component?.nodes?.outputs || [] : component?.nodes?.inputs || [];
   return nodes.find((node) => node.id === endpoint.node) || null;
-}
-
-function canvasMediumCompatible(source, target) {
-  const normalizedSource = normalizedCanvasMedium(source);
-  const normalizedTarget = normalizedCanvasMedium(target);
-  if (!normalizedSource || !normalizedTarget) return true;
-  if (normalizedSource === "generic" || normalizedTarget === "generic") return true;
-  return normalizedSource === normalizedTarget;
-}
-
-function normalizedCanvasMedium(value) {
-  return String(value || "").trim().toLowerCase();
 }
 
 function connectionAnnotation(connection, mediumState, route) {
@@ -1074,9 +1053,8 @@ function connectionAnnotation(connection, mediumState, route) {
   const status = connectionStatusLabel(connection, mediumState, route, unitState);
   const latestValue = latest.hasValue ? formatValue(latest.value) : "";
   const secondary = [
-    mediumState.label,
-    unitState.label,
-    unitState.valueTypeLabel,
+    ...connectionContractLabels(mediumState, unitState),
+    unitState.conversionLabel,
     latestValue ? `value ${latestValue}` : "",
     status,
   ].filter(Boolean).join(" / ");
@@ -1101,46 +1079,19 @@ function connectionAnnotation(connection, mediumState, route) {
 function connectionUnitState(connection) {
   const sourceNode = canvasEndpointNode(connection.from, "output");
   const targetNode = canvasEndpointNode(connection.to, "input");
-  const sourceUnit = sourceNode?.unit || "";
-  const targetUnit = targetNode?.unit || "";
-  const sourceValueType = sourceNode?.value_type || "";
-  const targetValueType = targetNode?.value_type || "";
-  const unitMismatch = normalizedUnitLabel(sourceUnit) && normalizedUnitLabel(targetUnit) && normalizedUnitLabel(sourceUnit) !== normalizedUnitLabel(targetUnit);
-  const hasConversion = Boolean(connection.unit_conversion);
-  const label = sourceUnit || targetUnit
-    ? (unitMismatch ? `${sourceUnit || "?"}->${targetUnit || "?"}` : sourceUnit || targetUnit)
-    : "";
-  const valueTypeLabel = sourceValueType || targetValueType
-    ? (sourceValueType && targetValueType && sourceValueType !== targetValueType ? `${sourceValueType}->${targetValueType}` : sourceValueType || targetValueType)
-    : "";
-  let status = "ok";
-  if (hasConversion) status = "converted";
-  else if (unitMismatch) status = "warning";
+  const unitState = connectionUnitStateForNodes(connection, sourceNode, targetNode);
   return {
-    sourceNode,
-    targetNode,
-    sourceUnit,
-    targetUnit,
-    label,
-    valueTypeLabel,
-    status,
-    conversionLabel: hasConversion ? connectionUnitConversionSummary(connection) : "",
+    ...unitState,
+    conversionLabel: connection.unit_conversion ? connectionUnitConversionSummary(connection, unitState) : "",
   };
 }
 
 function normalizedUnitLabel(value) {
-  return String(value || "").trim().toLowerCase();
+  return normalizedUnit(value);
 }
 
 function connectionStatusLabel(connection, mediumState, route, unitState = connectionUnitState(connection)) {
-  if (mediumState.status === "error") return "medium mismatch";
-  if (mediumState.status === "override") return connection.medium_override_reason ? "override" : "medium override";
-  if (mediumState.status === "warning") return "signal warning";
-  if (unitState.status === "converted") return "converted";
-  if (unitState.status === "warning") return "unit mismatch";
-  if (route.backtracking) return "backtracking";
-  if (route.longPath) return "long path";
-  return "";
+  return connectionStatusLabelText(connection, mediumState, route, unitState);
 }
 
 function shortCanvasText(value, maxLength) {
@@ -2060,6 +2011,7 @@ function connectionEditor(targetComponent) {
         : "";
       const unitState = connectionUnitState(connectionRow.connection);
       const mediumValue = connectionMediumBadge(connectionRow.connection);
+      const contractValue = connectionContractBadge(connectionRow.connection, unitState);
       const conversionValue = connectionRow.connection.unit_conversion
         ? `<span class="connection-flow converted">${escapeHTML(connectionUnitConversionSummary(connectionRow.connection))}</span>`
         : (unitState.status === "warning" ? `<span class="connection-flow warning">unit mismatch</span>` : "");
@@ -2070,6 +2022,7 @@ function connectionEditor(targetComponent) {
         <span class="connection-value">
           <span>${escapeHTML(connectionRow.value)}</span>
           ${mediumValue}
+          ${contractValue}
           ${conversionValue}
           ${flowValue}
         </span>
@@ -2131,6 +2084,25 @@ function connectionEditor(targetComponent) {
   form.append(sourceSelect, targetSelect, button);
   block.append(form);
   return block;
+}
+
+function connectionContractBadge(connection, unitState = connectionUnitState(connection)) {
+  const labels = [
+    unitState.label ? `unit ${unitState.label}` : "",
+    unitState.valueTypeLabel ? `value_type ${unitState.valueTypeLabel}` : "",
+  ].filter(Boolean);
+  if (!labels.length) return "";
+  const classes = ["connection-flow", "contract-state"];
+  if (unitState.status === "warning") classes.push("warning");
+  if (unitState.status === "converted") classes.push("converted");
+  const title = [
+    unitState.sourceUnit ? `source unit ${unitState.sourceUnit}` : "",
+    unitState.targetUnit ? `target unit ${unitState.targetUnit}` : "",
+    unitState.sourceValueType ? `source value_type ${unitState.sourceValueType}` : "",
+    unitState.targetValueType ? `target value_type ${unitState.targetValueType}` : "",
+    connection.unit_conversion ? connectionUnitConversionSummary(connection, unitState) : "",
+  ].filter(Boolean).join(" / ");
+  return `<span class="${classes.join(" ")}"${title ? ` title="${escapeAttr(title)}"` : ""}>${escapeHTML(labels.join(" / "))}</span>`;
 }
 
 function connectionMediumBadge(connection) {
@@ -2326,17 +2298,8 @@ function approximatelyEqual(a, b) {
   return Math.abs(Number(a) - Number(b)) < 1e-12;
 }
 
-function connectionUnitConversionSummary(connection) {
-  const conversion = connection.unit_conversion;
-  if (!conversion) return "";
-  const unitState = connectionUnitState(connection);
-  const factor = Number(conversion.factor ?? 1);
-  const offset = Number(conversion.offset ?? 0);
-  const offsetLabel = offset === 0 ? "" : (offset > 0 ? ` + ${formatValue(offset)}` : ` - ${formatValue(Math.abs(offset))}`);
-  return [
-    unitState.label ? `${unitState.label}` : "converted",
-    `x ${formatValue(factor)}${offsetLabel}`,
-  ].filter(Boolean).join(" ");
+function connectionUnitConversionSummary(connection, unitState = connectionUnitState(connection)) {
+  return connectionUnitConversionSummaryText(connection, unitState, formatValue);
 }
 
 function connectionRowsFor(component) {
