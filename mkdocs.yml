@@ -1,6 +1,13 @@
-site_name: HVAC Studio User Guide
+site_name: HVAC Studio Documentation
 docs_dir: docs
 site_dir: dist/docs/site
+exclude_docs: |
+  adr/
+  legal/
+  release.md
+  release-trust.md
+  repository-design.md
+  setup.md
 
 nav:
   - Home: index.md
@@ -36,18 +43,3 @@ nav:
           - Python SDK: user/python-sdk.md
           - CLI Runner: user/cli-runner.md
           - External Engine Protocol: user/external-engine-protocol.md
-  - Maintainer Docs:
-      - Setup: setup.md
-      - Release Process: release.md
-      - Release Trust: release-trust.md
-      - Legal Notices:
-          - License Notices: legal/license-notices.md
-          - Dependency Notices: legal/dependency-notices.md
-          - Support Matrix: legal/support-matrix.md
-          - Release Notes Policy: legal/release-notes-policy.md
-      - Repository Design: repository-design.md
-      - Architecture Decisions:
-          - Source Of Truth Files: adr/0001-source-of-truth-files.md
-          - Runner Before GUI: adr/0002-runner-before-gui.md
-          - Public IO Mapping: adr/0003-explicit-public-io-mapping.md
-          - Feedback Loops And Solver Boundaries: adr/0004-feedback-loops-and-solver-boundaries.md
