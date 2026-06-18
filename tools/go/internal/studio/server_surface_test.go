@@ -251,6 +251,23 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		`"optimization_variable"`,
 		`"derived"`,
 	})
+	assertStaticTokens(t, configBody, "ML model format options", []string{
+		`"pickle"`,
+		`"joblib"`,
+		`"onnx"`,
+		`"torch"`,
+		`"tensorflow"`,
+		`"custom"`,
+	})
+	assertStaticOptions(t, configBody, "ML asset fields", []staticOption{
+		{"model_file", "Model File"},
+		{"input_scaler_file", "Input Scaler"},
+		{"output_scaler_file", "Output Scaler"},
+		{"feature_schema_file", "Feature Schema"},
+		{"target_schema_file", "Target Schema"},
+		{"training_metadata_file", "Training Metadata"},
+		{"validation_report_file", "Validation Report"},
+	})
 	startBody := getRouteBody(t, server, "/js/start-workspace.js")
 	logsBody := getRouteBody(t, server, "/js/logs-panel.js")
 	resultUIBody := getRouteBody(t, server, "/js/result-ui.js")
@@ -793,6 +810,8 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(body, []byte("/api/project/components/ml-assets")) ||
 		!bytes.Contains(body, []byte("/api/project/components/ml-schema-nodes")) ||
 		!bytes.Contains(mlInspectorBody, []byte("Apply Schema Nodes")) ||
+		!bytes.Contains(mlInspectorBody, []byte(`mlMetadataField = "required_packages"`)) ||
+		!bytes.Contains(mlInspectorBody, []byte(`mlMetadataField = "valid_time_resolution"`)) ||
 		!bytes.Contains(configBody, []byte("input_scaler_file")) ||
 		!bytes.Contains(body, []byte("fileToBase64")) {
 		t.Fatalf("module entrypoint did not include ML asset import editing")
