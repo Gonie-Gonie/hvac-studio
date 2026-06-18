@@ -16,6 +16,7 @@ $PortableZip = Join-Path $RepoRoot "dist\hvac-studio-$ResolvedVersion-$RuntimeId
 $InstallerZip = Join-Path $RepoRoot "dist\hvac-studio-$ResolvedVersion-$RuntimeId-installer.zip"
 $RuntimeZip = Join-Path $RepoRoot "dist\hvac-studio-runtime-$ResolvedVersion-$RuntimeId.zip"
 $MacOSZip = Join-Path $RepoRoot "dist\hvac-studio-$ResolvedVersion-macos-universal-experimental.zip"
+$DocsZip = Join-Path $RepoRoot "dist\hvac-studio-docs-$ResolvedVersion.zip"
 
 function Invoke-ReleaseStep {
   param(
@@ -82,7 +83,11 @@ Invoke-ReleaseStep 'Build and smoke-test experimental macOS package' {
   Invoke-CheckedPowerShell -Script (Join-Path $RepoRoot 'scripts\release\test-macos-package.ps1') -Arguments @('-Version', $ResolvedVersion)
 }
 
-foreach ($Artifact in @($PortableZip, $InstallerZip, $RuntimeZip, $MacOSZip)) {
+Invoke-ReleaseStep 'Build and smoke-test documentation package' {
+  Invoke-CheckedPowerShell -Script (Join-Path $RepoRoot 'scripts\release\test-docs-package.ps1') -Arguments @('-Version', $ResolvedVersion)
+}
+
+foreach ($Artifact in @($PortableZip, $InstallerZip, $RuntimeZip, $MacOSZip, $DocsZip)) {
   if (-not (Test-Path -LiteralPath $Artifact)) {
     throw "release candidate artifact was not written: $Artifact"
   }
@@ -94,7 +99,9 @@ Write-Host "portable: $PortableZip"
 Write-Host "installer: $InstallerZip"
 Write-Host "runtime:  $RuntimeZip"
 Write-Host "macOS:    $MacOSZip"
+Write-Host "docs:     $DocsZip"
 Write-Output $PortableZip
 Write-Output $InstallerZip
 Write-Output $RuntimeZip
 Write-Output $MacOSZip
+Write-Output $DocsZip

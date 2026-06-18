@@ -122,6 +122,22 @@ jobs:
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-macos-package.ps1 -PackagePath "${{ steps.macos.outputs.zip_path }}"
 
+      - name: Package documentation
+        id: docs
+        shell: powershell
+        run: |
+          $Output = powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\package-docs.ps1 -Version "${{ steps.version.outputs.version }}"
+          $ZipPath = ($Output | Select-Object -Last 1)
+          if (-not (Test-Path -LiteralPath $ZipPath)) {
+            throw "package not found: $ZipPath"
+          }
+          "zip_path=$ZipPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Test documentation package
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-docs-package.ps1 -Version "${{ steps.version.outputs.version }}" -PackagePath "${{ steps.docs.outputs.zip_path }}"
+
       - name: Write release checksums
         id: checksums
         shell: powershell
@@ -131,7 +147,8 @@ jobs:
             "${{ steps.portable.outputs.zip_path }}",
             "${{ steps.installer.outputs.zip_path }}",
             "${{ steps.runtime.outputs.zip_path }}",
-            "${{ steps.macos.outputs.zip_path }}"
+            "${{ steps.macos.outputs.zip_path }}",
+            "${{ steps.docs.outputs.zip_path }}"
           )
           $Lines = foreach ($Artifact in $Artifacts) {
             $Item = Get-Item -LiteralPath $Artifact
@@ -169,6 +186,13 @@ jobs:
           path: ${{ steps.macos.outputs.zip_path }}
           if-no-files-found: error
 
+      - name: Upload documentation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hvac-studio-docs-${{ steps.version.outputs.version }}
+          path: ${{ steps.docs.outputs.zip_path }}
+          if-no-files-found: error
+
       - name: Upload checksum artifact
         uses: actions/upload-artifact@v4
         with:
@@ -189,6 +213,7 @@ jobs:
             "${{ steps.installer.outputs.zip_path }}",
             "${{ steps.runtime.outputs.zip_path }}",
             "${{ steps.macos.outputs.zip_path }}",
+            "${{ steps.docs.outputs.zip_path }}",
             "${{ steps.checksums.outputs.path }}",
             "--title", $Tag,
             "--generate-notes"

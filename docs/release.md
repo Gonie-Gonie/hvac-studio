@@ -17,14 +17,15 @@ Development policy:
 
 ## Release Artifacts
 
-Current release scripts produce three supported Windows artifacts and one
-experimental macOS support artifact:
+Current release scripts produce three supported Windows artifacts, one
+experimental macOS support artifact, and one offline documentation artifact:
 
 ```text
 dist/hvac-studio-<version>-windows-amd64-portable.zip
 dist/hvac-studio-<version>-windows-amd64-installer.zip
 dist/hvac-studio-runtime-<version>-windows-amd64.zip
 dist/hvac-studio-<version>-macos-universal-experimental.zip
+dist/hvac-studio-docs-<version>.zip
 ```
 
 Package scripts now keep `dist/` focused on final zip artifacts by default. The expanded staging folders are removed after compression; pass `-KeepStage` to `scripts/release/package-portable.ps1` or `scripts/release/package-runtime.ps1` when an expanded package folder is needed for manual inspection.
@@ -80,6 +81,12 @@ Studio desktop binaries are built through `scripts/release/build-studio.ps1` wit
 
 User documentation source lives under `docs/user/`. Package scripts include Markdown docs under `docs/`, build offline HTML under `docs/site/`, and build a consolidated Markdown manual under `docs/manual/`. The CI fast gate runs the same MkDocs build through `scripts/dev/test-docs.ps1`; package smoke tests fail if `docs/site/index.html`, `docs/manual/hvac-studio-manual.md`, or `docs/manual/hvac-studio-manual.pdf` is missing. PDF manual generation uses `pandoc` when it is installed and otherwise writes a plain-text fallback PDF; the path and build mode are recorded in `docs/manual/manual-build.json`.
 
+The docs-only release package is created with `scripts/release/package-docs.ps1`
+and smoke-tested with `scripts/release/test-docs-package.ps1`. It contains the
+same offline HTML site, consolidated Markdown manual, PDF manual,
+`docs/version.json`, release provenance, checksums, and legal/trust files as a
+standalone artifact for users who only need documentation.
+
 Each expanded runtime package also includes `release-provenance.json`, which records the package name, version, runtime id, git metadata, tool versions, documentation packaging status, and package file list. `release-checksums.json` stores SHA-256 hashes for package contents and is verified by package smoke tests.
 
 Every package includes release trust assets:
@@ -131,6 +138,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-porta
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-installer-package.ps1 -Version 0.1.0-dev
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-runtime-package.ps1 -Version 0.1.0-dev
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-macos-package.ps1 -Version 0.1.0-dev
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-docs-package.ps1 -Version 0.1.0-dev
 ```
 
 The upgrade rehearsal copies a golden example to a temporary test root, rewrites
@@ -232,7 +240,7 @@ The workflow:
 8. Builds and smoke-tests the experimental macOS support package.
 9. Verifies package trust assets, provenance, package checksums, and installer payload checksums.
 10. Writes `dist/SHA256SUMS.txt`.
-11. Uploads the package zips and checksums as workflow artifacts.
+11. Uploads the package zips, documentation zip, and checksums as workflow artifacts.
 12. Creates a GitHub Release for tag pushes.
 
 Manual dry runs are available through GitHub Actions `workflow_dispatch`. Manual runs upload artifacts; they only create a GitHub Release when `create_release` is selected.

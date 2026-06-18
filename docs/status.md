@@ -44,6 +44,7 @@ dist/hvac-studio-<version>-windows-amd64-portable.zip
 dist/hvac-studio-<version>-windows-amd64-installer.zip
 dist/hvac-studio-runtime-<version>-windows-amd64.zip
 dist/hvac-studio-<version>-macos-universal-experimental.zip
+dist/hvac-studio-docs-<version>.zip
 ```
 
 The current checkout has these retained development package artifacts:
@@ -53,6 +54,7 @@ dist/hvac-studio-0.1.0-dev-windows-amd64-portable.zip
 dist/hvac-studio-0.1.0-dev-windows-amd64-installer.zip
 dist/hvac-studio-runtime-0.1.0-dev-windows-amd64.zip
 dist/hvac-studio-0.1.0-dev-macos-universal-experimental.zip
+dist/hvac-studio-docs-0.1.0-dev.zip
 ```
 
 Standalone Studio smoke builds write the latest executable to
