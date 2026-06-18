@@ -591,9 +591,9 @@ func (s *Server) handleDeleteValidationMapping(w http.ResponseWriter, r *http.Re
 }
 
 func (s *Server) handleCreateCalibrationSetup(w http.ResponseWriter, r *http.Request) {
-	var req createCalibrationSetupRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, apperror.Wrap(apperror.CodeInput, err))
+	req, err := decodeCreateCalibrationSetupRequest(r)
+	if err != nil {
+		writeError(w, err)
 		return
 	}
 	loaded, err := s.loadProject(req.ProjectPath)
@@ -619,9 +619,9 @@ func (s *Server) handleCreateCalibrationSetup(w http.ResponseWriter, r *http.Req
 }
 
 func (s *Server) handleCreateOptimizationSetup(w http.ResponseWriter, r *http.Request) {
-	var req createOptimizationSetupRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, apperror.Wrap(apperror.CodeInput, err))
+	req, err := decodeCreateOptimizationSetupRequest(r)
+	if err != nil {
+		writeError(w, err)
 		return
 	}
 	loaded, err := s.loadProject(req.ProjectPath)
@@ -1728,9 +1728,9 @@ func (s *Server) handleBatch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDataValidation(w http.ResponseWriter, r *http.Request) {
-	var req validationRunRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, apperror.Wrap(apperror.CodeInput, err))
+	req, err := decodeValidationRunRequest(r)
+	if err != nil {
+		writeError(w, err)
 		return
 	}
 	loaded, err := s.loadProject(req.ProjectPath)
@@ -1790,9 +1790,9 @@ func (s *Server) handleDataValidation(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCalibrationRun(w http.ResponseWriter, r *http.Request) {
-	var req calibrationRunRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, apperror.Wrap(apperror.CodeInput, err))
+	req, err := decodeCalibrationRunRequest(r)
+	if err != nil {
+		writeError(w, err)
 		return
 	}
 	loaded, err := s.loadProject(req.ProjectPath)
@@ -1846,9 +1846,9 @@ func (s *Server) handleCalibrationRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleOptimizationRun(w http.ResponseWriter, r *http.Request) {
-	var req optimizationRunRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, apperror.Wrap(apperror.CodeInput, err))
+	req, err := decodeOptimizationRunRequest(r)
+	if err != nil {
+		writeError(w, err)
 		return
 	}
 	loaded, err := s.loadProject(req.ProjectPath)
@@ -2039,299 +2039,6 @@ func (s *Server) ensureWorkspaceProject(projectRoot string) error {
 		return apperror.Errorf(apperror.CodeValidation, "only workspace projects under projects/ can be edited")
 	}
 	return nil
-}
-
-func decodeCreateProjectRequest(r *http.Request) (createProjectRequest, error) {
-	defer r.Body.Close()
-	var req createProjectRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeCopyProjectRequest(r *http.Request) (copyProjectRequest, error) {
-	defer r.Body.Close()
-	var req copyProjectRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeCreateComponentRequest(r *http.Request) (createComponentRequest, error) {
-	defer r.Body.Close()
-	var req createComponentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeDuplicateComponentRequest(r *http.Request) (duplicateComponentRequest, error) {
-	defer r.Body.Close()
-	var req duplicateComponentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeReplaceComponentRequest(r *http.Request) (replaceComponentRequest, error) {
-	defer r.Body.Close()
-	var req replaceComponentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeUpdateComponentRequest(r *http.Request) (updateComponentRequest, error) {
-	defer r.Body.Close()
-	var req updateComponentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeDeleteComponentRequest(r *http.Request) (deleteComponentRequest, error) {
-	defer r.Body.Close()
-	var req deleteComponentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeIncludeComponentRequest(r *http.Request) (includeComponentRequest, error) {
-	defer r.Body.Close()
-	var req includeComponentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeCreateNodeRequest(r *http.Request) (createNodeRequest, error) {
-	defer r.Body.Close()
-	var req createNodeRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeUpdateNodeRequest(r *http.Request) (updateNodeRequest, error) {
-	defer r.Body.Close()
-	var req updateNodeRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeDeleteNodeRequest(r *http.Request) (deleteNodeRequest, error) {
-	defer r.Body.Close()
-	var req deleteNodeRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeCreateConnectionRequest(r *http.Request) (createConnectionRequest, error) {
-	defer r.Body.Close()
-	var req createConnectionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeUpdateConnectionRequest(r *http.Request) (updateConnectionRequest, error) {
-	defer r.Body.Close()
-	var req updateConnectionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeDeleteConnectionRequest(r *http.Request) (deleteConnectionRequest, error) {
-	defer r.Body.Close()
-	var req deleteConnectionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeUpdateLayoutRequest(r *http.Request) (updateLayoutRequest, error) {
-	defer r.Body.Close()
-	var req updateLayoutRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeExportRequest(r *http.Request) (exportRequest, error) {
-	defer r.Body.Close()
-	var req exportRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeSourceRequest(r *http.Request) (sourceRequest, error) {
-	defer r.Body.Close()
-	var req sourceRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeSourceCheckRequest(r *http.Request) (sourceCheckRequest, error) {
-	defer r.Body.Close()
-	var req sourceCheckRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeCreateScenarioRequest(r *http.Request) (createScenarioRequest, error) {
-	defer r.Body.Close()
-	var req createScenarioRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeUpdateParametersRequest(r *http.Request) (updateParametersRequest, error) {
-	defer r.Body.Close()
-	var req updateParametersRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeUpdateComponentContractRequest(r *http.Request) (updateComponentContractRequest, error) {
-	defer r.Body.Close()
-	var req updateComponentContractRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeApplyParameterSetRequest(r *http.Request) (applyParameterSetRequest, error) {
-	defer r.Body.Close()
-	var req applyParameterSetRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeDeleteParameterRequest(r *http.Request) (deleteParameterRequest, error) {
-	defer r.Body.Close()
-	var req deleteParameterRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeImportDatasetRequest(r *http.Request) (importDatasetRequest, error) {
-	defer r.Body.Close()
-	var req importDatasetRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeCreateValidationMappingRequest(r *http.Request) (createValidationMappingRequest, error) {
-	defer r.Body.Close()
-	var req createValidationMappingRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeUpdateValidationMappingRequest(r *http.Request) (updateValidationMappingRequest, error) {
-	defer r.Body.Close()
-	var req updateValidationMappingRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeCopyValidationMappingRequest(r *http.Request) (copyValidationMappingRequest, error) {
-	defer r.Body.Close()
-	var req copyValidationMappingRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeDeleteValidationMappingRequest(r *http.Request) (deleteValidationMappingRequest, error) {
-	defer r.Body.Close()
-	var req deleteValidationMappingRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeUpdateInputRequest(r *http.Request) (updateInputRequest, error) {
-	defer r.Body.Close()
-	var req updateInputRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeRequest(r *http.Request) (apiRequest, error) {
-	defer r.Body.Close()
-	var req apiRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeSeriesRunRequest(r *http.Request) (seriesRunRequest, error) {
-	defer r.Body.Close()
-	var req seriesRunRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func requestTimeout(req apiRequest, fallback time.Duration) (time.Duration, error) {
-	if req.TimeoutMS == 0 {
-		return fallback, nil
-	}
-	if req.TimeoutMS < 100 {
-		return 0, apperror.Errorf(apperror.CodeInput, "timeout_ms must be at least 100")
-	}
-	timeout := time.Duration(req.TimeoutMS) * time.Millisecond
-	if timeout > 30*time.Minute {
-		return 0, apperror.Errorf(apperror.CodeInput, "timeout_ms must be at most 1800000")
-	}
-	return timeout, nil
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

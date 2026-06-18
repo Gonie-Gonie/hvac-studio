@@ -3,7 +3,6 @@ package studio
 import (
 	"encoding/base64"
 	"encoding/json"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -50,24 +49,6 @@ type mlSchemaNode struct {
 	Medium    string
 	ValueType string
 	Unit      string
-}
-
-func decodeUpdateComponentMLAssetsRequest(r *http.Request) (updateComponentMLAssetsRequest, error) {
-	defer r.Body.Close()
-	var req updateComponentMLAssetsRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
-}
-
-func decodeApplyComponentMLSchemaNodesRequest(r *http.Request) (applyComponentMLSchemaNodesRequest, error) {
-	defer r.Body.Close()
-	var req applyComponentMLSchemaNodesRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, apperror.Wrap(apperror.CodeInput, err)
-	}
-	return req, nil
 }
 
 func updateComponentMLAssets(loaded *project.LoadedProject, req updateComponentMLAssetsRequest) (model.Component, []string, error) {
