@@ -722,6 +722,16 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("deleteValidationMapping")) {
 		t.Fatalf("module entrypoint did not delete validation mappings")
 	}
+	if !bytes.Contains(body, []byte("validationResultSection")) ||
+		!bytes.Contains(body, []byte("validationPlotSection")) ||
+		!bytes.Contains(body, []byte("Measured vs Simulated")) ||
+		!bytes.Contains(body, []byte("Residual Histogram")) ||
+		!bytes.Contains(body, []byte("highErrorRows")) ||
+		!bytes.Contains(body, []byte("openHighErrorInspection")) ||
+		!bytes.Contains(body, []byte("Component Inputs")) ||
+		!bytes.Contains(body, []byte("Create Calibration Setup")) {
+		t.Fatalf("module entrypoint did not expose validation result plots, high-error inspection, and calibration handoff")
+	}
 	if !bytes.Contains(body, []byte("/api/project/calibration-setup")) {
 		t.Fatalf("module entrypoint did not create calibration setups")
 	}
