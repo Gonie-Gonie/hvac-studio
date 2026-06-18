@@ -34,6 +34,30 @@ func TestProjectsEndpointListsExamples(t *testing.T) {
 	}
 }
 
+type staticOption struct {
+	value string
+	label string
+}
+
+func assertStaticOptions(t *testing.T, body []byte, group string, options []staticOption) {
+	t.Helper()
+	for _, option := range options {
+		token := `["` + option.value + `", "` + option.label + `"`
+		if !bytes.Contains(body, []byte(token)) {
+			t.Fatalf("%s did not include %s", group, token)
+		}
+	}
+}
+
+func assertStaticTokens(t *testing.T, body []byte, group string, tokens []string) {
+	t.Helper()
+	for _, token := range tokens {
+		if !bytes.Contains(body, []byte(token)) {
+			t.Fatalf("%s did not include %s", group, token)
+		}
+	}
+}
+
 func TestStaticIndexServesWorkspace(t *testing.T) {
 	server := newTestServer(t)
 	body := getRouteBody(t, server, "/")
@@ -194,10 +218,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	server := newTestServer(t)
 	body := getRouteBody(t, server, "/js/app.js")
 	configBody := getRouteBody(t, server, "/js/workspace-config.js")
-	for _, option := range []struct {
-		value string
-		label string
-	}{
+	assertStaticOptions(t, configBody, "component category options", []staticOption{
 		{"physical_component", "Physical Component"},
 		{"controller", "Controller"},
 		{"data_source", "Data Source"},
@@ -205,26 +226,31 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		{"utility", "Utility"},
 		{"solver", "Solver"},
 		{"composite_wrapper", "Composite Wrapper"},
-	} {
-		token := `["` + option.value + `", "` + option.label + `"]`
-		if !bytes.Contains(configBody, []byte(token)) {
-			t.Fatalf("component category options did not include %s", token)
-		}
-	}
-	for _, option := range []struct {
-		value string
-		label string
-	}{
+	})
+	assertStaticOptions(t, configBody, "execution mode options", []staticOption{
 		{"step", "Step"},
 		{"vectorized", "Vectorized"},
 		{"external_executable", "External Executable"},
 		{"initialization_only", "Initialization Only"},
-	} {
-		token := `["` + option.value + `", "` + option.label + `"]`
-		if !bytes.Contains(configBody, []byte(token)) {
-			t.Fatalf("execution mode options did not include %s", token)
-		}
-	}
+	})
+	assertStaticOptions(t, configBody, "node preset options", []staticOption{
+		{"water_inlet", "Water Inlet"},
+		{"water_outlet", "Water Outlet"},
+		{"air_inlet", "Air Inlet"},
+		{"air_outlet", "Air Outlet"},
+		{"control_signal_input", "Control Signal Input"},
+		{"electric_power_output", "Electric Power Output"},
+		{"scalar_input", "Scalar Input"},
+		{"scalar_output", "Scalar Output"},
+		{"time_series_input", "Time Series Input"},
+	})
+	assertStaticTokens(t, configBody, "parameter role options", []string{
+		`"fixed"`,
+		`"scenario_input"`,
+		`"calibration_target"`,
+		`"optimization_variable"`,
+		`"derived"`,
+	})
 	startBody := getRouteBody(t, server, "/js/start-workspace.js")
 	logsBody := getRouteBody(t, server, "/js/logs-panel.js")
 	resultUIBody := getRouteBody(t, server, "/js/result-ui.js")
