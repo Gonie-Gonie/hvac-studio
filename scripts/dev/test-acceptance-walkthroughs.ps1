@@ -11,7 +11,7 @@ if (-not $env:HVAC_STUDIO_PYTHON) {
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $ExamplesRoot = Join-Path $RepoRoot 'examples'
-$TempRoot = [IO.Path]::GetTempPath()
+$RunRoot = Join-Path ([IO.Path]::GetTempPath()) ("hvac-studio-acceptance-" + [Guid]::NewGuid().ToString('N'))
 
 function Invoke-Runner {
   param([Parameter(Mandatory = $true)][string[]]$Arguments)
@@ -36,17 +36,18 @@ try {
   Pop-Location
 }
 
+New-Item -ItemType Directory -Force -Path $RunRoot | Out-Null
 $AnnProject = Join-Path $ExamplesRoot '014_ahu_state_ann\project.bcsproj'
 $AnnInput = Join-Path $ExamplesRoot '014_ahu_state_ann\inputs\case01.json'
-$AnnOutput = Join-Path $TempRoot 'hvac-studio-acceptance-ann.json'
+$AnnOutput = Join-Path $RunRoot 'ann.json'
 $CompositionProject = Join-Path $ExamplesRoot '015_rc_ahu_ann_composition\project.bcsproj'
 $CompositionInput = Join-Path $ExamplesRoot '015_rc_ahu_ann_composition\inputs\case01.json'
 $CompositionSeriesInput = Join-Path $ExamplesRoot '015_rc_ahu_ann_composition\inputs\series01.json'
-$CompositionRunOutput = Join-Path $TempRoot 'hvac-studio-acceptance-composition-run.json'
-$CompositionSeriesOutput = Join-Path $TempRoot 'hvac-studio-acceptance-composition-series.json'
-$CompositionValidationOutput = Join-Path $TempRoot 'hvac-studio-acceptance-composition-validation.json'
-$CompositionCalibrationOutput = Join-Path $TempRoot 'hvac-studio-acceptance-composition-calibration.json'
-$CompositionOptimizationOutput = Join-Path $TempRoot 'hvac-studio-acceptance-composition-optimization.json'
+$CompositionRunOutput = Join-Path $RunRoot 'composition-run.json'
+$CompositionSeriesOutput = Join-Path $RunRoot 'composition-series.json'
+$CompositionValidationOutput = Join-Path $RunRoot 'composition-validation.json'
+$CompositionCalibrationOutput = Join-Path $RunRoot 'composition-calibration.json'
+$CompositionOptimizationOutput = Join-Path $RunRoot 'composition-optimization.json'
 
 try {
   Write-Host 'acceptance walkthrough B: ANN inference run'
@@ -88,12 +89,7 @@ try {
   Invoke-Checked $env:HVAC_STUDIO_PYTHON @('-m', 'unittest', 'discover', '-s', (Join-Path $RepoRoot 'python\bcs_sdk\tests'))
   & (Join-Path $PSScriptRoot 'test-serve-protocol.ps1')
 } finally {
-  Remove-Item -LiteralPath $AnnOutput -Force -ErrorAction SilentlyContinue
-  Remove-Item -LiteralPath $CompositionRunOutput -Force -ErrorAction SilentlyContinue
-  Remove-Item -LiteralPath $CompositionSeriesOutput -Force -ErrorAction SilentlyContinue
-  Remove-Item -LiteralPath $CompositionValidationOutput -Force -ErrorAction SilentlyContinue
-  Remove-Item -LiteralPath $CompositionCalibrationOutput -Force -ErrorAction SilentlyContinue
-  Remove-Item -LiteralPath $CompositionOptimizationOutput -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $RunRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host 'acceptance walkthroughs ok'
