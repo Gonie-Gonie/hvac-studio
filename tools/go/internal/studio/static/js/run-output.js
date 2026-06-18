@@ -1,9 +1,10 @@
 import { escapeHTML } from "./dom.js";
 import { formatValue } from "./format.js";
 
-export function renderRunOutputWorkspace(state, summary, outputRows, comparisonRows, chart, componentRows, batchRows, executionRows, componentLogRows, connectionRows, nodeRows) {
+export function renderRunOutputWorkspace(state, summary, outputRows, comparisonRows, chart, componentRows, batchRows, executionRows, componentLogRows, connectionRows, nodeRows, exportActions, actions = {}) {
   if (!summary || !outputRows || !chart) return;
   renderRunSummary(state, summary);
+  renderRunResultExports(state, exportActions, actions);
   renderPublicOutputs(state, outputRows);
   renderRunComparison(state, comparisonRows);
   renderOutputChart(state, chart);
@@ -13,6 +14,27 @@ export function renderRunOutputWorkspace(state, summary, outputRows, comparisonR
   renderComponentLogs(state, componentLogRows);
   renderConnectionTrace(state, connectionRows);
   renderNodeTrace(state, nodeRows);
+}
+
+function renderRunResultExports(state, container, actions) {
+  if (!container) return;
+  container.innerHTML = "";
+  const context = latestResultContext(state);
+  if (!context.result || typeof actions.downloadTextFile !== "function") return;
+
+  const exportCSV = document.createElement("button");
+  exportCSV.type = "button";
+  exportCSV.className = "small-action";
+  exportCSV.textContent = "Export Result CSV";
+  exportCSV.addEventListener("click", () => downloadRunResultCSV(state, actions));
+
+  const exportJSON = document.createElement("button");
+  exportJSON.type = "button";
+  exportJSON.className = "small-action";
+  exportJSON.textContent = "Export Result JSON";
+  exportJSON.addEventListener("click", () => downloadRunResultJSON(state, actions));
+
+  container.append(exportCSV, exportJSON);
 }
 
 function renderRunSummary(state, summary) {
@@ -501,6 +523,158 @@ function problemSummary(problem) {
 function sourceLocation(problem) {
   const line = problem.line ? `:${problem.line}${problem.column ? `:${problem.column}` : ""}` : "";
   return `${problem.source}${line}`;
+}
+
+function downloadRunResultJSON(state, actions) {
+  const context = latestResultContext(state);
+  if (!context.result || typeof actions.downloadTextFile !== "function") return;
+  const bundle = {
+    schema: "hvac-studio.run-result-export.v1",
+    exported_at_utc: new Date().toISOString(),
+    project: state.detail?.project?.project_name || "",
+    source: context.source,
+    result: context.result,
+  };
+  actions.downloadTextFile(
+    `${runResultExportBaseName(state, context, actions)}.json`,
+    `${JSON.stringify(bundle, null, 2)}\n`,
+    "application/json;charset=utf-8",
+  );
+}
+
+function downloadRunResultCSV(state, actions) {
+  const context = latestResultContext(state);
+  if (!context.result || typeof actions.downloadTextFile !== "function") return;
+  const rows = runResultCSVRows(context);
+  const csv = `${rows.map((row) => row.map(csvCell).join(",")).join("\n")}\n`;
+  actions.downloadTextFile(`${runResultExportBaseName(state, context, actions)}.csv`, csv, "text/csv;charset=utf-8");
+}
+
+function runResultExportBaseName(state, context, actions) {
+  const safe = typeof actions.safeFileName === "function" ? actions.safeFileName : safeFileName;
+  const project = state.detail?.project?.project_name || "run";
+  const source = context.source || "result";
+  return `${safe(project)}-${safe(source)}-result`;
+}
+
+function runResultCSVRows(context) {
+  const result = context.result || {};
+  const source = context.source || "";
+  const rows = [[
+    "section",
+    "component",
+    "node",
+    "direction",
+    "name",
+    "value",
+    "source_value",
+    "converted_value",
+    "source",
+    "meta",
+  ]];
+
+  for (const [name, value] of Object.entries(result.outputs || {})) {
+    appendRunResultRow(rows, { section: "public_output", name, value, source });
+  }
+  appendComponentValueRows(rows, "component_input", result.component_inputs, source);
+  appendComponentValueRows(rows, "component_output", result.component_outputs, source);
+  appendComponentValueRows(rows, "state", result.states, source);
+
+  for (const [name, value] of Object.entries(result.context || {})) {
+    appendRunResultRow(rows, { section: "context", name, value, source });
+  }
+  for (const [index, component] of (result.execution_order || []).entries()) {
+    appendRunResultRow(rows, { section: "execution_order", component, name: String(index + 1), value: component, source });
+  }
+  for (const timing of result.component_timings || []) {
+    appendRunResultRow(rows, {
+      section: "component_timing",
+      component: timing.component || "",
+      name: timing.stage || "evaluate",
+      value: timing.duration_ms ?? "",
+      source,
+      meta: timing.duration_ms !== undefined ? "duration_ms" : "",
+    });
+  }
+  for (const trace of result.connection_values || []) {
+    appendRunResultRow(rows, {
+      section: "connection_value",
+      name: connectionLabel(trace),
+      value: connectionCSVValue(trace),
+      sourceValue: trace.source_value ?? "",
+      convertedValue: trace.converted_value ?? "",
+      source,
+      meta: traceMeta(trace),
+    });
+  }
+  for (const trace of result.node_values || []) {
+    appendRunResultRow(rows, {
+      section: "node_value",
+      component: trace.component || "",
+      node: trace.node || "",
+      direction: trace.direction || "",
+      name: [trace.component, trace.node].filter(Boolean).join("."),
+      value: trace.value,
+      source,
+      meta: traceMeta(trace),
+    });
+  }
+  for (const log of result.component_logs || []) {
+    appendRunResultRow(rows, {
+      section: "component_log",
+      component: log.component || "",
+      name: log.stage || "",
+      value: log.message || "",
+      source: logSourceLocation(log),
+      meta: [log.severity || "info", log.stream || "", log.time !== undefined ? `time=${formatValue(log.time)}` : ""].filter(Boolean).join(" / "),
+    });
+  }
+  if (result.duration_ms !== undefined) {
+    appendRunResultRow(rows, { section: "run_duration", name: "duration_ms", value: result.duration_ms, source });
+  }
+  return rows;
+}
+
+function appendComponentValueRows(rows, section, valuesByComponent, source) {
+  for (const [component, values] of Object.entries(valuesByComponent || {})) {
+    if (values && typeof values === "object" && !Array.isArray(values)) {
+      for (const [node, value] of Object.entries(values)) {
+        appendRunResultRow(rows, { section, component, node, name: node, value, source });
+      }
+    } else {
+      appendRunResultRow(rows, { section, component, name: component, value: values, source });
+    }
+  }
+}
+
+function appendRunResultRow(rows, item) {
+  rows.push([
+    item.section || "",
+    item.component || "",
+    item.node || "",
+    item.direction || "",
+    item.name || "",
+    item.value ?? "",
+    item.sourceValue ?? "",
+    item.convertedValue ?? "",
+    item.source || "",
+    item.meta || "",
+  ]);
+}
+
+function connectionCSVValue(trace) {
+  if (trace.converted) return trace.converted_value ?? trace.value ?? "";
+  return trace.value ?? "";
+}
+
+function csvCell(value) {
+  const text = typeof value === "string" ? value : JSON.stringify(value);
+  const normalized = text === undefined ? "" : String(text);
+  return `"${normalized.replace(/"/g, '""')}"`;
+}
+
+function safeFileName(value) {
+  return String(value || "export").replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^_+|_+$/g, "") || "export";
 }
 
 function connectionLabel(trace) {

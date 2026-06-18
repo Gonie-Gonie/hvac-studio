@@ -180,6 +180,9 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("executionTraceRows")) {
 		t.Fatalf("index did not include execution trace rows")
 	}
+	if !bytes.Contains(body, []byte("runExportActions")) {
+		t.Fatalf("index did not include run result export actions")
+	}
 	if !bytes.Contains(body, []byte("componentLogRows")) {
 		t.Fatalf("index did not include component log rows")
 	}
@@ -1023,6 +1026,11 @@ func TestStaticRunOutputModuleServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("renderRunComparison")) {
 		t.Fatalf("run output module did not render run comparisons")
+	}
+	if !bytes.Contains(body, []byte("downloadRunResultCSV")) ||
+		!bytes.Contains(body, []byte("Export Result JSON")) ||
+		!bytes.Contains(body, []byte("hvac-studio.run-result-export.v1")) {
+		t.Fatalf("run output module did not expose run result CSV/JSON exports")
 	}
 	if !bytes.Contains(body, []byte("renderComponentLogs")) {
 		t.Fatalf("run output module did not render component logs")

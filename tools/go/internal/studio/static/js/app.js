@@ -5295,6 +5295,8 @@ function renderRunWorkspace() {
     el("componentLogRows"),
     el("connectionTraceRows"),
     el("nodeTraceRows"),
+    el("runExportActions"),
+    { downloadTextFile, safeFileName },
   );
 }
 
