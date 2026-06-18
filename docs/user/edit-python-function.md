@@ -28,6 +28,8 @@ The completion panel and contract rows include hover text and can insert:
 - vectorized `step` or `evaluate_batch` scaffolds
 - external executable stdin/stdout adapter scaffolds
 
+For single-file components, source checks also treat keys returned by `initialize()` as initialized state references, so model assets or cached schemas loaded into `state` can be used from `evaluate`.
+
 Source check warnings include contract-reference hints, unknown input/output/parameter/state references, and likely undefined names. Undefined-name warnings do not block save/run by themselves; source-check errors such as missing signatures, wrong return shapes, syntax failures, import/load failures, or missing output contracts block run, batch, and export.
 
 ## Component Class Shape

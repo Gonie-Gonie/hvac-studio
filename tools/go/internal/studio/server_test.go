@@ -5854,19 +5854,75 @@ func TestCheckSourceEndpointWarnsAboutUnknownInputAndOutputReferences(t *testing
 	}
 }
 
+func TestCheckSourceEndpointAcceptsInitializedStateAndFileReference(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	projectSummary := createWorkspaceProject(t, server, "Source Initialized State Project")
+
+	source := strings.Join([]string{
+		"from pathlib import Path",
+		"",
+		"class ScalarComponent:",
+		"    def initialize(self, params, context):",
+		"        root = Path(__file__).resolve().parent",
+		"        return {\"model\": str(root)}",
+		"",
+		"    def evaluate(self, inputs, state, params, context):",
+		"        value = float(inputs.get(\"value\", 0.0))",
+		"        model = state[\"model\"]",
+		"        return {\"result\": value + len(model)}, state",
+		"",
+	}, "\n")
+	payload, err := json.Marshal(map[string]any{
+		"project_path": projectSummary.ProjectPath,
+		"component_id": "scalar",
+		"content":      source,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/source/check", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Check SourceCheck `json:"check"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !body.Check.OK {
+		t.Fatalf("initialized state source should pass: %#v", body.Check.Problems)
+	}
+	if hasProblemMessageContaining(body.Check.Problems, "output node reference is not in component contract: model") {
+		t.Fatalf("initialize state return should not be treated as output keys: %#v", body.Check.Problems)
+	}
+	if hasProblemMessageContaining(body.Check.Problems, "state reference is not in component contract: model") {
+		t.Fatalf("initialize state key should be accepted: %#v", body.Check.Problems)
+	}
+	if hasProblemMessageContaining(body.Check.Problems, "undefined name may fail at runtime: __file__") {
+		t.Fatalf("__file__ should be allowed in source checks: %#v", body.Check.Problems)
+	}
+}
+
 func TestSourceReturnOutputKeyReferencesOnlyReadsReturnedOutputDict(t *testing.T) {
-	refs := sourceReturnOutputKeyReferences("def f():\n    return value, state\nCONFIG = {\"reslt\": 1}\n")
+	content := "def step(inputs, state, params, context):\n    return value, state\nCONFIG = {\"reslt\": 1}\n"
+	start, end := sourceTargetFunctionBodyRange(content, "step", false)
+	refs := sourceReturnOutputKeyReferencesInRange(content, start, end)
 	if len(refs) != 0 {
 		t.Fatalf("non-dict return references = %#v, want none", refs)
 	}
 
-	refs = sourceReturnOutputKeyReferences(strings.Join([]string{
-		"def f():",
+	content = strings.Join([]string{
+		"def step(inputs, state, params, context):",
 		"    return ({",
 		"        \"reslt\": value,",
 		"    }, {\"calls\": 1.0})",
 		"",
-	}, "\n"))
+	}, "\n")
+	start, end = sourceTargetFunctionBodyRange(content, "step", false)
+	refs = sourceReturnOutputKeyReferencesInRange(content, start, end)
 	if len(refs) != 1 || refs[0].Name != "reslt" || refs[0].Line != 3 {
 		t.Fatalf("returned output dict references = %#v, want reslt on line 3", refs)
 	}

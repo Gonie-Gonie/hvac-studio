@@ -372,7 +372,7 @@ func pythonUndefinedNameProblems(ctx context.Context, loaded *project.LoadedProj
 		"import ast, builtins, json, sys",
 		"source = sys.stdin.read()",
 		"tree = ast.parse(source, filename=sys.argv[1])",
-		"allowed = set(dir(builtins)) | {'self', 'inputs', 'state', 'params', 'context'}",
+		"allowed = set(dir(builtins)) | {'self', 'inputs', 'state', 'params', 'context', '__file__'}",
 		"assigned = set()",
 		"loads = []",
 		"class Visitor(ast.NodeVisitor):",

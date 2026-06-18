@@ -37,7 +37,7 @@ func sourceContractReferenceProblems(component model.Component, content string, 
 		}
 	}
 	outputNames := sourceContractNodeNames(component.Nodes.Outputs)
-	for _, ref := range sourceReturnOutputKeyReferences(content) {
+	for _, ref := range sourceReturnOutputKeyReferences(component, content) {
 		if _, ok := outputNames[ref.Name]; ok {
 			continue
 		}
@@ -78,6 +78,9 @@ func sourceContractReferenceProblems(component model.Component, content string, 
 		})
 	}
 	stateNames := sourceContractStateNames(component)
+	for name := range sourceContractInitializedStateNames(component, content) {
+		stateNames[name] = struct{}{}
+	}
 	for _, ref := range sourceNamespaceReferences(content, "state") {
 		if _, ok := stateNames[ref.Name]; ok {
 			continue
@@ -117,6 +120,21 @@ func sourceContractStateNames(component model.Component) map[string]struct{} {
 	names := map[string]struct{}{}
 	for name := range component.StateDefinitions {
 		names[name] = struct{}{}
+	}
+	return names
+}
+
+func sourceContractInitializedStateNames(component model.Component, content string) map[string]struct{} {
+	if component.Source.Layout == "generated_wrapper" {
+		return map[string]struct{}{}
+	}
+	start, end := sourceTargetFunctionBodyRange(content, "initialize", true)
+	if start < 0 {
+		return map[string]struct{}{}
+	}
+	names := map[string]struct{}{}
+	for _, ref := range sourceReturnOutputKeyReferencesInRange(content, start, end) {
+		names[ref.Name] = struct{}{}
 	}
 	return names
 }
@@ -215,13 +233,34 @@ func firstMatchedGroup(match []int, groups ...int) (int, int) {
 	return -1, -1
 }
 
-func sourceReturnOutputKeyReferences(content string) []sourceNamespaceReference {
+func sourceReturnOutputKeyReferences(component model.Component, content string) []sourceNamespaceReference {
+	functionName := "evaluate"
+	method := true
+	if component.Source.Layout == "generated_wrapper" {
+		functionName = "step"
+		method = false
+	}
+	start, end := sourceTargetFunctionBodyRange(content, functionName, method)
+	if start < 0 {
+		return nil
+	}
+	return sourceReturnOutputKeyReferencesInRange(content, start, end)
+}
+
+func sourceReturnOutputKeyReferencesInRange(content string, start int, end int) []sourceNamespaceReference {
+	if start < 0 || end < start || start > len(content) {
+		return nil
+	}
+	if end > len(content) {
+		end = len(content)
+	}
 	returnPattern := regexp.MustCompile(`\breturn\b`)
-	matches := returnPattern.FindAllStringIndex(content, -1)
+	matches := returnPattern.FindAllStringIndex(content[start:end], -1)
 	seen := map[string]struct{}{}
 	refs := []sourceNamespaceReference{}
 	for _, match := range matches {
-		braceStart := sourceReturnOutputDictStart(content, match[1])
+		matchEnd := match[1] + start
+		braceStart := sourceReturnOutputDictStart(content, matchEnd)
 		if braceStart < 0 {
 			continue
 		}
@@ -234,6 +273,66 @@ func sourceReturnOutputKeyReferences(content string) []sourceNamespaceReference 
 		}
 	}
 	return refs
+}
+
+func sourceTargetFunctionBodyRange(content string, functionName string, method bool) (int, int) {
+	lines := strings.SplitAfter(content, "\n")
+	offset := 0
+	found := false
+	signatureIndent := 0
+	bodyStart := -1
+	for _, line := range lines {
+		trimmedRight := strings.TrimRight(line, "\r\n")
+		trimmed := strings.TrimSpace(trimmedRight)
+		if !found {
+			if sourceLineIsFunctionSignature(trimmedRight, functionName, method) {
+				found = true
+				signatureIndent = sourceIndentWidth(trimmedRight)
+				bodyStart = offset + len(line)
+			}
+			offset += len(line)
+			continue
+		}
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			offset += len(line)
+			continue
+		}
+		if sourceIndentWidth(trimmedRight) <= signatureIndent {
+			return bodyStart, offset
+		}
+		offset += len(line)
+	}
+	if found {
+		return bodyStart, len(content)
+	}
+	return -1, -1
+}
+
+func sourceLineIsFunctionSignature(line string, functionName string, method bool) bool {
+	trimmedLeft := strings.TrimLeft(line, " \t")
+	if method && len(trimmedLeft) == len(line) {
+		return false
+	}
+	if !method && len(trimmedLeft) != len(line) {
+		return false
+	}
+	return strings.HasPrefix(trimmedLeft, "def "+functionName+"(") ||
+		strings.HasPrefix(trimmedLeft, "def "+functionName+" (")
+}
+
+func sourceIndentWidth(line string) int {
+	width := 0
+	for _, char := range line {
+		switch char {
+		case ' ':
+			width++
+		case '\t':
+			width += 4
+		default:
+			return width
+		}
+	}
+	return width
 }
 
 func sourceReturnOutputDictStart(content string, index int) int {
