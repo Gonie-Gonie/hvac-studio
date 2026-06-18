@@ -1,6 +1,6 @@
 # Development Plan
 
-Last updated: 2026-06-04
+Last updated: 2026-06-18
 
 This document is the planning spine for HVAC Studio. It should explain why the product is built this way, what the closed MVP can do, and what should happen next without mixing old implementation notes into future commitments.
 
@@ -160,67 +160,33 @@ Runnable examples are not demos alone. They are contract tests for the runner, p
 7. Keep Windows release behavior reproducible before starting installer/macOS work.
 8. Review GUI readability with screenshots after meaningful UI changes.
 
-## Current Alpha Baseline
+## Current Development Baseline
 
-Current release baseline and MVP closure point:
+The current development baseline is the `0.1.0-dev` release-candidate gate. It
+is a Windows-first development package set, not a signed stable public release.
 
-```text
-v0.1.0-alpha.3
-Windows portable zip
-Windows runtime-only zip
-Bundled Python runtime
-Wails desktop Studio entrypoint
-CLI runner and environment checker
-Python worker and serve-backed Python SDK
-Saved validation/calibration/optimization result records
-Release provenance manifests
-Runtime export of datasets, parameter sets, validation mappings, calibration setups, and optimization setups
-Runnable examples 001, 003, 004, 005, 006, 007/model, 008
-Markdown user guide source
-```
-
-Release artifacts produced by the release gate:
+Current retained package artifacts produced by the release-candidate gate:
 
 ```text
-dist/hvac-studio-0.1.0-alpha.3-windows-amd64-portable.zip
-dist/hvac-studio-runtime-0.1.0-alpha.3-windows-amd64.zip
+dist/hvac-studio-0.1.0-dev-windows-amd64-portable.zip
+dist/hvac-studio-0.1.0-dev-windows-amd64-installer.zip
+dist/hvac-studio-runtime-0.1.0-dev-windows-amd64.zip
+dist/hvac-studio-0.1.0-dev-macos-universal-experimental.zip
+dist/hvac-studio-docs-0.1.0-dev.zip
+dist/hvac-studio-sdk-0.1.0-dev.zip
 ```
 
 Primary verification commands:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-fast.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1 -Version 0.1.0-alpha.3 -SkipSetup
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1 -Version 0.1.0-dev -SkipSetup
 ```
 
-Current post-MVP release candidate after closing PM-301 through PM-308 and the Studio traceback path hotfix:
-
-```text
-v0.1.0-alpha.5
-Windows portable zip
-Windows installer preview zip
-Windows runtime-only zip
-Experimental macOS support zip
-Pooled Python SDK evaluation
-Composite, unit-conversion, solver-boundary, external executable, and vectorized examples
-Hardened release candidate gate with package smoke failure propagation
-Studio Python traceback source mapping hardened for Windows short/long path aliases
-```
-
-Release artifacts produced by the post-MVP release gate:
-
-```text
-dist/hvac-studio-0.1.0-alpha.5-windows-amd64-portable.zip
-dist/hvac-studio-0.1.0-alpha.5-windows-amd64-installer.zip
-dist/hvac-studio-runtime-0.1.0-alpha.5-windows-amd64.zip
-dist/hvac-studio-0.1.0-alpha.5-macos-universal-experimental.zip
-```
-
-Post-MVP release verification command:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1 -Version 0.1.0-alpha.5 -SkipSetup
-```
+The release-candidate gate now covers upgrade rehearsal, portable Studio,
+installer bundle, runtime-only package, experimental macOS package,
+documentation package, SDK package, provenance/checksum checks, workflow smoke
+tests, runtime export smoke tests, and docs/manual generation.
 
 ## Milestone Status Summary
 
@@ -596,14 +562,20 @@ Completed:
 - Runtime-only example CLI guide.
 - Package scripts include Markdown docs and optionally build MkDocs HTML when `mkdocs` is available.
 
-Post-MVP backlog:
+Current maintenance:
 
-- Make offline MkDocs HTML docs a required release asset once `mkdocs` is installed in CI/release environments.
-- Add PDF manual generation once the Markdown guide structure is stable.
-- Add in-app help links from Start, Project tree, System canvas, Inspector, Code, Run, Data, Parameters, Calibration, Optimization, Export, and Settings.
-- Keep screenshot-backed tutorials current as Studio workspaces change.
-- Add a "concept map" page that explains how project artifacts relate to Studio screens, CLI commands, SDK calls, and exported packages.
-- Keep docs versioned with releases and record behavior differences for alpha/beta/stable builds.
+- Keep offline MkDocs HTML, consolidated manual source, and manual PDF/fallback
+  generation in the release package gate.
+- Keep in-app help links aligned with the current Start, System, Code, Run,
+  Data, Parameters, Calibration, Optimization, Artifacts, and Export
+  workspaces.
+- Refresh screenshot-backed tutorials whenever workspace layout or labels
+  materially change.
+- Keep the concept map and status page aligned with package artifacts, Studio
+  screens, CLI commands, SDK calls, and exported runtime packages.
+- Record behavior differences for alpha, beta, release-candidate,
+  development, and stable builds in release/support docs instead of scattering
+  notes through user guides.
 
 ## Post-MVP Backlog
 
