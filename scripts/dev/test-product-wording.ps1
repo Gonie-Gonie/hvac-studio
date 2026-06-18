@@ -19,9 +19,12 @@ $Forbidden = @(
 $SurfaceRoots = @(
   'README.md',
   'CHANGELOG.md',
+  'mkdocs.yml',
+  'docs\index.md',
   'docs\release.md',
   'docs\release-trust.md',
   'docs\setup.md',
+  'docs\status.md',
   'docs\user',
   'docs\legal',
   'examples',
@@ -32,7 +35,7 @@ $SurfaceRoots = @(
   'tools\go\internal\studio\static'
 )
 
-$AllowedExtensions = @('.md', '.txt', '.ps1', '.cmd', '.py', '.json', '.html', '.js', '.css')
+$AllowedExtensions = @('.md', '.txt', '.ps1', '.cmd', '.py', '.json', '.html', '.js', '.css', '.yml', '.yaml')
 $ScriptPath = $MyInvocation.MyCommand.Path
 $Files = New-Object System.Collections.Generic.List[string]
 
