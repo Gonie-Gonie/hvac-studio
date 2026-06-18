@@ -12,7 +12,7 @@ Before run, batch, and export actions, Studio flushes dirty workspace source dra
 
 After a successful run, the Code workspace contract panel shows the selected component's latest input and output values from the runner result. If the source or model changes afterward, those values are marked stale until another successful run updates them.
 
-The source checker validates the expected Python class name, the presence of `evaluate`, basic return-shape hints, graph input/output name references, Python syntax, and draft source load/import errors when a Python runtime is available.
+The source checker validates the expected Python class name, the presence of `evaluate`, basic return-shape hints, graph input/output, parameter, and state name references, Python syntax, and draft source load/import errors when a Python runtime is available.
 
 Line-specific source-check rows can be clicked from the Code workspace or Problems panel to focus the editor line. Runtime Python tracebacks are mapped back to component source files when Studio can match the traceback frame to a project component. The editor gutter marks checked or runtime-reported source lines with warning/error dots so line metadata remains visible while editing. Common source-check hints such as missing input references, missing output entries, and missing `evaluate` or generated-wrapper `step` scaffolds expose a Fix action that inserts the matching contract snippet at the current cursor.
 
@@ -28,7 +28,7 @@ The completion panel and contract rows include hover text and can insert:
 - vectorized `step` or `evaluate_batch` scaffolds
 - external executable stdin/stdout adapter scaffolds
 
-Source check warnings include contract-reference hints and likely undefined names. Undefined-name warnings do not block save/run by themselves; source-check errors such as missing signatures, syntax failures, import/load failures, or missing output contracts block run, batch, and export.
+Source check warnings include contract-reference hints, unknown parameter/state references, and likely undefined names. Undefined-name warnings do not block save/run by themselves; source-check errors such as missing signatures, syntax failures, import/load failures, or missing output contracts block run, batch, and export.
 
 ## Component Class Shape
 

@@ -5565,6 +5565,105 @@ func TestCheckSourceEndpointWarnsAboutUnreferencedContractNodes(t *testing.T) {
 	}
 }
 
+func TestCheckSourceEndpointWarnsAboutUnknownParameterAndStateReferences(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	projectSummary := createWorkspaceProject(t, server, "Source Reference Warning Project")
+
+	contractPayload, err := json.Marshal(map[string]any{
+		"project_path": projectSummary.ProjectPath,
+		"component_id": "scalar",
+		"parameters": map[string]any{
+			"gain": 2.0,
+		},
+		"parameter_defs": map[string]model.ParameterDefinition{
+			"gain": {
+				DisplayName: "Gain",
+				Current:     2.0,
+			},
+		},
+		"state_defs": map[string]model.StateDefinition{
+			"calls": {
+				DisplayName: "Calls",
+				Initial:     0.0,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	contractResponse := httptest.NewRecorder()
+	contractRequest := httptest.NewRequest(http.MethodPost, "/api/project/component-contract", bytes.NewReader(contractPayload))
+	server.Handler().ServeHTTP(contractResponse, contractRequest)
+	if contractResponse.Code != http.StatusOK {
+		t.Fatalf("contract status = %d body=%s", contractResponse.Code, contractResponse.Body.String())
+	}
+
+	source := strings.Join([]string{
+		"class ScalarComponent:",
+		"    def evaluate(self, inputs, state, params, context):",
+		"        value = inputs.get(\"value\", 0.0)",
+		"        gain = params[\"gain\"]",
+		"        scale = params.get(\"scale\", 1.0)",
+		"        calls = state['calls']",
+		"        skipped = state.get('skipped', 0.0)",
+		"        local_params = {\"shadow\": 1.0}",
+		"        shadow = local_params.get(\"shadow\", 1.0)",
+		"        previous_state = {\"ignored\": 0.0}",
+		"        ignored = previous_state.get(\"ignored\", 0.0)",
+		"        return {\"result\": value * gain * scale}, {\"calls\": calls + skipped}",
+		"",
+	}, "\n")
+	payload, err := json.Marshal(map[string]any{
+		"project_path": projectSummary.ProjectPath,
+		"component_id": "scalar",
+		"content":      source,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/source/check", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Check SourceCheck `json:"check"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !body.Check.OK {
+		t.Fatalf("warnings should not fail source check = %#v", body.Check.Problems)
+	}
+	parameterProblem, ok := findProblemMessageContaining(body.Check.Problems, "parameter reference is not in component contract: scale")
+	if !ok {
+		t.Fatalf("parameter warning missing from %#v", body.Check.Problems)
+	}
+	if parameterProblem.Source != "components/scalar.py" || parameterProblem.Line != 5 || parameterProblem.Column == 0 {
+		t.Fatalf("parameter problem location = %#v", parameterProblem)
+	}
+	stateProblem, ok := findProblemMessageContaining(body.Check.Problems, "state reference is not in component contract: skipped")
+	if !ok {
+		t.Fatalf("state warning missing from %#v", body.Check.Problems)
+	}
+	if stateProblem.Source != "components/scalar.py" || stateProblem.Line != 7 || stateProblem.Column == 0 {
+		t.Fatalf("state problem location = %#v", stateProblem)
+	}
+	if hasProblemMessageContaining(body.Check.Problems, "parameter reference is not in component contract: gain") {
+		t.Fatalf("known parameter should not warn: %#v", body.Check.Problems)
+	}
+	if hasProblemMessageContaining(body.Check.Problems, "state reference is not in component contract: calls") {
+		t.Fatalf("known state should not warn: %#v", body.Check.Problems)
+	}
+	if hasProblemMessageContaining(body.Check.Problems, "parameter reference is not in component contract: shadow") {
+		t.Fatalf("local params-like variable should not warn: %#v", body.Check.Problems)
+	}
+	if hasProblemMessageContaining(body.Check.Problems, "state reference is not in component contract: ignored") {
+		t.Fatalf("local state-like variable should not warn: %#v", body.Check.Problems)
+	}
+}
+
 func TestUpdateSourceEndpointRejectsExamples(t *testing.T) {
 	server := newTestServer(t)
 	payload := []byte(`{

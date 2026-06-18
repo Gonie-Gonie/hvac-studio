@@ -242,7 +242,54 @@ func sourceContractReferenceProblems(component model.Component, content string, 
 			})
 		}
 	}
+	parameterNames := sourceContractParameterNames(component)
+	for _, ref := range sourceNamespaceReferences(content, "params") {
+		if _, ok := parameterNames[ref.Name]; ok {
+			continue
+		}
+		problems = append(problems, Problem{
+			Severity:    "warning",
+			Message:     fmt.Sprintf("parameter reference is not in component contract: %s", ref.Name),
+			ComponentID: component.ID,
+			Source:      relativePath,
+			Line:        ref.Line,
+			Column:      ref.Column,
+		})
+	}
+	stateNames := sourceContractStateNames(component)
+	for _, ref := range sourceNamespaceReferences(content, "state") {
+		if _, ok := stateNames[ref.Name]; ok {
+			continue
+		}
+		problems = append(problems, Problem{
+			Severity:    "warning",
+			Message:     fmt.Sprintf("state reference is not in component contract: %s", ref.Name),
+			ComponentID: component.ID,
+			Source:      relativePath,
+			Line:        ref.Line,
+			Column:      ref.Column,
+		})
+	}
 	return problems
+}
+
+func sourceContractParameterNames(component model.Component) map[string]struct{} {
+	names := map[string]struct{}{}
+	for name := range component.Parameters {
+		names[name] = struct{}{}
+	}
+	for name := range component.ParameterDefinitions {
+		names[name] = struct{}{}
+	}
+	return names
+}
+
+func sourceContractStateNames(component model.Component) map[string]struct{} {
+	names := map[string]struct{}{}
+	for name := range component.StateDefinitions {
+		names[name] = struct{}{}
+	}
+	return names
 }
 
 func sourceContractHintLine(component model.Component, content string) int {
@@ -293,6 +340,52 @@ func sourceReferencesInput(content string, id string) bool {
 		strings.Contains(content, "inputs.get("+singleQuoted)
 }
 
+type sourceNamespaceReference struct {
+	Name   string
+	Line   int
+	Column int
+}
+
+func sourceNamespaceReferences(content string, namespace string) []sourceNamespaceReference {
+	pattern := regexp.MustCompile(`(^|[^A-Za-z0-9_.])` + regexp.QuoteMeta(namespace) + `\s*(?:\[\s*"([^"]+)"\s*\]|\[\s*'([^']+)'\s*\]|\.get\(\s*"([^"]+)"|\.get\(\s*'([^']+)')`)
+	matches := pattern.FindAllStringSubmatchIndex(content, -1)
+	seen := map[string]struct{}{}
+	refs := []sourceNamespaceReference{}
+	for _, match := range matches {
+		if len(match) < 12 {
+			continue
+		}
+		start, end := firstMatchedGroup(match, 2, 3, 4, 5)
+		if start < 0 || end < 0 {
+			continue
+		}
+		name := content[start:end]
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		refs = append(refs, sourceNamespaceReference{
+			Name:   name,
+			Line:   regexpLine(content, []int{start, end}),
+			Column: regexpColumn(content, start),
+		})
+	}
+	return refs
+}
+
+func firstMatchedGroup(match []int, groups ...int) (int, int) {
+	for _, group := range groups {
+		index := group * 2
+		if index+1 >= len(match) {
+			continue
+		}
+		if match[index] >= 0 && match[index+1] >= 0 {
+			return match[index], match[index+1]
+		}
+	}
+	return -1, -1
+}
+
 func sourceReferencesQuotedName(content string, id string) bool {
 	return strings.Contains(content, fmt.Sprintf(`"%s"`, id)) || strings.Contains(content, fmt.Sprintf(`'%s'`, id))
 }
@@ -302,6 +395,17 @@ func regexpLine(content string, match []int) int {
 		return 0
 	}
 	return strings.Count(content[:match[0]], "\n") + 1
+}
+
+func regexpColumn(content string, index int) int {
+	if index < 0 || index > len(content) {
+		return 0
+	}
+	lineStart := strings.LastIndex(content[:index], "\n")
+	if lineStart < 0 {
+		return index + 1
+	}
+	return index - lineStart
 }
 
 func pythonSyntaxProblems(ctx context.Context, loaded *project.LoadedProject, componentID string, relativePath string, content string) []Problem {
