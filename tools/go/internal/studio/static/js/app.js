@@ -60,6 +60,7 @@ import {
   EXECUTION_MODES,
   ML_ASSET_FIELDS,
   ML_MODEL_FORMATS,
+  NODE_PRESETS,
   RESULT_HELP,
   UNIT_CONVERSION_PRESETS,
   WORKSPACE_HELP,
@@ -1916,6 +1917,16 @@ function nodeEditor(component) {
   const form = document.createElement("div");
   form.className = "connection-form node-form";
 
+  const preset = document.createElement("select");
+  preset.id = "newNodePreset";
+  preset.setAttribute("aria-label", "Node preset");
+  for (const [value, label] of NODE_PRESETS) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    preset.append(option);
+  }
+
   const direction = document.createElement("select");
   direction.id = "newNodeDirection";
   for (const [value, label] of [["input", "Input"], ["output", "Output"]]) {
@@ -1979,6 +1990,21 @@ function nodeEditor(component) {
     defaultValue.disabled = !isInput;
     required.disabled = !isInput;
   };
+  const applyPreset = () => {
+    const selected = NODE_PRESETS.find(([value]) => value === preset.value);
+    const values = selected?.[2] || {};
+    if (!preset.value || !Object.keys(values).length) return;
+    direction.value = values.direction || "input";
+    nodeID.value = values.id || "";
+    nodeName.value = values.name || "";
+    valueType.value = values.value_type || "float";
+    medium.value = values.medium || "signal";
+    unit.value = values.unit || "";
+    defaultValue.value = presetDefaultValue(values.default);
+    required.checked = values.required !== false;
+    syncInputOnlyFields();
+  };
+  preset.addEventListener("change", applyPreset);
   direction.addEventListener("change", syncInputOnlyFields);
   syncInputOnlyFields();
 
@@ -1987,9 +2013,15 @@ function nodeEditor(component) {
       if (event.key === "Enter") addNodeFromInspector(component.id);
     });
   }
-  form.append(direction, nodeID, nodeName, valueType, medium, unit, defaultValue, requiredLabel, button);
+  form.append(preset, direction, nodeID, nodeName, valueType, medium, unit, defaultValue, requiredLabel, button);
   block.append(form);
   return block;
+}
+
+function presetDefaultValue(value) {
+  if (value === undefined || value === null) return "";
+  if (typeof value === "string") return value;
+  return JSON.stringify(value);
 }
 
 function connectionEditor(targetComponent) {
@@ -7285,6 +7317,7 @@ async function updateConnectionUnitConversion(connectionId, unitConversion) {
 async function addNodeFromInspector(componentID) {
   if (!componentID || !isWorkspaceProject()) return;
   const component = componentById(componentID);
+  const preset = el("newNodePreset")?.value || "";
   const direction = el("newNodeDirection")?.value || "input";
   const nodeID = (el("newNodeId")?.value || "").trim();
   const nodeName = (el("newNodeName")?.value || "").trim() || nodeID;
@@ -7312,6 +7345,7 @@ async function addNodeFromInspector(componentID) {
     direction,
     id: nodeID,
     name: nodeName,
+    preset,
     medium,
     value_type: valueType,
     unit,

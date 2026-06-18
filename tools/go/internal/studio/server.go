@@ -225,6 +225,7 @@ type createNodeRequest struct {
 	Direction   string `json:"direction"`
 	ID          string `json:"id"`
 	Name        string `json:"name"`
+	Preset      string `json:"preset"`
 	Medium      string `json:"medium"`
 	ValueType   string `json:"value_type"`
 	Unit        string `json:"unit"`
@@ -3554,6 +3555,7 @@ func createNode(loaded *project.LoadedProject, req createNodeRequest) (model.Nod
 	node := model.Node{
 		ID:        nodeID,
 		Name:      name,
+		Preset:    strings.TrimSpace(req.Preset),
 		Direction: nodeDirection,
 		Medium:    medium,
 		ValueType: valueType,

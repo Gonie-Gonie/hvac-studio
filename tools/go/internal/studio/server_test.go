@@ -655,6 +655,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("newNodeName")) {
 		t.Fatalf("module entrypoint did not include detailed node creation fields")
 	}
+	if !bytes.Contains(body, []byte("newNodePreset")) || !bytes.Contains(body, []byte("NODE_PRESETS")) {
+		t.Fatalf("module entrypoint did not include node preset creation fields")
+	}
 	if !bytes.Contains(body, []byte("/api/project/nodes/update")) {
 		t.Fatalf("module entrypoint did not call node update endpoint")
 	}
@@ -2175,6 +2178,7 @@ func TestCreateNodeEndpointAddsPublicIOAndDefaultInput(t *testing.T) {
 		"component_id": "scalar",
 		"direction":    "input",
 		"id":           "bias",
+		"preset":       "control_signal_input",
 		"value_type":   "float",
 		"default":      4.0,
 	})
@@ -2212,6 +2216,10 @@ func TestCreateNodeEndpointAddsPublicIOAndDefaultInput(t *testing.T) {
 	component := loaded.Graph.Components[0]
 	if !componentHasNode(component, "bias") {
 		t.Fatal("input node was not written to graph")
+	}
+	inputNode, foundInputNode := findInputNode(component, "bias")
+	if !foundInputNode || inputNode.Preset != "control_signal_input" {
+		t.Fatalf("input node preset = %#v", inputNode)
 	}
 	if !componentHasNode(component, "adjusted") {
 		t.Fatal("output node was not written to graph")

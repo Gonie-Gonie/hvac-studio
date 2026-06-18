@@ -26,6 +26,19 @@ export const EXECUTION_MODES = [
   ["initialization_only", "Initialization Only"],
 ];
 
+export const NODE_PRESETS = [
+  ["", "Custom", {}],
+  ["water_inlet", "Water Inlet", { direction: "input", id: "water_inlet", name: "Water Inlet", medium: "water", value_type: "float" }],
+  ["water_outlet", "Water Outlet", { direction: "output", id: "water_outlet", name: "Water Outlet", medium: "water", value_type: "float" }],
+  ["air_inlet", "Air Inlet", { direction: "input", id: "air_inlet", name: "Air Inlet", medium: "air", value_type: "float" }],
+  ["air_outlet", "Air Outlet", { direction: "output", id: "air_outlet", name: "Air Outlet", medium: "air", value_type: "float" }],
+  ["control_signal_input", "Control Signal Input", { direction: "input", id: "control_signal", name: "Control Signal", medium: "control", value_type: "float", default: 0 }],
+  ["electric_power_output", "Electric Power Output", { direction: "output", id: "electric_power", name: "Electric Power", medium: "electric", value_type: "float", unit: "W" }],
+  ["scalar_input", "Scalar Input", { direction: "input", id: "value", name: "Value", medium: "signal", value_type: "float", default: 0 }],
+  ["scalar_output", "Scalar Output", { direction: "output", id: "result", name: "Result", medium: "signal", value_type: "float" }],
+  ["time_series_input", "Time Series Input", { direction: "input", id: "series", name: "Time Series", medium: "signal", value_type: "object", default: [] }],
+];
+
 export const ML_MODEL_FORMATS = ["custom", "pickle", "joblib", "onnx", "torch", "tensorflow"];
 
 export const ML_ASSET_FIELDS = [
