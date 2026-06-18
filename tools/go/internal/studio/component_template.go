@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
@@ -346,6 +347,9 @@ func writeComponentTemplateFiles(projectRoot string, component model.Component, 
 				return err
 			}
 		}
+		if err := writeGeneratedWrapperFile(projectRoot, component); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -415,7 +419,72 @@ func syncComponentMetadataFile(loaded *project.LoadedProject, component model.Co
 	if err != nil {
 		return err
 	}
-	return writeComponentMetadataFile(metadataPath, component, classNameFromPath(component.Class))
+	if err := writeComponentMetadataFile(metadataPath, component, classNameFromPath(component.Class)); err != nil {
+		return err
+	}
+	if component.Source.Layout == "generated_wrapper" {
+		return writeGeneratedWrapperFile(loaded.Root, component)
+	}
+	return nil
+}
+
+func writeGeneratedWrapperFile(projectRoot string, component model.Component) error {
+	wrapperRel := strings.TrimSpace(component.Source.Wrapper)
+	if component.Source.Layout != "generated_wrapper" || wrapperRel == "" {
+		return nil
+	}
+	wrapperPath, err := resolveProjectOwnedFile(projectRoot, wrapperRel)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(wrapperPath), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(wrapperPath, []byte(generatedWrapperContent(component)), 0o644)
+}
+
+func generatedWrapperContent(component model.Component) string {
+	className := classNameFromPath(component.Class)
+	if strings.TrimSpace(className) == "" {
+		className = pythonClassName(component.ID)
+	}
+	return "import json\n" +
+		"from . import user_init, user_step\n\n\n" +
+		"class " + className + ":\n" +
+		"    \"\"\"Studio-owned runtime wrapper.\n\n" +
+		"    Component contract metadata is regenerated from graph.json/component.json.\n" +
+		"    Edit user_step.py for model logic.\n" +
+		"    \"\"\"\n\n" +
+		"    input_nodes = json.loads(" + pythonStringLiteralForWrapper(componentNodeContractMap(component.Nodes.Inputs)) + ")\n" +
+		"    output_nodes = json.loads(" + pythonStringLiteralForWrapper(componentNodeContractMap(component.Nodes.Outputs)) + ")\n" +
+		"    parameter_schema = json.loads(" + pythonStringLiteralForWrapper(component.ParameterDefinitions) + ")\n" +
+		"    state_schema = json.loads(" + pythonStringLiteralForWrapper(component.StateDefinitions) + ")\n\n" +
+		"    def initialize(self, params, context):\n" +
+		"        state = user_init.initialize(params, context)\n" +
+		"        if state is None:\n" +
+		"            return {}\n" +
+		"        return state\n\n" +
+		"    def evaluate(self, inputs, state, params, context):\n" +
+		"        return user_step.step(inputs, state, params, context)\n"
+}
+
+func componentNodeContractMap(nodes []model.Node) map[string]model.Node {
+	out := map[string]model.Node{}
+	for _, node := range nodes {
+		out[node.ID] = node
+	}
+	return out
+}
+
+func pythonStringLiteralForWrapper(value any) string {
+	if value == nil {
+		return strconv.Quote("{}")
+	}
+	data, err := json.Marshal(value)
+	if err != nil || string(data) == "null" {
+		return strconv.Quote("{}")
+	}
+	return strconv.Quote(string(data))
 }
 
 func componentTemplateNodes(nodes []model.Node, direction string) []model.Node {

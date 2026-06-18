@@ -1310,6 +1310,20 @@ func TestCreateComponentEndpointCreatesWorkspaceComponent(t *testing.T) {
 	if !strings.Contains(string(wrapperBytes), "class SecondGainComponent:") {
 		t.Fatalf("component wrapper did not use generated class name:\n%s", string(wrapperBytes))
 	}
+	wrapperContent := string(wrapperBytes)
+	for _, want := range []string{
+		"input_nodes = json.loads",
+		`\"value\"`,
+		"output_nodes = json.loads",
+		`\"result\"`,
+		"parameter_schema = json.loads",
+		`\"gain\"`,
+		"Studio-owned runtime wrapper",
+	} {
+		if !strings.Contains(wrapperContent, want) {
+			t.Fatalf("component wrapper did not include regenerated contract %q:\n%s", want, wrapperContent)
+		}
+	}
 	if _, err := os.Stat(filepath.Join(root, "projects", "component-project", "components", "second_gain", "component.json")); err != nil {
 		t.Fatal(err)
 	}
@@ -3467,6 +3481,16 @@ func TestUpdateComponentContractEndpointWritesDefinitionsAndMetadata(t *testing.
 	if metadata.StateDefinitions["accumulator"].Unit != "count" {
 		t.Fatalf("metadata state definitions = %#v", metadata.StateDefinitions)
 	}
+	wrapperBytes, err := os.ReadFile(filepath.Join(root, "projects", "contract-project", "components", "second_gain", "wrapper.py"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrapperContent := string(wrapperBytes)
+	for _, want := range []string{`\"Test Gain\"`, `\"optimization_variable\"`, `\"accumulator\"`, `\"count\"`} {
+		if !strings.Contains(wrapperContent, want) {
+			t.Fatalf("wrapper contract did not reflect component contract update %q:\n%s", want, wrapperContent)
+		}
+	}
 
 	badPayload, err := json.Marshal(map[string]any{
 		"project_path": createBody.Project.ProjectPath,
@@ -3521,6 +3545,16 @@ func TestUpdateComponentContractEndpointWritesDefinitionsAndMetadata(t *testing.
 	}
 	if _, exists := component.ParameterDefinitions["gain"]; exists {
 		t.Fatalf("parameter definition should be cleared: %#v", component.ParameterDefinitions)
+	}
+	wrapperBytes, err = os.ReadFile(filepath.Join(root, "projects", "contract-project", "components", "second_gain", "wrapper.py"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrapperContent = string(wrapperBytes)
+	for _, removed := range []string{`\"Test Gain\"`, `\"accumulator\"`} {
+		if strings.Contains(wrapperContent, removed) {
+			t.Fatalf("wrapper contract retained deleted metadata %q:\n%s", removed, wrapperContent)
+		}
 	}
 }
 
