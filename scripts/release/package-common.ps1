@@ -10,7 +10,36 @@ function Copy-Tree {
     throw "source path does not exist: $Source"
   }
   New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Destination) | Out-Null
-  Copy-Item -LiteralPath $Source -Destination $Destination -Recurse -Force
+
+  $Item = Get-Item -LiteralPath $Source -Force
+  if (-not $Item.PSIsContainer) {
+    Copy-Item -LiteralPath $Item.FullName -Destination $Destination -Force
+    return
+  }
+
+  Copy-TreeDirectory -Source $Item.FullName -Destination $Destination
+}
+
+function Copy-TreeDirectory {
+  param(
+    [Parameter(Mandatory = $true)][string]$Source,
+    [Parameter(Mandatory = $true)][string]$Destination
+  )
+
+  New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+  foreach ($Child in Get-ChildItem -LiteralPath $Source -Force) {
+    if ($Child.PSIsContainer) {
+      if ($Child.Name -eq '__pycache__') {
+        continue
+      }
+      Copy-TreeDirectory -Source $Child.FullName -Destination (Join-Path $Destination $Child.Name)
+      continue
+    }
+    if ($Child.Name -like '*.pyc*' -or $Child.Name -like '*.pyo*') {
+      continue
+    }
+    Copy-Item -LiteralPath $Child.FullName -Destination (Join-Path $Destination $Child.Name) -Force
+  }
 }
 
 function Resolve-Version {
