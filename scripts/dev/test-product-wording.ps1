@@ -12,7 +12,8 @@ $Forbidden = @(
   @{ Label = 'legacy milestone abbreviation'; Pattern = ('\b' + 'M' + 'VP\b') },
   @{ Label = 'legacy post milestone wording'; Pattern = ('\bpost-' + 'M' + 'VP\b') },
   @{ Label = 'old alpha baseline 3'; Pattern = ('\balpha' + '\.3\b') },
-  @{ Label = 'old alpha baseline 5'; Pattern = ('\balpha' + '\.5\b') }
+  @{ Label = 'old alpha baseline 5'; Pattern = ('\balpha' + '\.5\b') },
+  @{ Label = 'component-as-node wording'; Pattern = '\b(chiller|pump|ahu|zone|controller|equipment|plant|model)\s+nodes?\b|\bnodes?\s+(chiller|pump|ahu|zone|controller|equipment|plant|model)\b' }
 )
 
 $SurfaceRoots = @(
