@@ -1,6 +1,15 @@
 import { api } from "./api.js";
 import { el, escapeAttr, escapeHTML } from "./dom.js";
 import {
+  calibrationResultTreeItems as renderCalibrationResultTreeItems,
+  datasetTreeItems as renderDatasetTreeItems,
+  optimizationResultTreeItems as renderOptimizationResultTreeItems,
+  parameterSetTreeItems as renderParameterSetTreeItems,
+  renderArtifactWorkspace as renderArtifactWorkspaceView,
+  validationMappingTreeItems as renderValidationMappingTreeItems,
+  validationRunTreeItems as renderValidationRunTreeItems,
+} from "./artifact-workspace.js";
+import {
   coerceInput,
   coerceParameter,
   formatValue,
@@ -301,170 +310,7 @@ function startWorkspaceContext() {
 }
 
 function renderArtifactWorkspace() {
-  const tbody = el("artifactRows");
-  if (!tbody) return;
-  const rows = artifactRows();
-  tbody.innerHTML = "";
-  if (!rows.length) {
-    tbody.append(emptyRow(6, "No artifacts yet"));
-    return;
-  }
-  for (const artifact of rows) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${escapeHTML(artifact.type)}</td>
-      <td>${escapeHTML(artifact.name)}</td>
-      <td class="path-cell">${escapeHTML(artifact.path || "")}</td>
-      <td>${escapeHTML(artifact.state || "")}</td>
-      <td><span class="policy-pill ${artifact.protected ? "protected" : ""}">${escapeHTML(artifact.policy)}</span></td>
-      <td class="action-cell"></td>
-    `;
-    if (artifact.open) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "small-action table-action";
-      button.textContent = artifact.action || "Open";
-      button.addEventListener("click", artifact.open);
-      tr.querySelector(".action-cell").append(button);
-    }
-    tbody.append(tr);
-  }
-}
-
-function artifactRows() {
-  if (!state.detail) return [];
-  const rows = [];
-  const sourcePolicy = { policy: "Source artifact", protected: false };
-  const recordPolicy = { policy: "Generated record", protected: true };
-  for (const item of state.detail.datasets || []) {
-    rows.push({
-      type: "Dataset",
-      name: item.name || item.id,
-      path: item.relative_path,
-      state: `${item.row_count || 0} rows / ${item.column_count || 0} cols`,
-      ...sourcePolicy,
-      open: () => openArtifactSummary("dataset", item),
-    });
-  }
-  for (const item of state.detail.validation_mappings || []) {
-    rows.push({
-      type: "Validation Mapping",
-      name: item.name || item.id,
-      path: item.relative_path,
-      state: `${item.input_count || 0} in / ${item.output_count || 0} out`,
-      ...sourcePolicy,
-      open: () => openArtifactSummary("validation_mapping", item),
-    });
-  }
-  for (const item of state.detail.parameter_sets || []) {
-    rows.push({
-      type: "Parameter Set",
-      name: item.name || item.id,
-      path: item.relative_path,
-      state: `${item.parameter_count || 0} values`,
-      ...sourcePolicy,
-      open: () => {
-        state.activeParameterSetPath = item.relative_path || "";
-        openArtifactSummary("parameter_set", item);
-        renderProjectTree();
-        renderRunInputs();
-      },
-    });
-  }
-  for (const item of state.detail.calibration_setups || []) {
-    rows.push({
-      type: "Calibration Setup",
-      name: item.name || item.id,
-      path: item.relative_path,
-      state: `${item.algorithm || "grid"} / ${item.parameter_count || 0} params`,
-      ...sourcePolicy,
-      action: "Run",
-      open: () => runCalibrationSetup(item),
-    });
-  }
-  for (const item of state.detail.optimization_setups || []) {
-    rows.push({
-      type: "Optimization Setup",
-      name: item.name || item.id,
-      path: item.relative_path,
-      state: `${item.algorithm || "grid"} / ${item.variable_count || 0} vars`,
-      ...sourcePolicy,
-      action: "Run",
-      open: () => runOptimizationSetup(item),
-    });
-  }
-  for (const item of state.detail.scenarios || []) {
-    rows.push({
-      type: "Scenario",
-      name: item.name || item.id,
-      path: item.relative_path,
-      state: item.created_at_utc || "",
-      ...sourcePolicy,
-      open: () => loadScenario(item.id),
-    });
-  }
-  for (const item of state.detail.runs || []) {
-    rows.push({
-      type: "Run Record",
-      name: item.id,
-      path: item.relative_path,
-      state: item.created_at_utc || "",
-      ...recordPolicy,
-      open: () => loadRunRecord(item.id),
-    });
-  }
-  for (const item of state.detail.batches || []) {
-    rows.push({
-      type: "Batch Record",
-      name: item.id,
-      path: item.relative_path,
-      state: `${item.ok_count || 0}/${item.case_count || 0} ok`,
-      ...recordPolicy,
-      open: () => loadBatchRecord(item.id),
-    });
-  }
-  for (const item of state.detail.validation_runs || []) {
-    rows.push({
-      type: "Validation Record",
-      name: item.mapping_name || item.mapping_id || item.id,
-      path: item.relative_path,
-      state: `${item.row_count || 0} rows`,
-      ...recordPolicy,
-      open: () => loadWorkflowRecord("validation", item.id),
-    });
-  }
-  for (const item of state.detail.calibration_results || []) {
-    rows.push({
-      type: "Calibration Record",
-      name: item.setup_name || item.setup_id || item.id,
-      path: item.relative_path,
-      state: `best ${shortNumber(item.best_objective)}`,
-      ...recordPolicy,
-      open: () => loadWorkflowRecord("calibration", item.id),
-    });
-  }
-  for (const item of state.detail.optimization_results || []) {
-    rows.push({
-      type: "Optimization Record",
-      name: item.setup_name || item.setup_id || item.id,
-      path: item.relative_path,
-      state: `best ${shortNumber(item.best_objective)}`,
-      ...recordPolicy,
-      open: () => loadWorkflowRecord("optimization", item.id),
-    });
-  }
-  for (const item of state.detail.exports || []) {
-    rows.push({
-      type: "Export Manifest",
-      name: item.profile,
-      path: item.relative_path,
-      state: item.created_at_utc || "",
-      policy: "Generated export",
-      protected: true,
-      open: () => loadExportRecord(item.profile),
-    });
-  }
-  return rows;
+  renderArtifactWorkspaceView(artifactWorkspaceContext());
 }
 
 async function openArtifactSummary(kind, item) {
@@ -494,54 +340,47 @@ async function openArtifactSummary(kind, item) {
 }
 
 function datasetTreeItems() {
-  return (state.detail?.datasets || []).map((item) => {
-    const row = treeStatic(item.name || item.id, item.relative_path || "dataset");
-    row.addEventListener("click", () => openArtifactSummary("dataset", item));
-    return row;
-  });
+  return renderDatasetTreeItems(artifactWorkspaceContext());
 }
 
 function parameterSetTreeItems() {
-  return (state.detail?.parameter_sets || []).map((item) => parameterSetTreeItem(item));
+  return renderParameterSetTreeItems(artifactWorkspaceContext());
 }
 
 function validationMappingTreeItems() {
-  return (state.detail?.validation_mappings || []).map((item) => {
-    const row = treeStatic(item.name || item.id, `${item.relative_path || "mapping"} / ${item.input_count || 0} in / ${item.output_count || 0} out`);
-    row.addEventListener("click", () => openArtifactSummary("validation_mapping", item));
-    return row;
-  });
+  return renderValidationMappingTreeItems(artifactWorkspaceContext());
 }
 
 function validationRunTreeItems() {
-  return (state.detail?.validation_runs || []).map((item) => workflowRecordTreeItem("validation", item, item.mapping_name || item.mapping_id || item.id, `${item.row_count || 0} rows`));
+  return renderValidationRunTreeItems(artifactWorkspaceContext());
 }
 
 function calibrationResultTreeItems() {
-  return (state.detail?.calibration_results || []).map((item) => workflowRecordTreeItem("calibration", item, item.setup_name || item.setup_id || item.id, `best ${shortNumber(item.best_objective)}`));
+  return renderCalibrationResultTreeItems(artifactWorkspaceContext());
 }
 
 function optimizationResultTreeItems() {
-  return (state.detail?.optimization_results || []).map((item) => workflowRecordTreeItem("optimization", item, item.setup_name || item.setup_id || item.id, `best ${shortNumber(item.best_objective)}`));
+  return renderOptimizationResultTreeItems(artifactWorkspaceContext());
 }
 
-function workflowRecordTreeItem(kind, item, label, meta) {
-  const row = treeStatic(label, meta || item.relative_path || kind);
-  row.addEventListener("click", () => loadWorkflowRecord(kind, item.id));
-  return row;
-}
-
-function parameterSetTreeItem(item) {
-  const row = treeStatic(item.name || item.id, item.relative_path || "parameter set");
-  if (state.activeParameterSetPath === item.relative_path) row.classList.add("active");
-  row.addEventListener("click", () => {
-    state.activeParameterSetPath = item.relative_path || "";
-    renderProjectTree();
-    renderRunInputs();
-    renderStartRuntimeRows();
-    log(`Parameter set selected: ${state.activeParameterSetPath || "baseline"}`);
-  });
-  return row;
+function artifactWorkspaceContext() {
+  return {
+    emptyRow,
+    loadBatchRecord,
+    loadExportRecord,
+    loadRunRecord,
+    loadScenario,
+    loadWorkflowRecord,
+    log,
+    openArtifactSummary,
+    renderProjectTree,
+    renderRunInputs,
+    renderStartRuntimeRows,
+    runCalibrationSetup,
+    runOptimizationSetup,
+    shortNumber,
+    treeStatic,
+  };
 }
 
 function shortNumber(value) {
