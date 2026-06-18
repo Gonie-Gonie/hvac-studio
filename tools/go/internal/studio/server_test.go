@@ -18,6 +18,7 @@ import (
 	"github.com/goniegonie/hvac-studio/tools/go/internal/calibration"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/modelvalidation"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/optimization"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
 	runtimecore "github.com/goniegonie/hvac-studio/tools/go/internal/runtime"
@@ -6645,6 +6646,7 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	if len(openBody.Export.Files) != len(body.Export.Files) {
 		t.Fatalf("opened export file count = %d, want %d", len(openBody.Export.Files), len(body.Export.Files))
 	}
+	assertRuntimeExportWorkflowsRun(t, exportedLoaded)
 
 	slimPayload, err := json.Marshal(map[string]any{
 		"project_path":                createBody.Project.ProjectPath,
@@ -7193,6 +7195,51 @@ func assertRuntimeExportCompiles(t *testing.T, exportRoot string) {
 	}
 	if _, err := compiler.Compile(loaded); err != nil {
 		t.Fatalf("compile relocated export: %v", err)
+	}
+}
+
+func assertRuntimeExportWorkflowsRun(t *testing.T, loaded *project.LoadedProject) {
+	t.Helper()
+	loaded.Project.Environment.Python = testPythonExecutable(t)
+	if err := writeJSONFile(loaded.Path, loaded.Project); err != nil {
+		t.Fatalf("write exported project python override: %v", err)
+	}
+
+	ctx := context.Background()
+	mapping, err := modelvalidation.LoadMapping(loaded.Root, filepath.Join("validation", "mappings", "scalar_validation.json"))
+	if err != nil {
+		t.Fatalf("load exported validation mapping: %v", err)
+	}
+	validationResult, err := modelvalidation.Run(ctx, loaded, mapping, modelvalidation.Options{HighErrorRows: 1})
+	if err != nil {
+		t.Fatalf("run exported validation: %v", err)
+	}
+	if !validationResult.OK || validationResult.RowCount != 1 || validationResult.Metrics["result"].Count != 1 {
+		t.Fatalf("exported validation result = %#v", validationResult)
+	}
+
+	calibrationSetup, err := calibration.LoadSetup(loaded.Root, filepath.Join("calibration", "setups", "scalar_gain.json"))
+	if err != nil {
+		t.Fatalf("load exported calibration setup: %v", err)
+	}
+	calibrationResult, err := calibration.Run(ctx, loaded.Path, calibrationSetup, calibration.Options{})
+	if err != nil {
+		t.Fatalf("run exported calibration: %v", err)
+	}
+	if !calibrationResult.OK || len(calibrationResult.Candidates) != 3 {
+		t.Fatalf("exported calibration result = %#v", calibrationResult)
+	}
+
+	optimizationSetup, err := optimization.LoadSetup(loaded.Root, filepath.Join("optimization", "setups", "scalar_grid.json"))
+	if err != nil {
+		t.Fatalf("load exported optimization setup: %v", err)
+	}
+	optimizationResult, err := optimization.Run(ctx, loaded.Path, optimizationSetup, optimization.Options{})
+	if err != nil {
+		t.Fatalf("run exported optimization: %v", err)
+	}
+	if !optimizationResult.OK || len(optimizationResult.Candidates) != 3 || optimizationResult.BestOutputs["result"] == nil {
+		t.Fatalf("exported optimization result = %#v", optimizationResult)
 	}
 }
 
