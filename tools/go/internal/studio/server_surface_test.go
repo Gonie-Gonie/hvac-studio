@@ -241,6 +241,37 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	for _, option := range []struct {
+		value string
+		label string
+	}{
+		{"physical_component", "Physical Component"},
+		{"controller", "Controller"},
+		{"data_source", "Data Source"},
+		{"data_sink", "Data Sink"},
+		{"utility", "Utility"},
+		{"solver", "Solver"},
+		{"composite_wrapper", "Composite Wrapper"},
+	} {
+		token := `["` + option.value + `", "` + option.label + `"]`
+		if !bytes.Contains(configBody, []byte(token)) {
+			t.Fatalf("component category options did not include %s", token)
+		}
+	}
+	for _, option := range []struct {
+		value string
+		label string
+	}{
+		{"step", "Step"},
+		{"vectorized", "Vectorized"},
+		{"external_executable", "External Executable"},
+		{"initialization_only", "Initialization Only"},
+	} {
+		token := `["` + option.value + `", "` + option.label + `"]`
+		if !bytes.Contains(configBody, []byte(token)) {
+			t.Fatalf("execution mode options did not include %s", token)
+		}
+	}
 	startResponse := httptest.NewRecorder()
 	startRequest := httptest.NewRequest(http.MethodGet, "/js/start-workspace.js", nil)
 
