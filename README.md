@@ -6,19 +6,22 @@ The product goal is to let researchers define equipment, controls, surrogate mod
 
 The release strategy is Windows-first: the initial supported platform is Windows 10/11 x64, distributed first as a portable zip. The engine, project format, graph schema, and component schema should remain OS-independent so macOS can be offered through an experimental support package.
 
-## Current Focus
+## Current Development Surface
 
-The first stable slice is the runtime core plus a real Studio workspace shell:
+HVAC Studio is currently a runtime-backed Studio workspace plus CLI, SDK,
+examples, and package gates:
 
 - `project.bcsproj` and `graph.json` as source-of-truth files.
 - User-defined Python components with `initialize(params, context)` and `evaluate(inputs, state, params, context)`.
 - A persistent Python worker using JSONL over stdio.
 - A Go `bcs-runner` CLI with `validate`, `run`, `run-series`, `serve`, `schema`, `migrate`, `validate-data`, `calibrate`, and `optimize`.
 - A Python `bcs_sdk` client that wraps `bcs-runner serve` for repeated evaluations, async/pool evaluation, and helpers for validation, calibration, optimization, batches, schemas, and export manifests.
-- Golden examples that behave as regression assets, including scalar, generated-wrapper, stateful time-series, plant workflow, optimization, runtime-only, vectorized, external executable, solver boundary, unit conversion, and composite system cases.
-- A Wails-based Studio desktop UI that opens examples, creates workspace projects, edits parameters/default inputs/Python source, adds components, validates, runs, saves scenarios/run records, and exports public schema/runtime manifests.
+- Golden examples that behave as regression assets, including scalar, generated-wrapper, stateful time-series, plant workflow, optimization, runtime-only, vectorized, external executable, solver boundary, unit conversion, composite, ANN asset, and RC/ANN composition cases.
+- A Wails-based Studio desktop UI that opens examples, creates workspace projects and components, edits component contracts and Python source, manages parameters and default inputs, imports datasets, creates validation/calibration/optimization setups, runs workflows, saves records, and exports runtime packages.
 
-The Studio UI is intentionally built as the full product workspace first. Individual panels can be wired up gradually without changing the source-of-truth files or inventing a separate simulation engine.
+Studio is an authoring and inspection surface over the same source-of-truth
+files and runner-backed workflows used by the CLI and SDK; it should not grow a
+separate simulation engine.
 
 ## Repository Map
 

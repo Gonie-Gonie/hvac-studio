@@ -277,45 +277,12 @@ permissions:
 - Package filenames omit the leading `v`.
 - Untagged local packages use `0.1.0-dev-<shortsha>` unless a version is passed explicitly.
 
-## Roadmap
+## Release Scope
 
-```text
-v0.1
-- Windows portable zip
-- HVAC Studio.exe
-- bin/studio.exe
-- bcs-runner.exe
-- bcs-env.exe
-- bundled Python runtime
-- Python worker/source package
-- simple example project
-
-v0.2
-- Windows installer bundle
-- WebView2/runtime checks
-- Start Menu integration
-- optional PATH registration
-- `.bcsproj` association policy
-
-v0.3
-- Runtime-only export
-- CLI delivery package
-- run / batch mode stabilization
-- MkDocs HTML and PDF user guide release assets
-
-v0.4
-- Python SDK workflow
-- serve mode
-- optimization example
-
-v1.0
-- Stable Windows release
-- validation / calibration / optimization workflow cleanup
-
-v1.x
-- macOS experimental release target
-- macOS packaging, codesign, and notarization review
-```
+This page documents how to build, test, and publish release artifacts. It does
+not carry a separate roadmap. Use [Current Status](status.md) for what the
+current packages support and `planning/development-plan.md` for the active
+maintainer planning spine.
 
 ## Runtime Exit Codes
 
