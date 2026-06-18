@@ -23,8 +23,9 @@ It is not yet a signed stable public release.
 - User docs build through MkDocs, Studio help links point at local docs, tutorial
   screenshots are generated from the screenshot matrix, and the manual/PDF build
   includes all user-guide pages.
-- Release scripts create portable Studio, installer bundle, runtime-only, and
-  experimental macOS support zip artifacts with provenance and checksums.
+- Release scripts create portable Studio, installer bundle, runtime-only,
+  experimental macOS support, documentation, and SDK zip artifacts with
+  provenance and checksums.
 
 ## Not Yet Supported
 
@@ -45,6 +46,7 @@ dist/hvac-studio-<version>-windows-amd64-installer.zip
 dist/hvac-studio-runtime-<version>-windows-amd64.zip
 dist/hvac-studio-<version>-macos-universal-experimental.zip
 dist/hvac-studio-docs-<version>.zip
+dist/hvac-studio-sdk-<version>.zip
 ```
 
 The current checkout has these retained development package artifacts:
@@ -55,6 +57,7 @@ dist/hvac-studio-0.1.0-dev-windows-amd64-installer.zip
 dist/hvac-studio-runtime-0.1.0-dev-windows-amd64.zip
 dist/hvac-studio-0.1.0-dev-macos-universal-experimental.zip
 dist/hvac-studio-docs-0.1.0-dev.zip
+dist/hvac-studio-sdk-0.1.0-dev.zip
 ```
 
 Standalone Studio smoke builds write the latest executable to
@@ -62,9 +65,10 @@ Standalone Studio smoke builds write the latest executable to
 rewritten by `scripts/dev/test-studio.ps1` and removed by
 `scripts/dev/clean-generated.ps1`.
 
-Other transient local outputs include `artifacts/`, `dist/docs/`, `.tmp/`, and
-Python `__pycache__/` directories. Run this after local checks when you want
-only tracked files and retained package zips left behind:
+Other transient local outputs include `artifacts/`, `bin/`, `dist/docs/`,
+`.tmp/`, Python `__pycache__/` directories, and Python package build folders.
+Run this after local checks when you want only tracked files and retained
+package zips left behind:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\clean-generated.ps1

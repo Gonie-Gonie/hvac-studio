@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $Targets = @(
   'artifacts',
+  'bin',
   'dist\build',
   'dist\docs',
   '.tmp'
@@ -38,6 +39,7 @@ function ConvertTo-RepoRelative {
 $Removed = New-Object System.Collections.Generic.List[string]
 $Skipped = New-Object System.Collections.Generic.List[string]
 $RemovedPythonCaches = New-Object System.Collections.Generic.List[string]
+$RemovedPythonBuildArtifacts = New-Object System.Collections.Generic.List[string]
 
 foreach ($RelativePath in $Targets) {
   $Resolved = Resolve-RepoTarget -RelativePath $RelativePath
@@ -72,6 +74,28 @@ foreach ($PythonCache in $PythonCaches) {
   $RemovedPythonCaches.Add($RelativePath)
 }
 
+$PythonRoot = Join-Path $RepoRoot 'python'
+if (Test-Path -LiteralPath $PythonRoot) {
+  $PythonBuildArtifacts = @(Get-ChildItem -LiteralPath $PythonRoot -Recurse -Directory -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -eq 'build' -or $_.Name.EndsWith('.egg-info', [System.StringComparison]::OrdinalIgnoreCase) } |
+    Sort-Object FullName)
+  foreach ($PythonBuildArtifact in $PythonBuildArtifacts) {
+    $Resolved = (Resolve-Path -LiteralPath $PythonBuildArtifact.FullName).Path
+    if (-not $Resolved.StartsWith($RepoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+      throw "refusing cleanup outside repo: $Resolved"
+    }
+
+    $RelativePath = ConvertTo-RepoRelative -Path $Resolved
+    if ($DryRun) {
+      $RemovedPythonBuildArtifacts.Add("$RelativePath (dry run)")
+      continue
+    }
+
+    Remove-Item -LiteralPath $Resolved -Recurse -Force
+    $RemovedPythonBuildArtifacts.Add($RelativePath)
+  }
+}
+
 if ($Removed.Count -gt 0) {
   Write-Host "removed generated paths: $($Removed -join ', ')"
 } else {
@@ -86,6 +110,16 @@ if ($RemovedPythonCaches.Count -gt 0) {
   }
 } else {
   Write-Host 'no Python cache directories to remove'
+}
+
+if ($RemovedPythonBuildArtifacts.Count -gt 0) {
+  if ($DryRun) {
+    Write-Host "would remove Python build artifacts: $($RemovedPythonBuildArtifacts.Count)"
+  } else {
+    Write-Host "removed Python build artifacts: $($RemovedPythonBuildArtifacts.Count)"
+  }
+} else {
+  Write-Host 'no Python build artifacts to remove'
 }
 
 if ($Skipped.Count -gt 0) {

@@ -2,9 +2,9 @@
 name = "bcs-sdk"
 version = "0.1.0"
 description = "Python wrapper around the HVAC Studio runner"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-
