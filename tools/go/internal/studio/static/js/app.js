@@ -14,10 +14,17 @@ import {
   coerceParameter,
   formatValue,
   parameterInputValue,
-  sampleValueFor,
 } from "./format.js";
 import { renderLogs as renderLogsView } from "./logs-panel.js";
 import { renderExportWorkspace } from "./export-workspace.js";
+import {
+  activeScenarioBadge as activeScenarioBadgeView,
+  markRunInputsEdited as markRunInputsEditedView,
+  renderRunInputs as renderRunInputsView,
+  resetRunInput as resetRunInputView,
+  runInputMeta as runInputMetaView,
+  scenarioNameField as scenarioNameFieldView,
+} from "./run-inputs.js";
 import { renderRunOutputWorkspace } from "./run-output.js";
 import { state } from "./state.js";
 import {
@@ -515,105 +522,43 @@ function exportTreeItem(exportSummary) {
 }
 
 function renderRunInputs() {
-  const container = el("runInputs");
-  container.innerHTML = "";
-  const inputs = currentSystem()?.public_inputs || [];
-  const savedInputs = state.activeRunInput?.inputs || state.detail?.default_run_input?.inputs || {};
-  normalizeSeriesInputSelection();
-  container.append(parameterSetField());
-  container.append(runTimeoutField());
-  container.append(seriesInputField());
-  for (const input of inputs) {
-    const field = document.createElement("div");
-    field.className = "input-field";
-    const defaultValue = savedInputs[input.id] ?? input.default ?? sampleValueFor(input.id);
-    const label = input.name || input.id;
-    const meta = runInputMeta(input, label);
-    field.innerHTML = `
-      <label for="input-${escapeAttr(input.id)}">
-        <span class="input-label">${escapeHTML(label)}</span>
-        ${meta ? `<span class="input-meta">${escapeHTML(meta)}</span>` : ""}
-      </label>
-      <input id="input-${escapeAttr(input.id)}" data-input-id="${escapeAttr(input.id)}" value="${escapeAttr(defaultValue)}" />
-    `;
-    field.querySelector("input").addEventListener("input", markRunInputsEdited);
-    const reset = document.createElement("button");
-    reset.type = "button";
-    reset.className = "input-reset";
-    reset.textContent = "Default";
-    reset.addEventListener("click", () => resetRunInput(input));
-    field.append(reset);
-    container.append(field);
-  }
-  if (isWorkspaceProject()) {
-    const activeScenario = activeScenarioBadge();
-    if (activeScenario) container.append(activeScenario);
-    container.append(scenarioNameField());
-  }
+  renderRunInputsView(runInputsContext());
 }
 
 function runInputMeta(input, label) {
-  return [
-    input.id && input.id !== label ? input.id : "",
-    input.value_type || "",
-    input.unit || "",
-    input.required === false ? "optional" : "required",
-  ].filter(Boolean).join(" / ");
+  return runInputMetaView(input, label);
 }
 
 function resetRunInput(input) {
-  const control = [...document.querySelectorAll("[data-input-id]")].find((item) => item.dataset.inputId === input.id);
-  if (!control) return;
-  const defaultInputs = state.detail?.default_run_input?.inputs || {};
-  const value = defaultInputs[input.id] ?? input.default ?? sampleValueFor(input.id);
-  control.value = parameterInputValue(value);
-  markRunInputsEdited();
+  resetRunInputView(input, runInputsContext());
 }
 
 function markRunInputsEdited() {
-  if (state.activeRunInput) {
-    state.activeRunInput = null;
-    document.querySelector(".active-scenario")?.remove();
-  }
-  markProjectDirty();
+  markRunInputsEditedView(runInputsContext());
 }
 
 function scenarioNameField() {
-  const field = document.createElement("div");
-  field.className = "scenario-name-field";
-  const input = document.createElement("input");
-  input.id = "scenarioNameInput";
-  input.placeholder = "Scenario name";
-  input.value = state.scenarioDraftName;
-  input.setAttribute("aria-label", "Scenario name");
-  input.addEventListener("input", () => {
-    state.scenarioDraftName = input.value;
-  });
-  input.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") createScenario();
-  });
-  field.append(input);
-  return field;
+  return scenarioNameFieldView(runInputsContext());
 }
 
 function activeScenarioBadge() {
-  if (!state.activeRunInput) return null;
-  const field = document.createElement("div");
-  field.className = "active-scenario";
-  const name = state.activeRunInput.name || state.activeRunInput.id || "scenario";
-  field.innerHTML = `<span>${escapeHTML(`Scenario: ${name}`)}</span>`;
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "input-reset";
-  button.textContent = "Clear";
-  button.addEventListener("click", () => {
-    state.activeRunInput = null;
-    markRunResultStale();
-    renderRunInputs();
-    renderSystemHeader();
-  });
-  field.append(button);
-  return field;
+  return activeScenarioBadgeView(runInputsContext());
+}
+
+function runInputsContext() {
+  return {
+    container: () => el("runInputs"),
+    createScenario,
+    currentSystem,
+    isWorkspaceProject,
+    markProjectDirty,
+    markRunResultStale,
+    normalizeSeriesInputSelection,
+    parameterSetField,
+    renderSystemHeader,
+    runTimeoutField,
+    seriesInputField,
+  };
 }
 
 function defaultScenarioName() {
