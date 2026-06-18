@@ -156,7 +156,16 @@ function filteredComponentTemplates() {
 
 function selectedComponentTemplate() {
   const templateID = el("componentTemplateSelect")?.value || "";
+  return componentTemplateByID(templateID);
+}
+
+function componentTemplateByID(templateID) {
   return (state.componentTemplates || []).find((template) => template.id === templateID) || null;
+}
+
+function defaultComponentName(templateID) {
+  const template = componentTemplateByID(templateID);
+  return template?.name || displayNameFromIdentifier(templateID) || "Component";
 }
 
 function renderComponentTemplateMeta() {
@@ -7225,18 +7234,13 @@ async function createComponent(templateOverride = "") {
     return;
   }
   const nameInput = el("newComponentName");
-  const name = (nameInput?.value || "").trim();
-  if (!name) {
-    showInlineProblem("Component name is required");
-    nameInput?.focus();
-    return;
-  }
   const selectedTemplate = typeof templateOverride === "string" ? templateOverride : "";
   const template = selectedTemplate || el("componentTemplateSelect")?.value || state.componentTemplates[0]?.id || "";
   if (!template) {
     showInlineProblem("Component template is required");
     return;
   }
+  const name = (nameInput?.value || "").trim() || defaultComponentName(template);
   const includeInSystem = el("includeComponentOnCreate")?.checked !== false;
   try {
     const body = await api("/api/project/components", {

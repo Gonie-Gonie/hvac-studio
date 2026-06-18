@@ -701,6 +701,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("defaultProjectName")) {
 		t.Fatalf("module entrypoint did not include in-app project naming")
 	}
+	if !bytes.Contains(body, []byte("defaultComponentName")) {
+		t.Fatalf("module entrypoint did not include in-app component naming")
+	}
 	if !bytes.Contains(body, []byte("renderStartWorkspace")) {
 		t.Fatalf("module entrypoint did not include the Start workspace renderer")
 	}
