@@ -599,6 +599,38 @@ func TestUpdateComponentMLAssetsEndpointImportsFilesAndMetadata(t *testing.T) {
 		t.Fatalf("persisted ML metadata = %#v found=%v", persisted.MLMetadata, found)
 	}
 
+	badRangePayload, err := json.Marshal(map[string]any{
+		"project_path":          createBody.Project.ProjectPath,
+		"component_id":          "ml_inference",
+		"valid_time_resolution": "step",
+		"valid_input_ranges": map[string]map[string]float64{
+			"temperature_c": {"min": 50, "max": -10},
+		},
+		"assets": []map[string]any{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	badRangeResponse := httptest.NewRecorder()
+	badRangeRequest := httptest.NewRequest(http.MethodPost, "/api/project/components/ml-assets", bytes.NewReader(badRangePayload))
+	server.Handler().ServeHTTP(badRangeResponse, badRangeRequest)
+	if badRangeResponse.Code == http.StatusOK ||
+		!strings.Contains(badRangeResponse.Body.String(), "ML valid input range min must be") ||
+		!strings.Contains(badRangeResponse.Body.String(), "temperature_c") {
+		t.Fatalf("bad range status = %d body=%s", badRangeResponse.Code, badRangeResponse.Body.String())
+	}
+	loadedAfterBadRange, err := project.Load(createBody.Project.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterBadRange, found := findComponent(loadedAfterBadRange.Graph, "ml_inference")
+	if !found || afterBadRange.MLMetadata == nil {
+		t.Fatalf("component after bad range = %#v found=%v", afterBadRange, found)
+	}
+	if bounds := afterBadRange.MLMetadata.ValidInputRanges["temperature_c"]; bounds.Min != float64(-10) || bounds.Max != float64(50) {
+		t.Fatalf("bad range request mutated persisted metadata = %#v", afterBadRange.MLMetadata.ValidInputRanges)
+	}
+
 	applyPayload, err := json.Marshal(map[string]any{
 		"project_path": createBody.Project.ProjectPath,
 		"component_id": "ml_inference",

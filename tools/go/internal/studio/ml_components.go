@@ -75,7 +75,11 @@ func updateComponentMLAssets(loaded *project.LoadedProject, req updateComponentM
 	metadata.RequiredPackages = cleanRequiredPackages(req.RequiredPackages)
 	metadata.ValidTimeResolution = strings.TrimSpace(req.ValidTimeResolution)
 	if req.ValidInputRanges != nil {
-		metadata.ValidInputRanges = cloneValueBoundsMap(req.ValidInputRanges)
+		ranges, err := cleanValidInputRanges(req.ValidInputRanges)
+		if err != nil {
+			return model.Component{}, nil, err
+		}
+		metadata.ValidInputRanges = ranges
 	}
 
 	importedFiles := []string{}
@@ -202,19 +206,39 @@ func cleanRequiredPackages(values []string) []string {
 	return cleaned
 }
 
-func cloneValueBoundsMap(values map[string]model.ValueBounds) map[string]model.ValueBounds {
+func cleanValidInputRanges(values map[string]model.ValueBounds) (map[string]model.ValueBounds, error) {
 	if values == nil {
-		return nil
+		return nil, nil
 	}
 	out := map[string]model.ValueBounds{}
-	for key, value := range values {
-		key = strings.TrimSpace(key)
-		if key == "" {
-			continue
+	for key, bounds := range values {
+		feature := strings.TrimSpace(key)
+		if feature == "" {
+			return nil, apperror.Errorf(apperror.CodeValidation, "ML valid input range feature is required")
 		}
-		out[key] = value
+		hasMin := bounds.Min != nil
+		hasMax := bounds.Max != nil
+		var minValue, maxValue float64
+		if hasMin {
+			var ok bool
+			minValue, ok = studioNumberValue(bounds.Min)
+			if !ok {
+				return nil, apperror.Errorf(apperror.CodeValidation, "ML valid input range min must be numeric: %s", feature)
+			}
+		}
+		if hasMax {
+			var ok bool
+			maxValue, ok = studioNumberValue(bounds.Max)
+			if !ok {
+				return nil, apperror.Errorf(apperror.CodeValidation, "ML valid input range max must be numeric: %s", feature)
+			}
+		}
+		if hasMin && hasMax && minValue > maxValue {
+			return nil, apperror.Errorf(apperror.CodeValidation, "ML valid input range min must be <= max: %s", feature)
+		}
+		out[feature] = bounds
 	}
-	return out
+	return out, nil
 }
 
 func applyComponentMLSchemaNodes(loaded *project.LoadedProject, req applyComponentMLSchemaNodesRequest) (model.Component, MLSchemaNodeApplySummary, error) {
