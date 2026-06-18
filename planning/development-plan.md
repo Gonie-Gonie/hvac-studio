@@ -4,7 +4,7 @@ Last updated: 2026-06-18
 
 This document is the planning spine for HVAC Studio. It records the current
 product direction, release-candidate baseline, quality bar, and active work
-streams without carrying older milestone narratives forward.
+streams without carrying older roadmap narratives forward.
 
 HVAC Studio is a Python-first component-node-system authoring and runtime tool
 for equipment modeling, controls research, validation, calibration,
