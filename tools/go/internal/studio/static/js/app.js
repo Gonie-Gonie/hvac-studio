@@ -1,4 +1,11 @@
 import { api } from "./api.js";
+import {
+  componentTemplateByID as findComponentTemplateByID,
+  componentTemplateMetaText,
+  componentTemplateOptionLabel,
+  defaultComponentName as defaultTemplateComponentName,
+  filteredComponentTemplates as filterComponentTemplates,
+} from "./component-templates.js";
 import { el, escapeAttr, escapeHTML } from "./dom.js";
 import {
   calibrationResultTreeItems as renderCalibrationResultTreeItems,
@@ -117,10 +124,7 @@ function renderComponentTemplateSelect() {
   for (const template of templates) {
     const option = document.createElement("option");
     option.value = template.id;
-    const contract = `${template.input_count || 0} in / ${template.output_count || 0} out`;
-    const layout = template.source_layout ? ` / ${String(template.source_layout).replace(/_/g, " ")}` : "";
-    const mode = template.execution_mode ? ` / ${String(template.execution_mode).replace(/_/g, " ")}` : "";
-    option.textContent = `${template.name || template.id} (${contract}${mode}${layout})`;
+    option.textContent = componentTemplateOptionLabel(template);
     select.append(option);
   }
   if (!templates.length) {
@@ -147,11 +151,7 @@ function renderComponentFilterSelect(select, options) {
 function filteredComponentTemplates() {
   const category = el("componentCategorySelect")?.value || "";
   const mode = el("componentExecutionModeSelect")?.value || "";
-  return (state.componentTemplates || []).filter((template) => {
-    if (category && template.category !== category) return false;
-    if (mode && template.execution_mode !== mode) return false;
-    return true;
-  });
+  return filterComponentTemplates(state.componentTemplates, { category, executionMode: mode });
 }
 
 function selectedComponentTemplate() {
@@ -160,12 +160,11 @@ function selectedComponentTemplate() {
 }
 
 function componentTemplateByID(templateID) {
-  return (state.componentTemplates || []).find((template) => template.id === templateID) || null;
+  return findComponentTemplateByID(state.componentTemplates, templateID);
 }
 
 function defaultComponentName(templateID) {
-  const template = componentTemplateByID(templateID);
-  return template?.name || displayNameFromIdentifier(templateID) || "Component";
+  return defaultTemplateComponentName(state.componentTemplates, templateID, displayNameFromIdentifier(templateID));
 }
 
 function renderComponentTemplateMeta() {
@@ -176,11 +175,7 @@ function renderComponentTemplateMeta() {
     meta.textContent = "";
     return;
   }
-  meta.textContent = [
-    template.category || "",
-    template.execution_mode || "",
-    template.source_layout ? String(template.source_layout).replace(/_/g, " ") : "",
-  ].filter(Boolean).join(" / ");
+  meta.textContent = componentTemplateMetaText(template);
 }
 
 async function ensureEditableProject(preferredProjectPath) {

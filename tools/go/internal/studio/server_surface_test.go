@@ -289,8 +289,27 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	componentTemplatesResponse := httptest.NewRecorder()
+	componentTemplatesRequest := httptest.NewRequest(http.MethodGet, "/js/component-templates.js", nil)
+
+	server.Handler().ServeHTTP(componentTemplatesResponse, componentTemplatesRequest)
+
+	if componentTemplatesResponse.Code != http.StatusOK {
+		t.Fatalf("component templates module status = %d body=%s", componentTemplatesResponse.Code, componentTemplatesResponse.Body.String())
+	}
+	componentTemplatesBody, err := io.ReadAll(componentTemplatesResponse.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
 		t.Fatalf("module entrypoint did not contain expected imports")
+	}
+	if !bytes.Contains(body, []byte(`from "./component-templates.js"`)) {
+		t.Fatalf("module entrypoint did not import component template helpers")
+	}
+	if !bytes.Contains(componentTemplatesBody, []byte("componentTemplateOptionLabel")) ||
+		!bytes.Contains(componentTemplatesBody, []byte("componentTemplateMetaText")) {
+		t.Fatalf("component template module did not expose selector helpers")
 	}
 	if !bytes.Contains(body, []byte(`from "./export-workspace.js"`)) {
 		t.Fatalf("module entrypoint did not import export workspace renderer")
