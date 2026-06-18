@@ -369,6 +369,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte(`from "./result-ui.js"`)) {
 		t.Fatalf("module entrypoint did not import result UI helpers")
 	}
+	if !bytes.Contains(body, []byte("renderDiagnostics")) || !bytes.Contains(body, []byte("diagnosticsPanel")) {
+		t.Fatalf("module entrypoint did not keep raw result JSON in diagnostics")
+	}
 	if !bytes.Contains(resultUIBody, []byte("result-help-button")) {
 		t.Fatalf("module entrypoint did not render result help links")
 	}

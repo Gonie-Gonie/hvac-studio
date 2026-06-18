@@ -1998,6 +1998,7 @@ td {
 }
 
 #resultsPanel,
+#diagnosticsPanel,
 #schemaPanel,
 #pythonPanel {
   background: #0b1726;

@@ -133,6 +133,7 @@ function Assert-ScreenshotStaticCoverage {
     @{ Label = 'Optimization'; Tokens = @('createOptimizationSetupButton', 'optimizationSetupEditorSection', 'runOptimizationSetup') },
     @{ Label = 'Export'; Tokens = @('id="exportView"', 'renderExportWorkspace', 'exportManifest') },
     @{ Label = 'Artifacts'; Tokens = @('id="artifactsView"', 'renderArtifactWorkspace', 'artifactRows') },
+    @{ Label = 'Diagnostics'; Tokens = @('id="diagnosticsPanel"', 'renderDiagnostics', 'Raw JSON / Diagnostics') },
     @{ Label = 'Error State'; Tokens = @('latestValidation = { error:', 'problemRow', 'case-error') },
     @{ Label = 'Empty State'; Tokens = @('empty-cell', 'emptyRow(', 'No outputs yet') },
     @{ Label = 'Busy State'; Tokens = @('activeRunAbortController', 'pendingRunSummaryRows', 'cancelRunButton') }

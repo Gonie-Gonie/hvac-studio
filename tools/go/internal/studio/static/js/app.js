@@ -234,6 +234,7 @@ function renderAll() {
   renderParameters();
   renderProblems();
   renderResults();
+  renderDiagnostics();
   renderSchema();
   renderArtifactWorkspace();
   renderRunWorkspace();
@@ -2756,13 +2757,36 @@ function logsPanelContext() {
 }
 
 function renderResults() {
-  const value = state.latestWorkflowRecord || state.latestDataValidation || state.latestSeriesResult || state.latestBatchRecord || state.latestRunRecord || state.latestResult;
+  const value = latestResultValue();
   const panel = el("resultsPanel");
   panel.innerHTML = "";
-  if (!value) return;
+  if (!value) {
+    renderDiagnostics();
+    return;
+  }
   const view = structuredResultView(value);
   if (view) panel.append(view);
+  renderDiagnostics();
+}
+
+function renderDiagnostics() {
+  const panel = el("diagnosticsPanel");
+  panel.innerHTML = "";
+  const value = latestResultValue();
+  if (!value) {
+    panel.innerHTML = '<div class="log-empty">No diagnostics yet</div>';
+    return;
+  }
   panel.append(rawJSONBlock(value));
+}
+
+function latestResultValue() {
+  return state.latestWorkflowRecord ||
+    state.latestDataValidation ||
+    state.latestSeriesResult ||
+    state.latestBatchRecord ||
+    state.latestRunRecord ||
+    state.latestResult;
 }
 
 function structuredResultView(value) {
