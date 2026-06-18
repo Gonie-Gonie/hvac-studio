@@ -104,6 +104,17 @@ func newIsolatedTestServer(t *testing.T) (string, *Server) {
 	return root, server
 }
 
+func getRouteBody(t *testing.T, server *Server, path string) []byte {
+	t.Helper()
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, path, nil)
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("%s status = %d body=%s", path, response.Code, response.Body.String())
+	}
+	return response.Body.Bytes()
+}
+
 func seedTestTemplates(t *testing.T, root string) {
 	t.Helper()
 	repoRoot, err := findRepoRoot()

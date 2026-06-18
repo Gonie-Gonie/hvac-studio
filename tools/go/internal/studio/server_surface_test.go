@@ -3,7 +3,6 @@ package studio
 import (
 	"bytes"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -37,18 +36,7 @@ func TestProjectsEndpointListsExamples(t *testing.T) {
 
 func TestStaticIndexServesWorkspace(t *testing.T) {
 	server := newTestServer(t)
-	response := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/", nil)
-
-	server.Handler().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
-	}
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	body := getRouteBody(t, server, "/")
 	if !bytes.Contains(body, []byte("HVAC Studio")) {
 		t.Fatalf("index did not contain Studio shell")
 	}
@@ -191,56 +179,21 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 
 func TestDocsRouteServesUserGuide(t *testing.T) {
 	server := newTestServer(t)
-	response := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/docs/user/run-simulation.md", nil)
-
-	server.Handler().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
-	}
-	if !bytes.Contains(response.Body.Bytes(), []byte("# Run Simulation")) {
+	body := getRouteBody(t, server, "/docs/user/run-simulation.md")
+	if !bytes.Contains(body, []byte("# Run Simulation")) {
 		t.Fatalf("docs route did not serve the run simulation guide")
 	}
 
-	tutorialResponse := httptest.NewRecorder()
-	tutorialRequest := httptest.NewRequest(http.MethodGet, "/docs/user/tutorials.md", nil)
-	server.Handler().ServeHTTP(tutorialResponse, tutorialRequest)
-
-	if tutorialResponse.Code != http.StatusOK {
-		t.Fatalf("tutorial status = %d body=%s", tutorialResponse.Code, tutorialResponse.Body.String())
-	}
-	if !bytes.Contains(tutorialResponse.Body.Bytes(), []byte("assets/tutorials/studio-canvas.png")) {
+	tutorialBody := getRouteBody(t, server, "/docs/user/tutorials.md")
+	if !bytes.Contains(tutorialBody, []byte("assets/tutorials/studio-canvas.png")) {
 		t.Fatalf("docs route did not serve screenshot tutorial references")
 	}
 }
 
 func TestStaticModuleEntrypointServes(t *testing.T) {
 	server := newTestServer(t)
-	response := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/js/app.js", nil)
-
-	server.Handler().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
-	}
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	configResponse := httptest.NewRecorder()
-	configRequest := httptest.NewRequest(http.MethodGet, "/js/workspace-config.js", nil)
-
-	server.Handler().ServeHTTP(configResponse, configRequest)
-
-	if configResponse.Code != http.StatusOK {
-		t.Fatalf("config status = %d body=%s", configResponse.Code, configResponse.Body.String())
-	}
-	configBody, err := io.ReadAll(configResponse.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	body := getRouteBody(t, server, "/js/app.js")
+	configBody := getRouteBody(t, server, "/js/workspace-config.js")
 	for _, option := range []struct {
 		value string
 		label string
@@ -272,66 +225,11 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 			t.Fatalf("execution mode options did not include %s", token)
 		}
 	}
-	startResponse := httptest.NewRecorder()
-	startRequest := httptest.NewRequest(http.MethodGet, "/js/start-workspace.js", nil)
-
-	server.Handler().ServeHTTP(startResponse, startRequest)
-
-	if startResponse.Code != http.StatusOK {
-		t.Fatalf("start workspace status = %d body=%s", startResponse.Code, startResponse.Body.String())
-	}
-	startBody, err := io.ReadAll(startResponse.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	logsResponse := httptest.NewRecorder()
-	logsRequest := httptest.NewRequest(http.MethodGet, "/js/logs-panel.js", nil)
-
-	server.Handler().ServeHTTP(logsResponse, logsRequest)
-
-	if logsResponse.Code != http.StatusOK {
-		t.Fatalf("logs panel status = %d body=%s", logsResponse.Code, logsResponse.Body.String())
-	}
-	logsBody, err := io.ReadAll(logsResponse.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resultUIResponse := httptest.NewRecorder()
-	resultUIRequest := httptest.NewRequest(http.MethodGet, "/js/result-ui.js", nil)
-
-	server.Handler().ServeHTTP(resultUIResponse, resultUIRequest)
-
-	if resultUIResponse.Code != http.StatusOK {
-		t.Fatalf("result ui status = %d body=%s", resultUIResponse.Code, resultUIResponse.Body.String())
-	}
-	resultUIBody, err := io.ReadAll(resultUIResponse.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	mlInspectorResponse := httptest.NewRecorder()
-	mlInspectorRequest := httptest.NewRequest(http.MethodGet, "/js/ml-inspector.js", nil)
-
-	server.Handler().ServeHTTP(mlInspectorResponse, mlInspectorRequest)
-
-	if mlInspectorResponse.Code != http.StatusOK {
-		t.Fatalf("ml inspector status = %d body=%s", mlInspectorResponse.Code, mlInspectorResponse.Body.String())
-	}
-	mlInspectorBody, err := io.ReadAll(mlInspectorResponse.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	componentTemplatesResponse := httptest.NewRecorder()
-	componentTemplatesRequest := httptest.NewRequest(http.MethodGet, "/js/component-templates.js", nil)
-
-	server.Handler().ServeHTTP(componentTemplatesResponse, componentTemplatesRequest)
-
-	if componentTemplatesResponse.Code != http.StatusOK {
-		t.Fatalf("component templates module status = %d body=%s", componentTemplatesResponse.Code, componentTemplatesResponse.Body.String())
-	}
-	componentTemplatesBody, err := io.ReadAll(componentTemplatesResponse.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	startBody := getRouteBody(t, server, "/js/start-workspace.js")
+	logsBody := getRouteBody(t, server, "/js/logs-panel.js")
+	resultUIBody := getRouteBody(t, server, "/js/result-ui.js")
+	mlInspectorBody := getRouteBody(t, server, "/js/ml-inspector.js")
+	componentTemplatesBody := getRouteBody(t, server, "/js/component-templates.js")
 	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
 		t.Fatalf("module entrypoint did not contain expected imports")
 	}
@@ -1036,18 +934,7 @@ func TestProjectDetailIncludesSeriesInputs(t *testing.T) {
 
 func TestStaticExportWorkspaceModuleServes(t *testing.T) {
 	server := newTestServer(t)
-	response := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/js/export-workspace.js", nil)
-
-	server.Handler().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
-	}
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	body := getRouteBody(t, server, "/js/export-workspace.js")
 	if !bytes.Contains(body, []byte("renderExportWorkspace")) {
 		t.Fatalf("export workspace module did not contain renderer")
 	}
@@ -1073,18 +960,7 @@ func TestStaticExportWorkspaceModuleServes(t *testing.T) {
 
 func TestStaticRunOutputModuleServes(t *testing.T) {
 	server := newTestServer(t)
-	response := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/js/run-output.js", nil)
-
-	server.Handler().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
-	}
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	body := getRouteBody(t, server, "/js/run-output.js")
 	if !bytes.Contains(body, []byte("renderSelectedComponentValues")) {
 		t.Fatalf("run output module did not render selected component values")
 	}
