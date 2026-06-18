@@ -61,6 +61,7 @@ import {
   ML_ASSET_FIELDS,
   ML_MODEL_FORMATS,
   NODE_PRESETS,
+  PARAMETER_ROLES,
   RESULT_HELP,
   UNIT_CONVERSION_PRESETS,
   WORKSPACE_HELP,
@@ -1521,7 +1522,7 @@ function parameterDefinitionRow(component, name, definition) {
   role.className = "inspector-input";
   role.dataset.contractField = "role";
   role.setAttribute("aria-label", `${component.id}.${name} role`);
-  for (const value of ["fixed", "scenario_input", "calibration_target", "optimization_variable", "derived"]) {
+  for (const value of PARAMETER_ROLES) {
     const option = document.createElement("option");
     option.value = value;
     option.textContent = roleLabel(value);
@@ -2486,17 +2487,37 @@ function renderParameterAddForm(container, components, editable) {
   value.placeholder = "value";
   value.setAttribute("aria-label", "Parameter value");
 
+  const role = document.createElement("select");
+  role.id = "newParameterRole";
+  role.setAttribute("aria-label", "Parameter role");
+  for (const value of PARAMETER_ROLES) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = roleLabel(value);
+    role.append(option);
+  }
+
+  const min = document.createElement("input");
+  min.id = "newParameterMin";
+  min.placeholder = "min";
+  min.setAttribute("aria-label", "Parameter minimum bound");
+
+  const max = document.createElement("input");
+  max.id = "newParameterMax";
+  max.placeholder = "max";
+  max.setAttribute("aria-label", "Parameter maximum bound");
+
   const button = document.createElement("button");
   button.type = "button";
   button.textContent = "Add";
   button.addEventListener("click", addParameterFromManager);
 
-  for (const input of [name, value]) {
+  for (const input of [name, value, role, min, max]) {
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter") addParameterFromManager();
     });
   }
-  container.append(select, name, value, button);
+  container.append(select, name, value, role, min, max, button);
 }
 
 function parameterRow(component, name, value, editable) {
@@ -7455,10 +7476,14 @@ async function addParameterFromManager() {
   const componentID = el("newParameterComponent")?.value || "";
   const name = (el("newParameterName")?.value || "").trim();
   const value = el("newParameterValue")?.value || "";
-  await addParameter(componentID, name, value);
+  await addParameter(componentID, name, value, {
+    role: el("newParameterRole")?.value || "fixed",
+    min: el("newParameterMin")?.value || "",
+    max: el("newParameterMax")?.value || "",
+  });
 }
 
-async function addParameter(componentID, name, value) {
+async function addParameter(componentID, name, value, options = {}) {
   name = (name || "").trim();
   value = value || "";
   const component = componentById(componentID);
@@ -7474,11 +7499,24 @@ async function addParameter(componentID, name, value) {
     showInlineProblem(`Parameter already exists: ${componentID}.${name}`);
     return;
   }
+  const parameterValue = coerceParameter(value);
+  const definition = newParameterDefinition(name, parameterValue, options);
+  if (definition === false) return;
   try {
-    const body = await api("/api/project/parameters", {
-      method: "POST",
-      body: JSON.stringify({ project_path: state.currentProjectPath, parameters: { [componentID]: { [name]: coerceParameter(value) } } }),
-    });
+    const body = definition
+      ? await api("/api/project/component-contract", {
+        method: "POST",
+        body: JSON.stringify({
+          project_path: state.currentProjectPath,
+          component_id: componentID,
+          parameters: { [name]: parameterValue },
+          parameter_defs: { [name]: definition },
+        }),
+      })
+      : await api("/api/project/parameters", {
+        method: "POST",
+        body: JSON.stringify({ project_path: state.currentProjectPath, parameters: { [componentID]: { [name]: parameterValue } } }),
+      });
     state.detail = body.project;
     state.selectedComponentId = componentID;
     markRunResultStale(false);
@@ -7490,6 +7528,44 @@ async function addParameter(componentID, name, value) {
     renderProblems();
     setBottomTab("problems");
   }
+}
+
+function newParameterDefinition(name, value, options) {
+  const role = (options.role || "fixed").trim() || "fixed";
+  const min = (options.min || "").trim();
+  const max = (options.max || "").trim();
+  if (role === "fixed" && min === "" && max === "") return null;
+  if (!PARAMETER_ROLES.includes(role)) {
+    showInlineProblem(`Parameter role is invalid: ${role}`);
+    return false;
+  }
+  const minNumber = min === "" ? null : Number(min);
+  const maxNumber = max === "" ? null : Number(max);
+  if (min !== "" && !Number.isFinite(minNumber)) {
+    showInlineProblem(`Parameter bounds min must be numeric: ${name}`);
+    return false;
+  }
+  if (max !== "" && !Number.isFinite(maxNumber)) {
+    showInlineProblem(`Parameter bounds max must be numeric: ${name}`);
+    return false;
+  }
+  if (minNumber !== null && maxNumber !== null && minNumber > maxNumber) {
+    showInlineProblem(`Parameter bounds min must be <= max: ${name}`);
+    return false;
+  }
+  const definition = {
+    display_name: displayNameFromIdentifier(name),
+    role,
+    current: value,
+    default: value,
+    visible: true,
+  };
+  if (min !== "" || max !== "") {
+    definition.bounds = {};
+    if (min !== "") definition.bounds.min = coerceParameter(min);
+    if (max !== "") definition.bounds.max = coerceParameter(max);
+  }
+  return definition;
 }
 
 async function saveParameterDefinition(componentID, name, row) {

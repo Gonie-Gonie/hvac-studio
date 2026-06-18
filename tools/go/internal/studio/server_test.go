@@ -646,6 +646,11 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("syncParameterInputs")) {
 		t.Fatalf("module entrypoint did not include synchronized parameter input editing")
 	}
+	if !bytes.Contains(body, []byte("newParameterRole")) ||
+		!bytes.Contains(body, []byte("newParameterMin")) ||
+		!bytes.Contains(body, []byte("PARAMETER_ROLES")) {
+		t.Fatalf("module entrypoint did not include parameter role and bounds creation fields")
+	}
 	if !bytes.Contains(body, []byte("editableNodeRow")) {
 		t.Fatalf("module entrypoint did not include editable node rows")
 	}

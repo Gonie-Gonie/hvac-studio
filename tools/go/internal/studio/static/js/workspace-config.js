@@ -26,6 +26,8 @@ export const EXECUTION_MODES = [
   ["initialization_only", "Initialization Only"],
 ];
 
+export const PARAMETER_ROLES = ["fixed", "scenario_input", "calibration_target", "optimization_variable", "derived"];
+
 export const NODE_PRESETS = [
   ["", "Custom", {}],
   ["water_inlet", "Water Inlet", { direction: "input", id: "water_inlet", name: "Water Inlet", medium: "water", value_type: "float" }],
