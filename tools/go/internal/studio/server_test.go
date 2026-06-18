@@ -270,6 +270,18 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	resultUIResponse := httptest.NewRecorder()
+	resultUIRequest := httptest.NewRequest(http.MethodGet, "/js/result-ui.js", nil)
+
+	server.Handler().ServeHTTP(resultUIResponse, resultUIRequest)
+
+	if resultUIResponse.Code != http.StatusOK {
+		t.Fatalf("result ui status = %d body=%s", resultUIResponse.Code, resultUIResponse.Body.String())
+	}
+	resultUIBody, err := io.ReadAll(resultUIResponse.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
 		t.Fatalf("module entrypoint did not contain expected imports")
 	}
@@ -354,8 +366,14 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("hashchange")) {
 		t.Fatalf("module entrypoint did not react to workspace hash changes")
 	}
-	if !bytes.Contains(body, []byte("result-help-button")) {
+	if !bytes.Contains(body, []byte(`from "./result-ui.js"`)) {
+		t.Fatalf("module entrypoint did not import result UI helpers")
+	}
+	if !bytes.Contains(resultUIBody, []byte("result-help-button")) {
 		t.Fatalf("module entrypoint did not render result help links")
+	}
+	if !bytes.Contains(resultUIBody, []byte("Raw JSON / Diagnostics")) {
+		t.Fatalf("module entrypoint did not keep raw JSON behind diagnostics")
 	}
 	if !bytes.Contains(body, []byte("latestRuntimeComparisonContext")) {
 		t.Fatalf("module entrypoint did not include runtime comparison baseline capture")
@@ -716,7 +734,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("/api/project/parameter-set/apply")) {
 		t.Fatalf("module entrypoint did not apply parameter sets")
 	}
-	if !bytes.Contains(body, []byte("Raw JSON")) {
+	if !bytes.Contains(resultUIBody, []byte("Raw JSON")) {
 		t.Fatalf("module entrypoint did not keep raw workflow JSON available")
 	}
 	if !bytes.Contains(body, []byte("runCalibrationSetup")) {
