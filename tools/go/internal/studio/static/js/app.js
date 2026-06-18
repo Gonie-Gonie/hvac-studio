@@ -3715,19 +3715,22 @@ function optimizationSetupEditorSection(context) {
   actions.className = "result-actions calibration-setup-actions";
   const runCount = document.createElement("span");
   runCount.className = "input-meta optimization-run-count";
+  const warning = document.createElement("span");
+  warning.className = "input-meta optimization-editor-warning";
   const create = document.createElement("button");
   create.type = "button";
   create.className = "small-action";
+  create.dataset.optimizationCreate = "true";
   create.textContent = "Create Setup";
   create.addEventListener("click", () => {
     const payload = collectOptimizationSetupEditorPayload(section);
     if (payload) createOptimizationSetup(payload);
   });
-  actions.append(runCount, create);
+  actions.append(runCount, warning, create);
   section.append(actions);
   const baseSource = section.querySelector("[data-optimization-base-source]");
   baseSource?.addEventListener("change", () => applyOptimizationBaseSource(section, baseSource.value));
-  section.querySelectorAll("[data-opt-var-check], [data-opt-var-field], [data-opt-constraint-check], [data-opt-constraint-field]").forEach((control) => {
+  section.querySelectorAll("[data-optimization-objective], [data-opt-var-check], [data-opt-var-field], [data-opt-constraint-check], [data-opt-constraint-field]").forEach((control) => {
     control.addEventListener("input", () => updateOptimizationEditorState(section));
     control.addEventListener("change", () => updateOptimizationEditorState(section));
   });
@@ -3929,12 +3932,46 @@ function parseEditorJSON(value, fallback) {
 
 function updateOptimizationEditorState(section) {
   const selectedRows = [...section.querySelectorAll("[data-opt-var]")].filter((row) => row.querySelector("[data-opt-var-check]")?.checked);
+  const invalidRows = selectedRows.filter((row) => optimizationGridPointCount(row) === 0);
+  for (const row of section.querySelectorAll("[data-opt-var]")) {
+    const checked = row.querySelector("[data-opt-var-check]")?.checked;
+    row.classList.toggle("optimization-invalid", Boolean(checked && optimizationGridPointCount(row) === 0));
+  }
+  const selectedConstraints = [...section.querySelectorAll("[data-opt-constraint]")].filter((row) => row.querySelector("[data-opt-constraint-check]")?.checked);
+  const invalidConstraints = selectedConstraints.filter((row) => !validOptimizationConstraint(row));
+  for (const row of section.querySelectorAll("[data-opt-constraint]")) {
+    const checked = row.querySelector("[data-opt-constraint-check]")?.checked;
+    row.classList.toggle("optimization-invalid", Boolean(checked && !validOptimizationConstraint(row)));
+  }
   const expectedRuns = selectedRows.length ? selectedRows.reduce((product, row) => product * optimizationGridPointCount(row), 1) : 0;
   const runCount = section.querySelector(".optimization-run-count");
   if (runCount) {
-    const constraintCount = [...section.querySelectorAll("[data-opt-constraint]")].filter((row) => row.querySelector("[data-opt-constraint-check]")?.checked).length;
-    runCount.textContent = `Selected ${selectedRows.length} / Constraints ${constraintCount} / Estimated Runs ${formatExpectedRunCount(expectedRuns)}`;
+    runCount.textContent = `Selected ${selectedRows.length} / Constraints ${selectedConstraints.length} / Estimated Runs ${formatExpectedRunCount(expectedRuns)}`;
   }
+  const objectiveOutput = section.querySelector("[data-optimization-objective]")?.value || "";
+  const status = optimizationEditorStatus(objectiveOutput, selectedRows, invalidRows, invalidConstraints);
+  const warning = section.querySelector(".optimization-editor-warning");
+  if (warning) {
+    warning.textContent = status.message;
+    warning.classList.toggle("ready", status.valid);
+  }
+  const create = section.querySelector("[data-optimization-create]");
+  if (create) create.disabled = !status.valid;
+}
+
+function optimizationEditorStatus(objectiveOutput, selectedRows, invalidRows, invalidConstraints) {
+  if (!objectiveOutput) return { valid: false, message: "Select an objective output" };
+  if (!selectedRows.length) return { valid: false, message: "Select at least one decision variable" };
+  if (invalidRows.length) return { valid: false, message: "Fix invalid decision bounds" };
+  if (invalidConstraints.length) return { valid: false, message: "Fix invalid constraints" };
+  return { valid: true, message: "Ready to create setup" };
+}
+
+function validOptimizationConstraint(row) {
+  const value = Number(row.querySelector('[data-opt-constraint-field="value"]')?.value);
+  const tolerance = Number(row.querySelector('[data-opt-constraint-field="tolerance"]')?.value);
+  const penalty = Number(row.querySelector('[data-opt-constraint-field="penalty"]')?.value);
+  return Number.isFinite(value) && Number.isFinite(tolerance) && Number.isFinite(penalty) && tolerance >= 0 && penalty >= 0;
 }
 
 function optimizationGridPointCount(row) {

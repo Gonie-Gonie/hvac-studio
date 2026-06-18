@@ -670,7 +670,17 @@ h2,
   color: #12733d;
 }
 
-.calibration-invalid td {
+.optimization-editor-warning {
+  color: #936400;
+  font-weight: 700;
+}
+
+.optimization-editor-warning.ready {
+  color: #12733d;
+}
+
+.calibration-invalid td,
+.optimization-invalid td {
   background: #fff7ed;
 }
 

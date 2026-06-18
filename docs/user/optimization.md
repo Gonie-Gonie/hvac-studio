@@ -26,7 +26,9 @@ variables, bounds, output constraints, and estimated run count. Supported
 algorithms are `grid`, `differential_evolution`, and `custom_sdk_script`; all
 preserve the same runner-backed candidate/result artifact flow, while the custom
 SDK path is meant to pair the saved setup with an exported `RunnerClient` script
-for external search loops.
+for external search loops. The editor keeps `Create Setup` disabled until an
+objective and at least one decision variable are selected with valid bounds and
+constraints.
 
 The saved setup uses public inputs or component parameters. A decision variable
 can use:

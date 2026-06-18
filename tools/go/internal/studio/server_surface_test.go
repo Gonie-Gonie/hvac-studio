@@ -797,6 +797,10 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(body, []byte("Custom SDK Script")) ||
 		!bytes.Contains(body, []byte("custom_sdk_script")) ||
 		!bytes.Contains(body, []byte("Estimated Runs")) ||
+		!bytes.Contains(body, []byte("optimization-editor-warning")) ||
+		!bytes.Contains(body, []byte("Fix invalid decision bounds")) ||
+		!bytes.Contains(body, []byte("Fix invalid constraints")) ||
+		!bytes.Contains(body, []byte("Select at least one decision variable")) ||
 		!bytes.Contains(body, []byte("constraints")) {
 		t.Fatalf("module entrypoint did not expose optimization setup editor")
 	}
