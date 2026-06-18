@@ -516,7 +516,7 @@
         }
       },
       "ml_metadata": {
-        "model_format": "custom-linear",
+        "model_format": "custom",
         "model_file": "assets/ahu_state_ann/model.json",
         "feature_schema_file": "assets/ahu_state_ann/feature_schema.json",
         "target_schema_file": "assets/ahu_state_ann/target_schema.json",

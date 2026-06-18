@@ -71,7 +71,11 @@ func updateComponentMLAssets(loaded *project.LoadedProject, req updateComponentM
 	if metadata == nil {
 		metadata = &model.MLMetadata{}
 	}
-	metadata.ModelFormat = strings.TrimSpace(req.ModelFormat)
+	modelFormat, err := cleanMLModelFormat(metadata.ModelFormat, req.ModelFormat)
+	if err != nil {
+		return model.Component{}, nil, err
+	}
+	metadata.ModelFormat = modelFormat
 	metadata.RequiredPackages = cleanRequiredPackages(req.RequiredPackages)
 	metadata.ValidTimeResolution = strings.TrimSpace(req.ValidTimeResolution)
 	if req.ValidInputRanges != nil {
@@ -204,6 +208,20 @@ func cleanRequiredPackages(values []string) []string {
 		cleaned = append(cleaned, value)
 	}
 	return cleaned
+}
+
+func cleanMLModelFormat(current string, requested string) (string, error) {
+	value := strings.TrimSpace(requested)
+	if value == "" {
+		value = strings.TrimSpace(current)
+	}
+	if value == "" {
+		value = "custom"
+	}
+	if !model.IsAllowedMLModelFormat(value) {
+		return "", apperror.Errorf(apperror.CodeValidation, "ML model_format is unsupported: %s", value)
+	}
+	return value, nil
 }
 
 func cleanValidInputRanges(values map[string]model.ValueBounds) (map[string]model.ValueBounds, error) {

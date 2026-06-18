@@ -599,6 +599,22 @@ func TestUpdateComponentMLAssetsEndpointImportsFilesAndMetadata(t *testing.T) {
 		t.Fatalf("persisted ML metadata = %#v found=%v", persisted.MLMetadata, found)
 	}
 
+	badFormatPayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "ml_inference",
+		"model_format": "custom-linear",
+		"assets":       []map[string]any{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	badFormatResponse := httptest.NewRecorder()
+	badFormatRequest := httptest.NewRequest(http.MethodPost, "/api/project/components/ml-assets", bytes.NewReader(badFormatPayload))
+	server.Handler().ServeHTTP(badFormatResponse, badFormatRequest)
+	if badFormatResponse.Code == http.StatusOK || !strings.Contains(badFormatResponse.Body.String(), "ML model_format is unsupported: custom-linear") {
+		t.Fatalf("bad format status = %d body=%s", badFormatResponse.Code, badFormatResponse.Body.String())
+	}
+
 	badRangePayload, err := json.Marshal(map[string]any{
 		"project_path":          createBody.Project.ProjectPath,
 		"component_id":          "ml_inference",
@@ -626,6 +642,9 @@ func TestUpdateComponentMLAssetsEndpointImportsFilesAndMetadata(t *testing.T) {
 	afterBadRange, found := findComponent(loadedAfterBadRange.Graph, "ml_inference")
 	if !found || afterBadRange.MLMetadata == nil {
 		t.Fatalf("component after bad range = %#v found=%v", afterBadRange, found)
+	}
+	if afterBadRange.MLMetadata.ModelFormat != "onnx" {
+		t.Fatalf("bad requests mutated model format = %#v", afterBadRange.MLMetadata)
 	}
 	if bounds := afterBadRange.MLMetadata.ValidInputRanges["temperature_c"]; bounds.Min != float64(-10) || bounds.Max != float64(50) {
 		t.Fatalf("bad range request mutated persisted metadata = %#v", afterBadRange.MLMetadata.ValidInputRanges)
