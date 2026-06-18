@@ -31,7 +31,7 @@ $SurfaceRoots = @(
   'tools\go\internal\studio\static'
 )
 
-$AllowedExtensions = @('.md', '.txt', '.ps1', '.cmd', '.json', '.html', '.js', '.css')
+$AllowedExtensions = @('.md', '.txt', '.ps1', '.cmd', '.py', '.json', '.html', '.js', '.css')
 $ScriptPath = $MyInvocation.MyCommand.Path
 $Files = New-Object System.Collections.Generic.List[string]
 
@@ -47,6 +47,10 @@ function Test-AllowedPrototypeWordContext {
       $Line -match '\bplaceholder\s*;' -or
       $Line -match '\bplaceholder\b\s*[,)]' -or
       $Line -match '\bfunction\s+\w+\([^)]*\bplaceholder\b'
+  }
+
+  if ($Label -eq 'future') {
+    return $Line -match '^\s*from\s+__future__\s+import\b'
   }
 
   return $false
