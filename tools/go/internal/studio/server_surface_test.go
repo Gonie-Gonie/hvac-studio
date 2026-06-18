@@ -957,6 +957,29 @@ func TestProjectDetailIncludesMLValidationReports(t *testing.T) {
 	if report.Metrics["supply_air_temperature_c"]["rmse"] == nil || report.Metrics["cooling_power_kw"]["r2"] == nil {
 		t.Fatalf("metrics = %#v", report.Metrics)
 	}
+
+	composition, err := project.Load(filepath.Join(repoRoot, "examples", "015_rc_ahu_ann_composition", "project.bcsproj"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	compositionDetail := projectDetail(composition)
+	compositionReport, ok := compositionDetail.MLValidationReports["ahu_state_ann"]
+	if !ok {
+		t.Fatalf("composition ML validation reports = %#v", compositionDetail.MLValidationReports)
+	}
+	if compositionReport.Dataset != "synthetic commissioning set" ||
+		compositionReport.FeatureSchemaVersion != "1.0" ||
+		compositionReport.TrainingPeriod != "synthetic commissioning baseline" ||
+		compositionReport.ValidationPeriod != "synthetic commissioning set" ||
+		compositionReport.TimeResolution != "step" {
+		t.Fatalf("composition ML validation report = %#v", compositionReport)
+	}
+	if len(compositionReport.ModelAssetChecksum) != 64 {
+		t.Fatalf("composition model checksum = %q", compositionReport.ModelAssetChecksum)
+	}
+	if compositionReport.Metrics["supply_air_temperature_c"]["rmse"] == nil || compositionReport.Metrics["coil_load_kw"]["mae"] == nil {
+		t.Fatalf("composition metrics = %#v", compositionReport.Metrics)
+	}
 }
 
 func TestExampleMLComponentMetadataMirrorsGraphContract(t *testing.T) {

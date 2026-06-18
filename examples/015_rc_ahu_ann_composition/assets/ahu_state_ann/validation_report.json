@@ -11,5 +11,10 @@
       "mae": 0.31
     }
   },
+  "feature_schema_version": "1.0",
+  "model_asset_checksum": "",
+  "training_period": "synthetic commissioning baseline",
+  "validation_period": "synthetic commissioning set",
+  "time_resolution": "step",
   "notes": "Small deterministic surrogate used by the repository example workflow."
 }

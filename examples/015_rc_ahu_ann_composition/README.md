@@ -6,6 +6,8 @@ It is intended to exercise the full practical workflow:
 
 - public inputs drive a composed system without hand-editing runner internals;
 - the ANN component declares local model assets through `ml_metadata`;
+- the ANN validation report records feature schema version, training/validation
+  periods, time resolution, metrics, and model checksum provenance;
 - validation maps measured columns onto public outputs;
 - calibration tunes a numeric equipment parameter;
 - optimization searches chilled-water setpoint and pump speed.
