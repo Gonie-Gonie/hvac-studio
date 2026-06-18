@@ -1651,7 +1651,19 @@ h2,
 }
 
 .artifact-actions {
-  grid-template-columns: minmax(180px, 280px) minmax(96px, 140px) minmax(88px, 112px) auto auto auto;
+  grid-template-columns:
+    minmax(180px, 260px)
+    minmax(96px, 130px)
+    minmax(88px, 108px)
+    minmax(96px, 116px)
+    minmax(120px, 150px)
+    auto
+    auto
+    auto;
+}
+
+.artifact-actions button {
+  white-space: nowrap;
 }
 
 table {
