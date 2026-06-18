@@ -31,7 +31,33 @@ function Test-StudioHelpLinks {
   Write-Host 'studio help links ok'
 }
 
+function Test-ManualSourceCoverage {
+  $MkDocsConfig = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $RepoRoot 'mkdocs.yml')
+  $ManualScript = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $RepoRoot 'scripts\release\build-docs-manual.ps1')
+  $Pattern = [regex]'user/[A-Za-z0-9._/-]+\.md'
+  $Missing = New-Object System.Collections.Generic.List[string]
+  $Seen = New-Object System.Collections.Generic.HashSet[string]
+
+  foreach ($Match in $Pattern.Matches($MkDocsConfig)) {
+    $UserPage = $Match.Value
+    if (-not $Seen.Add($UserPage)) {
+      continue
+    }
+    $ManualSource = ('docs\' + $UserPage.Replace('/', '\'))
+    if (-not $ManualScript.Contains($ManualSource)) {
+      $Missing.Add($ManualSource)
+    }
+  }
+
+  if ($Missing.Count -gt 0) {
+    throw "manual source list is missing user guide pages:`n$($Missing -join "`n")"
+  }
+
+  Write-Host 'manual source coverage ok'
+}
+
 Remove-Item -LiteralPath $SiteRoot -Recurse -Force -ErrorAction SilentlyContinue
 Invoke-MkDocsBuild -RepoRoot $RepoRoot -SiteRoot $SiteRoot
 Test-StudioHelpLinks
+Test-ManualSourceCoverage
 Write-Host "docs html ok: $SiteRoot"
