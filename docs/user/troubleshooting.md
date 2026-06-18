@@ -16,6 +16,9 @@ CLI JSON errors, Studio API errors, runner `serve` errors, and SDK `RunnerError.
 
 The `kind` values follow the documented CLI exit-code taxonomy: `validation`, `runtime`, `input`, `python_worker`, and `license_runtime`. Studio may include `problems` entries with `component_id`, `node_id`, `source`, `line`, and `column` when it can link an error back to a project artifact. For CLI commands, pass `--error-format json` before the subcommand or set `BCS_RUNNER_ERROR_FORMAT=json`.
 
+In Studio, start with the Problems, Run, Results, and Logs panels. Use the
+Diagnostics tab when support or CLI comparison requires the raw JSON payload.
+
 ## Validation Error
 
 Validation errors usually mean a project artifact has an invalid reference or unsupported graph shape.
