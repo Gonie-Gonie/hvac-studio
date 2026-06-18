@@ -26,6 +26,25 @@
     "feature_schema_file": "assets/ahu_state_ann/feature_schema.json",
     "target_schema_file": "assets/ahu_state_ann/target_schema.json",
     "validation_report_file": "assets/ahu_state_ann/validation_report.json",
-    "required_packages": []
+    "required_packages": [],
+    "valid_time_resolution": "step",
+    "valid_input_ranges": {
+      "outdoor_temperature_c": {
+        "min": -20.0,
+        "max": 45.0
+      },
+      "return_air_temperature_c": {
+        "min": 10.0,
+        "max": 35.0
+      },
+      "chw_setpoint_c": {
+        "min": 4.0,
+        "max": 12.0
+      },
+      "fan_speed_fraction": {
+        "min": 0.0,
+        "max": 1.0
+      }
+    }
   }
 }

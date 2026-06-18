@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
 )
 
@@ -955,6 +956,43 @@ func TestProjectDetailIncludesMLValidationReports(t *testing.T) {
 	}
 	if report.Metrics["supply_air_temperature_c"]["rmse"] == nil || report.Metrics["cooling_power_kw"]["r2"] == nil {
 		t.Fatalf("metrics = %#v", report.Metrics)
+	}
+}
+
+func TestExampleMLComponentMetadataMirrorsGraphContract(t *testing.T) {
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := project.Load(filepath.Join(repoRoot, "examples", "014_ahu_state_ann", "project.bcsproj"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	graphComponent, found := findComponent(loaded.Graph, "ahu_state_ann")
+	if !found || graphComponent.MLMetadata == nil {
+		t.Fatalf("graph ML component = %#v found=%v", graphComponent, found)
+	}
+
+	metadataBytes, err := os.ReadFile(filepath.Join(repoRoot, "examples", "014_ahu_state_ann", "components", "ahu_state_ann", "component.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var metadataComponent model.Component
+	if err := json.Unmarshal(metadataBytes, &metadataComponent); err != nil {
+		t.Fatal(err)
+	}
+	if metadataComponent.MLMetadata == nil {
+		t.Fatalf("component metadata missing ML metadata:\n%s", string(metadataBytes))
+	}
+	if metadataComponent.MLMetadata.ValidTimeResolution != graphComponent.MLMetadata.ValidTimeResolution {
+		t.Fatalf("metadata valid time resolution = %q graph = %q", metadataComponent.MLMetadata.ValidTimeResolution, graphComponent.MLMetadata.ValidTimeResolution)
+	}
+	for _, feature := range []string{"outdoor_temperature_c", "return_air_temperature_c", "chw_setpoint_c", "fan_speed_fraction"} {
+		metadataBounds, ok := metadataComponent.MLMetadata.ValidInputRanges[feature]
+		graphBounds, graphOK := graphComponent.MLMetadata.ValidInputRanges[feature]
+		if !ok || !graphOK || metadataBounds.Min != graphBounds.Min || metadataBounds.Max != graphBounds.Max {
+			t.Fatalf("metadata range for %s = %#v graph = %#v", feature, metadataBounds, graphBounds)
+		}
 	}
 }
 
