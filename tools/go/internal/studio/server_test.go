@@ -359,6 +359,10 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("stepSnippet")) {
 		t.Fatalf("module entrypoint did not include generated-wrapper step snippets")
 	}
+	if !bytes.Contains(body, []byte("evaluateBatchSnippet")) ||
+		!bytes.Contains(body, []byte("externalExecutableSnippet")) {
+		t.Fatalf("module entrypoint did not include vectorized and external executable snippets")
+	}
 	if !bytes.Contains(body, []byte("Runtime Contract")) {
 		t.Fatalf("module entrypoint did not render protected runtime contract context")
 	}

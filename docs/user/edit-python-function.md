@@ -25,6 +25,8 @@ The completion panel and contract rows include hover text and can insert:
 - parameter reads such as `params.get("gain", 2.0)`
 - state reads from `state_defs`
 - context reads for `time` and `dt`
+- vectorized `step` or `evaluate_batch` scaffolds
+- external executable stdin/stdout adapter scaffolds
 
 Source check warnings include contract-reference hints and likely undefined names. Undefined-name warnings do not block save/run by themselves; source-check errors such as missing signatures, syntax failures, import/load failures, or missing output contracts block run, batch, and export.
 

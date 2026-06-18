@@ -6651,6 +6651,10 @@ function sourceSnippet(kind, component) {
       return `inputs.get(${pythonStringLiteral(firstInput)}, 0.0)`;
     case "parameter":
       return `params.get(${pythonStringLiteral(firstParam)}, 1.0)`;
+    case "vectorized":
+      return vectorizedSnippet(component, inputBindings);
+    case "external":
+      return externalExecutableSnippet(component);
     default:
       return component.source?.layout === "generated_wrapper"
         ? stepSnippet(component, inputBindings)
@@ -6678,6 +6682,35 @@ function evaluateSnippet(component, inputBindings) {
     .map((node) => `            ${pythonStringLiteral(node.id)}: ${primaryValue},`)
     .join("\n");
   return `\n    def evaluate(self, inputs, state, params, context):\n${inputLines}\n        return {\n${outputLines}\n        }, state\n`;
+}
+
+function vectorizedSnippet(component, inputBindings) {
+  return component.source?.layout === "generated_wrapper"
+    ? vectorizedStepSnippet(component, inputBindings)
+    : evaluateBatchSnippet(component, inputBindings);
+}
+
+function vectorizedStepSnippet(component, inputBindings) {
+  const firstInput = inputBindings[0]?.id || "values";
+  const firstOutput = (component.nodes.outputs || [])[0]?.id || "results";
+  const firstParam = Object.keys(component.parameters || {})[0] || "gain";
+  return `\ndef step(inputs, state, params, context):\n    values = inputs.get(${pythonStringLiteral(firstInput)}, [])\n    gain = float(params.get(${pythonStringLiteral(firstParam)}, 1.0))\n    return {\n        ${pythonStringLiteral(firstOutput)}: [float(value) * gain for value in values],\n    }, state\n`;
+}
+
+function evaluateBatchSnippet(component, inputBindings) {
+  const firstInput = inputBindings[0]?.id || "values";
+  const firstOutput = (component.nodes.outputs || [])[0]?.id || "results";
+  const firstParam = Object.keys(component.parameters || {})[0] || "gain";
+  return `\n    def evaluate_batch(self, inputs, state, params, context):\n        values = inputs.get(${pythonStringLiteral(firstInput)}, [])\n        gain = float(params.get(${pythonStringLiteral(firstParam)}, 1.0))\n        return {\n            ${pythonStringLiteral(firstOutput)}: [float(value) * gain for value in values],\n        }, state\n`;
+}
+
+function externalExecutableSnippet(component) {
+  const firstInput = (component.nodes.inputs || [])[0]?.id || "request";
+  const outputs = component.nodes.outputs || [{ id: "response" }];
+  const outputLines = outputs
+    .map((node) => `            ${pythonStringLiteral(node.id)}: inputs.get(${pythonStringLiteral(firstInput)}, None),`)
+    .join("\n");
+  return `\nimport json\nimport sys\n\n\ndef main():\n    request = json.load(sys.stdin)\n    inputs = request.get("inputs", {})\n    state = request.get("state", {})\n    response = {\n        "ok": True,\n        "outputs": {\n${outputLines}\n        },\n        "state": state,\n        "logs": [\n            {"severity": "info", "message": "external call complete"},\n        ],\n    }\n    json.dump(response, sys.stdout)\n    sys.stdout.write("\\n")\n\n\nif __name__ == "__main__":\n    main()\n`;
 }
 
 function pythonInputBindings(component) {
