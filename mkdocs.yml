@@ -4,6 +4,7 @@ site_dir: dist/docs/site
 
 nav:
   - Home: index.md
+  - Current Status: status.md
   - User Guide:
       - Overview: user/index.md
       - First Run:
