@@ -47,6 +47,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\run-studio.ps1
 
 `run-studio.ps1` opens the Wails Studio desktop app by default. Add `-Server` to run only the local HTTP API for automation.
 
+## Documentation Screenshots
+
+Tutorial screenshots should come from the same matrix used to review Studio workspaces:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-screenshot-matrix.ps1 -UpdateDocsAssets
+```
+
+The command refreshes `docs/user/assets/tutorials/*.png` after the matrix passes, keeping the user guide aligned with current workspace labels and layout.
+
 ## Notes
 
 - `setup.ps1` is currently Windows AMD64 focused.
