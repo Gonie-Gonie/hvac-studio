@@ -5126,6 +5126,9 @@ func TestSourceEndpointReadsExampleSource(t *testing.T) {
 	if body.Source.RelativePath != "components/scalar.py" {
 		t.Fatalf("relative path = %s", body.Source.RelativePath)
 	}
+	if body.Source.Layout != "single_file_class" || body.Source.EditableRole != "single_file" {
+		t.Fatalf("source metadata = layout %q role %q", body.Source.Layout, body.Source.EditableRole)
+	}
 	if !strings.Contains(body.Source.Content, "class Gain") {
 		t.Fatal("source did not include Gain")
 	}
@@ -5183,6 +5186,83 @@ func TestUpdateSourceEndpointWritesWorkspaceSource(t *testing.T) {
 	}
 	if string(sourceBytes) != content {
 		t.Fatalf("source = %q", string(sourceBytes))
+	}
+}
+
+func TestUpdateSourceEndpointWritesGeneratedWrapperUserStepOnly(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	projectSummary := createWorkspaceProject(t, server, "Generated Wrapper Source Project")
+
+	componentPayload, err := json.Marshal(map[string]any{
+		"project_path": projectSummary.ProjectPath,
+		"name":         "Second Gain",
+		"template":     "scalar",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	componentResponse := httptest.NewRecorder()
+	componentRequest := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(componentPayload))
+	server.Handler().ServeHTTP(componentResponse, componentRequest)
+	if componentResponse.Code != http.StatusCreated {
+		t.Fatalf("component status = %d body=%s", componentResponse.Code, componentResponse.Body.String())
+	}
+
+	componentRoot := filepath.Join(root, "projects", "generated-wrapper-source-project", "components", "second_gain")
+	wrapperPath := filepath.Join(componentRoot, "wrapper.py")
+	originalWrapper, err := os.ReadFile(wrapperPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := strings.Join([]string{
+		"def step(inputs, state, params, context):",
+		"    value = float(inputs.get(\"value\", 0.0))",
+		"    gain = float(params.get(\"gain\", 2.0))",
+		"    return {\"result\": value * gain + 1.0}, state",
+		"",
+	}, "\n")
+	payload, err := json.Marshal(map[string]any{
+		"project_path": projectSummary.ProjectPath,
+		"component_id": "second_gain",
+		"content":      content,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/source", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Source SourceDetail `json:"source"`
+		Check  SourceCheck  `json:"check"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Source.RelativePath != "components/second_gain/user_step.py" ||
+		body.Source.Layout != "generated_wrapper" ||
+		body.Source.EditableRole != "user_step" {
+		t.Fatalf("source metadata = %#v", body.Source)
+	}
+	if !body.Check.OK {
+		t.Fatalf("source save check problems = %#v", body.Check.Problems)
+	}
+	userStepBytes, err := os.ReadFile(filepath.Join(componentRoot, "user_step.py"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(userStepBytes) != content {
+		t.Fatalf("user step = %q", string(userStepBytes))
+	}
+	wrapperBytes, err := os.ReadFile(wrapperPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(wrapperBytes, originalWrapper) {
+		t.Fatalf("generated wrapper changed during user step save")
 	}
 }
 
@@ -5554,6 +5634,9 @@ func TestGeneratedWrapperComponentUsesUserStepSource(t *testing.T) {
 	}
 	if sourceBody.Source.RelativePath != "components/custom_gain/user_step.py" {
 		t.Fatalf("source relative path = %s", sourceBody.Source.RelativePath)
+	}
+	if sourceBody.Source.Layout != "generated_wrapper" || sourceBody.Source.EditableRole != "user_step" {
+		t.Fatalf("source metadata = layout %q role %q", sourceBody.Source.Layout, sourceBody.Source.EditableRole)
 	}
 	if !sourceBody.Source.ReadOnly {
 		t.Fatal("example source should be read only")

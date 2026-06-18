@@ -306,6 +306,8 @@ type ExportManifest struct {
 type SourceDetail struct {
 	ComponentID  string `json:"component_id"`
 	RelativePath string `json:"relative_path"`
+	Layout       string `json:"layout"`
+	EditableRole string `json:"editable_role"`
 	Content      string `json:"content"`
 	ReadOnly     bool   `json:"read_only"`
 }

@@ -15,7 +15,7 @@ components/<component_id>/user_step.py
 components/<component_id>/helpers.py
 ```
 
-New components use the generated-wrapper layout by default. Studio and the runner own the wrapper contract, while the Code workspace opens `user_step.py` as the primary editable function body. Existing single-file components still load and can be edited for compatibility with older projects.
+New components use the generated-wrapper layout by default. Studio and the runner own the wrapper contract, while the Code workspace opens `user_step.py` as the primary editable function body. Source save APIs write only that editable user step for generated-wrapper components, leaving `wrapper.py` and component metadata as Studio-managed runtime artifacts. Existing single-file components still load and can be edited for compatibility with older projects.
 
 Available component templates include scalar, controller, stateful, data source, data sink, utility, feature mapper, ML inference, vectorized, external executable, and solver boundary. Vectorized components use `execution_mode: "vectorized"` and may implement `evaluate_batch(inputs, state, params, context)` with the same `(outputs, state)` return contract as `evaluate`. ML inference components use `ml_metadata` to record model assets, feature schemas, target schemas, validation reports, valid ranges, and package requirements. External executable components use `kind: "external_exe"` with `execution_mode: "external_executable"` and run the process named by `parameters.command` and `parameters.args`. Solver boundary components use `category: "solver"` and `solver_boundary` metadata to keep iterative feedback behavior inside one component.
 

@@ -11,6 +11,10 @@ import (
 )
 
 func loadComponentSource(loaded *project.LoadedProject, componentID string, readOnly bool) (SourceDetail, error) {
+	component, found := findComponent(loaded.Graph, componentID)
+	if !found {
+		return SourceDetail{}, apperror.Errorf(apperror.CodeValidation, "component not found: %s", componentID)
+	}
 	sourcePath, err := componentSourcePath(loaded, componentID)
 	if err != nil {
 		return SourceDetail{}, err
@@ -23,9 +27,26 @@ func loadComponentSource(loaded *project.LoadedProject, componentID string, read
 	return SourceDetail{
 		ComponentID:  componentID,
 		RelativePath: filepath.ToSlash(rel),
+		Layout:       componentSourceLayout(component),
+		EditableRole: editableComponentSourceRole(component),
 		Content:      string(sourceBytes),
 		ReadOnly:     readOnly,
 	}, nil
+}
+
+func componentSourceLayout(component model.Component) string {
+	layout := strings.TrimSpace(component.Source.Layout)
+	if layout == "" {
+		return "single_file_class"
+	}
+	return layout
+}
+
+func editableComponentSourceRole(component model.Component) string {
+	if componentSourceLayout(component) == "generated_wrapper" {
+		return "user_step"
+	}
+	return "single_file"
 }
 
 func componentSourcePath(loaded *project.LoadedProject, componentID string) (string, error) {
