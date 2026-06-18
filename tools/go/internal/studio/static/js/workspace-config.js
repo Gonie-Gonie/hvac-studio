@@ -56,3 +56,11 @@ export const WORKSPACE_HELP = {
   run: "/docs/user/run-simulation.md",
   export: "/docs/user/export-runtime.md",
 };
+
+export const RESULT_HELP = {
+  calibration: "/docs/user/calibration.md",
+  dataValidation: "/docs/user/data-validation.md",
+  optimization: "/docs/user/optimization.md",
+  parameterManagement: "/docs/user/parameter-management.md",
+  run: "/docs/user/run-simulation.md",
+};

@@ -44,6 +44,7 @@ import {
   EXECUTION_MODES,
   ML_ASSET_FIELDS,
   ML_MODEL_FORMATS,
+  RESULT_HELP,
   UNIT_CONVERSION_PRESETS,
   WORKSPACE_HELP,
 } from "./workspace-config.js";
@@ -2762,37 +2763,37 @@ function structuredResultView(value) {
   const wrapper = document.createElement("div");
   wrapper.className = "result-structured";
   if (value.kind === "dataset" && value.dataset) {
-    wrapper.append(resultHeader("Dataset Preview", value.dataset.summary?.relative_path || "", `${value.dataset.summary?.row_count || 0} rows`, "/docs/user/data-validation.md"));
+    wrapper.append(resultHeader("Dataset Preview", value.dataset.summary?.relative_path || "", `${value.dataset.summary?.row_count || 0} rows`, RESULT_HELP.dataValidation));
     wrapper.append(datasetResultSection(value.dataset));
     return wrapper;
   }
   if (value.kind === "parameter_set" && value.parameter_set) {
-    wrapper.append(resultHeader("Parameter Set", value.parameter_set.summary?.relative_path || "", `${value.parameter_set.summary?.parameter_count || 0} values`, "/docs/user/parameter-management.md"));
+    wrapper.append(resultHeader("Parameter Set", value.parameter_set.summary?.relative_path || "", `${value.parameter_set.summary?.parameter_count || 0} values`, RESULT_HELP.parameterManagement));
     wrapper.append(parameterSetResultSection(value.parameter_set));
     return wrapper;
   }
   if (value.kind === "high_error_inspection") {
-    wrapper.append(resultHeader("High Error Inspection", value.metric || "", `row ${value.row_index ?? ""}`, "/docs/user/data-validation.md"));
+    wrapper.append(resultHeader("High Error Inspection", value.metric || "", `row ${value.row_index ?? ""}`, RESULT_HELP.dataValidation));
     wrapper.append(highErrorInspectionSection(value));
     return wrapper;
   }
   if (value.kind === "calibration_validation_comparison") {
-    wrapper.append(resultHeader("Calibration Validation", value.calibration_result?.setup_name || value.calibration_result?.setup_id || "", "before / after", "/docs/user/calibration.md"));
+    wrapper.append(resultHeader("Calibration Validation", value.calibration_result?.setup_name || value.calibration_result?.setup_id || "", "before / after", RESULT_HELP.calibration));
     wrapper.append(calibrationValidationComparisonSection(value));
     return wrapper;
   }
   if (value.kind === "validation_mapping" && value.artifact) {
-    wrapper.append(resultHeader("Validation Mapping", value.artifact.relative_path || value.artifact.path || "", `${value.artifact.input_count || 0} in / ${value.artifact.output_count || 0} out`, "/docs/user/data-validation.md"));
+    wrapper.append(resultHeader("Validation Mapping", value.artifact.relative_path || value.artifact.path || "", `${value.artifact.input_count || 0} in / ${value.artifact.output_count || 0} out`, RESULT_HELP.dataValidation));
     wrapper.append(validationMappingArtifactSection(value.artifact, value.mapping));
     return wrapper;
   }
   if (value.kind === "calibration_setup_editor") {
-    wrapper.append(resultHeader("Calibration Setup", value.mapping_summary?.relative_path || "", `${(value.candidates || []).length} candidates`, "/docs/user/calibration.md"));
+    wrapper.append(resultHeader("Calibration Setup", value.mapping_summary?.relative_path || "", `${(value.candidates || []).length} candidates`, RESULT_HELP.calibration));
     wrapper.append(calibrationSetupEditorSection(value));
     return wrapper;
   }
   if (value.kind === "optimization_setup_editor") {
-    wrapper.append(resultHeader("Optimization Setup", currentSystem()?.id || "", `${(value.candidates || []).length} variables`, "/docs/user/optimization.md"));
+    wrapper.append(resultHeader("Optimization Setup", currentSystem()?.id || "", `${(value.candidates || []).length} variables`, RESULT_HELP.optimization));
     wrapper.append(optimizationSetupEditorSection(value));
     return wrapper;
   }
@@ -2805,33 +2806,33 @@ function structuredResultView(value) {
   const validation = value.result?.metrics ? value.result : value.metrics ? value : null;
   const series = value.series && value.outputs && value.step_count !== undefined ? value : null;
   if (series) {
-    wrapper.append(resultHeader("Time Series", `${series.step_count || 0} steps`, series.parameter_set || "baseline", "/docs/user/run-simulation.md"));
+    wrapper.append(resultHeader("Time Series", `${series.step_count || 0} steps`, series.parameter_set || "baseline", RESULT_HELP.run));
     wrapper.append(seriesResultSection(series));
     return wrapper;
   }
 
   if (validation) {
-    wrapper.append(resultHeader("Validation Result", validation.mapping_name || validation.mapping_id || "", `${validation.row_count || 0} rows`, "/docs/user/data-validation.md"));
+    wrapper.append(resultHeader("Validation Result", validation.mapping_name || validation.mapping_id || "", `${validation.row_count || 0} rows`, RESULT_HELP.dataValidation));
     wrapper.append(validationResultSection(validation));
     return wrapper;
   }
 
   const calibration = value.result?.candidates && value.result?.saved_parameter_set !== undefined ? value.result : value.candidates && value.saved_parameter_set !== undefined ? value : null;
   if (calibration) {
-    wrapper.append(resultHeader("Calibration Result", calibration.setup_name || calibration.setup_id || "", `best ${shortNumber(calibration.best_objective)}`, "/docs/user/calibration.md"));
+    wrapper.append(resultHeader("Calibration Result", calibration.setup_name || calibration.setup_id || "", `best ${shortNumber(calibration.best_objective)}`, RESULT_HELP.calibration));
     wrapper.append(candidateResultSection(calibration, "Saved parameter set", calibration.saved_parameter_set));
     return wrapper;
   }
 
   const optimization = value.result?.candidates && value.result?.saved_scenario !== undefined ? value.result : value.candidates && value.saved_scenario !== undefined ? value : null;
   if (optimization) {
-    wrapper.append(resultHeader("Optimization Result", optimization.setup_name || optimization.setup_id || "", `best ${shortNumber(optimization.best_objective)}`, "/docs/user/optimization.md"));
+    wrapper.append(resultHeader("Optimization Result", optimization.setup_name || optimization.setup_id || "", `best ${shortNumber(optimization.best_objective)}`, RESULT_HELP.optimization));
     wrapper.append(candidateResultSection(optimization, "Saved scenario", optimization.saved_scenario));
     return wrapper;
   }
 
   if (value.cases) {
-    wrapper.append(resultHeader("Batch Result", value.id || "", `${(value.cases || []).filter((item) => item.ok).length}/${(value.cases || []).length} ok`, "/docs/user/run-simulation.md"));
+    wrapper.append(resultHeader("Batch Result", value.id || "", `${(value.cases || []).filter((item) => item.ok).length}/${(value.cases || []).length} ok`, RESULT_HELP.run));
     wrapper.append(resultTable("Cases", (value.cases || []).map((item) => [
       item.scenario_name || item.scenario_id || "",
       item.ok ? "ok" : "failed",
@@ -2842,7 +2843,7 @@ function structuredResultView(value) {
 
   const run = value.result?.outputs ? value.result : value.outputs ? value : null;
   if (run) {
-    wrapper.append(resultHeader("Run Result", value.id || "current run", `${Object.keys(run.outputs || {}).length} outputs`, "/docs/user/run-simulation.md"));
+    wrapper.append(resultHeader("Run Result", value.id || "current run", `${Object.keys(run.outputs || {}).length} outputs`, RESULT_HELP.run));
     wrapper.append(resultTable("Public Outputs", Object.entries(run.outputs || {}).map(([name, output]) => [name, formatValue(output)]), ["Output", "Value"]));
     return wrapper;
   }
