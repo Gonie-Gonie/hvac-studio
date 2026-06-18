@@ -2,7 +2,8 @@
 
 ## Design Center
 
-The repository starts with the runtime core, because every product surface must call the same engine:
+The repository is centered on the runtime core: every product surface calls the
+same engine and persists the same source-of-truth files.
 
 ```text
 Studio GUI
@@ -14,9 +15,14 @@ External engine
         -> user-defined Python components
 ```
 
-The GUI is intentionally delayed. It should edit and visualize source-of-truth files, not become a separate modeling engine.
+Studio is a product surface over the same project artifacts and runner APIs. It
+edits and visualizes source-of-truth files; it does not become a separate
+modeling engine.
 
-The first Studio implementation is a Go-hosted web workspace embedded in `tools/go/cmd/studio`. It exists to lock down the product-scale UI shape early while each panel is progressively connected to runtime-backed behavior.
+The Studio implementation is a Go-hosted web workspace embedded in
+`tools/go/cmd/studio`. Its panels are backed by the same validation, run,
+dataset, calibration, optimization, source-check, and export paths used by CLI
+and SDK workflows.
 
 Distribution is Windows-first, but source-of-truth files and engine packages should stay OS-independent. OS-specific path, process, runtime, executable naming, installer, signing, and packaging behavior should be isolated instead of leaking through compiler/runtime code.
 
@@ -56,7 +62,7 @@ result write
 - Node schema is the public contract.
 - Connection validation belongs to the runtime.
 - Execution order belongs to the graph compiler/scheduler.
-- Loops require explicit solver boundaries in later versions.
+- Feedback loops require explicit solver boundary components.
 
 ## Repository Layers
 

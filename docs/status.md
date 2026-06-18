@@ -49,6 +49,10 @@ dist/hvac-studio-docs-<version>.zip
 dist/hvac-studio-sdk-<version>.zip
 ```
 
+Retained zips are the last locally generated release-candidate artifacts. If
+source files changed after they were built, rerun the release-candidate gate
+before treating them as packages for the current `HEAD`.
+
 The current checkout has these retained development package artifacts:
 
 ```text
