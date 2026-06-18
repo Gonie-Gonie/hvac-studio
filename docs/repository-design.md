@@ -2,7 +2,7 @@
 
 ## Design Center
 
-The repository starts with the runtime core, because every future surface must call the same engine:
+The repository starts with the runtime core, because every product surface must call the same engine:
 
 ```text
 Studio GUI
@@ -20,7 +20,7 @@ The first Studio implementation is a Go-hosted web workspace embedded in `tools/
 
 Distribution is Windows-first, but source-of-truth files and engine packages should stay OS-independent. OS-specific path, process, runtime, executable naming, installer, signing, and packaging behavior should be isolated instead of leaking through compiler/runtime code.
 
-The UX-driven milestone plan lives in `docs/development-plan.md`. That plan adds the component-node-system authoring flow, component-aware Python editor, datasets, validation, calibration, optimization, SDK, and runtime-only delivery sequence on top of this runtime-first architecture.
+The UX-driven milestone plan lives in `planning/development-plan.md`. That plan adds the component-node-system authoring flow, component-aware Python editor, datasets, validation, calibration, optimization, SDK, and runtime-only delivery sequence on top of this runtime-first architecture.
 
 ## Source Of Truth
 

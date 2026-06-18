@@ -51,4 +51,3 @@ nav:
           - Runner Before GUI: adr/0002-runner-before-gui.md
           - Public IO Mapping: adr/0003-explicit-public-io-mapping.md
           - Feedback Loops And Solver Boundaries: adr/0004-feedback-loops-and-solver-boundaries.md
-      - Planning Archive: development-plan.md

@@ -91,7 +91,7 @@ See [docs/setup.md](docs/setup.md) for the repo-local Go/Python layout.
 Read the maintainer planning archive when changing roadmap or release scope:
 
 ```text
-docs/development-plan.md
+planning/development-plan.md
 ```
 
 Read the user guide:
