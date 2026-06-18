@@ -57,6 +57,10 @@ func checkComponentSource(ctx context.Context, loaded *project.LoadedProject, re
 	syntaxProblems := pythonSyntaxProblems(ctx, loaded, componentID, filepath.ToSlash(rel), req.Content)
 	check.Problems = append(check.Problems, syntaxProblems...)
 	if !hasErrorProblems(syntaxProblems) {
+		returnShapeProblems := pythonReturnShapeProblems(ctx, loaded, componentID, filepath.ToSlash(rel), expectedClass, expectedFunction, req.Content)
+		check.Problems = append(check.Problems, returnShapeProblems...)
+	}
+	if !hasErrorProblems(syntaxProblems) {
 		check.Problems = append(check.Problems, pythonUndefinedNameProblems(ctx, loaded, componentID, filepath.ToSlash(rel), req.Content)...)
 	}
 	if component.Source.Layout != "generated_wrapper" && !hasErrorProblems(syntaxProblems) && expectedClass != "" {
@@ -272,6 +276,92 @@ func pythonLoadProblems(ctx context.Context, loaded *project.LoadedProject, comp
 		return []Problem{problem}
 	}
 	return []Problem{}
+}
+
+func pythonReturnShapeProblems(ctx context.Context, loaded *project.LoadedProject, componentID string, relativePath string, expectedClass string, expectedFunction string, content string) []Problem {
+	pythonExe := resolveStudioPython(loaded.Root, loaded.Project.Environment)
+	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if expectedFunction == "" {
+		expectedFunction = "evaluate"
+	}
+	mode := "method"
+	if expectedFunction == "step" {
+		mode = "function"
+	}
+	script := strings.Join([]string{
+		"import ast, json, sys",
+		"filename, expected_class, expected_function, mode = sys.argv[1:5]",
+		"source = sys.stdin.read()",
+		"tree = ast.parse(source, filename=filename)",
+		"target = None",
+		"if mode == 'function':",
+		"    target = next((node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == expected_function), None)",
+		"else:",
+		"    classes = [node for node in tree.body if isinstance(node, ast.ClassDef)]",
+		"    if expected_class:",
+		"        classes = [node for node in classes if node.name == expected_class]",
+		"    for cls in classes:",
+		"        for node in cls.body:",
+		"            if isinstance(node, ast.FunctionDef) and node.name == expected_function:",
+		"                target = node",
+		"                break",
+		"        if target is not None:",
+		"            break",
+		"problems = []",
+		"if target is not None:",
+		"    returns = []",
+		"    class Visitor(ast.NodeVisitor):",
+		"        def visit_Return(self, node):",
+		"            returns.append(node)",
+		"        def visit_FunctionDef(self, node):",
+		"            return",
+		"        def visit_AsyncFunctionDef(self, node):",
+		"            return",
+		"        def visit_ClassDef(self, node):",
+		"            return",
+		"    visitor = Visitor()",
+		"    for stmt in target.body:",
+		"        visitor.visit(stmt)",
+		"    for node in returns:",
+		"        value = node.value",
+		"        if not isinstance(value, ast.Tuple) or len(value.elts) != 2:",
+		"            problems.append({'message': 'return shape must be (outputs, state)', 'line': node.lineno, 'column': node.col_offset + 1})",
+		"            continue",
+		"        outputs = value.elts[0]",
+		"        if not isinstance(outputs, ast.Dict):",
+		"            if isinstance(outputs, (ast.Constant, ast.List, ast.Tuple, ast.Set)):",
+		"                problems.append({'message': 'return outputs must be a dictionary', 'line': getattr(outputs, 'lineno', node.lineno), 'column': getattr(outputs, 'col_offset', node.col_offset) + 1})",
+		"print(json.dumps(problems))",
+	}, "\n")
+	cmd := platform.CommandContext(checkCtx, pythonExe, "-c", script, relativePath, expectedClass, expectedFunction, mode)
+	cmd.Dir = loaded.Root
+	cmd.Stdin = strings.NewReader(content)
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	if err := cmd.Run(); err != nil {
+		return []Problem{}
+	}
+	var reported []struct {
+		Message string `json:"message"`
+		Line    int    `json:"line"`
+		Column  int    `json:"column"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &reported); err != nil {
+		return []Problem{}
+	}
+	problems := []Problem{}
+	for _, item := range reported {
+		problems = append(problems, Problem{
+			Severity:    "error",
+			Message:     item.Message,
+			ComponentID: componentID,
+			Source:      relativePath,
+			Line:        item.Line,
+			Column:      item.Column,
+		})
+	}
+	return problems
 }
 
 func pythonUndefinedNameProblems(ctx context.Context, loaded *project.LoadedProject, componentID string, relativePath string, content string) []Problem {

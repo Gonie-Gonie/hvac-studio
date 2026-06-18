@@ -5285,6 +5285,111 @@ func TestCheckSourceEndpointReportsEvaluateSignatureProblem(t *testing.T) {
 	}
 }
 
+func TestCheckSourceEndpointReportsReturnShapeProblems(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	projectSummary := createWorkspaceProject(t, server, "Source Return Shape Project")
+
+	cases := []struct {
+		name    string
+		content string
+		message string
+		line    int
+	}{
+		{
+			name: "missing state",
+			content: strings.Join([]string{
+				"class ScalarComponent:",
+				"    def evaluate(self, inputs, state, params, context):",
+				"        return {\"result\": 1}",
+				"",
+			}, "\n"),
+			message: "return shape must be (outputs, state)",
+			line:    3,
+		},
+		{
+			name: "outputs not dictionary",
+			content: strings.Join([]string{
+				"class ScalarComponent:",
+				"    def evaluate(self, inputs, state, params, context):",
+				"        return 1, state",
+				"",
+			}, "\n"),
+			message: "return outputs must be a dictionary",
+			line:    3,
+		},
+	}
+	for _, item := range cases {
+		t.Run(item.name, func(t *testing.T) {
+			payload, err := json.Marshal(map[string]any{
+				"project_path": projectSummary.ProjectPath,
+				"component_id": "scalar",
+				"content":      item.content,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			response := httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodPost, "/api/project/source/check", bytes.NewReader(payload))
+			server.Handler().ServeHTTP(response, request)
+			if response.Code != http.StatusOK {
+				t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+			}
+			var body struct {
+				Check SourceCheck `json:"check"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if body.Check.OK {
+				t.Fatalf("source check should fail for return shape: %#v", body.Check.Problems)
+			}
+			problem, ok := findProblemMessageContaining(body.Check.Problems, item.message)
+			if !ok {
+				t.Fatalf("return shape problem missing from %#v", body.Check.Problems)
+			}
+			if problem.Severity != "error" || problem.Source != "components/scalar.py" || problem.Line != item.line || problem.Column == 0 {
+				t.Fatalf("return shape problem = %#v", problem)
+			}
+		})
+	}
+}
+
+func TestCheckSourceEndpointAcceptsVariableOutputsReturnShape(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	projectSummary := createWorkspaceProject(t, server, "Source Variable Outputs Project")
+
+	source := strings.Join([]string{
+		"class ScalarComponent:",
+		"    def evaluate(self, inputs, state, params, context):",
+		"        outputs = {\"result\": 1}",
+		"        return outputs, state",
+		"",
+	}, "\n")
+	payload, err := json.Marshal(map[string]any{
+		"project_path": projectSummary.ProjectPath,
+		"component_id": "scalar",
+		"content":      source,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/source/check", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Check SourceCheck `json:"check"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !body.Check.OK {
+		t.Fatalf("variable outputs return shape should pass: %#v", body.Check.Problems)
+	}
+}
+
 func TestCheckSourceEndpointReportsImportProblem(t *testing.T) {
 	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
@@ -5482,6 +5587,33 @@ func TestGeneratedWrapperComponentUsesUserStepSource(t *testing.T) {
 	}
 	if checkBody.Check.ExpectedFunction != "step" {
 		t.Fatalf("expected function = %s", checkBody.Check.ExpectedFunction)
+	}
+
+	badShapePayload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"component_id": "wrapped_gain",
+		"content":      "def step(inputs, state, params, context):\n    return {\"result\": 1}\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	badShapeResponse := httptest.NewRecorder()
+	badShapeRequest := httptest.NewRequest(http.MethodPost, "/api/project/source/check", bytes.NewReader(badShapePayload))
+	server.Handler().ServeHTTP(badShapeResponse, badShapeRequest)
+	if badShapeResponse.Code != http.StatusOK {
+		t.Fatalf("bad shape check status = %d body=%s", badShapeResponse.Code, badShapeResponse.Body.String())
+	}
+	var badShapeBody struct {
+		Check SourceCheck `json:"check"`
+	}
+	if err := json.Unmarshal(badShapeResponse.Body.Bytes(), &badShapeBody); err != nil {
+		t.Fatal(err)
+	}
+	if badShapeBody.Check.OK {
+		t.Fatalf("generated wrapper source check should fail for return shape: %#v", badShapeBody.Check.Problems)
+	}
+	if !hasProblemMessage(badShapeBody.Check.Problems, "return shape must be (outputs, state)") {
+		t.Fatalf("generated wrapper return shape problem missing from %#v", badShapeBody.Check.Problems)
 	}
 
 	validatePayload, err := json.Marshal(map[string]any{"project_path": projectPath})
