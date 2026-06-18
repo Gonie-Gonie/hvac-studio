@@ -66,6 +66,78 @@ func TestRunEndpointMapsPythonTracebackToSourceLine(t *testing.T) {
 	}
 }
 
+func TestRunEndpointMapsGeneratedWrapperTracebackToUserStep(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	projectSummary := createWorkspaceProject(t, server, "Traceback Wrapper Project")
+
+	componentPayload, err := json.Marshal(map[string]any{
+		"project_path":      projectSummary.ProjectPath,
+		"name":              "Trace Gain",
+		"template":          "scalar",
+		"include_in_system": true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	componentResponse := httptest.NewRecorder()
+	componentRequest := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(componentPayload))
+	server.Handler().ServeHTTP(componentResponse, componentRequest)
+	if componentResponse.Code != http.StatusCreated {
+		t.Fatalf("component status = %d body=%s", componentResponse.Code, componentResponse.Body.String())
+	}
+
+	source := strings.Join([]string{
+		"def step(inputs, state, params, context):",
+		"    value = float(inputs[\"value\"])",
+		"    scale = 1 / 0",
+		"    return {\"result\": value * scale}, state",
+		"",
+	}, "\n")
+	sourcePayload, err := json.Marshal(map[string]any{
+		"project_path": projectSummary.ProjectPath,
+		"component_id": "trace_gain",
+		"content":      source,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceResponse := httptest.NewRecorder()
+	sourceRequest := httptest.NewRequest(http.MethodPost, "/api/project/source", bytes.NewReader(sourcePayload))
+	server.Handler().ServeHTTP(sourceResponse, sourceRequest)
+	if sourceResponse.Code != http.StatusOK {
+		t.Fatalf("source status = %d body=%s", sourceResponse.Code, sourceResponse.Body.String())
+	}
+
+	runPayload, err := json.Marshal(map[string]any{
+		"project_path": projectSummary.ProjectPath,
+		"inputs": map[string]any{
+			"value":            1,
+			"trace_gain_value": 2,
+		},
+		"context": map[string]any{"time": 0.0, "dt": 60.0},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runResponse := httptest.NewRecorder()
+	runRequest := httptest.NewRequest(http.MethodPost, "/api/run", bytes.NewReader(runPayload))
+	server.Handler().ServeHTTP(runResponse, runRequest)
+	if runResponse.Code != http.StatusBadGateway {
+		t.Fatalf("run status = %d body=%s", runResponse.Code, runResponse.Body.String())
+	}
+	var body apiError
+	if err := json.Unmarshal(runResponse.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	problem, ok := findProblemMessageContaining(body.Problems, "ZeroDivisionError")
+	if !ok {
+		t.Fatalf("traceback problem missing from %#v", body.Problems)
+	}
+	if problem.ComponentID != "trace_gain" || problem.Source != "components/trace_gain/user_step.py" || problem.Line != 3 {
+		t.Fatalf("problem location = %#v", problem)
+	}
+}
+
 func TestTracebackFramesParseWindowsPythonFileLines(t *testing.T) {
 	message := "Traceback (most recent call last):\n" +
 		"  File \"C:\\Temp\\project\\components\\scalar.py\", line 3, in evaluate\n" +
