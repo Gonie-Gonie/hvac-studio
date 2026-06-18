@@ -246,6 +246,18 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	startResponse := httptest.NewRecorder()
+	startRequest := httptest.NewRequest(http.MethodGet, "/js/start-workspace.js", nil)
+
+	server.Handler().ServeHTTP(startResponse, startRequest)
+
+	if startResponse.Code != http.StatusOK {
+		t.Fatalf("start workspace status = %d body=%s", startResponse.Code, startResponse.Body.String())
+	}
+	startBody, err := io.ReadAll(startResponse.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
 		t.Fatalf("module entrypoint did not contain expected imports")
 	}
@@ -447,7 +459,8 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("activeRunAbortController")) {
 		t.Fatalf("module entrypoint did not track active runtime requests")
 	}
-	if !bytes.Contains(body, []byte("in progress")) || !bytes.Contains(body, []byte("Runtime ready")) {
+	if !bytes.Contains(body, []byte("in progress")) ||
+		(!bytes.Contains(body, []byte("Runtime ready")) && !bytes.Contains(startBody, []byte("Runtime ready"))) {
 		t.Fatalf("module entrypoint did not expose runtime progress status")
 	}
 	if !bytes.Contains(body, []byte("logSeverityFilter")) ||
@@ -612,9 +625,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("renderStartWorkspace")) {
 		t.Fatalf("module entrypoint did not include the Start workspace renderer")
 	}
-	if !bytes.Contains(body, []byte("renderStartWorkflowRows")) ||
-		!bytes.Contains(body, []byte("workflowReadinessRows")) ||
-		!bytes.Contains(body, []byte("readinessRow")) {
+	if !bytes.Contains(startBody, []byte("renderStartWorkflowRows")) ||
+		!bytes.Contains(startBody, []byte("workflowReadinessRows")) ||
+		!bytes.Contains(startBody, []byte("readinessRow")) {
 		t.Fatalf("module entrypoint did not include Start workflow readiness rendering")
 	}
 	if bytes.Contains(body, []byte("currentProjectSummary")) {
@@ -735,7 +748,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("projectTemplateSelect")) {
 		t.Fatalf("module entrypoint did not read the selected project type")
 	}
-	if !bytes.Contains(body, []byte("Baseline graph parameters")) {
+	if !bytes.Contains(startBody, []byte("Baseline graph parameters")) {
 		t.Fatalf("module entrypoint did not expose baseline run parameter state")
 	}
 	if !bytes.Contains(body, []byte("serveButton")) {
