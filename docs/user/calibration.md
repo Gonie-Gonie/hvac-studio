@@ -20,7 +20,9 @@ stopping rules. Supported algorithms are `grid`, `differential_evolution`, and
 `least_squares`; all preserve the same runner-backed candidate/result artifact
 flow. Candidate filters cover role, component, unit, and bounds presence; the
 selected candidate count and expected run count update before saving, including
-any max-candidate stopping limit.
+any max-candidate stopping limit. The editor keeps `Create Setup` disabled until
+at least one target output and one parameter are selected with valid weights and
+bounds.
 
 The saved setup can also be inspected or reproduced from JSON. See:
 

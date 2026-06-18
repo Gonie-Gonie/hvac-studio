@@ -661,6 +661,19 @@ h2,
   width: 86px;
 }
 
+.calibration-editor-warning {
+  color: #936400;
+  font-weight: 700;
+}
+
+.calibration-editor-warning.ready {
+  color: #12733d;
+}
+
+.calibration-invalid td {
+  background: #fff7ed;
+}
+
 .metric-bars {
   display: grid;
   gap: 9px;

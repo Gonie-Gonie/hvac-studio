@@ -3294,15 +3294,18 @@ function calibrationSetupEditorSection(context) {
   actions.className = "result-actions calibration-setup-actions";
   const runCount = document.createElement("span");
   runCount.className = "input-meta calibration-run-count";
+  const warning = document.createElement("span");
+  warning.className = "input-meta calibration-editor-warning";
   const create = document.createElement("button");
   create.type = "button";
   create.className = "small-action";
+  create.dataset.calibrationCreate = "true";
   create.textContent = "Create Setup";
   create.addEventListener("click", () => {
     const payload = collectCalibrationSetupEditorPayload(section, context);
     if (payload) createCalibrationSetup(payload);
   });
-  actions.append(runCount, create);
+  actions.append(runCount, warning, create);
   section.append(actions);
   section.querySelectorAll("[data-calibration-filter], [data-calibration-stop-max], [data-calibration-stop-tolerance], [data-cal-param-check], [data-cal-param-field], [data-cal-output-check], [data-cal-output-weight]").forEach((control) => {
     control.addEventListener("input", () => updateCalibrationEditorState(section));
@@ -3482,6 +3485,13 @@ function updateCalibrationEditorState(section) {
     row.hidden = !visible;
   }
   const selectedRows = [...section.querySelectorAll("[data-cal-param]")].filter((row) => row.querySelector("[data-cal-param-check]")?.checked);
+  const invalidRows = selectedRows.filter((row) => calibrationGridPointCount(row) === 0);
+  for (const row of section.querySelectorAll("[data-cal-param]")) {
+    const checked = row.querySelector("[data-cal-param-check]")?.checked;
+    row.classList.toggle("calibration-invalid", Boolean(checked && calibrationGridPointCount(row) === 0));
+  }
+  const selectedOutputs = [...section.querySelectorAll("[data-cal-output]")].filter((row) => row.querySelector("[data-cal-output-check]")?.checked);
+  const invalidOutputs = selectedOutputs.filter((row) => !validCalibrationWeight(row));
   let expectedRuns = selectedRows.length ? selectedRows.reduce((product, row) => product * calibrationGridPointCount(row), 1) : 0;
   const maxCandidates = Number(section.querySelector("[data-calibration-stop-max]")?.value);
   if (Number.isFinite(maxCandidates) && maxCandidates > 0) expectedRuns = Math.min(expectedRuns, Math.floor(maxCandidates));
@@ -3489,6 +3499,27 @@ function updateCalibrationEditorState(section) {
   if (runCount) {
     runCount.textContent = `Selected ${selectedRows.length} / Expected Runs ${formatExpectedRunCount(expectedRuns)}`;
   }
+  const status = calibrationEditorStatus(selectedOutputs, invalidOutputs, selectedRows, invalidRows);
+  const warning = section.querySelector(".calibration-editor-warning");
+  if (warning) {
+    warning.textContent = status.message;
+    warning.classList.toggle("ready", status.valid);
+  }
+  const create = section.querySelector("[data-calibration-create]");
+  if (create) create.disabled = !status.valid;
+}
+
+function calibrationEditorStatus(selectedOutputs, invalidOutputs, selectedRows, invalidRows) {
+  if (!selectedOutputs.length) return { valid: false, message: "Select at least one target output" };
+  if (invalidOutputs.length) return { valid: false, message: "Fix invalid output weights" };
+  if (!selectedRows.length) return { valid: false, message: "Select at least one calibration parameter" };
+  if (invalidRows.length) return { valid: false, message: "Fix invalid parameter bounds" };
+  return { valid: true, message: "Ready to create setup" };
+}
+
+function validCalibrationWeight(row) {
+  const weight = Number(row.querySelector("[data-cal-output-weight]")?.value);
+  return Number.isFinite(weight) && weight >= 0;
 }
 
 function calibrationGridPointCount(row) {

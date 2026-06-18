@@ -778,6 +778,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(body, []byte("Least Squares")) ||
 		!bytes.Contains(body, []byte("least_squares")) ||
 		!bytes.Contains(body, []byte("Expected Runs")) ||
+		!bytes.Contains(body, []byte("calibration-editor-warning")) ||
+		!bytes.Contains(body, []byte("Fix invalid parameter bounds")) ||
+		!bytes.Contains(body, []byte("Ready to create setup")) ||
 		!bytes.Contains(body, []byte("stopping_rules")) ||
 		!bytes.Contains(body, []byte("objective_outputs")) {
 		t.Fatalf("module entrypoint did not expose calibration setup editor")
