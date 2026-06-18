@@ -8,10 +8,13 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/compiler"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/schemaexport"
 )
 
 func exportArtifactPath(path string) string {
@@ -19,6 +22,132 @@ func exportArtifactPath(path string) string {
 		return ""
 	}
 	return filepath.ToSlash(filepath.Join("project", path))
+}
+
+func writeExportManifest(loaded *project.LoadedProject, profile string, options exportOptions) (ExportSummary, ExportManifest, error) {
+	if profile == "" {
+		profile = "runtime_package"
+	}
+	if profile != "runtime_package" && profile != "research_project" {
+		return ExportSummary{}, ExportManifest{}, apperror.Errorf(apperror.CodeValidation, "unsupported export profile: %s", profile)
+	}
+	plan, err := compiler.Compile(loaded)
+	if err != nil {
+		return ExportSummary{}, ExportManifest{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	now := time.Now().UTC()
+	projectPath, _, err := projectOwnedRelativePath(loaded.Root, loaded.Path)
+	if err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
+	graphPath, _, err := projectOwnedRelativePath(loaded.Root, loaded.GraphPath)
+	if err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
+	defaultInputPath := ""
+	if loaded.Project.DefaultInput != "" {
+		defaultInputPath, _, err = projectOwnedRelativePath(loaded.Root, loaded.Project.DefaultInput)
+		if err != nil {
+			return ExportSummary{}, ExportManifest{}, err
+		}
+	}
+	environmentLockfilePath := ""
+	if loaded.Project.Environment.Lockfile != "" {
+		environmentLockfilePath, _, err = projectOwnedRelativePath(loaded.Root, loaded.Project.Environment.Lockfile)
+		if err != nil {
+			return ExportSummary{}, ExportManifest{}, err
+		}
+	}
+	exportRoot := filepath.Join(loaded.Root, "exports", profile)
+	if err := resetGeneratedDir(filepath.Join(loaded.Root, "exports"), exportRoot); err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
+	files, err := writeRuntimeExportProject(loaded, filepath.Join(exportRoot, "project"), options)
+	if err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
+	supportFiles, err := writeRuntimeExportSupportFiles(loaded.Root, exportRoot, options)
+	if err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
+	files = append(files, supportFiles...)
+	interfaceSchemaPath := "schema/public-io.json"
+	schema, err := schemaexport.Export(loaded)
+	if err != nil {
+		return ExportSummary{}, ExportManifest{}, apperror.Wrap(apperror.CodeValidation, err)
+	}
+	if err := schemaexport.Write(filepath.Join(exportRoot, filepath.FromSlash(interfaceSchemaPath)), schema); err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
+	files = append(files, interfaceSchemaPath)
+	entrypoints := runtimeExportEntrypoints(files, plan, exportArtifactPath(projectPath), exportArtifactPath(defaultInputPath), exportArtifactPath(environmentLockfilePath), options)
+	entrypointFiles, err := writeRuntimeExportEntrypoints(exportRoot, entrypoints)
+	if err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
+	files = append(files, entrypointFiles...)
+	sort.Strings(files)
+	checksums, err := exportFileChecksums(exportRoot, files)
+	if err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
+	commands := []string{}
+	for _, entrypoint := range entrypoints {
+		if strings.HasSuffix(entrypoint.Rel, ".ps1") {
+			commands = append(commands, entrypoint.Rel)
+		}
+	}
+	manifest := ExportManifest{
+		Profile:             profile,
+		CreatedAtUTC:        now.Format(time.RFC3339Nano),
+		ProjectName:         loaded.Project.ProjectName,
+		ProjectRoot:         "project",
+		ProjectPath:         exportArtifactPath(projectPath),
+		GraphPath:           exportArtifactPath(graphPath),
+		DefaultInput:        exportArtifactPath(defaultInputPath),
+		EnvironmentLockfile: exportArtifactPath(environmentLockfilePath),
+		InterfaceSchema:     interfaceSchemaPath,
+		Runner:              "bin/bcs-runner.exe",
+		RuntimePython:       "runtime/python/python.exe",
+		Files:               files,
+		Components:          append([]string{}, plan.System.Components...),
+		ModelAssets:         modelAssetExportPaths(loaded.Graph, options.IncludeMLAssets),
+		MLValidationReports: mlValidationSummaries(loaded, options.IncludeMLAssets, true),
+		Checksums:           checksums,
+		PublicInputs:        append([]model.PublicNodeRef{}, plan.System.PublicInputs...),
+		PublicOutputs:       append([]model.PublicNodeRef{}, plan.System.PublicOutputs...),
+		ExecutionOrder:      append([]string{}, plan.Order...),
+		ParameterSets:       exportFilesWithPrefix(files, "project/parameter_sets/"),
+		Datasets:            exportFilesWithPrefix(files, "project/datasets/"),
+		ValidationMappings:  exportFilesWithPrefix(files, "project/validation/mappings/"),
+		CalibrationSetups:   exportFilesWithPrefix(files, "project/calibration/setups/"),
+		OptimizationSetups:  exportFilesWithPrefix(files, "project/optimization/setups/"),
+		RunRecords:          exportFilesWithPrefix(files, "project/runs/"),
+		BatchRecords:        exportFilesWithPrefix(files, "project/batches/"),
+		ValidationRecords:   exportFilesWithPrefix(files, "project/validation/runs/"),
+		CalibrationRecords:  exportFilesWithPrefix(files, "project/calibration/results/"),
+		OptimizationRecords: exportFilesWithPrefix(files, "project/optimization/results/"),
+		Commands:            commands,
+		IncludeDatasets:     options.IncludeDatasets,
+		IncludeCalibration:  options.IncludeCalibrationSetups,
+		IncludeOptimization: options.IncludeOptimizationSetups,
+		IncludeMLAssets:     options.IncludeMLAssets,
+		IncludeSDKExamples:  options.IncludeSDKExamples,
+		IncludeRecords:      options.IncludeRecords,
+	}
+	exportPath := filepath.Join(exportRoot, "manifest.json")
+	if err := os.MkdirAll(filepath.Dir(exportPath), 0o755); err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
+	if err := writeJSONFile(exportPath, manifest); err != nil {
+		return ExportSummary{}, ExportManifest{}, err
+	}
+	rel, _ := filepath.Rel(loaded.Root, exportPath)
+	return ExportSummary{
+		Profile:      profile,
+		RelativePath: filepath.ToSlash(rel),
+		CreatedAtUTC: manifest.CreatedAtUTC,
+	}, manifest, nil
 }
 
 func modelAssetExportPaths(graph *model.Graph, includeMLAssets bool) []string {
