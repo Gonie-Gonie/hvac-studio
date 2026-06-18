@@ -4,7 +4,7 @@ HVAC Studio is the working repository for a Component-Node System Studio: a Pyth
 
 The product goal is to let researchers define equipment, controls, surrogate models, objectives, and custom solvers in Python, while the runtime manages component-node contracts, graph validation, execution order, reproducibility, and delivery.
 
-The release strategy is Windows-first: the initial supported platform is Windows 10/11 x64, distributed first as a portable zip. The engine, project format, graph schema, and component schema should remain OS-independent so macOS can become an experimental post-MVP target.
+The release strategy is Windows-first: the initial supported platform is Windows 10/11 x64, distributed first as a portable zip. The engine, project format, graph schema, and component schema should remain OS-independent so macOS can be offered through an experimental support package.
 
 ## Current Focus
 

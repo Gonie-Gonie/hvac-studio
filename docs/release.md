@@ -7,7 +7,7 @@ Primary supported platform:
 - Windows 10/11 x64
 
 Additional experimental platform:
-- macOS after MVP
+- experimental macOS support package
 
 Development policy:
 - Windows-first release
@@ -75,7 +75,7 @@ and prerequisite checks. It is not a signed or notarized public macOS
 application. Native macOS binaries must be built, signed, notarized, stapled,
 and smoke-tested on macOS before any user-facing macOS release.
 
-Both MVP packages include `bin/bcs-env.exe` and a bundled Python runtime under `runtime/python`, copied from the repo-local setup toolchain. Included examples run without system Python on `PATH`. Projects can declare `environment.lockfile` in `project.bcsproj`; package and export flows preserve that lockfile, and `bcs-env.exe check` reports missing declared lockfiles.
+Portable and runtime packages include `bin/bcs-env.exe` and a bundled Python runtime under `runtime/python`, copied from the repo-local setup toolchain. Included examples run without system Python on `PATH`. Projects can declare `environment.lockfile` in `project.bcsproj`; package and export flows preserve that lockfile, and `bcs-env.exe check` reports missing declared lockfiles.
 
 `bcs-env.exe check` verifies the package root, bundled Python runtime, Python worker, SDK, schemas, examples, project/component templates, scalar component template manifest/source consistency, project Python lockfiles, and required executables. Release smoke tests call it with `--json` before running examples or Studio API checks.
 
@@ -283,7 +283,7 @@ v0.1
 - bcs-runner.exe
 - bcs-env.exe
 - bundled Python runtime
-- MVP Python worker/source package
+- Python worker/source package
 - simple example project
 
 v0.2

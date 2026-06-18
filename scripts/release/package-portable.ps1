@@ -171,7 +171,7 @@ $ReleaseManifest = [ordered]@{
   version = $ResolvedVersion
   runtime_id = $RuntimeId
   primary_platform = 'Windows 10/11 x64'
-  additional_platforms = @('macOS experimental after MVP')
+  additional_platforms = @('macOS experimental support package')
   commit = $Commit
   built_at_utc = (Get-Date).ToUniversalTime().ToString('o')
   provenance = 'release-provenance.json'
@@ -189,7 +189,7 @@ $ReleaseManifest = [ordered]@{
   includes_embedded_python = $true
   notes = @(
     'Windows-first portable Studio package.',
-    'Engine and project format are OS-independent; macOS packaging is an experimental post-MVP target.',
+    'Engine and project format are OS-independent; macOS packaging is an experimental support target.',
     'HVAC Studio.exe opens a native Wails desktop window for normal use.',
     'bin/studio.exe --server is reserved for scripted API smoke tests and automation.',
     'Includes a bundled Python runtime for included examples.',
@@ -228,7 +228,7 @@ Run the CLI smoke example:
 
 Studio runtime exports are written under `projects\<name>\exports\runtime_package\`. From an export folder, run `.\run-default.ps1` or `.\bin\bcs-env.exe check --root . --json`.
 
-This MVP portable package is Windows-first and includes a bundled Python runtime for included examples. Project-specific Python lockfiles are preserved when projects declare `environment.lockfile`.
+This portable package is Windows-first and includes a bundled Python runtime for included examples. Project-specific Python lockfiles are preserved when projects declare `environment.lockfile`.
 "@ | Set-Content -LiteralPath (Join-Path $StageRoot 'PACKAGE_README.md') -Encoding UTF8
 
 Remove-PythonCaches -Root $StageRoot

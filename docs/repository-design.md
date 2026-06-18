@@ -40,7 +40,7 @@ The model source of truth is file-based:
 
 The runner loads these files, validates the graph, compiles a feed-forward execution plan, and calls user Python components through the worker.
 
-## MVP Runtime Flow
+## Runtime Flow
 
 ```text
 project load

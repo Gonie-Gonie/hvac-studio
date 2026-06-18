@@ -1,6 +1,6 @@
 # Vectorized Component
 
-This example shows the post-MVP `vectorized` execution mode. The component
+This example shows the `vectorized` execution mode. The component
 accepts an array public input and returns an array public output from a single
 worker call.
 
