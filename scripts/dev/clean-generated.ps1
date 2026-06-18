@@ -10,6 +10,10 @@ $Targets = @(
   'bin',
   'dist\build',
   'dist\docs',
+  '.repo_tools\logs',
+  '.repo_tools\release-build',
+  '.repo_tools\smoke',
+  '.repo_tools\studio-live',
   '.tmp'
 )
 

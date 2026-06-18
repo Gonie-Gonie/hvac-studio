@@ -38,7 +38,11 @@ Standalone Studio build checks write the latest smoke executable to:
 dist/build/latest/studio/hvac-studio.exe
 ```
 
-That folder is cleaned before each `scripts/dev/test-studio.ps1` run, so it shows only the most recent build check.
+That folder is cleaned before each `scripts/dev/test-studio.ps1` run, so it
+shows only the most recent build check. Run
+`scripts/dev/clean-generated.ps1` after manual release checks to remove local
+build intermediates, old smoke executables, and Studio logs while preserving
+the final package zip files under `dist/`.
 
 The portable Studio package is the first user-facing distribution:
 

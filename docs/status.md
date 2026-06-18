@@ -70,7 +70,8 @@ rewritten by `scripts/dev/test-studio.ps1` and removed by
 `scripts/dev/clean-generated.ps1`.
 
 Other transient local outputs include `artifacts/`, `bin/`, `dist/docs/`,
-`.tmp/`, Python `__pycache__/` directories, and Python package build folders.
+`.repo_tools` smoke/log/staging folders, `.tmp/`, Python `__pycache__/`
+directories, and Python package build folders.
 Run this after local checks when you want only tracked files and retained
 package zips left behind:
 
