@@ -1,4 +1,5 @@
 import { escapeHTML } from "./dom.js";
+import { csvCell, safeFileName } from "./download.js";
 import { formatValue } from "./format.js";
 
 export function renderRunOutputWorkspace(state, summary, outputRows, comparisonRows, chart, componentRows, batchRows, executionRows, componentLogRows, connectionRows, nodeRows, exportActions, actions = {}) {
@@ -667,15 +668,6 @@ function connectionCSVValue(trace) {
   return trace.value ?? "";
 }
 
-function csvCell(value) {
-  const text = typeof value === "string" ? value : JSON.stringify(value);
-  const normalized = text === undefined ? "" : String(text);
-  return `"${normalized.replace(/"/g, '""')}"`;
-}
-
-function safeFileName(value) {
-  return String(value || "export").replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^_+|_+$/g, "") || "export";
-}
 
 function connectionLabel(trace) {
   const from = trace.from ? `${trace.from.component}.${trace.from.node}` : "";

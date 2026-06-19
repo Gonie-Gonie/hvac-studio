@@ -276,6 +276,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	mlInspectorBody := getRouteBody(t, server, "/js/ml-inspector.js")
 	componentTemplatesBody := getRouteBody(t, server, "/js/component-templates.js")
 	datasetMappingBody := getRouteBody(t, server, "/js/dataset-mapping.js")
+	downloadBody := getRouteBody(t, server, "/js/download.js")
 	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
 		t.Fatalf("module entrypoint did not contain expected imports")
 	}
@@ -395,6 +396,15 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte(`from "./dataset-mapping.js"`)) {
 		t.Fatalf("module entrypoint did not import dataset mapping helpers")
+	}
+	if !bytes.Contains(body, []byte(`from "./download.js"`)) {
+		t.Fatalf("module entrypoint did not import download helpers")
+	}
+	if !bytes.Contains(downloadBody, []byte("downloadTextFile")) ||
+		!bytes.Contains(downloadBody, []byte("safeFileName")) ||
+		!bytes.Contains(downloadBody, []byte("csvCell")) ||
+		!bytes.Contains(downloadBody, []byte("markdownTable")) {
+		t.Fatalf("download helper module did not expose export helpers")
 	}
 	if !bytes.Contains(connectionsBody, []byte("connectionMediumStateForNodes")) ||
 		!bytes.Contains(connectionsBody, []byte("connectionUnitStateForNodes")) ||
