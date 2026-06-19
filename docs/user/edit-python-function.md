@@ -32,7 +32,7 @@ the inserted snippet. They can insert:
 
 For single-file components, source checks also treat keys returned by `initialize()` as initialized state references, so model assets or cached schemas loaded into `state` can be used from `evaluate`.
 
-Source check warnings include contract-reference hints, unknown input/output/parameter/state references, and likely undefined names. Undefined-name warnings do not block save/run by themselves; source-check errors such as missing signatures, wrong return shapes, syntax failures, import/load failures, or missing output contracts block run, batch, and export.
+Source check warnings include contract-reference hints, unknown input/output/parameter/state references, and likely undefined names. Undefined-name warnings do not block save/run by themselves; source-check errors such as missing signatures, wrong return shapes, syntax failures, import/load failures, or missing output contracts block run, batch, and export. The Problems panel includes source file, line, and column when the server can map the issue.
 
 ## Component Class Shape
 

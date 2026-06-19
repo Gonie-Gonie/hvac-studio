@@ -336,6 +336,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("openProblem")) {
 		t.Fatalf("module entrypoint did not include problem navigation")
 	}
+	if !bytes.Contains(body, []byte("problemLocationLabel")) {
+		t.Fatalf("module entrypoint did not include source-aware problem locations")
+	}
 	if !bytes.Contains(body, []byte("applySourceSaveResponse")) {
 		t.Fatalf("module entrypoint did not include source save response handling")
 	}

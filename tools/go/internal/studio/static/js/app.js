@@ -2524,13 +2524,22 @@ function setProblems(problems = []) {
 function problemRow(problem) {
   const row = document.createElement("div");
   row.className = "problem-row";
-  const location = problem.line ? `:${problem.line}${problem.column ? `:${problem.column}` : ""}` : "";
-  row.innerHTML = `<span class="status-dot ${problem.severity === "error" ? "error" : ""}"></span><span>${escapeHTML(problem.message)}${escapeHTML(location)}</span>`;
+  const location = problemLocationLabel(problem);
+  const suffix = location ? ` (${location})` : "";
+  row.innerHTML = `<span class="status-dot ${problem.severity === "error" ? "error" : ""}"></span><span>${escapeHTML(problem.message)}${escapeHTML(suffix)}</span>`;
   if (problem.component_id) {
     row.classList.add("linked");
     row.addEventListener("click", () => openProblem(problem));
   }
   return row;
+}
+
+function problemLocationLabel(problem) {
+  const source = String(problem.source || "");
+  const line = problem.line ? `${problem.line}${problem.column ? `:${problem.column}` : ""}` : "";
+  if (source && line) return `${source}:${line}`;
+  if (source) return source;
+  return line ? `line ${line}` : "";
 }
 
 function openProblem(problem) {
