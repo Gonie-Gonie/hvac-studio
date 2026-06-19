@@ -2920,6 +2920,34 @@ func TestUpdateComponentContractEndpointWritesDefinitionsAndMetadata(t *testing.
 		t.Fatalf("bad bounds message = %#v", badBody)
 	}
 
+	badRolePayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "second_gain",
+		"parameter_defs": map[string]model.ParameterDefinition{
+			"gain": {
+				Current: 4.5,
+				Bounds:  &model.ValueBounds{Min: 0.5, Max: 10.0},
+				Role:    "calibration-target",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	badRoleResponse := httptest.NewRecorder()
+	badRoleRequest := httptest.NewRequest(http.MethodPost, "/api/project/component-contract", bytes.NewReader(badRolePayload))
+	server.Handler().ServeHTTP(badRoleResponse, badRoleRequest)
+	if badRoleResponse.Code != http.StatusBadRequest {
+		t.Fatalf("bad role status = %d body=%s", badRoleResponse.Code, badRoleResponse.Body.String())
+	}
+	var badRoleBody apiError
+	if err := json.Unmarshal(badRoleResponse.Body.Bytes(), &badRoleBody); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(badRoleBody.Message, "parameter role is invalid") {
+		t.Fatalf("bad role message = %#v", badRoleBody)
+	}
+
 	deletePayload, err := json.Marshal(map[string]any{
 		"project_path":          createBody.Project.ProjectPath,
 		"component_id":          "second_gain",

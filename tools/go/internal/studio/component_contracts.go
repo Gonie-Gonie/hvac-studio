@@ -649,6 +649,7 @@ func normalizeParameterDefinition(name string, definition model.ParameterDefinit
 	if strings.TrimSpace(definition.DisplayName) == "" {
 		definition.DisplayName = displayNameFromID(name)
 	}
+	definition.Role = strings.TrimSpace(definition.Role)
 	if definition.Current == nil && hasCurrent {
 		definition.Current = current
 	}
@@ -659,6 +660,9 @@ func normalizeParameterDefinition(name string, definition model.ParameterDefinit
 }
 
 func validateParameterDefinition(componentID string, name string, definition model.ParameterDefinition) error {
+	if definition.Role != "" && !isValidParameterRole(definition.Role) {
+		return apperror.Errorf(apperror.CodeValidation, "parameter role is invalid: %s.%s", componentID, name)
+	}
 	if definition.Bounds == nil {
 		return nil
 	}
@@ -683,6 +687,15 @@ func validateParameterDefinition(componentID string, name string, definition mod
 		return apperror.Errorf(apperror.CodeValidation, "parameter bounds min must be <= max: %s.%s", componentID, name)
 	}
 	return nil
+}
+
+func isValidParameterRole(role string) bool {
+	switch role {
+	case "fixed", "scenario_input", "calibration_target", "optimization_variable", "derived":
+		return true
+	default:
+		return false
+	}
 }
 
 func normalizeStateDefinition(name string, definition model.StateDefinition) model.StateDefinition {
