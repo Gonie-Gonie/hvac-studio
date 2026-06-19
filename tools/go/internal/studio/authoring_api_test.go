@@ -2590,6 +2590,62 @@ func TestUpdateComponentContractEndpointWritesDefinitionsAndMetadata(t *testing.
 	}
 }
 
+func TestUpdateParametersEndpointSyncsExternalExecutableMetadataWithoutOverwritingExecutable(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectRoot := filepath.Join(root, "projects", "external-executable-project")
+	if err := copyProjectTree(filepath.Join(repoRoot, "examples", "010_external_executable_component"), projectRoot); err != nil {
+		t.Fatal(err)
+	}
+	projectPath := filepath.Join(projectRoot, "project.bcsproj")
+	executablePath := filepath.Join(projectRoot, "components", "external_gain", "external_gain.py")
+	originalExecutable, err := os.ReadFile(executablePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"parameters": map[string]any{
+			"external_gain": map[string]any{"gain": 3.25},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/parameters", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+
+	currentExecutable, err := os.ReadFile(executablePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(currentExecutable, originalExecutable) {
+		t.Fatalf("external executable was overwritten by metadata sync:\n%s", string(currentExecutable))
+	}
+	metadataBytes, err := os.ReadFile(filepath.Join(projectRoot, "components", "external_gain", "component.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var metadata struct {
+		Parameters           map[string]any                       `json:"parameters"`
+		ParameterDefinitions map[string]model.ParameterDefinition `json:"parameter_defs"`
+	}
+	if err := json.Unmarshal(metadataBytes, &metadata); err != nil {
+		t.Fatal(err)
+	}
+	if metadata.Parameters["gain"] != 3.25 || metadata.ParameterDefinitions["gain"].Current != 3.25 {
+		t.Fatalf("external metadata was not synced:\n%s", string(metadataBytes))
+	}
+}
+
 func TestUpdateParametersEndpointRejectsExamples(t *testing.T) {
 	server := newTestServer(t)
 	payload := []byte(`{

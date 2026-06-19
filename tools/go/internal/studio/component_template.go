@@ -422,7 +422,7 @@ func syncComponentMetadataFile(loaded *project.LoadedProject, component model.Co
 	if err := writeComponentMetadataFile(metadataPath, component, classNameFromPath(component.Class)); err != nil {
 		return err
 	}
-	if component.Source.Layout == "generated_wrapper" {
+	if componentUsesGeneratedPythonWrapper(component) {
 		return writeGeneratedWrapperFile(loaded.Root, component)
 	}
 	return nil
@@ -430,7 +430,7 @@ func syncComponentMetadataFile(loaded *project.LoadedProject, component model.Co
 
 func writeGeneratedWrapperFile(projectRoot string, component model.Component) error {
 	wrapperRel := strings.TrimSpace(component.Source.Wrapper)
-	if component.Source.Layout != "generated_wrapper" || wrapperRel == "" {
+	if !componentUsesGeneratedPythonWrapper(component) || wrapperRel == "" {
 		return nil
 	}
 	wrapperPath, err := resolveProjectOwnedFile(projectRoot, wrapperRel)
@@ -441,6 +441,10 @@ func writeGeneratedWrapperFile(projectRoot string, component model.Component) er
 		return err
 	}
 	return os.WriteFile(wrapperPath, []byte(generatedWrapperContent(component)), 0o644)
+}
+
+func componentUsesGeneratedPythonWrapper(component model.Component) bool {
+	return component.Kind == "user_python" && component.Source.Layout == "generated_wrapper"
 }
 
 func generatedWrapperContent(component model.Component) string {
