@@ -1689,6 +1689,19 @@ func TestUpdateNodeEndpointChangesDirectionAndCleansSystemReferences(t *testing.
 	if _, exists := runInput.Inputs["scalar_value"]; exists {
 		t.Fatalf("converted output default input should be removed: %#v", runInput.Inputs)
 	}
+	if strings.TrimSpace(scalar.Source.Wrapper) != "" {
+		wrapperBytes, err := os.ReadFile(filepath.Join(loaded.Root, scalar.Source.Wrapper))
+		if err != nil {
+			t.Fatal(err)
+		}
+		wrapperContent := string(wrapperBytes)
+		if !strings.Contains(wrapperContent, "Inputs: result") ||
+			strings.Contains(wrapperContent, "Inputs: value") ||
+			!strings.Contains(wrapperContent, "Outputs: value") ||
+			strings.Contains(wrapperContent, "Outputs: result") {
+			t.Fatalf("wrapper contract was not regenerated after direction changes:\n%s", wrapperContent)
+		}
+	}
 }
 
 func TestDeleteNodeEndpointCleansPublicIOAndConnections(t *testing.T) {
