@@ -574,6 +574,14 @@ func TestCreateCalibrationSetupEndpointWritesRoleBasedSetup(t *testing.T) {
 	if body.Setup.Objective.Metric != "rmse" || body.Setup.Objective.Outputs["total_power_kw"] != 1 {
 		t.Fatalf("objective = %#v", body.Setup.Objective)
 	}
+	if len(body.Setup.Parameters) == 0 {
+		t.Fatal("role-based calibration parameters were not created")
+	}
+	firstParameter := body.Setup.Parameters[0]
+	if firstParameter.Component != "load" || firstParameter.Name != "load_factor" ||
+		firstParameter.Min != 0.8 || firstParameter.Max != 1.3 {
+		t.Fatalf("first role-based calibration parameter = %#v", firstParameter)
+	}
 	if _, err := os.Stat(filepath.Join(projectRoot, "calibration", "setups", "auto_calibration.json")); err != nil {
 		t.Fatal(err)
 	}
@@ -634,6 +642,55 @@ func TestCreateOptimizationSetupEndpointWritesPublicInputSetup(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(projectRoot, "optimization", "setups", "auto_optimization.json")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCreateOptimizationSetupEndpointWritesParameterRoleSetup(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectRoot := filepath.Join(root, "projects", "parameter-role-optimization")
+	if err := copyProjectTree(filepath.Join(repoRoot, "examples", "006_optimization_case"), projectRoot); err != nil {
+		t.Fatal(err)
+	}
+	projectPath := filepath.Join(projectRoot, "project.bcsproj")
+	payload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"id":           "parameter_role_optimization",
+		"objective": map[string]any{
+			"output": "chiller_power_kw",
+			"sense":  "min",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/optimization-setup", bytes.NewReader(payload))
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Summary OptimizationSetupSummary `json:"summary"`
+		Setup   optimization.Setup       `json:"setup"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Summary.VariableCount != 1 || len(body.Setup.DecisionVariables) != 1 {
+		t.Fatalf("optimization setup = %#v", body.Setup)
+	}
+	variable := body.Setup.DecisionVariables[0]
+	if variable.Kind != "component_parameter" || variable.Component != "tradeoff" || variable.Name != "comfort_penalty_kw_per_k2" {
+		t.Fatalf("role-based decision variable = %#v", variable)
+	}
+	if variable.Min != 20.0 || variable.Max != 80.0 || variable.Step != 15.0 {
+		t.Fatalf("role-based bounds = %#v", variable)
 	}
 }
 

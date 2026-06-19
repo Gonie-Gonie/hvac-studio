@@ -149,6 +149,7 @@
           "unit": "kW/K",
           "default": 8.0,
           "current": 8.0,
+          "bounds": {"min": 4.0, "max": 12.0},
           "role": "optimization_variable",
           "group": "Objective"
         },
@@ -165,6 +166,7 @@
           "unit": "kW/K2",
           "default": 40.0,
           "current": 40.0,
+          "bounds": {"min": 20.0, "max": 80.0},
           "role": "optimization_variable",
           "group": "Objective"
         }

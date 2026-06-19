@@ -510,18 +510,16 @@ func defaultOptimizationParameterDecisionVariable(graph *model.Graph) (optimizat
 			if definition.Role != "optimization_variable" {
 				continue
 			}
-			value, ok := studioNumberValue(component.Parameters[name])
-			if !ok {
+			if _, ok := studioNumberValue(component.Parameters[name]); !ok {
 				continue
 			}
-			minValue, maxValue := defaultDecisionBounds(value)
-			if definition.Bounds != nil {
-				if minBound, ok := studioNumberValue(definition.Bounds.Min); ok {
-					minValue = minBound
-				}
-				if maxBound, ok := studioNumberValue(definition.Bounds.Max); ok {
-					maxValue = maxBound
-				}
+			if definition.Bounds == nil {
+				continue
+			}
+			minValue, minOK := studioNumberValue(definition.Bounds.Min)
+			maxValue, maxOK := studioNumberValue(definition.Bounds.Max)
+			if !minOK || !maxOK || maxValue < minValue {
+				continue
 			}
 			return optimization.DecisionVariable{
 				Kind:      "component_parameter",
