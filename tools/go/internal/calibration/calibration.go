@@ -15,6 +15,7 @@ import (
 	"github.com/goniegonie/hvac-studio/tools/go/internal/modelvalidation"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/parameterset"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/projectpath"
 )
 
 type Setup struct {
@@ -527,23 +528,9 @@ func numberValue(value any) (float64, bool) {
 }
 
 func resolveProjectOwnedFile(projectRoot string, relativePath string) (string, error) {
-	if filepath.IsAbs(relativePath) {
+	resolved, err := projectpath.ResolveInside(projectRoot, relativePath)
+	if err != nil {
 		return "", apperror.Errorf(apperror.CodeInput, "project path must be relative: %s", relativePath)
-	}
-	absRoot, err := filepath.Abs(projectRoot)
-	if err != nil {
-		return "", apperror.Wrap(apperror.CodeRuntime, err)
-	}
-	resolved, err := filepath.Abs(filepath.Join(absRoot, relativePath))
-	if err != nil {
-		return "", apperror.Wrap(apperror.CodeRuntime, err)
-	}
-	rel, err := filepath.Rel(absRoot, resolved)
-	if err != nil {
-		return "", apperror.Wrap(apperror.CodeRuntime, err)
-	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
-		return "", apperror.Errorf(apperror.CodeInput, "project path escapes project root: %s", relativePath)
 	}
 	if _, err := os.Stat(resolved); err != nil {
 		return "", apperror.Wrap(apperror.CodeInput, err)

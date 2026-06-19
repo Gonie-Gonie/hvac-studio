@@ -9,6 +9,7 @@ import (
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/projectpath"
 )
 
 type Set struct {
@@ -102,23 +103,9 @@ func Apply(graph *model.Graph, set Set) error {
 }
 
 func resolveProjectOwnedFile(projectRoot string, relativePath string) (string, error) {
-	if filepath.IsAbs(relativePath) {
+	resolved, err := projectpath.ResolveInside(projectRoot, relativePath)
+	if err != nil {
 		return "", apperror.Errorf(apperror.CodeInput, "parameter set path must be project-relative: %s", relativePath)
-	}
-	absRoot, err := filepath.Abs(projectRoot)
-	if err != nil {
-		return "", apperror.Wrap(apperror.CodeRuntime, err)
-	}
-	resolved, err := filepath.Abs(filepath.Join(absRoot, relativePath))
-	if err != nil {
-		return "", apperror.Wrap(apperror.CodeRuntime, err)
-	}
-	rel, err := filepath.Rel(absRoot, resolved)
-	if err != nil {
-		return "", apperror.Wrap(apperror.CodeRuntime, err)
-	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
-		return "", apperror.Errorf(apperror.CodeInput, "parameter set path escapes project root: %s", relativePath)
 	}
 	if _, err := os.Stat(resolved); err != nil {
 		return "", apperror.Wrap(apperror.CodeInput, err)
@@ -127,23 +114,9 @@ func resolveProjectOwnedFile(projectRoot string, relativePath string) (string, e
 }
 
 func resolveProjectOutputFile(projectRoot string, relativePath string) (string, error) {
-	if filepath.IsAbs(relativePath) {
+	resolved, err := projectpath.ResolveInside(projectRoot, relativePath)
+	if err != nil {
 		return "", apperror.Errorf(apperror.CodeInput, "parameter set path must be project-relative: %s", relativePath)
-	}
-	absRoot, err := filepath.Abs(projectRoot)
-	if err != nil {
-		return "", apperror.Wrap(apperror.CodeRuntime, err)
-	}
-	resolved, err := filepath.Abs(filepath.Join(absRoot, relativePath))
-	if err != nil {
-		return "", apperror.Wrap(apperror.CodeRuntime, err)
-	}
-	rel, err := filepath.Rel(absRoot, resolved)
-	if err != nil {
-		return "", apperror.Wrap(apperror.CodeRuntime, err)
-	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
-		return "", apperror.Errorf(apperror.CodeInput, "parameter set path escapes project root: %s", relativePath)
 	}
 	return resolved, nil
 }

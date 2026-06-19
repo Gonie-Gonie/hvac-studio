@@ -17,6 +17,7 @@ import (
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/artifactmeta"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/projectpath"
 	runtimecore "github.com/goniegonie/hvac-studio/tools/go/internal/runtime"
 )
 
@@ -753,22 +754,8 @@ func resolveProjectOwnedFile(projectRoot string, relativePath string) (string, e
 	if strings.TrimSpace(relativePath) == "" {
 		return "", apperror.Errorf(apperror.CodeInput, "project-relative path is required")
 	}
-	if filepath.IsAbs(relativePath) {
-		return "", apperror.Errorf(apperror.CodeInput, "project-relative path must not be absolute: %s", relativePath)
-	}
-	absRoot, err := filepath.Abs(projectRoot)
+	resolved, err := projectpath.ResolveInside(projectRoot, relativePath)
 	if err != nil {
-		return "", apperror.Wrap(apperror.CodeRuntime, err)
-	}
-	resolved, err := filepath.Abs(filepath.Join(absRoot, relativePath))
-	if err != nil {
-		return "", apperror.Wrap(apperror.CodeRuntime, err)
-	}
-	rel, err := filepath.Rel(absRoot, resolved)
-	if err != nil {
-		return "", apperror.Wrap(apperror.CodeRuntime, err)
-	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
 		return "", apperror.Errorf(apperror.CodeInput, "project-relative path escapes project root: %s", relativePath)
 	}
 	if _, err := os.Stat(resolved); err != nil {
