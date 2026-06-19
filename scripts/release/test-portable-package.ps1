@@ -654,6 +654,33 @@ try {
     throw "exported runtime optimization script mismatch: ok=$($ExportOptimizationJson.ok) candidates=$(@($ExportOptimizationJson.candidates).Count) value=$($ExportOptimizationJson.best_inputs.value)"
   }
   $ExportRoot = Split-Path -Parent $ExportManifestPath
+  $ExportServeScript = Join-Path $ExportRoot 'serve.ps1'
+  $ExportServeRequestPath = Join-Path $ExportRoot 'requests\portable-smoke-serve.jsonl'
+  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $ExportServeRequestPath) | Out-Null
+  $ExportServeRequests = (@(
+      '{"id":"case-1","inputs":{"value":5},"context":{"time":0}}'
+      '{"id":"case-2","inputs":{"value":6},"context":{"time":60}}'
+      '{"id":"stop","type":"shutdown"}'
+    ) -join "`n") + "`n"
+  [IO.File]::WriteAllText($ExportServeRequestPath, $ExportServeRequests, [Text.UTF8Encoding]::new($false))
+  $ExportServeOutputPath = Join-Path $ExportRoot 'outputs\portable-smoke-serve-responses.jsonl'
+  Invoke-Checked $PowerShellExe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ExportServeScript, '-RequestFile', 'requests\portable-smoke-serve.jsonl', '-Output', 'outputs\portable-smoke-serve-responses.jsonl')
+  $ExportServeResponses = @(Get-Content -LiteralPath $ExportServeOutputPath | Where-Object { $_.Trim() } | ForEach-Object { $_ | ConvertFrom-Json })
+  if (@($ExportServeResponses).Count -ne 3) {
+    throw "exported runtime serve response count mismatch: count=$(@($ExportServeResponses).Count)"
+  }
+  $ExportServeCase1 = $ExportServeResponses | Where-Object { $_.id -eq 'case-1' } | Select-Object -First 1
+  $ExportServeCase2 = $ExportServeResponses | Where-Object { $_.id -eq 'case-2' } | Select-Object -First 1
+  $ExportServeShutdown = $ExportServeResponses | Where-Object { $_.id -eq 'stop' } | Select-Object -First 1
+  if (-not $ExportServeCase1.ok -or $ExportServeCase1.result.outputs.result -ne 21 -or $ExportServeCase1.result.outputs.PSObject.Properties[$ExtraOutputId].Value -ne 42) {
+    throw "exported runtime serve case-1 mismatch: ok=$($ExportServeCase1.ok) result=$($ExportServeCase1.result.outputs.result) $ExtraOutputId=$($ExportServeCase1.result.outputs.PSObject.Properties[$ExtraOutputId].Value)"
+  }
+  if (-not $ExportServeCase2.ok -or $ExportServeCase2.result.outputs.result -ne 24 -or $ExportServeCase2.result.outputs.PSObject.Properties[$ExtraOutputId].Value -ne 48) {
+    throw "exported runtime serve case-2 mismatch: ok=$($ExportServeCase2.ok) result=$($ExportServeCase2.result.outputs.result) $ExtraOutputId=$($ExportServeCase2.result.outputs.PSObject.Properties[$ExtraOutputId].Value)"
+  }
+  if (-not $ExportServeShutdown.ok -or $ExportServeShutdown.message -ne 'shutdown') {
+    throw "exported runtime serve shutdown mismatch: ok=$($ExportServeShutdown.ok) message=$($ExportServeShutdown.message)"
+  }
   $ExportRuntimePython = Join-Path $ExportRoot 'runtime\python\python.exe'
   $ExportSDKExample = Join-Path $ExportRoot 'sdk-example.py'
   Invoke-Checked $ExportRuntimePython @($ExportSDKExample)
