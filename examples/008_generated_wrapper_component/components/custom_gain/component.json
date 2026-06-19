@@ -23,7 +23,8 @@
         "medium": "signal",
         "value_type": "float",
         "unit": "",
-        "required": true
+        "required": true,
+        "default": null
       }
     ],
     "outputs": [
@@ -34,7 +35,9 @@
         "direction": "outlet",
         "medium": "signal",
         "value_type": "float",
-        "unit": ""
+        "unit": "",
+        "required": null,
+        "default": null
       },
       {
         "id": "call_count",
@@ -43,23 +46,25 @@
         "direction": "outlet",
         "medium": "signal",
         "value_type": "float",
-        "unit": "count"
+        "unit": "count",
+        "required": null,
+        "default": null
       }
     ]
   },
   "parameters": {
-    "gain": 3.0,
-    "offset": 1.0
+    "gain": 3,
+    "offset": 1
   },
   "parameter_defs": {
     "gain": {
       "display_name": "Gain",
       "unit": "ratio",
-      "default": 3.0,
-      "current": 3.0,
+      "default": 3,
+      "current": 3,
       "bounds": {
-        "min": 0.0,
-        "max": 100.0
+        "min": 0,
+        "max": 100
       },
       "role": "calibration_target",
       "group": "Model",
@@ -67,12 +72,11 @@
     },
     "offset": {
       "display_name": "Offset",
-      "unit": "",
-      "default": 1.0,
-      "current": 1.0,
+      "default": 1,
+      "current": 1,
       "bounds": {
-        "min": -100.0,
-        "max": 100.0
+        "min": -100,
+        "max": 100
       },
       "role": "fixed",
       "group": "Model",

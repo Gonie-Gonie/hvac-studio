@@ -14,8 +14,65 @@
     "wrapper": "components/feature_mapper/wrapper.py"
   },
   "nodes": {
-    "inputs": [],
-    "outputs": []
+    "inputs": [
+      {
+        "id": "outdoor_temperature_c",
+        "name": "Outdoor Temperature",
+        "preset": "scalar_input",
+        "direction": "inlet",
+        "medium": "signal",
+        "value_type": "float",
+        "unit": "degC",
+        "required": true,
+        "default": null
+      },
+      {
+        "id": "return_air_temperature_c",
+        "name": "Return Air Temperature",
+        "preset": "air_inlet",
+        "direction": "inlet",
+        "medium": "air",
+        "value_type": "float",
+        "unit": "degC",
+        "required": true,
+        "default": null
+      },
+      {
+        "id": "chw_setpoint_c",
+        "name": "Chilled Water Setpoint",
+        "preset": "control_signal_input",
+        "direction": "signal",
+        "medium": "signal",
+        "value_type": "float",
+        "unit": "degC",
+        "required": true,
+        "default": null
+      },
+      {
+        "id": "fan_speed_fraction",
+        "name": "Fan Speed Fraction",
+        "preset": "control_signal_input",
+        "direction": "signal",
+        "medium": "signal",
+        "value_type": "float",
+        "unit": "fraction",
+        "required": true,
+        "default": null
+      }
+    ],
+    "outputs": [
+      {
+        "id": "features",
+        "name": "Features",
+        "preset": "scalar_output",
+        "direction": "outlet",
+        "medium": "signal",
+        "value_type": "object",
+        "unit": "",
+        "required": null,
+        "default": null
+      }
+    ]
   },
   "parameters": {}
 }

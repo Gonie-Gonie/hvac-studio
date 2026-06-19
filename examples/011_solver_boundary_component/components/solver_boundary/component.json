@@ -23,7 +23,8 @@
         "medium": "signal",
         "value_type": "float",
         "unit": "",
-        "required": true
+        "required": true,
+        "default": null
       },
       {
         "id": "initial",
@@ -34,7 +35,7 @@
         "value_type": "float",
         "unit": "",
         "required": false,
-        "default": 0.0
+        "default": 0
       }
     ],
     "outputs": [
@@ -45,7 +46,9 @@
         "direction": "outlet",
         "medium": "signal",
         "value_type": "float",
-        "unit": ""
+        "unit": "",
+        "required": null,
+        "default": null
       },
       {
         "id": "iterations",
@@ -54,7 +57,9 @@
         "direction": "outlet",
         "medium": "signal",
         "value_type": "integer",
-        "unit": "count"
+        "unit": "count",
+        "required": null,
+        "default": null
       },
       {
         "id": "converged",
@@ -63,29 +68,18 @@
         "direction": "outlet",
         "medium": "signal",
         "value_type": "boolean",
-        "unit": ""
+        "unit": "",
+        "required": null,
+        "default": null
       }
     ]
   },
   "parameters": {
-    "relaxation": 0.5,
     "max_iterations": 4,
-    "tolerance": 0.0
+    "relaxation": 0.5,
+    "tolerance": 0
   },
   "parameter_defs": {
-    "relaxation": {
-      "display_name": "Relaxation",
-      "unit": "ratio",
-      "default": 0.5,
-      "current": 0.5,
-      "bounds": {
-        "min": 0.0,
-        "max": 1.0
-      },
-      "role": "fixed",
-      "group": "Solver",
-      "description": "Fraction of the target residual applied each iteration."
-    },
     "max_iterations": {
       "display_name": "Max Iterations",
       "unit": "count",
@@ -95,11 +89,23 @@
       "group": "Solver",
       "description": "Maximum internal iterations before returning the latest estimate."
     },
+    "relaxation": {
+      "display_name": "Relaxation",
+      "unit": "ratio",
+      "default": 0.5,
+      "current": 0.5,
+      "bounds": {
+        "min": 0,
+        "max": 1
+      },
+      "role": "fixed",
+      "group": "Solver",
+      "description": "Fraction of the target residual applied each iteration."
+    },
     "tolerance": {
       "display_name": "Tolerance",
-      "unit": "",
-      "default": 0.0,
-      "current": 0.0,
+      "default": 0,
+      "current": 0,
       "role": "fixed",
       "group": "Solver",
       "description": "Convergence threshold for the change in solution."
@@ -108,15 +114,13 @@
   "state_defs": {
     "last_solution": {
       "display_name": "Last Solution",
-      "unit": "",
-      "initial": 0.0,
+      "initial": 0,
       "description": "Previous solver estimate used as a warm start."
     }
   },
   "solver_boundary": {
     "method": "fixed_point",
     "max_iterations": 4,
-    "tolerance": 0.0,
     "description": "Feedback behavior is handled inside this component; the project graph remains acyclic."
   }
 }

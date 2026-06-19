@@ -20,7 +20,8 @@
         "medium": "signal",
         "value_type": "float",
         "unit": "",
-        "required": true
+        "required": true,
+        "default": null
       }
     ],
     "outputs": [
@@ -31,43 +32,40 @@
         "direction": "outlet",
         "medium": "signal",
         "value_type": "float",
-        "unit": ""
+        "unit": "",
+        "required": null,
+        "default": null
       }
     ]
   },
   "parameters": {
+    "args": [
+      "components/external_gain/external_gain.py"
+    ],
     "command": "python",
-    "args": ["components/external_gain/external_gain.py"],
-    "timeout_ms": 5000,
-    "gain": 2.5
+    "gain": 2.5,
+    "timeout_ms": 5000
   },
   "parameter_defs": {
+    "args": {
+      "display_name": "Arguments",
+      "default": [
+        "components/external_gain/external_gain.py"
+      ],
+      "current": [
+        "components/external_gain/external_gain.py"
+      ],
+      "role": "fixed",
+      "group": "External",
+      "description": "Command arguments. Paths are resolved from the project root."
+    },
     "command": {
       "display_name": "Command",
-      "unit": "",
       "default": "python",
       "current": "python",
       "role": "fixed",
       "group": "External",
       "description": "Executable command invoked by the runner."
-    },
-    "args": {
-      "display_name": "Arguments",
-      "unit": "",
-      "default": ["components/external_gain/external_gain.py"],
-      "current": ["components/external_gain/external_gain.py"],
-      "role": "fixed",
-      "group": "External",
-      "description": "Command arguments. Paths are resolved from the project root."
-    },
-    "timeout_ms": {
-      "display_name": "Timeout",
-      "unit": "ms",
-      "default": 5000,
-      "current": 5000,
-      "role": "fixed",
-      "group": "External",
-      "description": "Maximum wall-clock time for one external process call."
     },
     "gain": {
       "display_name": "Gain",
@@ -77,6 +75,15 @@
       "role": "calibration_target",
       "group": "Model",
       "description": "Multiplier applied by the external executable."
+    },
+    "timeout_ms": {
+      "display_name": "Timeout",
+      "unit": "ms",
+      "default": 5000,
+      "current": 5000,
+      "role": "fixed",
+      "group": "External",
+      "description": "Maximum wall-clock time for one external process call."
     }
   },
   "state_defs": {

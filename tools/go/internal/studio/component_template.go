@@ -382,7 +382,7 @@ func writeComponentMetadataFile(path string, component model.Component, classNam
 		Kind                 string                               `json:"kind"`
 		Category             string                               `json:"category"`
 		ExecutionMode        string                               `json:"execution_mode"`
-		ClassName            string                               `json:"class_name"`
+		ClassName            string                               `json:"class_name,omitempty"`
 		Source               model.ComponentSource                `json:"source"`
 		Nodes                model.NodeSet                        `json:"nodes"`
 		Parameters           map[string]any                       `json:"parameters"`

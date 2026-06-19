@@ -14,11 +14,67 @@
     "wrapper": "components/ahu_state_ann/wrapper.py"
   },
   "nodes": {
-    "inputs": [],
-    "outputs": []
+    "inputs": [
+      {
+        "id": "features",
+        "name": "Features",
+        "preset": "scalar_input",
+        "direction": "inlet",
+        "medium": "signal",
+        "value_type": "object",
+        "unit": "",
+        "required": true,
+        "default": null
+      }
+    ],
+    "outputs": [
+      {
+        "id": "supply_air_temperature_c",
+        "name": "Supply Air Temperature",
+        "preset": "air_outlet",
+        "direction": "outlet",
+        "medium": "air",
+        "value_type": "float",
+        "unit": "degC",
+        "required": null,
+        "default": null
+      },
+      {
+        "id": "cooling_power_kw",
+        "name": "Cooling Power",
+        "preset": "electric_power_output",
+        "direction": "outlet",
+        "medium": "electricity",
+        "value_type": "float",
+        "unit": "kW",
+        "required": null,
+        "default": null
+      }
+    ]
   },
   "parameters": {
-    "output_bias": 0.0
+    "output_bias": 0
+  },
+  "parameter_defs": {
+    "output_bias": {
+      "display_name": "Output Bias",
+      "unit": "native",
+      "default": 0,
+      "current": 0,
+      "bounds": {
+        "min": -10,
+        "max": 10
+      },
+      "role": "calibration_target",
+      "group": "ML",
+      "description": "Bias added to each model output after inference."
+    }
+  },
+  "state_defs": {
+    "model": {
+      "display_name": "Loaded Model",
+      "description": "JSON model loaded once during initialize."
+    }
   },
   "ml_metadata": {
     "model_format": "custom",
@@ -26,24 +82,23 @@
     "feature_schema_file": "assets/ahu_state_ann/feature_schema.json",
     "target_schema_file": "assets/ahu_state_ann/target_schema.json",
     "validation_report_file": "assets/ahu_state_ann/validation_report.json",
-    "required_packages": [],
     "valid_time_resolution": "step",
     "valid_input_ranges": {
-      "outdoor_temperature_c": {
-        "min": -20.0,
-        "max": 45.0
-      },
-      "return_air_temperature_c": {
-        "min": 10.0,
-        "max": 35.0
-      },
       "chw_setpoint_c": {
-        "min": 4.0,
-        "max": 12.0
+        "min": 4,
+        "max": 12
       },
       "fan_speed_fraction": {
-        "min": 0.0,
-        "max": 1.0
+        "min": 0,
+        "max": 1
+      },
+      "outdoor_temperature_c": {
+        "min": -20,
+        "max": 45
+      },
+      "return_air_temperature_c": {
+        "min": 10,
+        "max": 35
       }
     }
   }

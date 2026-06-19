@@ -1159,6 +1159,78 @@ func TestExampleMLComponentMetadataMirrorsGraphContract(t *testing.T) {
 	}
 }
 
+func TestExampleComponentMetadataAndGeneratedWrappersMirrorGraphContracts(t *testing.T) {
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectFiles, err := filepath.Glob(filepath.Join(repoRoot, "examples", "*", "project.bcsproj"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(projectFiles) == 0 {
+		t.Fatal("no example projects found")
+	}
+	for _, projectFile := range projectFiles {
+		loaded, err := project.Load(projectFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, component := range loaded.Graph.Components {
+			if strings.TrimSpace(component.Source.Metadata) == "" {
+				continue
+			}
+			metadataPath, err := resolveProjectOwnedFile(loaded.Root, component.Source.Metadata)
+			if err != nil {
+				t.Fatalf("%s %s metadata path: %v", projectFile, component.ID, err)
+			}
+			actualMetadata, err := os.ReadFile(metadataPath)
+			if err != nil {
+				t.Fatalf("%s %s metadata: %v", projectFile, component.ID, err)
+			}
+			expectedPath := filepath.Join(t.TempDir(), "component.json")
+			if err := writeComponentMetadataFile(expectedPath, component, classNameFromPath(component.Class)); err != nil {
+				t.Fatalf("%s %s expected metadata: %v", projectFile, component.ID, err)
+			}
+			expectedMetadata, err := os.ReadFile(expectedPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if normalizeJSONForComparison(t, actualMetadata) != normalizeJSONForComparison(t, expectedMetadata) {
+				t.Fatalf("%s %s component metadata is not synced with graph contract\nactual:\n%s\nexpected:\n%s", projectFile, component.ID, string(actualMetadata), string(expectedMetadata))
+			}
+
+			if componentUsesGeneratedPythonWrapper(component) {
+				wrapperPath, err := resolveProjectOwnedFile(loaded.Root, component.Source.Wrapper)
+				if err != nil {
+					t.Fatalf("%s %s wrapper path: %v", projectFile, component.ID, err)
+				}
+				actualWrapper, err := os.ReadFile(wrapperPath)
+				if err != nil {
+					t.Fatalf("%s %s wrapper: %v", projectFile, component.ID, err)
+				}
+				expectedWrapper := generatedWrapperContent(component)
+				if string(actualWrapper) != expectedWrapper {
+					t.Fatalf("%s %s generated wrapper is not synced with graph contract\nactual:\n%s\nexpected:\n%s", projectFile, component.ID, string(actualWrapper), expectedWrapper)
+				}
+			}
+		}
+	}
+}
+
+func normalizeJSONForComparison(t *testing.T, data []byte) string {
+	t.Helper()
+	var value any
+	if err := json.Unmarshal(data, &value); err != nil {
+		t.Fatal(err)
+	}
+	normalized, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(normalized)
+}
+
 func TestProjectDetailIncludesSeriesInputs(t *testing.T) {
 	repoRoot, err := findRepoRoot()
 	if err != nil {

@@ -23,7 +23,8 @@
         "medium": "signal",
         "value_type": "array",
         "unit": "",
-        "required": true
+        "required": true,
+        "default": null
       }
     ],
     "outputs": [
@@ -34,27 +35,28 @@
         "direction": "outlet",
         "medium": "signal",
         "value_type": "array",
-        "unit": ""
+        "unit": "",
+        "required": null,
+        "default": null
       }
     ]
   },
   "parameters": {
-    "gain": 2.0
+    "gain": 2
   },
   "parameter_defs": {
     "gain": {
       "display_name": "Gain",
       "unit": "ratio",
-      "default": 2.0,
-      "current": 2.0,
+      "default": 2,
+      "current": 2,
       "bounds": {
-        "min": 0.0,
-        "max": 100.0
+        "min": 0,
+        "max": 100
       },
       "role": "calibration_target",
       "group": "Vectorized",
       "description": "Multiplier applied to each value."
     }
-  },
-  "state_defs": {}
+  }
 }
