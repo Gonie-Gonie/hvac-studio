@@ -275,6 +275,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	resultUIBody := getRouteBody(t, server, "/js/result-ui.js")
 	mlInspectorBody := getRouteBody(t, server, "/js/ml-inspector.js")
 	componentTemplatesBody := getRouteBody(t, server, "/js/component-templates.js")
+	datasetMappingBody := getRouteBody(t, server, "/js/dataset-mapping.js")
 	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
 		t.Fatalf("module entrypoint did not contain expected imports")
 	}
@@ -392,6 +393,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte(`from "./connections.js"`)) {
 		t.Fatalf("module entrypoint did not import connection display helpers")
 	}
+	if !bytes.Contains(body, []byte(`from "./dataset-mapping.js"`)) {
+		t.Fatalf("module entrypoint did not import dataset mapping helpers")
+	}
 	if !bytes.Contains(connectionsBody, []byte("connectionMediumStateForNodes")) ||
 		!bytes.Contains(connectionsBody, []byte("connectionUnitStateForNodes")) ||
 		!bytes.Contains(connectionsBody, []byte("connectionContractLabels")) ||
@@ -477,12 +481,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		t.Fatalf("module entrypoint did not render validation plots")
 	}
 	if !bytes.Contains(body, []byte("datasetMappingEditorSection")) ||
-		!bytes.Contains(body, []byte("datasetTimeColumnSelect")) ||
 		!bytes.Contains(body, []byte("suggested_time_column")) ||
-		!bytes.Contains(body, []byte("datasetSampleRowPreview")) ||
-		!bytes.Contains(body, []byte("Sample Row Preview")) ||
 		!bytes.Contains(body, []byte("collectValidationColumnMap")) ||
-		!bytes.Contains(body, []byte("unit_hints")) {
+		!bytes.Contains(body, []byte("unit_hints")) ||
+		!bytes.Contains(datasetMappingBody, []byte("datasetTimeColumnSelect")) ||
+		!bytes.Contains(datasetMappingBody, []byte("datasetSampleRowPreview")) ||
+		!bytes.Contains(datasetMappingBody, []byte("Sample Row Preview")) {
 		t.Fatalf("module entrypoint did not expose dataset mapping editor")
 	}
 	if !bytes.Contains(body, []byte("validationComparisonBaseline")) || !bytes.Contains(body, []byte("Parameter Set Comparison")) || !bytes.Contains(body, []byte("compareValidationParameterSet")) {
