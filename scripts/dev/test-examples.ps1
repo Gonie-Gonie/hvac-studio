@@ -61,6 +61,18 @@ function Invoke-Example {
   }
 }
 
+function Remove-EmptyDirectory {
+  param([Parameter(Mandatory = $true)][string]$Path)
+
+  if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+    return
+  }
+  $Children = @(Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue)
+  if ($Children.Count -eq 0) {
+    Remove-Item -LiteralPath $Path -Force
+  }
+}
+
 function Invoke-WorkflowSmoke {
   $PlantProject = Join-Path $ExamplesRoot '005_chiller_plant_like_system\project.bcsproj'
   $OptimizationProject = Join-Path $ExamplesRoot '006_optimization_case\project.bcsproj'
@@ -159,6 +171,7 @@ function Invoke-WorkflowSmoke {
     Remove-Item -LiteralPath $OptimizationOutput -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $ParameterOptimizationOutput -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $ParameterOptimizationSetPath -Force -ErrorAction SilentlyContinue
+    Remove-EmptyDirectory -Path (Split-Path -Parent $ParameterOptimizationSetPath)
     Remove-Item -LiteralPath $CompositionValidationOutput -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $CompositionCalibrationOutput -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $CompositionOptimizationOutput -Force -ErrorAction SilentlyContinue

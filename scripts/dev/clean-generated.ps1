@@ -17,6 +17,12 @@ $Targets = @(
   '.tmp'
 )
 
+$EmptyGeneratedDirectories = @(
+  'app\studio',
+  'app',
+  'examples\006_optimization_case\parameter_sets'
+)
+
 function Resolve-RepoTarget {
   param([Parameter(Mandatory = $true)][string]$RelativePath)
 
@@ -44,6 +50,9 @@ $Removed = New-Object System.Collections.Generic.List[string]
 $Skipped = New-Object System.Collections.Generic.List[string]
 $RemovedPythonCaches = New-Object System.Collections.Generic.List[string]
 $RemovedPythonBuildArtifacts = New-Object System.Collections.Generic.List[string]
+$RemovedEmptyGeneratedDirectories = New-Object System.Collections.Generic.List[string]
+$SkippedNonEmptyGeneratedDirectories = New-Object System.Collections.Generic.List[string]
+$PlannedEmptyGeneratedDirectoryRemovals = New-Object System.Collections.Generic.List[string]
 
 foreach ($RelativePath in $Targets) {
   $Resolved = Resolve-RepoTarget -RelativePath $RelativePath
@@ -59,6 +68,33 @@ foreach ($RelativePath in $Targets) {
 
   Remove-Item -LiteralPath $Resolved -Recurse -Force
   $Removed.Add($RelativePath)
+}
+
+foreach ($RelativePath in $EmptyGeneratedDirectories) {
+  $Resolved = Resolve-RepoTarget -RelativePath $RelativePath
+  if (-not (Test-Path -LiteralPath $Resolved -PathType Container)) {
+    $Skipped.Add($RelativePath)
+    continue
+  }
+
+  $Children = @(Get-ChildItem -LiteralPath $Resolved -Force -ErrorAction SilentlyContinue)
+  $BlockingChildren = @($Children | Where-Object {
+      $ChildRelativePath = ConvertTo-RepoRelative -Path $_.FullName
+      -not $PlannedEmptyGeneratedDirectoryRemovals.Contains($ChildRelativePath)
+    })
+  if ($BlockingChildren.Count -gt 0) {
+    $SkippedNonEmptyGeneratedDirectories.Add($RelativePath)
+    continue
+  }
+
+  $PlannedEmptyGeneratedDirectoryRemovals.Add($RelativePath)
+  if ($DryRun) {
+    $RemovedEmptyGeneratedDirectories.Add("$RelativePath (dry run)")
+    continue
+  }
+
+  Remove-Item -LiteralPath $Resolved -Force
+  $RemovedEmptyGeneratedDirectories.Add($RelativePath)
 }
 
 $PythonCaches = @(Get-ChildItem -LiteralPath $RepoRoot -Recurse -Directory -Filter '__pycache__' -ErrorAction SilentlyContinue | Sort-Object FullName)
@@ -101,7 +137,11 @@ if (Test-Path -LiteralPath $PythonRoot) {
 }
 
 if ($Removed.Count -gt 0) {
-  Write-Host "removed generated paths: $($Removed -join ', ')"
+  if ($DryRun) {
+    Write-Host "would remove generated paths: $($Removed -join ', ')"
+  } else {
+    Write-Host "removed generated paths: $($Removed -join ', ')"
+  }
 } else {
   Write-Host 'no generated paths to remove'
 }
@@ -124,6 +164,20 @@ if ($RemovedPythonBuildArtifacts.Count -gt 0) {
   }
 } else {
   Write-Host 'no Python build artifacts to remove'
+}
+
+if ($RemovedEmptyGeneratedDirectories.Count -gt 0) {
+  if ($DryRun) {
+    Write-Host "would remove empty generated directories: $($RemovedEmptyGeneratedDirectories -join ', ')"
+  } else {
+    Write-Host "removed empty generated directories: $($RemovedEmptyGeneratedDirectories -join ', ')"
+  }
+} else {
+  Write-Host 'no empty generated directories to remove'
+}
+
+if ($SkippedNonEmptyGeneratedDirectories.Count -gt 0) {
+  Write-Host "preserved non-empty generated directories: $($SkippedNonEmptyGeneratedDirectories -join ', ')"
 }
 
 if ($Skipped.Count -gt 0) {

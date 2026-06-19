@@ -71,7 +71,8 @@ rewritten by `scripts/dev/test-studio.ps1` and removed by
 
 Other transient local outputs include `artifacts/`, `bin/`, `dist/docs/`,
 `.repo_tools` smoke/log/staging folders, `.tmp/`, Python `__pycache__/`
-directories, and Python package build folders.
+directories, Python package build folders, and empty generated directories left
+by local smoke tests or legacy app scaffolding.
 Run this after local checks when you want only tracked files and retained
 package zips left behind:
 
