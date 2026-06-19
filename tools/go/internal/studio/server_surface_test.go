@@ -279,6 +279,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	downloadBody := getRouteBody(t, server, "/js/download.js")
 	validationPlotsBody := getRouteBody(t, server, "/js/validation-plots.js")
 	candidateResultsBody := getRouteBody(t, server, "/js/candidate-results.js")
+	seriesResultsBody := getRouteBody(t, server, "/js/series-results.js")
 	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
 		t.Fatalf("module entrypoint did not contain expected imports")
 	}
@@ -408,6 +409,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte(`from "./candidate-results.js"`)) {
 		t.Fatalf("module entrypoint did not import candidate result helpers")
 	}
+	if !bytes.Contains(body, []byte(`from "./series-results.js"`)) {
+		t.Fatalf("module entrypoint did not import series result helpers")
+	}
 	if !bytes.Contains(downloadBody, []byte("downloadTextFile")) ||
 		!bytes.Contains(downloadBody, []byte("safeFileName")) ||
 		!bytes.Contains(downloadBody, []byte("csvCell")) ||
@@ -521,9 +525,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("openHighErrorInspection")) || !bytes.Contains(body, []byte("High Error Inspection")) {
 		t.Fatalf("module entrypoint did not expose high-error timestep inspection")
 	}
-	if !bytes.Contains(body, []byte("downloadSeriesCSV")) ||
-		!bytes.Contains(body, []byte("Export Series JSON")) ||
-		!bytes.Contains(body, []byte("Time Indexed Steps")) {
+	if !bytes.Contains(seriesResultsBody, []byte("downloadSeriesCSV")) ||
+		!bytes.Contains(seriesResultsBody, []byte("Export Series JSON")) ||
+		!bytes.Contains(seriesResultsBody, []byte("Time Indexed Steps")) {
 		t.Fatalf("module entrypoint did not expose series export and step inspection")
 	}
 	if !bytes.Contains(body, []byte("seriesInputField")) ||
