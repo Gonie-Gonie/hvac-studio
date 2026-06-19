@@ -283,6 +283,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	candidateResultsBody := getRouteBody(t, server, "/js/candidate-results.js")
 	seriesResultsBody := getRouteBody(t, server, "/js/series-results.js")
 	sourceAuthoringBody := getRouteBody(t, server, "/js/source-authoring.js")
+	replacementPreviewBody := getRouteBody(t, server, "/js/replacement-preview.js")
 	calibrationSetupEditorBody := getRouteBody(t, server, "/js/calibration-setup-editor.js")
 	optimizationSetupEditorBody := getRouteBody(t, server, "/js/optimization-setup-editor.js")
 	setupEditorUIBody := getRouteBody(t, server, "/js/setup-editor-ui.js")
@@ -303,6 +304,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte(`from "./source-authoring.js"`)) {
 		t.Fatalf("module entrypoint did not import source authoring helpers")
+	}
+	if !bytes.Contains(body, []byte(`from "./replacement-preview.js"`)) {
+		t.Fatalf("module entrypoint did not import replacement preview helpers")
 	}
 	if !bytes.Contains(body, []byte(`from "./component-templates.js"`)) {
 		t.Fatalf("module entrypoint did not import component template helpers")
@@ -473,7 +477,11 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("replacementPreviewBlock")) ||
 		!bytes.Contains(body, []byte("replacementMapParameters")) ||
-		!bytes.Contains(body, []byte("Replace And Validate")) {
+		!bytes.Contains(body, []byte("Replace And Validate")) ||
+		!bytes.Contains(replacementPreviewBody, []byte("replacementPreview")) ||
+		!bytes.Contains(replacementPreviewBody, []byte("replacementContractDiff")) ||
+		!bytes.Contains(replacementPreviewBody, []byte("replacementNodeMappings")) ||
+		!bytes.Contains(replacementPreviewBody, []byte("replacementParameterMappings")) {
 		t.Fatalf("module entrypoint did not expose replacement mapping preview")
 	}
 	if !bytes.Contains(body, []byte("createMLComponent")) ||
