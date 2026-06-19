@@ -48,6 +48,10 @@ bcs-runner.exe run `
   --output external-output.json
 ```
 
+`run` and `run-series` accept UTF-8 JSON input files with or without a byte
+order mark, so input files written by Windows PowerShell still load through the
+same runner path.
+
 ## Run Time Series
 
 `run-series` evaluates ordered steps inside one runtime session, so component

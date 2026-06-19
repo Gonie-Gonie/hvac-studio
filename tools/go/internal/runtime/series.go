@@ -117,9 +117,9 @@ func RunSeries(ctx context.Context, loaded *project.LoadedProject, input SeriesI
 }
 
 func LoadSeriesInput(inputPath string) (SeriesInput, error) {
-	inputBytes, err := os.ReadFile(inputPath)
+	inputBytes, err := readInputJSONBytes(inputPath)
 	if err != nil {
-		return SeriesInput{}, apperror.Wrap(apperror.CodeInput, err)
+		return SeriesInput{}, err
 	}
 	var structured SeriesInput
 	if err := json.Unmarshal(inputBytes, &structured); err != nil {

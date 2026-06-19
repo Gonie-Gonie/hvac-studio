@@ -234,6 +234,37 @@ func TestRunCommandAppliesParameterSetWithoutOverwritingGraph(t *testing.T) {
 	}
 }
 
+func TestRunCommandAcceptsUTF8BOMInput(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectRoot := filepath.Join(tmpDir, "project")
+	copyTree(t, examplePath("001_scalar_component"), projectRoot)
+	inputPath := filepath.Join(projectRoot, "inputs", "bom-case.json")
+	writeBOMFile(t, inputPath, `{"inputs":{"value":4}}`)
+	outputPath := filepath.Join(tmpDir, "output.json")
+
+	err := run([]string{
+		"bcs-runner",
+		"run",
+		"--project",
+		filepath.Join(projectRoot, "project.bcsproj"),
+		"--input",
+		inputPath,
+		"--output",
+		outputPath,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var result struct {
+		Outputs map[string]float64 `json:"outputs"`
+	}
+	readJSONFile(t, outputPath, &result)
+	if result.Outputs["result"] != 10 {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
 func TestRunSeriesCommandCarriesStateAcrossSteps(t *testing.T) {
 	tmpDir := t.TempDir()
 	projectRoot := filepath.Join(tmpDir, "project")
@@ -285,6 +316,56 @@ func TestRunSeriesCommandCarriesStateAcrossSteps(t *testing.T) {
 		result.FinalStates["controller"]["integral_error"] != 2.5 ||
 		result.FinalStates["controller"]["last_error"] != 0.5 {
 		t.Fatalf("final states = %#v", result.FinalStates)
+	}
+}
+
+func TestRunSeriesCommandAcceptsUTF8BOMInput(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectRoot := filepath.Join(tmpDir, "project")
+	copyTree(t, examplePath("004_stateful_controller"), projectRoot)
+	inputPath := filepath.Join(projectRoot, "inputs", "bom-series.json")
+	writeBOMFile(t, inputPath, `{
+  "schema_version": "0.1.0",
+  "context": {
+    "dt": 60
+  },
+  "steps": [
+    {
+      "id": "minute-0",
+      "inputs": {
+        "measured_supply_temp_c": 8.0,
+        "target_supply_temp_c": 7.0
+      },
+      "context": {
+        "time": 0
+      }
+    }
+  ]
+}`)
+	outputPath := filepath.Join(tmpDir, "series-output.json")
+
+	err := run([]string{
+		"bcs-runner",
+		"run-series",
+		"--project",
+		filepath.Join(projectRoot, "project.bcsproj"),
+		"--input",
+		inputPath,
+		"--output",
+		outputPath,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var result struct {
+		OK        bool                 `json:"ok"`
+		StepCount int                  `json:"step_count"`
+		Outputs   map[string][]float64 `json:"outputs"`
+	}
+	readJSONFile(t, outputPath, &result)
+	if !result.OK || result.StepCount != 1 || result.Outputs["chw_setpoint_c"][0] != 6.5 {
+		t.Fatalf("series result = %#v", result)
 	}
 }
 
@@ -718,6 +799,17 @@ func writeFile(t *testing.T, path string, content string) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeBOMFile(t *testing.T, path string, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bytes := append([]byte{0xef, 0xbb, 0xbf}, []byte(content)...)
+	if err := os.WriteFile(path, bytes, 0o644); err != nil {
 		t.Fatal(err)
 	}
 }

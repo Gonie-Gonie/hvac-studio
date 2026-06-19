@@ -101,6 +101,47 @@ func TestValidateOutputsAcceptsDeclaredOutputs(t *testing.T) {
 	}
 }
 
+func TestLoadInputAcceptsUTF8BOM(t *testing.T) {
+	tmpDir := t.TempDir()
+	structuredPath := filepath.Join(tmpDir, "structured.json")
+	writeBOMJSON(t, structuredPath, `{"inputs":{"value":4},"context":{"time":60}}`)
+
+	structured, err := LoadInput(structuredPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if structured.Inputs["value"] != float64(4) || structured.Context["time"] != float64(60) {
+		t.Fatalf("structured input = %#v", structured)
+	}
+
+	plainPath := filepath.Join(tmpDir, "plain.json")
+	writeBOMJSON(t, plainPath, `{"value":5}`)
+	plain, err := LoadInput(plainPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain.Inputs["value"] != float64(5) || len(plain.Context) != 0 {
+		t.Fatalf("plain input = %#v", plain)
+	}
+}
+
+func TestLoadSeriesInputAcceptsUTF8BOM(t *testing.T) {
+	tmpDir := t.TempDir()
+	inputPath := filepath.Join(tmpDir, "series.json")
+	writeBOMJSON(t, inputPath, `{"context":{"time":0},"steps":[{"id":"step-1","inputs":{"value":4}}]}`)
+
+	input, err := LoadSeriesInput(inputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if input.Context["time"] != float64(0) ||
+		len(input.Steps) != 1 ||
+		input.Steps[0].ID != "step-1" ||
+		input.Steps[0].Inputs["value"] != float64(4) {
+		t.Fatalf("series input = %#v", input)
+	}
+}
+
 func TestValidateOutputsRejectsValueTypeMismatch(t *testing.T) {
 	component := contractComponent()
 	component.Nodes.Outputs[0].ValueType = "float"
@@ -290,5 +331,13 @@ func contractComponent() model.Component {
 		Nodes: model.NodeSet{
 			Outputs: []model.Node{{ID: "result"}},
 		},
+	}
+}
+
+func writeBOMJSON(t *testing.T, path string, content string) {
+	t.Helper()
+	bytes := append([]byte{0xef, 0xbb, 0xbf}, []byte(content)...)
+	if err := os.WriteFile(path, bytes, 0o644); err != nil {
+		t.Fatal(err)
 	}
 }

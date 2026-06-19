@@ -169,9 +169,9 @@ func unitConversionDescription(conversion *model.UnitConversion) string {
 }
 
 func LoadInput(inputPath string) (RunInput, error) {
-	inputBytes, err := os.ReadFile(inputPath)
+	inputBytes, err := readInputJSONBytes(inputPath)
 	if err != nil {
-		return RunInput{}, apperror.Wrap(apperror.CodeInput, err)
+		return RunInput{}, err
 	}
 	var structured RunInput
 	if err := json.Unmarshal(inputBytes, &structured); err != nil {
