@@ -63,6 +63,9 @@ func checkComponentSource(ctx context.Context, loaded *project.LoadedProject, re
 	if !hasErrorProblems(syntaxProblems) {
 		check.Problems = append(check.Problems, pythonUndefinedNameProblems(ctx, loaded, componentID, filepath.ToSlash(rel), req.Content)...)
 	}
+	if component.Source.Layout == "generated_wrapper" && !hasErrorProblems(syntaxProblems) {
+		check.Problems = append(check.Problems, pythonGeneratedWrapperLoadProblems(ctx, loaded, componentID, filepath.ToSlash(rel), req.Content)...)
+	}
 	if component.Source.Layout != "generated_wrapper" && !hasErrorProblems(syntaxProblems) && expectedClass != "" {
 		check.Problems = append(check.Problems, pythonLoadProblems(ctx, loaded, componentID, filepath.ToSlash(rel), expectedClass, req.Content)...)
 	}
@@ -273,9 +276,64 @@ func pythonLoadProblems(ctx context.Context, loaded *project.LoadedProject, comp
 		}
 		problem := syntaxProblemFromStderr(componentID, stderrText)
 		problem.Message = "source load failed: " + problem.Message
+		problem.Source = relativePath
+		if line := tracebackLineForSource(stderrText, relativePath); line != 0 {
+			problem.Line = line
+		}
 		return []Problem{problem}
 	}
 	return []Problem{}
+}
+
+func pythonGeneratedWrapperLoadProblems(ctx context.Context, loaded *project.LoadedProject, componentID string, relativePath string, content string) []Problem {
+	pythonExe := resolveStudioPython(loaded.Root, loaded.Project.Environment)
+	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	moduleName := pythonModuleNameForRelativeSource(relativePath)
+	script := strings.Join([]string{
+		"import sys, types",
+		"project_root, module_name, filename = sys.argv[1:4]",
+		"if project_root not in sys.path:",
+		"    sys.path.insert(0, project_root)",
+		"package = module_name.rpartition('.')[0]",
+		"module = types.ModuleType(module_name)",
+		"module.__file__ = filename",
+		"module.__package__ = package",
+		"sys.modules[module_name] = module",
+		"source = sys.stdin.read()",
+		"exec(compile(source, filename, 'exec'), module.__dict__)",
+		"step = getattr(module, 'step', None)",
+		"if not callable(step):",
+		"    raise AttributeError('step function is not callable')",
+	}, "\n")
+	cmd := platform.CommandContext(checkCtx, pythonExe, "-c", script, loaded.Root, moduleName, relativePath)
+	cmd.Dir = loaded.Root
+	cmd.Stdin = strings.NewReader(content)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if checkCtx.Err() != nil {
+			return []Problem{{Severity: "warning", Message: "python load check timed out", ComponentID: componentID, Source: relativePath}}
+		}
+		stderrText := strings.TrimSpace(stderr.String())
+		if stderrText == "" {
+			return []Problem{{Severity: "warning", Message: "python load check unavailable: " + err.Error(), ComponentID: componentID, Source: relativePath}}
+		}
+		problem := syntaxProblemFromStderr(componentID, stderrText)
+		problem.Message = "source load failed: " + problem.Message
+		problem.Source = relativePath
+		if line := tracebackLineForSource(stderrText, relativePath); line != 0 {
+			problem.Line = line
+		}
+		return []Problem{problem}
+	}
+	return []Problem{}
+}
+
+func pythonModuleNameForRelativeSource(relativePath string) string {
+	modulePath := strings.TrimSuffix(filepath.ToSlash(relativePath), ".py")
+	modulePath = strings.Trim(modulePath, "/")
+	return strings.ReplaceAll(modulePath, "/", ".")
 }
 
 func pythonReturnShapeProblems(ctx context.Context, loaded *project.LoadedProject, componentID string, relativePath string, expectedClass string, expectedFunction string, content string) []Problem {
@@ -452,6 +510,27 @@ func syntaxProblemFromStderr(componentID string, stderrText string) Problem {
 		message = "python syntax error"
 	}
 	return Problem{Severity: "error", Message: message, ComponentID: componentID, Line: line}
+}
+
+func tracebackLineForSource(stderrText string, relativePath string) int {
+	relativePath = filepath.ToSlash(strings.TrimSpace(relativePath))
+	if relativePath == "" {
+		return 0
+	}
+	linePattern := regexp.MustCompile(`(?m)File "([^"]+)", line ([0-9]+)`)
+	for _, match := range linePattern.FindAllStringSubmatch(stderrText, -1) {
+		if len(match) != 3 {
+			continue
+		}
+		source := filepath.ToSlash(match[1])
+		if source != relativePath && !strings.HasSuffix(source, "/"+relativePath) {
+			continue
+		}
+		line := 0
+		fmt.Sscanf(match[2], "%d", &line)
+		return line
+	}
+	return 0
 }
 
 func resolveStudioPython(projectRoot string, env model.EnvironmentConfig) string {

@@ -647,6 +647,51 @@ func TestGeneratedWrapperComponentUsesUserStepSource(t *testing.T) {
 	}
 }
 
+func TestGeneratedWrapperSourceCheckReportsImportError(t *testing.T) {
+	server := newTestServer(t)
+	projectPath := filepath.Join("examples", "008_generated_wrapper_component", "project.bcsproj")
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"component_id": "wrapped_gain",
+		"content": strings.Join([]string{
+			"import definitely_missing_hvac_studio_package",
+			"",
+			"def step(inputs, state, params, context):",
+			"    return {\"result\": 1, \"call_count\": 1}, state",
+			"",
+		}, "\n"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/source/check", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Check SourceCheck `json:"check"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Check.OK {
+		t.Fatal("generated-wrapper source check should fail when imports are missing")
+	}
+	loadProblem, ok := findProblemMessageContaining(body.Check.Problems, "source load failed:")
+	if !ok {
+		t.Fatalf("load problem missing from %#v", body.Check.Problems)
+	}
+	if !strings.Contains(loadProblem.Message, "definitely_missing_hvac_studio_package") {
+		t.Fatalf("missing import name was not reported in %#v", loadProblem)
+	}
+	if loadProblem.Source != "components/custom_gain/user_step.py" || loadProblem.Line != 1 {
+		t.Fatalf("load problem location = %#v", loadProblem)
+	}
+}
+
 func TestCheckSourceEndpointWarnsAboutUnreferencedContractNodes(t *testing.T) {
 	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
