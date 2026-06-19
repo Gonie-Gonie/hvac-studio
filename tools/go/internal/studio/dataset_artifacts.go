@@ -1,7 +1,6 @@
 package studio
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/csv"
 	"encoding/json"
@@ -35,6 +34,8 @@ type DatasetPreview struct {
 	PreviewRows         []map[string]string `json:"preview_rows"`
 	SuggestedInputs     []ColumnSuggestion  `json:"suggested_inputs"`
 	SuggestedOutputs    []ColumnSuggestion  `json:"suggested_outputs"`
+	SourceEncoding      string              `json:"source_encoding,omitempty"`
+	DetectedDelimiter   string              `json:"detected_delimiter,omitempty"`
 }
 
 type ColumnProfile struct {
@@ -82,9 +83,6 @@ func importDataset(loaded *project.LoadedProject, req importDatasetRequest) (Dat
 	if sourcePath == "" {
 		return DatasetPreview{}, apperror.Errorf(apperror.CodeValidation, "source_path is required")
 	}
-	if encoding := strings.TrimSpace(strings.ToLower(req.Encoding)); encoding != "" && encoding != "utf-8" && encoding != "utf8" && encoding != "utf-8-bom" {
-		return DatasetPreview{}, apperror.Errorf(apperror.CodeValidation, "unsupported dataset encoding: %s", req.Encoding)
-	}
 	if !filepath.IsAbs(sourcePath) {
 		abs, err := filepath.Abs(sourcePath)
 		if err != nil {
@@ -107,7 +105,7 @@ func importDataset(loaded *project.LoadedProject, req importDatasetRequest) (Dat
 	if err != nil {
 		return DatasetPreview{}, err
 	}
-	records, _, err := readCSVRecords(sourcePath, delimiter)
+	records, detectedDelimiter, sourceEncoding, err := readCSVRecordsWithOptions(sourcePath, delimiter, req.Encoding)
 	if err != nil {
 		return DatasetPreview{}, err
 	}
@@ -141,6 +139,8 @@ func importDataset(loaded *project.LoadedProject, req importDatasetRequest) (Dat
 	if strings.TrimSpace(req.Name) != "" {
 		preview.Summary.Name = strings.TrimSpace(req.Name)
 	}
+	preview.SourceEncoding = sourceEncoding
+	preview.DetectedDelimiter = delimiterName(detectedDelimiter)
 	return preview, nil
 }
 
@@ -208,25 +208,50 @@ func readDatasetPreviewRows(path string, limit int) ([]map[string]string, []stri
 }
 
 func readCSVRecords(path string, delimiter rune) ([][]string, rune, error) {
+	records, detectedDelimiter, _, err := readCSVRecordsWithOptions(path, delimiter, "utf-8")
+	return records, detectedDelimiter, err
+}
+
+func readCSVRecordsWithOptions(path string, delimiter rune, requestedEncoding string) ([][]string, rune, string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, 0, apperror.Wrap(apperror.CodeInput, err)
+		return nil, 0, "", apperror.Wrap(apperror.CodeInput, err)
 	}
-	data = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF})
+	decoded, sourceEncoding, err := decodeDatasetBytes(data, requestedEncoding)
+	if err != nil {
+		return nil, 0, "", err
+	}
 	if delimiter == 0 {
-		delimiter = detectCSVDelimiter(string(data))
+		delimiter = detectCSVDelimiter(string(decoded))
 	}
 	if delimiter == 0 {
 		delimiter = ','
 	}
-	reader := csv.NewReader(strings.NewReader(string(data)))
+	reader := csv.NewReader(strings.NewReader(string(decoded)))
 	reader.FieldsPerRecord = -1
 	reader.Comma = delimiter
 	records, err := reader.ReadAll()
 	if err != nil {
-		return nil, 0, apperror.Wrap(apperror.CodeInput, err)
+		return nil, 0, "", apperror.Wrap(apperror.CodeInput, err)
 	}
-	return records, delimiter, nil
+	return records, delimiter, sourceEncoding, nil
+}
+
+func delimiterName(delimiter rune) string {
+	switch delimiter {
+	case ',':
+		return "comma"
+	case ';':
+		return "semicolon"
+	case '\t':
+		return "tab"
+	case '|':
+		return "pipe"
+	case 0:
+		return ""
+	default:
+		return string(delimiter)
+	}
 }
 
 func requestedDatasetDelimiter(value string) (rune, error) {

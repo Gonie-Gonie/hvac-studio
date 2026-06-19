@@ -2949,7 +2949,7 @@ async function importDataset() {
         source_path: sourcePath,
         id: el("datasetIDInput").value.trim(),
         delimiter: el("datasetDelimiterSelect").value,
-        encoding: el("datasetEncodingSelect").value || "utf-8",
+        encoding: el("datasetEncodingSelect").value || "auto",
       }),
     });
     state.detail = body.project;

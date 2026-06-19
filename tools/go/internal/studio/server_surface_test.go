@@ -179,6 +179,11 @@ func TestStaticIndexServesWorkspace(t *testing.T) {
 	if !bytes.Contains(body, []byte("datasetEncodingSelect")) {
 		t.Fatalf("index did not include dataset encoding selection")
 	}
+	if !bytes.Contains(body, []byte(`value="auto">Auto`)) ||
+		!bytes.Contains(body, []byte(`value="utf-16">UTF-16`)) ||
+		!bytes.Contains(body, []byte(`value="cp949">CP949 / EUC-KR`)) {
+		t.Fatalf("index did not include practical dataset encoding options")
+	}
 	if !bytes.Contains(body, []byte("executionTraceRows")) {
 		t.Fatalf("index did not include execution trace rows")
 	}

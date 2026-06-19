@@ -2,6 +2,7 @@ package studio
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,10 +11,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf16"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/calibration"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/optimization"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
+	"golang.org/x/text/encoding/korean"
+	"golang.org/x/text/transform"
 )
 
 func TestProjectEndpointIncludesDefaultRunInput(t *testing.T) {
@@ -245,6 +249,40 @@ func TestImportDatasetEndpointCopiesCSVAndCreatesMapping(t *testing.T) {
 	}
 	if mappingBody.Summary.Dataset != "datasets/imported_plant.csv" || mappingBody.Summary.DatasetChecksum != body.Summary.SHA256 {
 		t.Fatalf("mapping summary = %#v", mappingBody.Summary)
+	}
+}
+
+func TestImportDatasetEndpointDecodesSelectedEncoding(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	projectPath := createWorkflowTestProject(t, server, "Encoded Dataset Project")
+	projectRoot := filepath.Dir(projectPath)
+
+	utf16Source := filepath.Join(root, "incoming-utf16.csv")
+	writeUTF16LECSV(t, utf16Source, "time;value\n0;1\n")
+	utf16Body := importDatasetForTest(t, server, projectPath, utf16Source, "utf16_dataset", "auto", "auto")
+	if utf16Body.Dataset.SourceEncoding != "utf-16" || utf16Body.Dataset.DetectedDelimiter != "semicolon" {
+		t.Fatalf("utf16 import detection = encoding %q delimiter %q", utf16Body.Dataset.SourceEncoding, utf16Body.Dataset.DetectedDelimiter)
+	}
+	utf16Bytes, err := os.ReadFile(filepath.Join(projectRoot, "datasets", "utf16_dataset.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(utf16Bytes, []byte("time,value")) {
+		t.Fatalf("utf16 imported CSV was not normalized to UTF-8 comma CSV: %q", string(utf16Bytes))
+	}
+
+	cp949Source := filepath.Join(root, "incoming-cp949.csv")
+	writeCP949CSV(t, cp949Source, "시간,값\n0,1\n")
+	cp949Body := importDatasetForTest(t, server, projectPath, cp949Source, "cp949_dataset", "comma", "cp949")
+	if cp949Body.Dataset.SourceEncoding != "cp949" || cp949Body.Dataset.Columns[0] != "시간" {
+		t.Fatalf("cp949 import = encoding %q columns %#v", cp949Body.Dataset.SourceEncoding, cp949Body.Dataset.Columns)
+	}
+	cp949Bytes, err := os.ReadFile(filepath.Join(projectRoot, "datasets", "cp949_dataset.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(cp949Bytes, []byte("시간,값")) {
+		t.Fatalf("cp949 imported CSV was not normalized to UTF-8: %q", string(cp949Bytes))
 	}
 }
 
@@ -976,6 +1014,83 @@ func TestOptimizationRunEndpointSavesParameterSetForParameterVariables(t *testin
 		t.Fatalf("saved scenario = %q", body.OptimizationResult.SavedScenario)
 	}
 	if _, err := os.Stat(filepath.Join(projectRoot, "parameter_sets", "parameter_credit_grid_optimized.json")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func createWorkflowTestProject(t *testing.T, server *Server, name string) string {
+	t.Helper()
+	payload, err := json.Marshal(map[string]any{"name": name})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("create project status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	return body.Project.ProjectPath
+}
+
+type datasetImportTestBody struct {
+	Summary DatasetSummary `json:"summary"`
+	Dataset DatasetPreview `json:"dataset"`
+	Project ProjectDetail  `json:"project"`
+}
+
+func importDatasetForTest(t *testing.T, server *Server, projectPath string, sourcePath string, id string, delimiter string, encoding string) datasetImportTestBody {
+	t.Helper()
+	payload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"source_path":  sourcePath,
+		"id":           id,
+		"delimiter":    delimiter,
+		"encoding":     encoding,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/project/datasets/import", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("import dataset status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body datasetImportTestBody
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	return body
+}
+
+func writeUTF16LECSV(t *testing.T, path string, content string) {
+	t.Helper()
+	var buffer bytes.Buffer
+	buffer.Write([]byte{0xFF, 0xFE})
+	for _, value := range utf16.Encode([]rune(content)) {
+		if err := binary.Write(&buffer, binary.LittleEndian, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(path, buffer.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeCP949CSV(t *testing.T, path string, content string) {
+	t.Helper()
+	encoded, _, err := transform.String(korean.EUCKR.NewEncoder(), content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(encoded), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }

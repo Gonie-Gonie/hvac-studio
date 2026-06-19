@@ -13,6 +13,8 @@ export function datasetResultSection(dataset, context = {}) {
     ["Path", dataset.summary?.relative_path || ""],
     ["Shape", `${dataset.summary?.row_count || 0} rows / ${dataset.summary?.column_count || 0} columns`],
     ["Format", dataset.summary?.format || ""],
+    ["Source Encoding", dataset.source_encoding || ""],
+    ["Detected Delimiter", dataset.detected_delimiter || ""],
     ["Suggested Time", dataset.suggested_time_column || ""],
     ["SHA256", dataset.summary?.sha256 || ""],
   ].filter(([, value]) => value)));
