@@ -284,6 +284,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	seriesResultsBody := getRouteBody(t, server, "/js/series-results.js")
 	sourceAuthoringBody := getRouteBody(t, server, "/js/source-authoring.js")
 	replacementPreviewBody := getRouteBody(t, server, "/js/replacement-preview.js")
+	nodeImpactBody := getRouteBody(t, server, "/js/node-impact.js")
 	calibrationSetupEditorBody := getRouteBody(t, server, "/js/calibration-setup-editor.js")
 	optimizationSetupEditorBody := getRouteBody(t, server, "/js/optimization-setup-editor.js")
 	setupEditorUIBody := getRouteBody(t, server, "/js/setup-editor-ui.js")
@@ -307,6 +308,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte(`from "./replacement-preview.js"`)) {
 		t.Fatalf("module entrypoint did not import replacement preview helpers")
+	}
+	if !bytes.Contains(body, []byte(`from "./node-impact.js"`)) {
+		t.Fatalf("module entrypoint did not import node impact helpers")
 	}
 	if !bytes.Contains(body, []byte(`from "./component-templates.js"`)) {
 		t.Fatalf("module entrypoint did not import component template helpers")
@@ -748,6 +752,13 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("updateNodeFromInspector")) {
 		t.Fatalf("module entrypoint did not include node metadata editing")
+	}
+	if !bytes.Contains(body, []byte("node-impact")) ||
+		!bytes.Contains(body, []byte("nodeDeleteImpactConfirmText")) ||
+		!bytes.Contains(nodeImpactBody, []byte("nodeDeleteImpact")) ||
+		!bytes.Contains(nodeImpactBody, []byte("nodeDeleteImpactSummary")) ||
+		!bytes.Contains(nodeImpactBody, []byte("Restores")) {
+		t.Fatalf("module entrypoint did not include node delete impact preview")
 	}
 	if !bytes.Contains(body, []byte("newNodeName")) {
 		t.Fatalf("module entrypoint did not include detailed node creation fields")

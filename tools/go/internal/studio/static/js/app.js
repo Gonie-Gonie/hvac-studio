@@ -21,6 +21,12 @@ import {
   replacementDiffText,
   replacementPreview,
 } from "./replacement-preview.js";
+import {
+  nodeDeleteImpact,
+  nodeDeleteImpactConfirmText,
+  nodeDeleteImpactDetails,
+  nodeDeleteImpactSummary,
+} from "./node-impact.js";
 import { el, escapeAttr, escapeHTML } from "./dom.js";
 import {
   collectDatasetUnitHints,
@@ -1411,11 +1417,22 @@ function editableNodeRow(component, node, direction) {
   saveButton.textContent = "Save";
   saveButton.addEventListener("click", () => updateNodeFromInspector(component.id, node.id, direction, row));
 
+  const impact = nodeDeleteImpact(component, node, currentSystem(), state.detail?.graph?.connections || []);
+  const impactSummary = nodeDeleteImpactSummary(impact);
+  if (impactSummary) {
+    const impactBadge = document.createElement("span");
+    impactBadge.className = "node-impact";
+    impactBadge.textContent = impactSummary;
+    const impactDetails = nodeDeleteImpactDetails(impact);
+    if (impactDetails) impactBadge.title = impactDetails;
+    controls.append(impactBadge);
+  }
+
   const deleteButton = document.createElement("button");
   deleteButton.type = "button";
   deleteButton.className = "small-action";
   deleteButton.textContent = "Delete";
-  deleteButton.addEventListener("click", () => deleteNodeFromInspector(component.id, node.id));
+  deleteButton.addEventListener("click", () => deleteNodeFromInspector(component.id, node.id, impact));
 
   for (const input of controls.querySelectorAll("input, select")) {
     input.addEventListener("keydown", (event) => {
@@ -5225,9 +5242,11 @@ function findNodeEditRow(componentID, nodeID) {
   return null;
 }
 
-async function deleteNodeFromInspector(componentID, nodeID) {
+async function deleteNodeFromInspector(componentID, nodeID, impact = null) {
   if (!componentID || !nodeID || !isWorkspaceProject()) return;
-  if (!window.confirm(`Delete node ${componentID}.${nodeID}? Related connections and public IO mappings will be updated.`)) return;
+  const component = componentById(componentID);
+  const currentImpact = impact || nodeDeleteImpact(component, nodeID, currentSystem(), state.detail?.graph?.connections || []);
+  if (!window.confirm(`Delete node ${componentID}.${nodeID}?\n${nodeDeleteImpactConfirmText(currentImpact)}`)) return;
   try {
     const body = await api("/api/project/nodes/delete", {
       method: "POST",
