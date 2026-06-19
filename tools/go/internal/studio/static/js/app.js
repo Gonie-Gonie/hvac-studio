@@ -1,5 +1,10 @@
 import { api } from "./api.js";
 import {
+  datasetResultSection,
+  parameterSetResultSection,
+  validationMappingArtifactSection,
+} from "./artifact-results.js";
+import {
   candidateResultSection,
   resultPublicOutputSummary,
 } from "./candidate-results.js";
@@ -16,9 +21,6 @@ import { el, escapeAttr, escapeHTML } from "./dom.js";
 import {
   collectDatasetUnitHints,
   collectValidationColumnMap,
-  datasetMappingEditorSection,
-  previewRowsSection,
-  suggestionRows,
 } from "./dataset-mapping.js";
 import {
   downloadTextFile,
@@ -2690,12 +2692,12 @@ function structuredResultView(value) {
   wrapper.className = "result-structured";
   if (value.kind === "dataset" && value.dataset) {
     wrapper.append(resultHeader("Dataset Preview", value.dataset.summary?.relative_path || "", `${value.dataset.summary?.row_count || 0} rows`, RESULT_HELP.dataValidation));
-    wrapper.append(datasetResultSection(value.dataset));
+    wrapper.append(datasetResultSection(value.dataset, datasetResultContext()));
     return wrapper;
   }
   if (value.kind === "parameter_set" && value.parameter_set) {
     wrapper.append(resultHeader("Parameter Set", value.parameter_set.summary?.relative_path || "", `${value.parameter_set.summary?.parameter_count || 0} values`, RESULT_HELP.parameterManagement));
-    wrapper.append(parameterSetResultSection(value.parameter_set));
+    wrapper.append(parameterSetResultSection(value.parameter_set, parameterSetResultContext()));
     return wrapper;
   }
   if (value.kind === "high_error_inspection") {
@@ -2710,7 +2712,7 @@ function structuredResultView(value) {
   }
   if (value.kind === "validation_mapping" && value.artifact) {
     wrapper.append(resultHeader("Validation Mapping", value.artifact.relative_path || value.artifact.path || "", `${value.artifact.input_count || 0} in / ${value.artifact.output_count || 0} out`, RESULT_HELP.dataValidation));
-    wrapper.append(validationMappingArtifactSection(value.artifact, value.mapping));
+    wrapper.append(validationMappingArtifactSection(value.artifact, value.mapping, validationMappingArtifactContext()));
     return wrapper;
   }
   if (value.kind === "calibration_setup_editor") {
@@ -2808,6 +2810,34 @@ function validationResultContext() {
   };
 }
 
+function datasetResultContext() {
+  return {
+    createMapping: createValidationMappingFromDataset,
+    isWorkspaceProject: isWorkspaceProject(),
+  };
+}
+
+function validationMappingArtifactContext() {
+  return {
+    copyMapping: copyValidationMapping,
+    deleteMapping: deleteValidationMapping,
+    isWorkspaceProject: isWorkspaceProject(),
+    renameMapping: renameValidationMapping,
+  };
+}
+
+function parameterSetResultContext() {
+  return {
+    activeParameterSetPath: state.activeParameterSetPath,
+    activateForRuns(path) {
+      activateParameterSetForRuns(path);
+      renderResults();
+    },
+    applyToGraph: applyParameterSetToGraph,
+    isWorkspaceProject: isWorkspaceProject(),
+  };
+}
+
 function calibrationSetupEditorContext(value) {
   return {
     ...value,
@@ -2850,42 +2880,6 @@ function validationNavigationContext() {
   };
 }
 
-function datasetResultSection(dataset) {
-  const section = document.createElement("div");
-  section.className = "result-grid";
-  section.append(resultTable("Dataset", [
-    ["Path", dataset.summary?.relative_path || ""],
-    ["Shape", `${dataset.summary?.row_count || 0} rows / ${dataset.summary?.column_count || 0} columns`],
-    ["Format", dataset.summary?.format || ""],
-    ["Suggested Time", dataset.suggested_time_column || ""],
-    ["SHA256", dataset.summary?.sha256 || ""],
-  ].filter(([, value]) => value)));
-  section.append(resultTable("Column Profiles", (dataset.column_profiles || []).map((item) => [
-    item.column || "",
-    item.value_type || "",
-    String(item.missing_count || 0),
-    (item.samples || []).join(", "),
-  ]), ["Column", "Type", "Missing", "Samples"]));
-  section.append(datasetMappingEditorSection(dataset));
-  section.append(resultTable("Public IO Mapping Preview", [
-    ...suggestionRows("input", dataset.suggested_inputs || []),
-    ...suggestionRows("output", dataset.suggested_outputs || []),
-  ], ["Direction", "Public ID", "Column", "Unit"]));
-  section.append(previewRowsSection(dataset));
-  if (isWorkspaceProject()) {
-    const actions = document.createElement("div");
-    actions.className = "result-actions";
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "small-action";
-    button.textContent = "Create Mapping";
-    button.addEventListener("click", () => createValidationMappingFromDataset(dataset));
-    actions.append(button);
-    section.append(actions);
-  }
-  return section;
-}
-
 async function createValidationMappingFromDataset(dataset) {
   try {
     const body = await api("/api/project/validation-mapping", {
@@ -2912,56 +2906,6 @@ async function createValidationMappingFromDataset(dataset) {
     setBottomTab("problems");
     log(`Validation mapping failed: ${error.message}`);
   }
-}
-
-function validationMappingArtifactSection(summary, mapping = null) {
-  const section = document.createElement("div");
-  section.className = "result-grid";
-  section.append(resultTable("Summary", [
-    ["Name", summary.name || summary.id || ""],
-    ["Path", summary.relative_path || ""],
-    ["Dataset", summary.dataset || mapping?.dataset || ""],
-    ["Dataset SHA256", summary.dataset_checksum || mapping?.dataset_checksum || ""],
-    ["Inputs", String(summary.input_count || Object.keys(mapping?.input_columns || {}).length || 0)],
-    ["Observed Outputs", String(summary.output_count || Object.keys(mapping?.observed_output_columns || {}).length || 0)],
-    ["Missing Value Policy", summary.missing_value_policy || mapping?.missing_value_policy || ""],
-  ]));
-  if (mapping?.input_columns) {
-    section.append(resultTable("Input Columns", Object.entries(mapping.input_columns).map(([publicID, column]) => [publicID, column]), ["Public Input", "Dataset Column"]));
-  }
-  if (mapping?.observed_output_columns) {
-    section.append(resultTable("Observed Output Columns", Object.entries(mapping.observed_output_columns).map(([publicID, column]) => [publicID, column]), ["Public Output", "Dataset Column"]));
-  }
-  if (mapping?.unit_hints && Object.keys(mapping.unit_hints).length) {
-    section.append(resultTable("Unit Hints", Object.entries(mapping.unit_hints).map(([column, unit]) => [column, unit]), ["Dataset Column", "Unit"]));
-  }
-  if (isWorkspaceProject()) {
-    const actions = document.createElement("div");
-    actions.className = "result-actions mapping-actions";
-    const nameInput = document.createElement("input");
-    nameInput.type = "text";
-    nameInput.className = "mapping-name-input";
-    nameInput.value = summary.name || summary.id || "";
-    nameInput.placeholder = "Mapping name";
-    const save = document.createElement("button");
-    save.type = "button";
-    save.className = "small-action";
-    save.textContent = "Save Name";
-    save.addEventListener("click", () => renameValidationMapping(summary, nameInput.value));
-    const copy = document.createElement("button");
-    copy.type = "button";
-    copy.className = "small-action";
-    copy.textContent = "Copy";
-    copy.addEventListener("click", () => copyValidationMapping(summary));
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.className = "small-action danger-action";
-    remove.textContent = "Delete";
-    remove.addEventListener("click", () => deleteValidationMapping(summary));
-    actions.append(nameInput, save, copy, remove);
-    section.append(actions);
-  }
-  return section;
 }
 
 async function renameValidationMapping(summary, name) {
@@ -3295,49 +3239,6 @@ function defaultDecisionBounds(value) {
 
 function isNumericValueType(valueType) {
   return ["float", "int", "integer", "number"].includes(String(valueType || "").toLowerCase());
-}
-
-function parameterSetResultSection(detail) {
-  const section = document.createElement("div");
-  section.className = "result-grid";
-  section.append(resultTable("Summary", [
-    ["Path", detail.summary?.relative_path || ""],
-    ["Components", String(detail.summary?.component_count || 0)],
-    ["Values", String(detail.summary?.parameter_count || 0)],
-    ["Created", detail.summary?.created_at_utc || ""],
-  ]));
-  section.append(resultTable("Differences", (detail.differences || []).map((item) => [
-    item.component,
-    item.parameter,
-    item.exists ? formatValue(item.baseline) : "new",
-    formatValue(item.value),
-  ]), ["Component", "Parameter", "Current", "Set Value"]));
-  const actions = document.createElement("div");
-  actions.className = "result-actions";
-  const activate = document.createElement("button");
-  activate.type = "button";
-  activate.className = "small-action";
-  activate.textContent = state.activeParameterSetPath === detail.summary?.relative_path ? "Active" : "Use for Runs";
-  activate.disabled = state.activeParameterSetPath === detail.summary?.relative_path;
-  activate.addEventListener("click", () => {
-    state.activeParameterSetPath = detail.summary?.relative_path || "";
-    renderRunInputs();
-    renderProjectTree();
-    renderStartRuntimeRows();
-    renderResults();
-    log(`Active parameter set: ${state.activeParameterSetPath}`);
-  });
-  actions.append(activate);
-  if (isWorkspaceProject()) {
-    const apply = document.createElement("button");
-    apply.type = "button";
-    apply.className = "small-action";
-    apply.textContent = "Apply to Graph";
-    apply.addEventListener("click", () => applyParameterSetToGraph(detail.summary?.relative_path || ""));
-    actions.append(apply);
-  }
-  section.append(actions);
-  return section;
 }
 
 async function applyParameterSetToGraph(path) {

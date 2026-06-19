@@ -273,6 +273,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	startBody := getRouteBody(t, server, "/js/start-workspace.js")
 	logsBody := getRouteBody(t, server, "/js/logs-panel.js")
 	resultUIBody := getRouteBody(t, server, "/js/result-ui.js")
+	artifactResultsBody := getRouteBody(t, server, "/js/artifact-results.js")
 	mlInspectorBody := getRouteBody(t, server, "/js/ml-inspector.js")
 	componentTemplatesBody := getRouteBody(t, server, "/js/component-templates.js")
 	datasetMappingBody := getRouteBody(t, server, "/js/dataset-mapping.js")
@@ -286,6 +287,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	setupEditorUIBody := getRouteBody(t, server, "/js/setup-editor-ui.js")
 	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
 		t.Fatalf("module entrypoint did not contain expected imports")
+	}
+	if !bytes.Contains(body, []byte(`from "./artifact-results.js"`)) {
+		t.Fatalf("module entrypoint did not import artifact result renderers")
 	}
 	if !bytes.Contains(body, []byte(`from "./calibration-setup-editor.js"`)) {
 		t.Fatalf("module entrypoint did not import calibration setup editor")
@@ -520,14 +524,22 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(validationPlotsBody, []byte("Residual Histogram")) {
 		t.Fatalf("module entrypoint did not render validation plots")
 	}
-	if !bytes.Contains(body, []byte("datasetMappingEditorSection")) ||
-		!bytes.Contains(body, []byte("suggested_time_column")) ||
+	if !bytes.Contains(artifactResultsBody, []byte("datasetMappingEditorSection")) ||
+		!bytes.Contains(artifactResultsBody, []byte("suggested_time_column")) ||
 		!bytes.Contains(body, []byte("collectValidationColumnMap")) ||
 		!bytes.Contains(body, []byte("unit_hints")) ||
 		!bytes.Contains(datasetMappingBody, []byte("datasetTimeColumnSelect")) ||
 		!bytes.Contains(datasetMappingBody, []byte("datasetSampleRowPreview")) ||
 		!bytes.Contains(datasetMappingBody, []byte("Sample Row Preview")) {
 		t.Fatalf("module entrypoint did not expose dataset mapping editor")
+	}
+	if !bytes.Contains(artifactResultsBody, []byte("datasetResultSection")) ||
+		!bytes.Contains(artifactResultsBody, []byte("validationMappingArtifactSection")) ||
+		!bytes.Contains(artifactResultsBody, []byte("parameterSetResultSection")) ||
+		!bytes.Contains(artifactResultsBody, []byte("Create Mapping")) ||
+		!bytes.Contains(artifactResultsBody, []byte("Save Name")) ||
+		!bytes.Contains(artifactResultsBody, []byte("Apply to Graph")) {
+		t.Fatalf("module entrypoint did not expose structured artifact result renderers")
 	}
 	if !bytes.Contains(body, []byte("validationComparisonBaseline")) || !bytes.Contains(validationResultsBody, []byte("Parameter Set Comparison")) || !bytes.Contains(body, []byte("compareValidationParameterSet")) {
 		t.Fatalf("module entrypoint did not render validation parameter-set comparisons")
