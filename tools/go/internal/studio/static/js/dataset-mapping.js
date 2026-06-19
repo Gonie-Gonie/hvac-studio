@@ -1,7 +1,8 @@
 import { escapeHTML } from "./dom.js";
+import { coerceInput, formatValue } from "./format.js";
 import { resultTable } from "./result-ui.js";
 
-export function datasetMappingEditorSection(dataset) {
+export function datasetMappingEditorSection(dataset, context = {}) {
   const block = document.createElement("div");
   block.className = "result-block dataset-mapping-editor";
   block.innerHTML = `<div class="result-block-title">Mapping Editor</div>`;
@@ -19,6 +20,7 @@ export function datasetMappingEditorSection(dataset) {
   block.append(validationMappingEditorTable("Observed Outputs", "output", dataset.suggested_outputs || [], dataset.columns || []));
   const samplePreview = datasetSampleRowPreview(dataset);
   block.append(samplePreview);
+  block.append(datasetSampleEvaluationSection(dataset, context));
   block.append(datasetUnitHintTable(dataset));
   block.addEventListener("change", (event) => {
     if (event.target?.matches("[data-validation-direction], #datasetTimeColumnSelect")) {
@@ -61,6 +63,41 @@ export function collectDatasetUnitHints() {
   return values;
 }
 
+export function datasetSampleEvaluationPayload(dataset, root = document) {
+  const sample = dataset.preview_rows?.[0] || null;
+  if (!sample) {
+    return { error: "Dataset preview has no sample row to evaluate" };
+  }
+  const inputs = {};
+  const observed = {};
+  root.querySelectorAll("[data-validation-direction]").forEach((select) => {
+    const column = select.value || "";
+    const publicID = select.dataset.publicId || "";
+    if (!column || !publicID) return;
+    const value = coerceInput(String(sample[column] ?? ""));
+    if (select.dataset.validationDirection === "output") {
+      observed[publicID] = value;
+      return;
+    }
+    inputs[publicID] = value;
+  });
+  if (!Object.keys(inputs).length) {
+    return { error: "Map at least one public input before evaluating a sample row" };
+  }
+  const context = {};
+  const timeColumn = root.querySelector("#datasetTimeColumnSelect")?.value || "";
+  if (timeColumn) {
+    context.time = coerceInput(String(sample[timeColumn] ?? ""));
+  }
+  return {
+    context,
+    inputs,
+    observed,
+    sample_row: sample,
+    time_column: timeColumn,
+  };
+}
+
 function validationMappingEditorTable(title, direction, suggestions, columns) {
   const wrapper = document.createElement("div");
   wrapper.className = "mapping-editor-table";
@@ -94,6 +131,75 @@ function validationMappingEditorTable(title, direction, suggestions, columns) {
     tbody.append(row);
   }
   return wrapper;
+}
+
+function datasetSampleEvaluationSection(dataset, context) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "mapping-editor-table sample-row-evaluation";
+  wrapper.innerHTML = `
+    <div class="result-block-subtitle">Sample Row Evaluation</div>
+    <div class="result-actions"></div>
+    <div class="sample-evaluation-output"><div class="empty-cell">Evaluate the first preview row before saving the mapping.</div></div>
+  `;
+  const actions = wrapper.querySelector(".result-actions");
+  const output = wrapper.querySelector(".sample-evaluation-output");
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "small-action";
+  button.textContent = "Evaluate Sample";
+  button.disabled = typeof context.evaluateSample !== "function";
+  button.addEventListener("click", async () => {
+    const payload = datasetSampleEvaluationPayload(dataset, wrapper.closest(".dataset-mapping-editor") || document);
+    if (payload.error) {
+      renderSampleEvaluationError(output, payload.error);
+      return;
+    }
+    button.disabled = true;
+    output.innerHTML = `<div class="empty-cell">Evaluating sample row...</div>`;
+    try {
+      const evaluation = await context.evaluateSample(payload);
+      renderSampleEvaluationResult(output, evaluation);
+    } catch (error) {
+      renderSampleEvaluationError(output, error.message || "Sample evaluation failed");
+    } finally {
+      button.disabled = false;
+    }
+  });
+  actions.append(button);
+  return wrapper;
+}
+
+function renderSampleEvaluationResult(container, evaluation) {
+  if (!container) return;
+  container.innerHTML = "";
+  const result = evaluation?.result || {};
+  const outputs = result.outputs || {};
+  const observed = evaluation?.observed || {};
+  const outputIDs = Array.from(new Set([...Object.keys(outputs), ...Object.keys(observed)])).sort();
+  const rows = outputIDs.map((id) => {
+    const simulated = outputs[id];
+    const measured = observed[id];
+    return [
+      id,
+      formatValue(simulated),
+      measured === undefined ? "" : formatValue(measured),
+      sampleDelta(simulated, measured),
+    ];
+  });
+  container.append(resultTable("Sample Output Comparison", rows, ["Public Output", "Simulated", "Observed", "Delta"]));
+  container.append(resultTable("Sample Inputs", Object.entries(evaluation?.inputs || {}).map(([id, value]) => [id, formatValue(value)]), ["Public Input", "Value"]));
+}
+
+function renderSampleEvaluationError(container, message) {
+  if (!container) return;
+  container.innerHTML = `<div class="empty-cell">Sample evaluation failed: ${escapeHTML(message)}</div>`;
+}
+
+function sampleDelta(simulated, observed) {
+  const left = Number(simulated);
+  const right = Number(observed);
+  if (!Number.isFinite(left) || !Number.isFinite(right)) return "";
+  return formatValue(left - right);
 }
 
 function datasetSampleRowPreview(dataset) {

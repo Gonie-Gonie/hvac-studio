@@ -604,7 +604,10 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(body, []byte("unit_hints")) ||
 		!bytes.Contains(datasetMappingBody, []byte("datasetTimeColumnSelect")) ||
 		!bytes.Contains(datasetMappingBody, []byte("datasetSampleRowPreview")) ||
-		!bytes.Contains(datasetMappingBody, []byte("Sample Row Preview")) {
+		!bytes.Contains(datasetMappingBody, []byte("Sample Row Preview")) ||
+		!bytes.Contains(datasetMappingBody, []byte("datasetSampleEvaluationPayload")) ||
+		!bytes.Contains(datasetMappingBody, []byte("Evaluate Sample")) ||
+		!bytes.Contains(datasetMappingBody, []byte("Sample Output Comparison")) {
 		t.Fatalf("module entrypoint did not expose dataset mapping editor")
 	}
 	if !bytes.Contains(artifactResultsBody, []byte("datasetResultSection")) ||
@@ -896,6 +899,10 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("/api/project/validation-mapping")) {
 		t.Fatalf("module entrypoint did not create validation mappings from datasets")
+	}
+	if !bytes.Contains(body, []byte("evaluateDatasetSample")) ||
+		!bytes.Contains(body, []byte(`api("/api/run"`)) {
+		t.Fatalf("module entrypoint did not evaluate dataset sample rows through the runner")
 	}
 	if !bytes.Contains(body, []byte("/api/project/validation-mapping/update")) {
 		t.Fatalf("module entrypoint did not update validation mappings")

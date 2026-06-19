@@ -2764,6 +2764,7 @@ function validationResultContext() {
 function datasetResultContext() {
   return {
     createMapping: createValidationMappingFromDataset,
+    evaluateSample: evaluateDatasetSample,
     isWorkspaceProject: isWorkspaceProject(),
   };
 }
@@ -2857,6 +2858,30 @@ async function createValidationMappingFromDataset(dataset) {
     setBottomTab("problems");
     log(`Validation mapping failed: ${error.message}`);
   }
+}
+
+async function evaluateDatasetSample(payload) {
+  if (!state.currentProjectPath) {
+    throw new Error("Open a project before evaluating a dataset sample");
+  }
+  const body = await api("/api/run", {
+    method: "POST",
+    body: JSON.stringify({
+      project_path: state.currentProjectPath,
+      inputs: payload.inputs || {},
+      context: payload.context || {},
+      save: false,
+    }),
+  });
+  log("Dataset sample row evaluated");
+  return {
+    context: payload.context || {},
+    inputs: payload.inputs || {},
+    observed: payload.observed || {},
+    result: body.result,
+    sample_row: payload.sample_row || {},
+    time_column: payload.time_column || "",
+  };
 }
 
 async function renameValidationMapping(summary, name) {

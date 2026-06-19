@@ -24,7 +24,7 @@ export function datasetResultSection(dataset, context = {}) {
     String(item.missing_count || 0),
     (item.samples || []).join(", "),
   ]), ["Column", "Type", "Missing", "Samples"]));
-  section.append(datasetMappingEditorSection(dataset));
+  section.append(datasetMappingEditorSection(dataset, context));
   section.append(resultTable("Public IO Mapping Preview", [
     ...suggestionRows("input", dataset.suggested_inputs || []),
     ...suggestionRows("output", dataset.suggested_outputs || []),
