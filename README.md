@@ -98,6 +98,11 @@ docs/status.md
 docs/release.md
 ```
 
+`docs/status.md` is the maintainer-facing snapshot for what works now, what is
+not supported yet, where retained local build zips live, and which generated
+folders are safe to clean. `docs/release.md` owns package scope, release gates,
+checksums, provenance, signing/trust notes, and GitHub Release procedure.
+
 Read the user guide:
 
 ```text

@@ -79,6 +79,13 @@ dist/hvac-studio-docs-0.1.0-dev.zip
 dist/hvac-studio-sdk-0.1.0-dev.zip
 ```
 
+To inspect the exact local file sizes and timestamps for the retained build
+outputs, run:
+
+```powershell
+Get-ChildItem -File dist | Select-Object Name,Length,LastWriteTime | Sort-Object Name
+```
+
 Standalone Studio smoke builds write the latest executable to
 `dist/build/latest/studio/hvac-studio.exe`. That directory is transient: it is
 rewritten by `scripts/dev/test-studio.ps1` and removed by
