@@ -278,6 +278,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	datasetMappingBody := getRouteBody(t, server, "/js/dataset-mapping.js")
 	downloadBody := getRouteBody(t, server, "/js/download.js")
 	validationPlotsBody := getRouteBody(t, server, "/js/validation-plots.js")
+	candidateResultsBody := getRouteBody(t, server, "/js/candidate-results.js")
 	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
 		t.Fatalf("module entrypoint did not contain expected imports")
 	}
@@ -404,6 +405,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte(`from "./validation-plots.js"`)) {
 		t.Fatalf("module entrypoint did not import validation plot helpers")
 	}
+	if !bytes.Contains(body, []byte(`from "./candidate-results.js"`)) {
+		t.Fatalf("module entrypoint did not import candidate result helpers")
+	}
 	if !bytes.Contains(downloadBody, []byte("downloadTextFile")) ||
 		!bytes.Contains(downloadBody, []byte("safeFileName")) ||
 		!bytes.Contains(downloadBody, []byte("csvCell")) ||
@@ -449,37 +453,37 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(body, []byte(`createComponent("ml_inference")`)) {
 		t.Fatalf("module entrypoint did not expose ML component quick creation")
 	}
-	if !bytes.Contains(body, []byte("parameterChangeRows")) {
+	if !bytes.Contains(candidateResultsBody, []byte("parameterChangeRows")) {
 		t.Fatalf("module entrypoint did not render calibration parameter change rows")
 	}
 	if !bytes.Contains(validationPlotsBody, []byte("Objective History")) || !bytes.Contains(validationPlotsBody, []byte("candidateObjectiveHistory")) {
 		t.Fatalf("module entrypoint did not render candidate objective history")
 	}
-	if !bytes.Contains(body, []byte("Apply Parameter Set")) {
+	if !bytes.Contains(candidateResultsBody, []byte("Apply Parameter Set")) {
 		t.Fatalf("module entrypoint did not expose saved calibration parameter-set apply action")
 	}
-	if !bytes.Contains(body, []byte("Use for Runs")) || !bytes.Contains(body, []byte("Revert Active")) {
+	if !bytes.Contains(candidateResultsBody, []byte("Use for Runs")) || !bytes.Contains(candidateResultsBody, []byte("Revert Active")) {
 		t.Fatalf("module entrypoint did not expose calibration parameter-set apply/revert flow")
 	}
-	if !bytes.Contains(body, []byte("Validation Before/After")) || !bytes.Contains(body, []byte("calibrationValidationComparisonSection")) {
+	if !bytes.Contains(candidateResultsBody, []byte("Validation Before/After")) || !bytes.Contains(body, []byte("calibrationValidationComparisonSection")) {
 		t.Fatalf("module entrypoint did not expose calibration before/after validation plots")
 	}
-	if !bytes.Contains(body, []byte("Best Candidate")) || !bytes.Contains(body, []byte("bestCandidateRows")) {
+	if !bytes.Contains(candidateResultsBody, []byte("Best Candidate")) || !bytes.Contains(candidateResultsBody, []byte("bestCandidateRows")) {
 		t.Fatalf("module entrypoint did not render calibration best candidate details")
 	}
-	if !bytes.Contains(body, []byte("Compare Existing Set")) || !bytes.Contains(body, []byte("runCalibrationParameterSetComparison")) {
+	if !bytes.Contains(candidateResultsBody, []byte("Compare Existing Set")) || !bytes.Contains(body, []byte("runCalibrationParameterSetComparison")) {
 		t.Fatalf("module entrypoint did not expose calibration parameter-set comparison")
 	}
-	if !bytes.Contains(body, []byte("Export CSV")) || !bytes.Contains(body, []byte("downloadCandidateCSV")) {
+	if !bytes.Contains(candidateResultsBody, []byte("Export CSV")) || !bytes.Contains(candidateResultsBody, []byte("downloadCandidateCSV")) {
 		t.Fatalf("module entrypoint did not expose candidate CSV export")
 	}
-	if !bytes.Contains(body, []byte("Export Report")) || !bytes.Contains(body, []byte("downloadCandidateReport")) {
+	if !bytes.Contains(candidateResultsBody, []byte("Export Report")) || !bytes.Contains(candidateResultsBody, []byte("downloadCandidateReport")) {
 		t.Fatalf("module entrypoint did not expose candidate report export")
 	}
-	if !bytes.Contains(body, []byte("Best Decision Variables")) || !bytes.Contains(body, []byte("Output Comparison")) || !bytes.Contains(body, []byte("Constraint Status")) {
+	if !bytes.Contains(candidateResultsBody, []byte("Best Decision Variables")) || !bytes.Contains(candidateResultsBody, []byte("Output Comparison")) || !bytes.Contains(candidateResultsBody, []byte("Constraint Status")) {
 		t.Fatalf("module entrypoint did not render optimization result comparison")
 	}
-	if !bytes.Contains(body, []byte("Export SDK Script")) || !bytes.Contains(body, []byte("downloadOptimizationSDKScript")) || !bytes.Contains(body, []byte("run_optimization")) {
+	if !bytes.Contains(candidateResultsBody, []byte("Export SDK Script")) || !bytes.Contains(candidateResultsBody, []byte("downloadOptimizationSDKScript")) || !bytes.Contains(candidateResultsBody, []byte("run_optimization")) {
 		t.Fatalf("module entrypoint did not expose optimization SDK script export")
 	}
 	if !bytes.Contains(body, []byte("exportIncludeRecordsInput")) ||
