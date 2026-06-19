@@ -114,11 +114,15 @@ export function sourceCompletionItems(component) {
     items.push({
       name: `inputs[${pythonStringLiteral(item.id)}]`,
       meta: nodeTypeLabel(node) || "input",
+      scope: "input node",
+      details: nodeSourceDetails(node),
       snippet: `inputs.get(${pythonStringLiteral(item.id)}, 0.0)`,
     });
     items.push({
       name: item.varName,
       meta: `local from ${item.id}`,
+      scope: "local binding",
+      details: { node: item.id },
       snippet: item.varName,
     });
   }
@@ -126,6 +130,8 @@ export function sourceCompletionItems(component) {
     items.push({
       name: `${pythonStringLiteral(node.id)}: value`,
       meta: nodeTypeLabel(node) || "output",
+      scope: "output node",
+      details: nodeSourceDetails(node),
       snippet: `${pythonStringLiteral(node.id)}: value`,
     });
   }
@@ -214,6 +220,46 @@ export function nodeTypeLabel(node) {
   return [node.medium || "", node.value_type || "", node.unit || ""].filter(Boolean).join(" / ");
 }
 
+export function nodeSourceItem(scope, node, snippet) {
+  return {
+    name: node.id,
+    meta: nodeTypeLabel(node),
+    scope,
+    details: nodeSourceDetails(node),
+    snippet,
+  };
+}
+
+function nodeSourceDetails(node) {
+  return {
+    medium: node.medium || "",
+    value_type: node.value_type || "",
+    unit: node.unit || "",
+    required: node.required,
+    default: node.default !== undefined ? parameterInputValue(node.default) : undefined,
+  };
+}
+
+export function sourceItemTitle(item) {
+  const details = item?.details || {};
+  return [
+    item?.name ? `Name: ${item.name}` : "",
+    item?.scope ? `Scope: ${item.scope}` : "",
+    details.node ? `Node: ${details.node}` : "",
+    details.medium ? `Medium: ${details.medium}` : "",
+    details.value_type ? `Value type: ${details.value_type}` : "",
+    details.unit ? `Unit: ${details.unit}` : "",
+    details.required !== undefined ? `Required: ${details.required ? "yes" : "no"}` : "",
+    details.default !== undefined ? `Default: ${details.default}` : "",
+    details.current !== undefined ? `Current: ${details.current}` : "",
+    details.role ? `Role: ${details.role}` : "",
+    details.group ? `Group: ${details.group}` : "",
+    details.initial !== undefined ? `Initial: ${details.initial}` : "",
+    item?.meta ? `Summary: ${item.meta}` : "",
+    item?.snippet ? `Insert: ${item.snippet}` : "",
+  ].filter(Boolean).join("\n");
+}
+
 export function parameterSourceItems(component) {
   const definitions = component.parameter_defs || {};
   const names = new Set([...Object.keys(component.parameters || {}), ...Object.keys(definitions)]);
@@ -227,6 +273,14 @@ export function parameterSourceItems(component) {
         definition.unit || "",
         roleLabel(definition.role || "parameter"),
       ].filter(Boolean).join(" / "),
+      scope: "parameter",
+      details: {
+        current: parameterInputValue(value),
+        default: definition.default !== undefined ? parameterInputValue(definition.default) : undefined,
+        unit: definition.unit || "",
+        role: roleLabel(definition.role || "parameter"),
+        group: definition.group || "",
+      },
       snippet: `params.get(${pythonStringLiteral(name)}, ${pythonLiteral(value)})`,
     };
   });
@@ -238,6 +292,11 @@ export function stateSourceItems(component) {
     .map(([name, definition]) => ({
       name,
       meta: [definition.unit || "", "state"].filter(Boolean).join(" / "),
+      scope: "state",
+      details: {
+        unit: definition.unit || "",
+        initial: parameterInputValue(definition.initial),
+      },
       snippet: `state.get(${pythonStringLiteral(name)}, ${pythonLiteral(definition.initial)})`,
     }));
 }
@@ -246,6 +305,7 @@ export function contextSourceItems() {
   return ["time", "dt"].map((name) => ({
     name,
     meta: "context",
+    scope: "context",
     snippet: `context.get(${pythonStringLiteral(name)}, 0.0)`,
   }));
 }

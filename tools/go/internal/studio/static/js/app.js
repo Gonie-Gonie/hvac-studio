@@ -100,13 +100,14 @@ import {
   evaluateSnippet,
   formatPythonSource,
   highlightPython,
-  nodeTypeLabel,
+  nodeSourceItem,
   parameterSourceItems,
   pythonIdentifier,
   pythonInputBindings,
   pythonStringLiteral,
   roleLabel,
   sourceCompletionItems,
+  sourceItemTitle,
   sourceOffsetForLineColumn,
   sourceReferenceCandidates,
   sourceSnippet,
@@ -3493,14 +3494,10 @@ function renderSourceContract(component) {
   ]));
   container.append(contractBlock("Runtime Contract", sourceContractRows(component)));
   container.append(sourceReferenceBlock("Inputs", (component.nodes.inputs || []).map((node) => ({
-    name: node.id,
-    meta: nodeTypeLabel(node),
-    snippet: `inputs.get(${pythonStringLiteral(node.id)}, 0.0)`,
+    ...nodeSourceItem("input node", node, `inputs.get(${pythonStringLiteral(node.id)}, 0.0)`),
   })), component));
   container.append(sourceReferenceBlock("Outputs", (component.nodes.outputs || []).map((node) => ({
-    name: node.id,
-    meta: nodeTypeLabel(node),
-    snippet: `${pythonStringLiteral(node.id)}: value`,
+    ...nodeSourceItem("output node", node, `${pythonStringLiteral(node.id)}: value`),
   })), component));
   container.append(sourceReferenceBlock("Parameters", parameterSourceItems(component), component));
   container.append(sourceReferenceBlock("State", stateSourceItems(component), component));
@@ -3566,7 +3563,7 @@ function sourceReferenceBlock(title, rows, component) {
   for (const item of rows) {
     const rowEl = document.createElement("div");
     rowEl.className = "contract-row";
-    rowEl.title = [item.name, item.meta].filter(Boolean).join(" / ");
+    rowEl.title = sourceItemTitle(item);
     rowEl.innerHTML = `<span>${escapeHTML(item.name)}</span><span class="contract-meta">${escapeHTML(item.meta || "")}</span>`;
     if (editable) {
       const button = document.createElement("button");
@@ -4639,7 +4636,7 @@ function showSourceCompletionPanel() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "source-completion-item";
-    button.title = [item.name, item.meta].filter(Boolean).join(" / ");
+    button.title = sourceItemTitle(item);
     button.innerHTML = `
       <span class="source-completion-label">${escapeHTML(item.name)}</span>
       <span class="source-completion-meta">${escapeHTML(item.meta || "")}</span>

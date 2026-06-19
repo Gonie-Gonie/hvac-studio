@@ -18,7 +18,9 @@ Line-specific source-check rows can be clicked from the Code workspace or Proble
 
 The editor supports lightweight Python syntax highlighting, line numbers, bracket status, Enter auto indentation, and tab indentation/outdent for selected Python lines. Format performs conservative whitespace cleanup: it normalizes line endings, removes trailing spaces, expands leading tabs to four spaces, and keeps one final newline without rewriting Python logic or generated-wrapper boundaries. `Ctrl+S` saves the current source, `Ctrl+Enter` runs the source check, `Ctrl+Shift+F` formats the draft, and `Ctrl+Space` opens contract-derived completions. The Code workspace can also save the current workspace source and run the project through the normal execution path.
 
-The completion panel and contract rows include hover text and can insert:
+The completion panel and contract rows include hover text with contract labels
+such as medium, value type, unit, parameter role, current/default values, and
+the inserted snippet. They can insert:
 
 - input reads such as `inputs.get("value", 0.0)`
 - output dictionary entries such as `"result": value`

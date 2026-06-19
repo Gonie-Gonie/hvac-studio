@@ -346,6 +346,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(sourceAuthoringBody, []byte("sourceCompletionItems")) {
 		t.Fatalf("module entrypoint did not include contract-derived source completion items")
 	}
+	if !bytes.Contains(sourceAuthoringBody, []byte("sourceItemTitle")) ||
+		!bytes.Contains(sourceAuthoringBody, []byte("Medium:")) ||
+		!bytes.Contains(sourceAuthoringBody, []byte("Value type:")) ||
+		!bytes.Contains(sourceAuthoringBody, []byte("Unit:")) {
+		t.Fatalf("module entrypoint did not include source hover metadata")
+	}
 	if !bytes.Contains(sourceAuthoringBody, []byte("parameterSourceItems")) ||
 		!bytes.Contains(sourceAuthoringBody, []byte("stateSourceItems")) ||
 		!bytes.Contains(sourceAuthoringBody, []byte("contextSourceItems")) {
