@@ -432,6 +432,7 @@ func pythonUndefinedNameProblems(ctx context.Context, loaded *project.LoadedProj
 			Severity:    "warning",
 			Message:     fmt.Sprintf("undefined name may fail at runtime: %s", item.Name),
 			ComponentID: componentID,
+			Source:      relativePath,
 			Line:        item.Line,
 			Column:      item.Column,
 		})

@@ -478,7 +478,7 @@ func TestCheckSourceEndpointReportsUndefinedNameWarning(t *testing.T) {
 	if found == nil {
 		t.Fatalf("undefined-name warning missing from %#v", body.Check.Problems)
 	}
-	if found.Severity != "warning" || found.Line != 3 {
+	if found.Severity != "warning" || found.Source != "components/scalar.py" || found.Line != 3 || found.Column == 0 {
 		t.Fatalf("undefined-name problem = %#v", found)
 	}
 }
