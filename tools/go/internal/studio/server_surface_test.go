@@ -282,12 +282,16 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	candidateResultsBody := getRouteBody(t, server, "/js/candidate-results.js")
 	seriesResultsBody := getRouteBody(t, server, "/js/series-results.js")
 	calibrationSetupEditorBody := getRouteBody(t, server, "/js/calibration-setup-editor.js")
+	optimizationSetupEditorBody := getRouteBody(t, server, "/js/optimization-setup-editor.js")
 	setupEditorUIBody := getRouteBody(t, server, "/js/setup-editor-ui.js")
 	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
 		t.Fatalf("module entrypoint did not contain expected imports")
 	}
 	if !bytes.Contains(body, []byte(`from "./calibration-setup-editor.js"`)) {
 		t.Fatalf("module entrypoint did not import calibration setup editor")
+	}
+	if !bytes.Contains(body, []byte(`from "./optimization-setup-editor.js"`)) {
+		t.Fatalf("module entrypoint did not import optimization setup editor")
 	}
 	if !bytes.Contains(body, []byte(`from "./setup-editor-ui.js"`)) {
 		t.Fatalf("module entrypoint did not import shared setup editor UI helpers")
@@ -833,20 +837,20 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("/api/project/optimization-setup")) {
 		t.Fatalf("module entrypoint did not create optimization setups")
 	}
-	if !bytes.Contains(body, []byte("optimizationSetupEditorSection")) ||
-		!bytes.Contains(body, []byte("Decision Variables")) ||
-		!bytes.Contains(body, []byte("Base Input/Scenario")) ||
+	if !bytes.Contains(optimizationSetupEditorBody, []byte("optimizationSetupEditorSection")) ||
+		!bytes.Contains(optimizationSetupEditorBody, []byte("Decision Variables")) ||
+		!bytes.Contains(optimizationSetupEditorBody, []byte("Base Input/Scenario")) ||
 		!bytes.Contains(body, []byte("system_parameter")) ||
-		!bytes.Contains(body, []byte("Differential Evolution")) ||
-		!bytes.Contains(body, []byte("differential_evolution")) ||
-		!bytes.Contains(body, []byte("Custom SDK Script")) ||
-		!bytes.Contains(body, []byte("custom_sdk_script")) ||
-		!bytes.Contains(body, []byte("Estimated Runs")) ||
-		!bytes.Contains(body, []byte("optimization-editor-warning")) ||
-		!bytes.Contains(body, []byte("Fix invalid decision bounds")) ||
-		!bytes.Contains(body, []byte("Fix invalid constraints")) ||
-		!bytes.Contains(body, []byte("Select at least one decision variable")) ||
-		!bytes.Contains(body, []byte("constraints")) {
+		!bytes.Contains(optimizationSetupEditorBody, []byte("Differential Evolution")) ||
+		!bytes.Contains(optimizationSetupEditorBody, []byte("differential_evolution")) ||
+		!bytes.Contains(optimizationSetupEditorBody, []byte("Custom SDK Script")) ||
+		!bytes.Contains(optimizationSetupEditorBody, []byte("custom_sdk_script")) ||
+		!bytes.Contains(optimizationSetupEditorBody, []byte("Estimated Runs")) ||
+		!bytes.Contains(optimizationSetupEditorBody, []byte("optimization-editor-warning")) ||
+		!bytes.Contains(optimizationSetupEditorBody, []byte("Fix invalid decision bounds")) ||
+		!bytes.Contains(optimizationSetupEditorBody, []byte("Fix invalid constraints")) ||
+		!bytes.Contains(optimizationSetupEditorBody, []byte("Select at least one decision variable")) ||
+		!bytes.Contains(optimizationSetupEditorBody, []byte("constraints")) {
 		t.Fatalf("module entrypoint did not expose optimization setup editor")
 	}
 	if !bytes.Contains(body, []byte("/api/project/parameter-set/apply")) {
