@@ -286,6 +286,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	replacementPreviewBody := getRouteBody(t, server, "/js/replacement-preview.js")
 	nodeImpactBody := getRouteBody(t, server, "/js/node-impact.js")
 	contractImpactBody := getRouteBody(t, server, "/js/contract-impact.js")
+	contractLabelsBody := getRouteBody(t, server, "/js/contract-labels.js")
 	calibrationSetupEditorBody := getRouteBody(t, server, "/js/calibration-setup-editor.js")
 	optimizationSetupEditorBody := getRouteBody(t, server, "/js/optimization-setup-editor.js")
 	setupEditorUIBody := getRouteBody(t, server, "/js/setup-editor-ui.js")
@@ -315,6 +316,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte(`from "./contract-impact.js"`)) {
 		t.Fatalf("module entrypoint did not import contract impact helpers")
+	}
+	if !bytes.Contains(body, []byte(`from "./contract-labels.js"`)) ||
+		!bytes.Contains(sourceAuthoringBody, []byte(`from "./contract-labels.js"`)) ||
+		!bytes.Contains(contractImpactBody, []byte(`from "./contract-labels.js"`)) ||
+		!bytes.Contains(contractLabelsBody, []byte("roleLabel")) {
+		t.Fatalf("module entrypoint did not import shared contract label helpers")
 	}
 	if !bytes.Contains(body, []byte(`from "./component-templates.js"`)) {
 		t.Fatalf("module entrypoint did not import component template helpers")

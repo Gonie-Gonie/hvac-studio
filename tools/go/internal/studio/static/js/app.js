@@ -96,6 +96,7 @@ import {
   scenarioNameField as scenarioNameFieldView,
 } from "./run-inputs.js";
 import { renderRunOutputWorkspace } from "./run-output.js";
+import { roleLabel } from "./contract-labels.js";
 import {
   objectRows,
   rawJSONBlock,
@@ -115,7 +116,6 @@ import {
   pythonIdentifier,
   pythonInputBindings,
   pythonStringLiteral,
-  roleLabel,
   sourceCompletionItems,
   sourceItemTitle,
   sourceOffsetForLineColumn,

@@ -1,5 +1,6 @@
 import { escapeHTML } from "./dom.js";
 import { parameterInputValue } from "./format.js";
+import { roleLabel } from "./contract-labels.js";
 
 export function formatPythonSource(value) {
   const normalized = String(value || "").replace(/\r\n?/g, "\n");
@@ -308,12 +309,6 @@ export function contextSourceItems() {
     scope: "context",
     snippet: `context.get(${pythonStringLiteral(name)}, 0.0)`,
   }));
-}
-
-export function roleLabel(role) {
-  return String(role || "")
-    .replace(/_target$/, "")
-    .replace(/_/g, " ");
 }
 
 export function bracketCheck(value) {

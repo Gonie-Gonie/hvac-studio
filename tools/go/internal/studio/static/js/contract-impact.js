@@ -1,5 +1,5 @@
 import { parameterInputValue, formatValue } from "./format.js";
-import { roleLabel } from "./source-authoring.js";
+import { roleLabel } from "./contract-labels.js";
 
 export function parameterDeleteImpact(component, name) {
   const componentID = component?.id || "";
