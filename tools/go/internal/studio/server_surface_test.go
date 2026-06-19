@@ -277,6 +277,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	componentTemplatesBody := getRouteBody(t, server, "/js/component-templates.js")
 	datasetMappingBody := getRouteBody(t, server, "/js/dataset-mapping.js")
 	downloadBody := getRouteBody(t, server, "/js/download.js")
+	validationPlotsBody := getRouteBody(t, server, "/js/validation-plots.js")
 	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
 		t.Fatalf("module entrypoint did not contain expected imports")
 	}
@@ -400,6 +401,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte(`from "./download.js"`)) {
 		t.Fatalf("module entrypoint did not import download helpers")
 	}
+	if !bytes.Contains(body, []byte(`from "./validation-plots.js"`)) {
+		t.Fatalf("module entrypoint did not import validation plot helpers")
+	}
 	if !bytes.Contains(downloadBody, []byte("downloadTextFile")) ||
 		!bytes.Contains(downloadBody, []byte("safeFileName")) ||
 		!bytes.Contains(downloadBody, []byte("csvCell")) ||
@@ -448,7 +452,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("parameterChangeRows")) {
 		t.Fatalf("module entrypoint did not render calibration parameter change rows")
 	}
-	if !bytes.Contains(body, []byte("Objective History")) || !bytes.Contains(body, []byte("candidateObjectiveHistory")) {
+	if !bytes.Contains(validationPlotsBody, []byte("Objective History")) || !bytes.Contains(validationPlotsBody, []byte("candidateObjectiveHistory")) {
 		t.Fatalf("module entrypoint did not render candidate objective history")
 	}
 	if !bytes.Contains(body, []byte("Apply Parameter Set")) {
@@ -487,7 +491,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(body, []byte("include_records: includeRecords")) {
 		t.Fatalf("module entrypoint did not send runtime export record selection")
 	}
-	if !bytes.Contains(body, []byte("validationPlotSection")) || !bytes.Contains(body, []byte("Measured vs Simulated")) || !bytes.Contains(body, []byte("Residual Histogram")) {
+	if !bytes.Contains(body, []byte("validationPlotSection")) ||
+		!bytes.Contains(validationPlotsBody, []byte("Measured vs Simulated")) ||
+		!bytes.Contains(validationPlotsBody, []byte("Residual Histogram")) {
 		t.Fatalf("module entrypoint did not render validation plots")
 	}
 	if !bytes.Contains(body, []byte("datasetMappingEditorSection")) ||
@@ -774,8 +780,8 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte("validationResultSection")) ||
 		!bytes.Contains(body, []byte("validationPlotSection")) ||
-		!bytes.Contains(body, []byte("Measured vs Simulated")) ||
-		!bytes.Contains(body, []byte("Residual Histogram")) ||
+		!bytes.Contains(validationPlotsBody, []byte("Measured vs Simulated")) ||
+		!bytes.Contains(validationPlotsBody, []byte("Residual Histogram")) ||
 		!bytes.Contains(body, []byte("highErrorRows")) ||
 		!bytes.Contains(body, []byte("openHighErrorInspection")) ||
 		!bytes.Contains(body, []byte("Component Inputs")) ||
