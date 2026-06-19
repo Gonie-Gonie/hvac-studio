@@ -560,6 +560,10 @@ h2,
   background: #fff7ed;
 }
 
+.mapping-warning td {
+  background: #fffbeb;
+}
+
 .result-table th,
 .result-table td {
   padding: 7px 9px;

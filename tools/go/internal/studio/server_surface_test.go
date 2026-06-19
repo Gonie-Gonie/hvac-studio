@@ -279,6 +279,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	logsBody := getRouteBody(t, server, "/js/logs-panel.js")
 	resultUIBody := getRouteBody(t, server, "/js/result-ui.js")
 	artifactResultsBody := getRouteBody(t, server, "/js/artifact-results.js")
+	stylesBody := getRouteBody(t, server, "/styles.css")
 	mlInspectorBody := getRouteBody(t, server, "/js/ml-inspector.js")
 	componentTemplatesBody := getRouteBody(t, server, "/js/component-templates.js")
 	datasetMappingBody := getRouteBody(t, server, "/js/dataset-mapping.js")
@@ -607,7 +608,10 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(datasetMappingBody, []byte("Sample Row Preview")) ||
 		!bytes.Contains(datasetMappingBody, []byte("datasetSampleEvaluationPayload")) ||
 		!bytes.Contains(datasetMappingBody, []byte("Evaluate Sample")) ||
-		!bytes.Contains(datasetMappingBody, []byte("Sample Output Comparison")) {
+		!bytes.Contains(datasetMappingBody, []byte("Sample Output Comparison")) ||
+		!bytes.Contains(datasetMappingBody, []byte("updateMappingEditorStatus")) ||
+		!bytes.Contains(datasetMappingBody, []byte("unit mismatch")) ||
+		!bytes.Contains(stylesBody, []byte("mapping-warning")) {
 		t.Fatalf("module entrypoint did not expose dataset mapping editor")
 	}
 	if !bytes.Contains(artifactResultsBody, []byte("datasetResultSection")) ||

@@ -22,9 +22,18 @@ export function datasetMappingEditorSection(dataset, context = {}) {
   block.append(samplePreview);
   block.append(datasetSampleEvaluationSection(dataset, context));
   block.append(datasetUnitHintTable(dataset));
+  updateMappingEditorStatus(block);
   block.addEventListener("change", (event) => {
     if (event.target?.matches("[data-validation-direction], #datasetTimeColumnSelect")) {
       updateSampleRowPreview(dataset, samplePreview);
+    }
+    if (event.target?.matches("[data-validation-direction], [data-dataset-unit-hint]")) {
+      updateMappingEditorStatus(block);
+    }
+  });
+  block.addEventListener("input", (event) => {
+    if (event.target?.matches("[data-dataset-unit-hint]")) {
+      updateMappingEditorStatus(block);
     }
   });
   return block;
@@ -45,17 +54,17 @@ export function previewRowsSection(dataset) {
   return resultTable("Preview Rows", rows, columns);
 }
 
-export function collectValidationColumnMap(direction) {
+export function collectValidationColumnMap(direction, root = document) {
   const values = {};
-  document.querySelectorAll(`[data-validation-direction="${direction}"]`).forEach((select) => {
+  root.querySelectorAll(`[data-validation-direction="${direction}"]`).forEach((select) => {
     if (select.dataset.publicId && select.value) values[select.dataset.publicId] = select.value;
   });
   return values;
 }
 
-export function collectDatasetUnitHints() {
+export function collectDatasetUnitHints(root = document) {
   const values = {};
-  document.querySelectorAll("[data-dataset-unit-hint]").forEach((input) => {
+  root.querySelectorAll("[data-dataset-unit-hint]").forEach((input) => {
     const column = input.dataset.datasetUnitHint || "";
     const unit = input.value.trim();
     if (column && unit) values[column] = unit;
@@ -119,13 +128,15 @@ function validationMappingEditorTable(title, direction, suggestions, columns) {
     const select = columnSelect(columns, item.column || "");
     select.dataset.validationDirection = direction;
     select.dataset.publicId = item.public_id || "";
+    select.dataset.expectedUnit = item.unit || "";
+    select.dataset.required = item.required ? "true" : "false";
     const requiredMissing = item.required && !select.value;
     if (requiredMissing) row.classList.add("mapping-missing");
     row.innerHTML = `
       <td>${escapeHTML(item.public_id || "")}</td>
       <td>${escapeHTML([item.value_type || "", item.unit || "", item.required ? "required" : "optional"].filter(Boolean).join(" / "))}</td>
       <td></td>
-      <td>${escapeHTML(requiredMissing ? "required column missing" : (select.value ? "mapped" : "unmapped"))}</td>
+      <td data-mapping-status>${escapeHTML(requiredMissing ? "required column missing" : (select.value ? "mapped" : "unmapped"))}</td>
     `;
     row.children[2].append(select);
     tbody.append(row);
@@ -200,6 +211,41 @@ function sampleDelta(simulated, observed) {
   const right = Number(observed);
   if (!Number.isFinite(left) || !Number.isFinite(right)) return "";
   return formatValue(left - right);
+}
+
+function updateMappingEditorStatus(root = document) {
+  const unitHints = collectDatasetUnitHints(root);
+  root.querySelectorAll("[data-validation-direction]").forEach((select) => {
+    const row = select.closest("tr");
+    const statusCell = row?.querySelector("[data-mapping-status]");
+    if (!row || !statusCell) return;
+    const status = mappingStatus(select, unitHints);
+    row.classList.toggle("mapping-missing", status.kind === "missing");
+    row.classList.toggle("mapping-warning", status.kind === "warning");
+    statusCell.textContent = status.label;
+  });
+}
+
+function mappingStatus(select, unitHints) {
+  const column = select.value || "";
+  if (!column) {
+    return select.dataset.required === "true"
+      ? { kind: "missing", label: "required column missing" }
+      : { kind: "neutral", label: "unmapped" };
+  }
+  const expectedUnit = select.dataset.expectedUnit || "";
+  const columnUnit = unitHints[column] || "";
+  if (expectedUnit && columnUnit && normalizedUnitLabel(expectedUnit) !== normalizedUnitLabel(columnUnit)) {
+    return { kind: "warning", label: `unit mismatch: expected ${expectedUnit}, hint ${columnUnit}` };
+  }
+  if (expectedUnit && !columnUnit) {
+    return { kind: "neutral", label: `mapped; unit hint missing for ${expectedUnit}` };
+  }
+  return { kind: "neutral", label: "mapped" };
+}
+
+function normalizedUnitLabel(value) {
+  return String(value || "").trim().toLowerCase().replace(/[^a-z0-9/%.-]+/g, "");
 }
 
 function datasetSampleRowPreview(dataset) {

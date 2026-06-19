@@ -22,10 +22,12 @@ preview, infers basic column types, records the dataset SHA256 checksum,
 suggests a time column, and suggests public input/output column matches. The
 dataset preview includes a mapping editor for time column, public input columns,
 observed output columns, column unit hints, and a sample row preview of the
-selected mappings. Select `Evaluate Sample` to run the first preview row through
-the current project and compare simulated outputs with the mapped observed
-sample values before saving. Select `Create Mapping` from the dataset preview to
-save a validation mapping without editing JSON.
+selected mappings. Required public inputs are marked when no dataset column is
+selected, and mapping rows warn when a column unit hint does not match the
+public input/output contract unit. Select `Evaluate Sample` to run the first
+preview row through the current project and compare simulated outputs with the
+mapped observed sample values before saving. Select `Create Mapping` from the
+dataset preview to save a validation mapping without editing JSON.
 
 The saved artifacts use CSV datasets and mapping files. See `examples/005_chiller_plant_like_system`:
 
