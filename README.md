@@ -164,27 +164,17 @@ See [docs/release.md](docs/release.md) for the GitHub Release process.
 See [docs/release-trust.md](docs/release-trust.md) for signing, checksum,
 license notice, dependency notice, support matrix, and release-note policy.
 
-Run the runner directly:
+Run the runner directly for a quick smoke check:
 
 ```powershell
 cd tools\go
 go run .\cmd\bcs-runner validate --project ..\..\examples\001_scalar_component\project.bcsproj
 go run .\cmd\bcs-runner run --project ..\..\examples\001_scalar_component\project.bcsproj --input ..\..\examples\001_scalar_component\inputs\case01.json
-go run .\cmd\bcs-runner run --project ..\..\examples\009_vectorized_component\project.bcsproj --input ..\..\examples\009_vectorized_component\inputs\case01.json
-go run .\cmd\bcs-runner run --project ..\..\examples\010_external_executable_component\project.bcsproj --input ..\..\examples\010_external_executable_component\inputs\case01.json
-go run .\cmd\bcs-runner run --project ..\..\examples\011_solver_boundary_component\project.bcsproj --input ..\..\examples\011_solver_boundary_component\inputs\case01.json
-go run .\cmd\bcs-runner run --project ..\..\examples\012_unit_conversion_component\project.bcsproj --input ..\..\examples\012_unit_conversion_component\inputs\case01.json
-go run .\cmd\bcs-runner run --project ..\..\examples\013_composite_system\project.bcsproj --input ..\..\examples\013_composite_system\inputs\case01.json
-go run .\cmd\bcs-runner run-series --project ..\..\examples\004_stateful_controller\project.bcsproj --input ..\..\examples\004_stateful_controller\inputs\series01.json --output ..\..\artifacts\series-output.json
-go run .\cmd\bcs-runner run-series --project ..\..\examples\013_composite_system\project.bcsproj --input ..\..\examples\013_composite_system\inputs\series01.json --output ..\..\artifacts\composite-series-output.json
-'{ "id": "case-1", "inputs": { "value": 4 }, "context": { "time": 0, "dt": 60 } }' | go run .\cmd\bcs-runner serve --project ..\..\examples\001_scalar_component\project.bcsproj
-go run .\cmd\bcs-runner schema --project ..\..\examples\003_feedforward_system\project.bcsproj --output ..\..\examples\003_feedforward_system\outputs\schema.json
-go run .\cmd\bcs-runner migrate --project ..\..\examples\001_scalar_component\project.bcsproj --output ..\..\artifacts\migration-report.json
-go run .\cmd\bcs-runner validate-data --project ..\..\examples\005_chiller_plant_like_system\project.bcsproj --mapping validation\mappings\plant_validation.json
-go run .\cmd\bcs-runner run --project ..\..\examples\005_chiller_plant_like_system\project.bcsproj --input ..\..\examples\005_chiller_plant_like_system\inputs\case01.json --parameter-set parameter_sets\high_efficiency.json
-go run .\cmd\bcs-runner calibrate --project ..\..\examples\005_chiller_plant_like_system\project.bcsproj --setup calibration\setups\chiller_cop_grid.json --output ..\..\artifacts\calibration-result.json
-go run .\cmd\bcs-runner optimize --project ..\..\examples\006_optimization_case\project.bcsproj --setup optimization\setups\chw_setpoint_grid.json --output ..\..\artifacts\optimization-result.json
 ```
+
+The full CLI command catalog for run-series, serve, schema, migrate,
+validation, calibration, optimization, saved records, and exit codes lives in
+[docs/user/cli-runner.md](docs/user/cli-runner.md).
 
 ## Component Contract
 
