@@ -51,9 +51,12 @@ import {
   connectionContractLabels,
   connectionMediumStateForNodes,
   connectionStatusLabel as connectionStatusLabelText,
+  connectionUnitConversionPresetID,
   connectionUnitConversionSummary as connectionUnitConversionSummaryText,
   connectionUnitStateForNodes,
-  normalizedUnit,
+  finiteNumberOrDefault,
+  unitConversionInitialNumber,
+  unitConversionPresetDefinition,
 } from "./connections.js";
 import { renderLogs as renderLogsView } from "./logs-panel.js";
 import {
@@ -1133,10 +1136,6 @@ function connectionUnitState(connection) {
   };
 }
 
-function normalizedUnitLabel(value) {
-  return normalizedUnit(value);
-}
-
 function connectionStatusLabel(connection, mediumState, route, unitState = connectionUnitState(connection)) {
   return connectionStatusLabelText(connection, mediumState, route, unitState);
 }
@@ -2068,7 +2067,8 @@ function connectionUnitConversionEditor(connection) {
   wrapper.className = "connection-conversion-editor";
   const unitState = connectionUnitState(connection);
   const conversion = connection.unit_conversion || null;
-  const presetID = connectionPresetID(connection, conversion);
+  const presetID = connectionUnitConversionPresetID(connection, conversion, unitState, UNIT_CONVERSION_PRESETS);
+  const activePresetDefinition = unitConversionPresetDefinition(UNIT_CONVERSION_PRESETS, presetID);
 
   const header = document.createElement("div");
   header.className = "connection-conversion-header";
@@ -2094,14 +2094,14 @@ function connectionUnitConversionEditor(connection) {
   factor.id = "connectionUnitConversionFactor";
   factor.type = "number";
   factor.step = "any";
-  factor.value = String(unitConversionInitialNumber(conversion, presetID, "factor", 1));
+  factor.value = String(unitConversionInitialNumber(conversion, activePresetDefinition, "factor", 1));
   factor.placeholder = "Factor";
 
   const offset = document.createElement("input");
   offset.id = "connectionUnitConversionOffset";
   offset.type = "number";
   offset.step = "any";
-  offset.value = String(unitConversionInitialNumber(conversion, presetID, "offset", 0));
+  offset.value = String(unitConversionInitialNumber(conversion, activePresetDefinition, "offset", 0));
   offset.placeholder = "Offset";
 
   const sample = document.createElement("input");
@@ -2113,7 +2113,7 @@ function connectionUnitConversionEditor(connection) {
 
   const description = document.createElement("input");
   description.id = "connectionUnitConversionDescription";
-  description.value = conversion?.description || presetDefinition(presetID)?.description || "";
+  description.value = conversion?.description || activePresetDefinition?.description || "";
   description.placeholder = "Description";
 
   const preview = document.createElement("div");
@@ -2166,7 +2166,7 @@ function connectionUnitConversionEditor(connection) {
   };
 
   preset.addEventListener("change", () => {
-    const definition = presetDefinition(preset.value);
+    const definition = unitConversionPresetDefinition(UNIT_CONVERSION_PRESETS, preset.value);
     if (!definition) {
       updatePreview();
       return;
@@ -2181,48 +2181,6 @@ function connectionUnitConversionEditor(connection) {
   wrapper.append(header, form);
   updatePreview();
   return wrapper;
-}
-
-function presetDefinition(presetID) {
-  return UNIT_CONVERSION_PRESETS.find(([id]) => id === presetID)?.[2] || null;
-}
-
-function connectionPresetID(connection, conversion) {
-  if (conversion) {
-    const factor = Number(conversion.factor ?? 1);
-    const offset = Number(conversion.offset ?? 0);
-    const match = UNIT_CONVERSION_PRESETS.find(([, , definition]) => (
-      definition && approximatelyEqual(definition.factor, factor) && approximatelyEqual(definition.offset, offset)
-    ));
-    return match?.[0] || "custom";
-  }
-  const unitState = connectionUnitState(connection);
-  const sourceUnit = normalizedUnitLabel(unitState.sourceUnit);
-  const targetUnit = normalizedUnitLabel(unitState.targetUnit);
-  if (sourceUnit === "w" && targetUnit === "kw") return "w_to_kw";
-  if (sourceUnit === "kw" && targetUnit === "w") return "kw_to_w";
-  if (sourceUnit === "degc" && targetUnit === "k") return "degc_to_k";
-  if (sourceUnit === "kg/s" && targetUnit === "kg/h") return "kgs_to_kgh";
-  if (sourceUnit === "fraction" && targetUnit === "percent") return "fraction_to_percent";
-  return "custom";
-}
-
-function unitConversionInitialNumber(conversion, presetID, key, fallback) {
-  if (conversion && conversion[key] !== undefined && conversion[key] !== null) return Number(conversion[key]);
-  const preset = presetDefinition(presetID);
-  if (preset && preset[key] !== undefined) return preset[key];
-  return fallback;
-}
-
-function finiteNumberOrDefault(value, fallback) {
-  const text = String(value ?? "").trim();
-  if (text === "") return fallback;
-  const parsed = Number(text);
-  return Number.isFinite(parsed) ? parsed : Number.NaN;
-}
-
-function approximatelyEqual(a, b) {
-  return Math.abs(Number(a) - Number(b)) < 1e-12;
 }
 
 function connectionUnitConversionSummary(connection, unitState = connectionUnitState(connection)) {

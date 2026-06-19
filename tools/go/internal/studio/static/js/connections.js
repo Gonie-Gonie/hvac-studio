@@ -87,10 +87,50 @@ export function connectionUnitConversionSummary(connection, unitState, formatVal
   ].filter(Boolean).join(" ");
 }
 
+export function connectionUnitConversionPresetID(connection, conversion, unitState, presets) {
+  if (conversion) {
+    const factor = Number(conversion.factor ?? 1);
+    const offset = Number(conversion.offset ?? 0);
+    const match = (presets || []).find(([, , definition]) => (
+      definition && approximatelyEqual(definition.factor, factor) && approximatelyEqual(definition.offset, offset)
+    ));
+    return match?.[0] || "custom";
+  }
+  const sourceUnit = normalizedUnit(unitState?.sourceUnit);
+  const targetUnit = normalizedUnit(unitState?.targetUnit);
+  if (sourceUnit === "w" && targetUnit === "kw") return "w_to_kw";
+  if (sourceUnit === "kw" && targetUnit === "w") return "kw_to_w";
+  if (sourceUnit === "degc" && targetUnit === "k") return "degc_to_k";
+  if (sourceUnit === "kg/s" && targetUnit === "kg/h") return "kgs_to_kgh";
+  if (sourceUnit === "fraction" && targetUnit === "percent") return "fraction_to_percent";
+  return "custom";
+}
+
+export function unitConversionPresetDefinition(presets, presetID) {
+  return (presets || []).find(([id]) => id === presetID)?.[2] || null;
+}
+
+export function unitConversionInitialNumber(conversion, preset, key, fallback) {
+  if (conversion && conversion[key] !== undefined && conversion[key] !== null) return Number(conversion[key]);
+  if (preset && preset[key] !== undefined) return preset[key];
+  return fallback;
+}
+
+export function finiteNumberOrDefault(value, fallback) {
+  const text = String(value ?? "").trim();
+  if (text === "") return fallback;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
 export function connectionContractLabels(mediumState, unitState) {
   return [
     mediumState.label ? `medium ${mediumState.label}` : "",
     unitState.label ? `unit ${unitState.label}` : "",
     unitState.valueTypeLabel ? `value_type ${unitState.valueTypeLabel}` : "",
   ].filter(Boolean);
+}
+
+function approximatelyEqual(a, b) {
+  return Math.abs(Number(a) - Number(b)) < 1e-12;
 }
