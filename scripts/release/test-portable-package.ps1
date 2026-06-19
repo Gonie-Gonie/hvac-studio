@@ -68,6 +68,31 @@ function Assert-ComponentSourceWritten {
   }
 }
 
+function Assert-RunOutputs {
+  param(
+    [Parameter(Mandatory = $true)]$RunJson,
+    [Parameter(Mandatory = $true)][string]$Label,
+    [Parameter(Mandatory = $true)]$ExpectedResult,
+    [string]$ExtraOutputId = '',
+    $ExpectedExtraOutput = $null
+  )
+
+  if ($RunJson.outputs.result -ne $ExpectedResult) {
+    throw "$Label result mismatch: result=$($RunJson.outputs.result)"
+  }
+  if (-not $ExtraOutputId) {
+    return
+  }
+
+  $ExtraProperty = $RunJson.outputs.PSObject.Properties[$ExtraOutputId]
+  if ($null -eq $ExtraProperty) {
+    throw "$Label missing included component output: $ExtraOutputId"
+  }
+  if ($ExtraProperty.Value -ne $ExpectedExtraOutput) {
+    throw "$Label included component result mismatch: $ExtraOutputId=$($ExtraProperty.Value)"
+  }
+}
+
 $TestRoot = New-PackageTestRoot -Prefix 'hvac-portable-test'
 
 $StudioProcess = $null
@@ -295,6 +320,7 @@ try {
   $IncludeResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/system/components" -Method POST -ContentType 'application/json' -Body $IncludeBody -TimeoutSec 20
   $IncludeJson = $IncludeResponse.Content | ConvertFrom-Json
   $ExtraInputId = "$($CreatedComponent.id)_value"
+  $ExtraOutputId = "$($CreatedComponent.id)_result"
   if (-not ($IncludeJson.project.graph.systems[0].public_inputs | Where-Object { $_.id -eq $ExtraInputId })) {
     throw "included component public input was not created: $ExtraInputId"
   }
@@ -511,18 +537,14 @@ try {
   if ($BatchJson.summary.case_count -ne 1 -or $BatchJson.summary.ok_count -ne 1) {
     throw "workspace batch counts mismatch: ok=$($BatchJson.summary.ok_count) cases=$($BatchJson.summary.case_count)"
   }
-  if ($BatchJson.batch.cases[0].result.outputs.result -ne 21) {
-    throw "workspace batch result mismatch: result=$($BatchJson.batch.cases[0].result.outputs.result)"
-  }
+  Assert-RunOutputs -RunJson $BatchJson.batch.cases[0].result -Label 'workspace batch' -ExpectedResult 21 -ExtraOutputId $ExtraOutputId -ExpectedExtraOutput 42
   $BatchPath = Join-Path (Split-Path -Parent $CreatedProject.project_path) $BatchJson.summary.relative_path
   if (-not (Test-Path -LiteralPath $BatchPath)) {
     throw "workspace batch record was not written: $BatchPath"
   }
   $BatchReadResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/batch?project_path=$([uri]::EscapeDataString($CreatedProject.project_path))&batch_id=$([uri]::EscapeDataString($BatchJson.summary.id))" -TimeoutSec 20
   $BatchReadJson = $BatchReadResponse.Content | ConvertFrom-Json
-  if ($BatchReadJson.batch_record.cases[0].result.outputs.result -ne 21) {
-    throw "workspace batch record detail mismatch: result=$($BatchReadJson.batch_record.cases[0].result.outputs.result)"
-  }
+  Assert-RunOutputs -RunJson $BatchReadJson.batch_record.cases[0].result -Label 'workspace batch record detail' -ExpectedResult 21 -ExtraOutputId $ExtraOutputId -ExpectedExtraOutput 42
 
   $WorkspaceRunBody = @{
     project_path = $CreatedProject.project_path
@@ -530,23 +552,14 @@ try {
   } | ConvertTo-Json -Depth 8
   $WorkspaceRunResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/run" -Method POST -ContentType 'application/json' -Body $WorkspaceRunBody -TimeoutSec 20
   $WorkspaceRunJson = $WorkspaceRunResponse.Content | ConvertFrom-Json
-  if ($WorkspaceRunJson.result.outputs.result -ne 21) {
-    throw "workspace run result mismatch: result=$($WorkspaceRunJson.result.outputs.result)"
-  }
-  $ExtraOutputId = "$($CreatedComponent.id)_result"
-  $ExtraOutput = $WorkspaceRunJson.result.outputs.PSObject.Properties[$ExtraOutputId].Value
-  if ($ExtraOutput -ne 42) {
-    throw "workspace included component result mismatch: $ExtraOutputId=$ExtraOutput"
-  }
+  Assert-RunOutputs -RunJson $WorkspaceRunJson.result -Label 'workspace run' -ExpectedResult 21 -ExtraOutputId $ExtraOutputId -ExpectedExtraOutput 42
   $RunRecordPath = Join-Path (Split-Path -Parent $CreatedProject.project_path) $WorkspaceRunJson.run_record.relative_path
   if (-not (Test-Path -LiteralPath $RunRecordPath)) {
     throw "workspace run record was not written: $RunRecordPath"
   }
   $RunRecordResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/project/run?project_path=$([uri]::EscapeDataString($CreatedProject.project_path))&run_id=$([uri]::EscapeDataString($WorkspaceRunJson.run_record.id))" -TimeoutSec 20
   $RunRecordJson = $RunRecordResponse.Content | ConvertFrom-Json
-  if ($RunRecordJson.run_record.result.outputs.result -ne 21) {
-    throw "workspace run record detail mismatch: result=$($RunRecordJson.run_record.result.outputs.result)"
-  }
+  Assert-RunOutputs -RunJson $RunRecordJson.run_record.result -Label 'workspace run record detail' -ExpectedResult 21 -ExtraOutputId $ExtraOutputId -ExpectedExtraOutput 42
 
   $ExportBody = @{ project_path = $CreatedProject.project_path; profile = 'runtime_package' } | ConvertTo-Json -Depth 4
   $ExportResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/export" -Method POST -ContentType 'application/json' -Body $ExportBody -TimeoutSec 20
@@ -611,27 +624,17 @@ try {
   Invoke-Checked $ExportRunnerPath @('validate', '--project', $ExportProjectPath)
   Invoke-Checked $ExportRunnerPath @('run', '--project', $ExportProjectPath, '--input', $ExportInputPath, '--output', $ExportOutputPath)
   $ExportRunJson = Get-Content -Raw -LiteralPath $ExportOutputPath | ConvertFrom-Json
-  if ($ExportRunJson.outputs.result -ne 21) {
-    throw "exported runtime run result mismatch: result=$($ExportRunJson.outputs.result)"
-  }
-  $ExportExtraOutput = $ExportRunJson.outputs.PSObject.Properties[$ExtraOutputId].Value
-  if ($ExportExtraOutput -ne 42) {
-    throw "exported runtime included component result mismatch: $ExtraOutputId=$ExportExtraOutput"
-  }
+  Assert-RunOutputs -RunJson $ExportRunJson -Label 'exported runtime run' -ExpectedResult 21 -ExtraOutputId $ExtraOutputId -ExpectedExtraOutput 42
   $ExportRunScript = Join-Path $ExportRoot 'run-default.ps1'
   $ExportScriptOutputPath = Join-Path $TestRoot 'exported-runtime-script-output.json'
   Invoke-Checked $PowerShellExe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ExportRunScript, '-Output', $ExportScriptOutputPath)
   $ExportScriptRunJson = Get-Content -Raw -LiteralPath $ExportScriptOutputPath | ConvertFrom-Json
-  if ($ExportScriptRunJson.outputs.result -ne 21) {
-    throw "exported runtime script result mismatch: result=$($ExportScriptRunJson.outputs.result)"
-  }
+  Assert-RunOutputs -RunJson $ExportScriptRunJson -Label 'exported runtime script' -ExpectedResult 21 -ExtraOutputId $ExtraOutputId -ExpectedExtraOutput 42
   $ExportScenarioScript = Join-Path $ExportRoot 'run-scenario.ps1'
   $ExportScenarioOutputPath = Join-Path $TestRoot 'exported-runtime-scenario-output.json'
   Invoke-Checked $PowerShellExe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ExportScenarioScript, '-InputFile', 'project\inputs\case01.json', '-Output', $ExportScenarioOutputPath)
   $ExportScenarioJson = Get-Content -Raw -LiteralPath $ExportScenarioOutputPath | ConvertFrom-Json
-  if ($ExportScenarioJson.outputs.result -ne 21) {
-    throw "exported runtime scenario script result mismatch: result=$($ExportScenarioJson.outputs.result)"
-  }
+  Assert-RunOutputs -RunJson $ExportScenarioJson -Label 'exported runtime scenario script' -ExpectedResult 21 -ExtraOutputId $ExtraOutputId -ExpectedExtraOutput 42
   $ExportSeriesScript = Join-Path $ExportRoot 'run-series.ps1'
   $ExportSeriesOutputPath = Join-Path $TestRoot 'exported-runtime-series-output.json'
   Invoke-Checked $PowerShellExe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ExportSeriesScript, '-Output', $ExportSeriesOutputPath)
@@ -653,12 +656,8 @@ try {
   Invoke-Checked $PowerShellExe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ExportBatchScript, '-ScenarioDir', 'requests\batch', '-OutputDir', 'outputs\portable-smoke-batch')
   $ExportBatchCase1Json = Get-Content -Raw -LiteralPath (Join-Path $ExportRoot 'outputs\portable-smoke-batch\case01.json') | ConvertFrom-Json
   $ExportBatchCase2Json = Get-Content -Raw -LiteralPath (Join-Path $ExportRoot 'outputs\portable-smoke-batch\case02.json') | ConvertFrom-Json
-  if ($ExportBatchCase1Json.outputs.result -ne 21 -or $ExportBatchCase1Json.outputs.PSObject.Properties[$ExtraOutputId].Value -ne 42) {
-    throw "exported runtime batch case01 mismatch: result=$($ExportBatchCase1Json.outputs.result) $ExtraOutputId=$($ExportBatchCase1Json.outputs.PSObject.Properties[$ExtraOutputId].Value)"
-  }
-  if ($ExportBatchCase2Json.outputs.result -ne 24 -or $ExportBatchCase2Json.outputs.PSObject.Properties[$ExtraOutputId].Value -ne 48) {
-    throw "exported runtime batch case02 mismatch: result=$($ExportBatchCase2Json.outputs.result) $ExtraOutputId=$($ExportBatchCase2Json.outputs.PSObject.Properties[$ExtraOutputId].Value)"
-  }
+  Assert-RunOutputs -RunJson $ExportBatchCase1Json -Label 'exported runtime batch case01' -ExpectedResult 21 -ExtraOutputId $ExtraOutputId -ExpectedExtraOutput 42
+  Assert-RunOutputs -RunJson $ExportBatchCase2Json -Label 'exported runtime batch case02' -ExpectedResult 24 -ExtraOutputId $ExtraOutputId -ExpectedExtraOutput 48
   $ExportValidationScript = Join-Path $ExportRoot 'validate-data.ps1'
   $ExportValidationOutputPath = Join-Path $TestRoot 'exported-runtime-validation-output.json'
   Invoke-Checked $PowerShellExe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ExportValidationScript, '-Output', $ExportValidationOutputPath)
@@ -698,12 +697,14 @@ try {
   $ExportServeCase1 = $ExportServeResponses | Where-Object { $_.id -eq 'case-1' } | Select-Object -First 1
   $ExportServeCase2 = $ExportServeResponses | Where-Object { $_.id -eq 'case-2' } | Select-Object -First 1
   $ExportServeShutdown = $ExportServeResponses | Where-Object { $_.id -eq 'stop' } | Select-Object -First 1
-  if (-not $ExportServeCase1.ok -or $ExportServeCase1.result.outputs.result -ne 21 -or $ExportServeCase1.result.outputs.PSObject.Properties[$ExtraOutputId].Value -ne 42) {
-    throw "exported runtime serve case-1 mismatch: ok=$($ExportServeCase1.ok) result=$($ExportServeCase1.result.outputs.result) $ExtraOutputId=$($ExportServeCase1.result.outputs.PSObject.Properties[$ExtraOutputId].Value)"
+  if (-not $ExportServeCase1.ok) {
+    throw "exported runtime serve case-1 failed: ok=$($ExportServeCase1.ok)"
   }
-  if (-not $ExportServeCase2.ok -or $ExportServeCase2.result.outputs.result -ne 24 -or $ExportServeCase2.result.outputs.PSObject.Properties[$ExtraOutputId].Value -ne 48) {
-    throw "exported runtime serve case-2 mismatch: ok=$($ExportServeCase2.ok) result=$($ExportServeCase2.result.outputs.result) $ExtraOutputId=$($ExportServeCase2.result.outputs.PSObject.Properties[$ExtraOutputId].Value)"
+  Assert-RunOutputs -RunJson $ExportServeCase1.result -Label 'exported runtime serve case-1' -ExpectedResult 21 -ExtraOutputId $ExtraOutputId -ExpectedExtraOutput 42
+  if (-not $ExportServeCase2.ok) {
+    throw "exported runtime serve case-2 failed: ok=$($ExportServeCase2.ok)"
   }
+  Assert-RunOutputs -RunJson $ExportServeCase2.result -Label 'exported runtime serve case-2' -ExpectedResult 24 -ExtraOutputId $ExtraOutputId -ExpectedExtraOutput 48
   if (-not $ExportServeShutdown.ok -or $ExportServeShutdown.message -ne 'shutdown') {
     throw "exported runtime serve shutdown mismatch: ok=$($ExportServeShutdown.ok) message=$($ExportServeShutdown.message)"
   }
@@ -712,9 +713,7 @@ try {
   Invoke-Checked $ExportRuntimePython @($ExportSDKExample)
   $ExportSDKOutputPath = Join-Path $ExportRoot 'outputs\sdk-example-output.json'
   $ExportSDKJson = Get-Content -Raw -LiteralPath $ExportSDKOutputPath | ConvertFrom-Json
-  if ($ExportSDKJson.outputs.result -ne 21 -or $ExportSDKJson.outputs.PSObject.Properties[$ExtraOutputId].Value -ne 42) {
-    throw "exported runtime SDK example mismatch: result=$($ExportSDKJson.outputs.result) $ExtraOutputId=$($ExportSDKJson.outputs.PSObject.Properties[$ExtraOutputId].Value)"
-  }
+  Assert-RunOutputs -RunJson $ExportSDKJson -Label 'exported runtime SDK example' -ExpectedResult 21 -ExtraOutputId $ExtraOutputId -ExpectedExtraOutput 42
   $ExportOptimizeSDK = Join-Path $ExportRoot 'optimize-sdk.py'
   $ExportOptimizeSDKOutputPath = Join-Path $TestRoot 'exported-runtime-optimization-sdk-output.json'
   Invoke-Checked $ExportRuntimePython @($ExportOptimizeSDK, '--output', $ExportOptimizeSDKOutputPath)
