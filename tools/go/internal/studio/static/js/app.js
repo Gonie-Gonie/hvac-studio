@@ -32,8 +32,10 @@ import {
 import {
   coerceInput,
   coerceParameter,
+  finiteNumber,
   formatValue,
   parameterInputValue,
+  shortNumber,
 } from "./format.js";
 import {
   connectionContractLabels,
@@ -440,12 +442,6 @@ function artifactWorkspaceContext() {
     shortNumber,
     treeStatic,
   };
-}
-
-function shortNumber(value) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return "";
-  return Math.round(numeric * 1000) / 1000;
 }
 
 function treeItem(id, label, meta) {
@@ -2310,11 +2306,6 @@ function finiteNumberOrDefault(value, fallback) {
   if (text === "") return fallback;
   const parsed = Number(text);
   return Number.isFinite(parsed) ? parsed : Number.NaN;
-}
-
-function finiteNumber(value) {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : null;
 }
 
 function approximatelyEqual(a, b) {

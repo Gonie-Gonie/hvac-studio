@@ -1,4 +1,5 @@
 import { escapeHTML } from "./dom.js";
+import { finiteNumber, shortNumber } from "./format.js";
 
 export function metricBars(metrics) {
   const block = document.createElement("div");
@@ -281,17 +282,6 @@ function scaleIndex(index, length, min, max) {
 
 function scaleValue(value, extent, min, max) {
   return min + ((Number(value) - extent.min) / (extent.max - extent.min)) * (max - min);
-}
-
-function finiteNumber(value) {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : null;
-}
-
-function shortNumber(value) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return "";
-  return Math.round(numeric * 1000) / 1000;
 }
 
 function svgNode(name, attrs = {}) {

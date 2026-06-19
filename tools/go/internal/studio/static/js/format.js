@@ -40,3 +40,14 @@ export function formatValue(value) {
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
 }
+
+export function finiteNumber(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+export function shortNumber(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "";
+  return Math.round(numeric * 1000) / 1000;
+}
