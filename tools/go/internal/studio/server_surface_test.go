@@ -287,6 +287,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	replacementPreviewBody := getRouteBody(t, server, "/js/replacement-preview.js")
 	nodeImpactBody := getRouteBody(t, server, "/js/node-impact.js")
 	contractImpactBody := getRouteBody(t, server, "/js/contract-impact.js")
+	contractAuthoringBody := getRouteBody(t, server, "/js/contract-authoring.js")
 	contractLabelsBody := getRouteBody(t, server, "/js/contract-labels.js")
 	calibrationSetupEditorBody := getRouteBody(t, server, "/js/calibration-setup-editor.js")
 	optimizationSetupEditorBody := getRouteBody(t, server, "/js/optimization-setup-editor.js")
@@ -326,6 +327,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte(`from "./contract-impact.js"`)) {
 		t.Fatalf("module entrypoint did not import contract impact helpers")
+	}
+	if !bytes.Contains(body, []byte(`from "./contract-authoring.js"`)) ||
+		!bytes.Contains(contractAuthoringBody, []byte("newParameterDefinition")) ||
+		!bytes.Contains(contractAuthoringBody, []byte("parameterDefinitionFromFields")) ||
+		!bytes.Contains(contractAuthoringBody, []byte("PARAMETER_ROLES")) {
+		t.Fatalf("module entrypoint did not import shared contract authoring helpers")
 	}
 	if !bytes.Contains(body, []byte(`from "./contract-labels.js"`)) ||
 		!bytes.Contains(sourceAuthoringBody, []byte(`from "./contract-labels.js"`)) ||

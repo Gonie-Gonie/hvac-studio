@@ -43,6 +43,11 @@ import {
   stateDeleteImpactDetails,
   stateDeleteImpactSummary,
 } from "./contract-impact.js";
+import {
+  displayNameFromIdentifier,
+  newParameterDefinition as buildNewParameterDefinition,
+  parameterDefinitionFromFields,
+} from "./contract-authoring.js";
 import { el, escapeAttr, escapeHTML } from "./dom.js";
 import {
   collectDatasetUnitHints,
@@ -5181,8 +5186,12 @@ async function addParameter(componentID, name, value, options = {}) {
     return;
   }
   const parameterValue = coerceParameter(value);
-  const definition = newParameterDefinition(name, parameterValue, options);
-  if (definition === false) return;
+  const definitionResult = buildNewParameterDefinition(name, parameterValue, options);
+  if (definitionResult.error) {
+    showInlineProblem(definitionResult.error);
+    return;
+  }
+  const definition = definitionResult.definition;
   try {
     const body = definition
       ? await api("/api/project/component-contract", {
@@ -5211,78 +5220,13 @@ async function addParameter(componentID, name, value, options = {}) {
   }
 }
 
-function newParameterDefinition(name, value, options) {
-  const role = (options.role || "fixed").trim() || "fixed";
-  const min = (options.min || "").trim();
-  const max = (options.max || "").trim();
-  if (role === "fixed" && min === "" && max === "") return null;
-  if (!PARAMETER_ROLES.includes(role)) {
-    showInlineProblem(`Parameter role is invalid: ${role}`);
-    return false;
-  }
-  const minNumber = min === "" ? null : Number(min);
-  const maxNumber = max === "" ? null : Number(max);
-  if (min !== "" && !Number.isFinite(minNumber)) {
-    showInlineProblem(`Parameter bounds min must be numeric: ${name}`);
-    return false;
-  }
-  if (max !== "" && !Number.isFinite(maxNumber)) {
-    showInlineProblem(`Parameter bounds max must be numeric: ${name}`);
-    return false;
-  }
-  if (minNumber !== null && maxNumber !== null && minNumber > maxNumber) {
-    showInlineProblem(`Parameter bounds min must be <= max: ${name}`);
-    return false;
-  }
-  const definition = {
-    display_name: displayNameFromIdentifier(name),
-    role,
-    current: value,
-    default: value,
-    visible: true,
-  };
-  if (min !== "" || max !== "") {
-    definition.bounds = {};
-    if (min !== "") definition.bounds.min = coerceParameter(min);
-    if (max !== "") definition.bounds.max = coerceParameter(max);
-  }
-  return definition;
-}
-
 async function saveParameterDefinition(componentID, name, row) {
   if (!componentID || !name || !row || !isWorkspaceProject()) return;
   const fields = contractFields(row);
-  const value = coerceParameter(fields.value || "");
-  const definition = {
-    display_name: fields.display || "",
-    unit: fields.unit || "",
-    role: fields.role || "fixed",
-    group: fields.group || "",
-    description: fields.description || "",
-    current: value,
-    visible: fields.visible !== false,
-  };
-  if ((fields.default || "").trim() !== "") definition.default = coerceParameter(fields.default);
-  const min = (fields.min || "").trim();
-  const max = (fields.max || "").trim();
-  if (min !== "" || max !== "") {
-    const minNumber = min === "" ? null : Number(min);
-    const maxNumber = max === "" ? null : Number(max);
-    if (min !== "" && !Number.isFinite(minNumber)) {
-      showInlineProblem(`Parameter bounds min must be numeric: ${componentID}.${name}`);
-      return;
-    }
-    if (max !== "" && !Number.isFinite(maxNumber)) {
-      showInlineProblem(`Parameter bounds max must be numeric: ${componentID}.${name}`);
-      return;
-    }
-    if (minNumber !== null && maxNumber !== null && minNumber > maxNumber) {
-      showInlineProblem(`Parameter bounds min must be <= max: ${componentID}.${name}`);
-      return;
-    }
-    definition.bounds = {};
-    if (min !== "") definition.bounds.min = coerceParameter(min);
-    if (max !== "") definition.bounds.max = coerceParameter(max);
+  const definitionResult = parameterDefinitionFromFields(`${componentID}.${name}`, fields);
+  if (definitionResult.error) {
+    showInlineProblem(definitionResult.error);
+    return;
   }
   try {
     const body = await api("/api/project/component-contract", {
@@ -5290,8 +5234,8 @@ async function saveParameterDefinition(componentID, name, row) {
       body: JSON.stringify({
         project_path: state.currentProjectPath,
         component_id: componentID,
-        parameters: { [name]: value },
-        parameter_defs: { [name]: definition },
+        parameters: { [name]: definitionResult.value },
+        parameter_defs: { [name]: definitionResult.definition },
       }),
     });
     state.detail = body.project;
@@ -5417,14 +5361,6 @@ function contractFields(row) {
     }
   }
   return fields;
-}
-
-function displayNameFromIdentifier(value) {
-  return String(value || "")
-    .split(/[_\-\s]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
 }
 
 function syncParameterInputs(componentID, name, value, source) {
