@@ -70,6 +70,38 @@ export function nodeDeleteImpactConfirmText(impact) {
   return details ? `${summary}\n${details}` : summary;
 }
 
+export function nodeRenameImpact(component, node, nextNodeID, system, graphConnections = []) {
+  const impact = nodeDeleteImpact(component, node, system, graphConnections);
+  return {
+    ...impact,
+    next_node_id: nextNodeID || "",
+  };
+}
+
+export function nodeRenameImpactSummary(impact) {
+  const updates = [
+    countLabel(impact.public_inputs, "public input"),
+    countLabel(impact.public_outputs, "public output"),
+    countLabel(impact.connections, "connection"),
+  ].filter(Boolean);
+  return updates.length ? `Updates ${updates.join(", ")}` : "No system references will be updated.";
+}
+
+export function nodeRenameImpactDetails(impact) {
+  return [
+    impact.node_id && impact.next_node_id ? `Node id: ${impact.node_id} -> ${impact.next_node_id}` : "",
+    detailLine("Public inputs", impact.public_inputs),
+    detailLine("Public outputs", impact.public_outputs),
+    detailLine("Connections", impact.connections),
+  ].filter(Boolean).join("\n");
+}
+
+export function nodeRenameImpactConfirmText(impact, sourceDetails = "") {
+  const summary = nodeRenameImpactSummary(impact);
+  const details = [nodeRenameImpactDetails(impact), sourceDetails].filter(Boolean).join("\n");
+  return details ? `${summary}\n${details}` : summary;
+}
+
 function emptyImpact() {
   return {
     component_id: "",

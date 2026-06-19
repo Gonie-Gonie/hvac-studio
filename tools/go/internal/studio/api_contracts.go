@@ -144,6 +144,7 @@ type updateNodeRequest struct {
 	ProjectPath     string `json:"project_path"`
 	ComponentID     string `json:"component_id"`
 	NodeID          string `json:"node_id"`
+	NewID           string `json:"new_id"`
 	Name            string `json:"name"`
 	Medium          string `json:"medium"`
 	ValueType       string `json:"value_type"`

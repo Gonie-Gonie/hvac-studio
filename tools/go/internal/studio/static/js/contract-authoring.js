@@ -49,7 +49,21 @@ export function newNodePayload(projectPath, component, values = {}) {
   return { payload, nodeID };
 }
 
-export function nodeUpdatePayload(projectPath, componentID, nodeID, direction, fields = {}) {
+export function nodeUpdatePayload(projectPath, component, nodeID, direction, fields = {}) {
+  const componentID = component?.id || "";
+  const newID = (fields.id || "").trim();
+  if (!newID) {
+    return { error: "Node id is required" };
+  }
+  if (!IDENTIFIER_PATTERN.test(newID)) {
+    return { error: "Node id must start with a letter or underscore and contain only letters, numbers, and underscores" };
+  }
+  if (newID !== nodeID) {
+    const existingNodes = [...(component?.nodes?.inputs || []), ...(component?.nodes?.outputs || [])];
+    if (existingNodes.some((node) => node.id === newID)) {
+      return { error: `Node already exists: ${componentID}.${newID}` };
+    }
+  }
   const name = (fields.name || "").trim();
   if (!name) {
     return { error: "Node name is required" };
@@ -58,6 +72,7 @@ export function nodeUpdatePayload(projectPath, componentID, nodeID, direction, f
     project_path: projectPath,
     component_id: componentID,
     node_id: nodeID,
+    new_id: newID,
     name,
     medium: (fields.medium || "").trim(),
     value_type: fields.value_type || "float",
@@ -68,7 +83,7 @@ export function nodeUpdatePayload(projectPath, componentID, nodeID, direction, f
     payload.required = Boolean(fields.required);
     payload.default = rawDefault.trim() === "" ? null : coerceParameter(rawDefault);
   }
-  return { payload };
+  return { payload, newID, renamed: newID !== nodeID };
 }
 
 export function newParameterDefinition(name, value, options = {}) {

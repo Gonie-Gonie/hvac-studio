@@ -177,6 +177,17 @@ func updateNode(loaded *project.LoadedProject, req updateNodeRequest) (model.Nod
 		return model.Node{}, apperror.Errorf(apperror.CodeValidation, "node not found: %s.%s", componentID, nodeID)
 	}
 
+	newID := strings.TrimSpace(req.NewID)
+	if newID == "" {
+		newID = nodeID
+	}
+	if !isIdentifierLike(newID) {
+		return model.Node{}, apperror.Errorf(apperror.CodeValidation, "node id must start with a letter or underscore and contain only letters, numbers, and underscores")
+	}
+	if newID != nodeID && componentHasNode(*component, newID) {
+		return model.Node{}, apperror.Errorf(apperror.CodeValidation, "component already has node: %s.%s", componentID, newID)
+	}
+
 	var node *model.Node
 	if isInput {
 		node = &component.Nodes.Inputs[nodeIndex]
@@ -195,6 +206,7 @@ func updateNode(loaded *project.LoadedProject, req updateNodeRequest) (model.Nod
 	if valueType == "" {
 		valueType = "float"
 	}
+	node.ID = newID
 	node.Name = name
 	node.Medium = medium
 	node.ValueType = valueType
@@ -246,6 +258,17 @@ func updateNode(loaded *project.LoadedProject, req updateNodeRequest) (model.Nod
 				continue
 			}
 			updatePublicNodeRef(ref, updatedNode)
+		}
+	}
+	if newID != nodeID {
+		for connectionIndex := range loaded.Graph.Connections {
+			connection := &loaded.Graph.Connections[connectionIndex]
+			if endpointMatches(connection.From, componentID, nodeID) {
+				connection.From.Node = newID
+			}
+			if endpointMatches(connection.To, componentID, nodeID) {
+				connection.To.Node = newID
+			}
 		}
 	}
 

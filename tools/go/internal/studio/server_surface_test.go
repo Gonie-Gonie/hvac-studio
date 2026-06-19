@@ -802,6 +802,14 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("updateNodeFromInspector")) {
 		t.Fatalf("module entrypoint did not include node metadata editing")
 	}
+	if !bytes.Contains(body, []byte(`data-node-field`)) ||
+		!bytes.Contains(body, []byte("confirmNodeRename")) ||
+		!bytes.Contains(body, []byte("nodeRenameSourceDetails")) ||
+		!bytes.Contains(contractAuthoringBody, []byte("new_id")) ||
+		!bytes.Contains(nodeImpactBody, []byte("nodeRenameImpact")) ||
+		!bytes.Contains(nodeImpactBody, []byte("nodeRenameImpactConfirmText")) {
+		t.Fatalf("module entrypoint did not include node rename impact confirmation")
+	}
 	if !bytes.Contains(body, []byte("node-impact")) ||
 		!bytes.Contains(body, []byte("nodeDeleteImpactConfirmText")) ||
 		!bytes.Contains(nodeImpactBody, []byte("nodeDeleteImpact")) ||

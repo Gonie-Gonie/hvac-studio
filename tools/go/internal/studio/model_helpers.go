@@ -331,6 +331,7 @@ func normalizeColumnName(value string) string {
 }
 
 func updatePublicNodeRef(ref *model.PublicNodeRef, node model.Node) {
+	ref.Node = node.ID
 	ref.Name = node.Name
 	ref.Medium = node.Medium
 	ref.ValueType = node.ValueType

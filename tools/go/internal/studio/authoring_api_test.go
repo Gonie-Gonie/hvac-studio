@@ -1379,6 +1379,139 @@ func TestUpdateNodeEndpointUpdatesPublicIOAndDefaultInput(t *testing.T) {
 	}
 }
 
+func TestUpdateNodeEndpointRenamesNodeReferences(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	projectSummary := createWorkspaceProject(t, server, "Rename Node Project")
+
+	componentPayload, err := json.Marshal(map[string]any{
+		"project_path": projectSummary.ProjectPath,
+		"name":         "Second Gain",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	componentResponse := httptest.NewRecorder()
+	componentRequest := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(componentPayload))
+	server.Handler().ServeHTTP(componentResponse, componentRequest)
+	if componentResponse.Code != http.StatusCreated {
+		t.Fatalf("component status = %d body=%s", componentResponse.Code, componentResponse.Body.String())
+	}
+	includePayload, err := json.Marshal(map[string]any{
+		"project_path": projectSummary.ProjectPath,
+		"component_id": "second_gain",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	includeResponse := httptest.NewRecorder()
+	includeRequest := httptest.NewRequest(http.MethodPost, "/api/project/system/components", bytes.NewReader(includePayload))
+	server.Handler().ServeHTTP(includeResponse, includeRequest)
+	if includeResponse.Code != http.StatusOK {
+		t.Fatalf("include status = %d body=%s", includeResponse.Code, includeResponse.Body.String())
+	}
+	connectionPayload, err := json.Marshal(map[string]any{
+		"project_path":   projectSummary.ProjectPath,
+		"from_component": "scalar",
+		"from_node":      "result",
+		"to_component":   "second_gain",
+		"to_node":        "value",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	connectionResponse := httptest.NewRecorder()
+	connectionRequest := httptest.NewRequest(http.MethodPost, "/api/project/connections", bytes.NewReader(connectionPayload))
+	server.Handler().ServeHTTP(connectionResponse, connectionRequest)
+	if connectionResponse.Code != http.StatusCreated {
+		t.Fatalf("connection status = %d body=%s", connectionResponse.Code, connectionResponse.Body.String())
+	}
+
+	renamePayload, err := json.Marshal(map[string]any{
+		"project_path": projectSummary.ProjectPath,
+		"component_id": "scalar",
+		"node_id":      "result",
+		"new_id":       "supply_air",
+		"name":         "Supply air",
+		"medium":       "signal",
+		"value_type":   "float",
+		"unit":         "",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	renameResponse := httptest.NewRecorder()
+	renameRequest := httptest.NewRequest(http.MethodPost, "/api/project/nodes/update", bytes.NewReader(renamePayload))
+	server.Handler().ServeHTTP(renameResponse, renameRequest)
+	if renameResponse.Code != http.StatusOK {
+		t.Fatalf("rename status = %d body=%s", renameResponse.Code, renameResponse.Body.String())
+	}
+
+	loaded, err := project.Load(projectSummary.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scalar, found := findComponent(loaded.Graph, "scalar")
+	if !found {
+		t.Fatal("scalar component missing")
+	}
+	for _, node := range scalar.Nodes.Outputs {
+		if node.ID == "result" {
+			t.Fatalf("old output node id remained: %#v", scalar.Nodes.Outputs)
+		}
+	}
+	foundRenamedOutput := false
+	for _, node := range scalar.Nodes.Outputs {
+		if node.ID == "supply_air" && node.Name == "Supply air" && node.Medium == "signal" {
+			foundRenamedOutput = true
+		}
+	}
+	if !foundRenamedOutput {
+		t.Fatalf("renamed output node missing: %#v", scalar.Nodes.Outputs)
+	}
+	foundPublicOutput := false
+	for _, output := range loaded.Graph.Systems[0].PublicOutputs {
+		if output.Component == "scalar" {
+			if output.Node != "supply_air" || output.Name != "Supply air" || output.Medium != "signal" {
+				t.Fatalf("public output was not renamed with node metadata: %#v", output)
+			}
+			foundPublicOutput = true
+		}
+	}
+	if !foundPublicOutput {
+		t.Fatalf("scalar public output missing after rename: %#v", loaded.Graph.Systems[0].PublicOutputs)
+	}
+	if len(loaded.Graph.Connections) != 1 || loaded.Graph.Connections[0].From.Node != "supply_air" {
+		t.Fatalf("connection endpoint was not renamed: %#v", loaded.Graph.Connections)
+	}
+	if strings.TrimSpace(scalar.Source.Wrapper) != "" {
+		wrapperBytes, err := os.ReadFile(filepath.Join(loaded.Root, scalar.Source.Wrapper))
+		if err != nil {
+			t.Fatal(err)
+		}
+		wrapperContent := string(wrapperBytes)
+		if !strings.Contains(wrapperContent, "Outputs: supply_air") || strings.Contains(wrapperContent, "Outputs: result") {
+			t.Fatalf("wrapper output contract was not renamed:\n%s", wrapperContent)
+		}
+	}
+
+	duplicatePayload, err := json.Marshal(map[string]any{
+		"project_path": projectSummary.ProjectPath,
+		"component_id": "scalar",
+		"node_id":      "value",
+		"new_id":       "supply_air",
+		"name":         "Value",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	duplicateResponse := httptest.NewRecorder()
+	duplicateRequest := httptest.NewRequest(http.MethodPost, "/api/project/nodes/update", bytes.NewReader(duplicatePayload))
+	server.Handler().ServeHTTP(duplicateResponse, duplicateRequest)
+	if duplicateResponse.Code != http.StatusBadRequest {
+		t.Fatalf("duplicate rename status = %d body=%s", duplicateResponse.Code, duplicateResponse.Body.String())
+	}
+}
+
 func TestDeleteNodeEndpointCleansPublicIOAndConnections(t *testing.T) {
 	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()

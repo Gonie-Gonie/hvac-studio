@@ -32,6 +32,8 @@ import {
   nodeDeleteImpactConfirmText,
   nodeDeleteImpactDetails,
   nodeDeleteImpactSummary,
+  nodeRenameImpact,
+  nodeRenameImpactConfirmText,
 } from "./node-impact.js";
 import {
   parameterDeleteImpact,
@@ -1377,6 +1379,13 @@ function editableNodeRow(component, node, direction) {
   const controls = document.createElement("span");
   controls.className = "node-meta-controls";
 
+  const nodeID = document.createElement("input");
+  nodeID.className = "inspector-input";
+  nodeID.value = node.id;
+  nodeID.placeholder = "id";
+  nodeID.dataset.nodeField = "id";
+  nodeID.setAttribute("aria-label", `${component.id}.${node.id} id`);
+
   const name = document.createElement("input");
   name.className = "inspector-input";
   name.value = node.name || node.id;
@@ -1410,7 +1419,7 @@ function editableNodeRow(component, node, direction) {
   unit.dataset.nodeField = "unit";
   unit.setAttribute("aria-label", `${component.id}.${node.id} unit`);
 
-  controls.append(name, medium, valueType, unit);
+  controls.append(nodeID, name, medium, valueType, unit);
 
   if (direction === "input") {
     const defaultValue = document.createElement("input");
@@ -5062,10 +5071,12 @@ async function addNodeFromInspector(componentID) {
 
 async function updateNodeFromInspector(componentID, nodeID, direction, row) {
   if (!componentID || !nodeID || !isWorkspaceProject()) return;
+  const component = componentById(componentID);
   const form = row || findNodeEditRow(componentID, nodeID);
-  if (!form) return;
+  if (!component || !form) return;
   const field = (name) => form.querySelector(`[data-node-field="${name}"]`);
-  const updateResult = buildNodeUpdatePayload(state.currentProjectPath, componentID, nodeID, direction, {
+  const updateResult = buildNodeUpdatePayload(state.currentProjectPath, component, nodeID, direction, {
+    id: field("id")?.value || "",
     name: field("name")?.value || "",
     medium: field("medium")?.value || "",
     value_type: field("value_type")?.value || "float",
@@ -5077,6 +5088,7 @@ async function updateNodeFromInspector(componentID, nodeID, direction, row) {
     showInlineProblem(updateResult.error);
     return;
   }
+  if (updateResult.renamed && !(await confirmNodeRename(component, nodeID, updateResult.newID))) return;
   try {
     const body = await api("/api/project/nodes/update", {
       method: "POST",
@@ -5093,6 +5105,29 @@ async function updateNodeFromInspector(componentID, nodeID, direction, row) {
     renderProblems();
     setBottomTab("problems");
   }
+}
+
+async function confirmNodeRename(component, nodeID, newID) {
+  const node = [...(component.nodes.inputs || []), ...(component.nodes.outputs || [])].find((item) => item.id === nodeID);
+  const impact = nodeRenameImpact(component, node || nodeID, newID, currentSystem(), state.detail?.graph?.connections || []);
+  const sourceDetails = await nodeRenameSourceDetails(component.id, nodeID);
+  return window.confirm(`Rename node ${component.id}.${nodeID} to ${newID}?\n${nodeRenameImpactConfirmText(impact, sourceDetails)}`);
+}
+
+async function nodeRenameSourceDetails(componentID, nodeID) {
+  if (!state.sourceByComponent[componentID] && !state.loadingSource[componentID]) {
+    await loadComponentSource(componentID);
+  }
+  const source = state.sourceByComponent[componentID];
+  if (!source) {
+    return "Source body: not loaded; run source check after rename.";
+  }
+  const content = sourceDraft(componentID);
+  const count = String(content || "").split(nodeID).length - 1;
+  if (!count) {
+    return "Source body: no direct old node id text found in loaded source.";
+  }
+  return `Source body: ${count} direct reference${count === 1 ? "" : "s"} to old node id '${nodeID}' may need editing.`;
 }
 
 function findNodeEditRow(componentID, nodeID) {
