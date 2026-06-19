@@ -19,6 +19,10 @@ For repository smoke tests, the same protocol is exercised with:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-serve-protocol.ps1
 ```
 
+That smoke test runs both the raw JSONL request stream and the raw Python
+subprocess example so SDK-free integrations keep the same request, response,
+error, and shutdown behavior.
+
 ## Request Schema
 
 Reusable JSON Schema file: `schema/serve-request.schema.json`.

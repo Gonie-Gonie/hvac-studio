@@ -64,6 +64,9 @@ Pop-Location
 The stream sends two successful evaluations, one structured error case, and a
 shutdown request.
 
+`scripts/dev/test-serve-protocol.ps1` smoke-tests this request stream and the
+raw subprocess example below against the same expected responses.
+
 Reusable protocol schemas live at:
 
 - `schema/serve-request.schema.json`
