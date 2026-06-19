@@ -46,7 +46,9 @@ import {
 import {
   displayNameFromIdentifier,
   newParameterDefinition as buildNewParameterDefinition,
+  newStateDefinition as buildNewStateDefinition,
   parameterDefinitionFromFields,
+  stateDefinitionFromFields,
 } from "./contract-authoring.js";
 import { el, escapeAttr, escapeHTML } from "./dom.js";
 import {
@@ -5282,24 +5284,14 @@ async function addStateDefinition(componentID, name, initial, options = {}) {
     showInlineProblem("State name must start with a letter or underscore and contain only letters, numbers, and underscores");
     return;
   }
-  const definition = {
-    display_name: displayNameFromIdentifier(name),
-    initial: (initial || "").trim() === "" ? 0.0 : coerceParameter(initial),
-  };
-  if ((options.unit || "").trim() !== "") definition.unit = options.unit.trim();
-  if ((options.description || "").trim() !== "") definition.description = options.description.trim();
+  const { definition } = buildNewStateDefinition(name, initial, options);
   await saveStateDefinitionPayload(componentID, name, definition, `State definition added: ${componentID}.${name}`);
 }
 
 async function saveStateDefinition(componentID, name, row) {
   if (!componentID || !name || !row || !isWorkspaceProject()) return;
   const fields = contractFields(row);
-  const definition = {
-    display_name: fields.display || "",
-    unit: fields.unit || "",
-    description: fields.description || "",
-  };
-  if ((fields.initial || "").trim() !== "") definition.initial = coerceParameter(fields.initial);
+  const { definition } = stateDefinitionFromFields(fields);
   await saveStateDefinitionPayload(componentID, name, definition, `State definition saved: ${componentID}.${name}`);
 }
 

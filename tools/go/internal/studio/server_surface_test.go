@@ -331,6 +331,8 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte(`from "./contract-authoring.js"`)) ||
 		!bytes.Contains(contractAuthoringBody, []byte("newParameterDefinition")) ||
 		!bytes.Contains(contractAuthoringBody, []byte("parameterDefinitionFromFields")) ||
+		!bytes.Contains(contractAuthoringBody, []byte("newStateDefinition")) ||
+		!bytes.Contains(contractAuthoringBody, []byte("stateDefinitionFromFields")) ||
 		!bytes.Contains(contractAuthoringBody, []byte("PARAMETER_ROLES")) {
 		t.Fatalf("module entrypoint did not import shared contract authoring helpers")
 	}

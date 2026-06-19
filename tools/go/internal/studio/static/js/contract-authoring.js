@@ -52,6 +52,26 @@ export function parameterDefinitionFromFields(label, fields) {
   return { definition, value };
 }
 
+export function newStateDefinition(name, initial, options = {}) {
+  const definition = {
+    display_name: displayNameFromIdentifier(name),
+    initial: (initial || "").trim() === "" ? 0.0 : coerceParameter(initial),
+  };
+  if ((options.unit || "").trim() !== "") definition.unit = options.unit.trim();
+  if ((options.description || "").trim() !== "") definition.description = options.description.trim();
+  return { definition };
+}
+
+export function stateDefinitionFromFields(fields) {
+  const definition = {
+    display_name: fields.display || "",
+    unit: fields.unit || "",
+    description: fields.description || "",
+  };
+  if ((fields.initial || "").trim() !== "") definition.initial = coerceParameter(fields.initial);
+  return { definition };
+}
+
 function parameterBoundsFromInputs(label, minValue, maxValue) {
   const min = (minValue || "").trim();
   const max = (maxValue || "").trim();
