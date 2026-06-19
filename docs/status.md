@@ -92,14 +92,25 @@ rewritten by `scripts/dev/test-studio.ps1` and removed by
 `scripts/dev/clean-generated.ps1`.
 
 Other transient local outputs include `artifacts/`, `bin/`, `dist/docs/`,
-`.repo_tools` smoke/log/staging folders, `.tmp/`, Python `__pycache__/`
-directories, Python package build folders, and empty generated directories left
-by local smoke tests or legacy app scaffolding.
+`.repo_tools` smoke/log/staging folders, `.repo_tools/python/.temp`, `.tmp/`,
+Python `__pycache__/` directories, Python package build folders, and empty
+generated directories left by local smoke tests or legacy app scaffolding. The
+`__pycache__/` pass is limited to source, example, test, docs, schema, runtime,
+script, and template trees; repo-local toolchain internals stay intact.
 Run this after local checks when you want only tracked files and retained
 package zips left behind:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\clean-generated.ps1
+```
+
+Repo-local tool downloads and caches under `.repo_tools/downloads`,
+`.repo_tools/go-cache`, `.repo_tools/uv-cache`, and `.repo_tools/uv-tools` are
+preserved by default so repeat checks stay quick. Remove those regenerable
+caches too when disk cleanup matters more than the next run's startup time:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\clean-generated.ps1 -Caches
 ```
 
 ## Main Gates

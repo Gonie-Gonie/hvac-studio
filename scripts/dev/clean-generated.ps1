@@ -1,5 +1,6 @@
 param(
-  [switch]$DryRun
+  [switch]$DryRun,
+  [switch]$Caches
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,13 +15,33 @@ $Targets = @(
   '.repo_tools\release-build',
   '.repo_tools\smoke',
   '.repo_tools\studio-live',
+  '.repo_tools\python\.temp',
   '.tmp'
+)
+
+$CacheTargets = @(
+  '.repo_tools\downloads',
+  '.repo_tools\go-cache',
+  '.repo_tools\uv-cache',
+  '.repo_tools\uv-tools'
 )
 
 $EmptyGeneratedDirectories = @(
   'app\studio',
   'app',
   'examples\006_optimization_case\parameter_sets'
+)
+
+$PythonCacheRoots = @(
+  'docs',
+  'examples',
+  'python',
+  'runtime',
+  'schema',
+  'scripts',
+  'templates',
+  'tests',
+  'tools'
 )
 
 function Resolve-RepoTarget {
@@ -48,6 +69,8 @@ function ConvertTo-RepoRelative {
 
 $Removed = New-Object System.Collections.Generic.List[string]
 $Skipped = New-Object System.Collections.Generic.List[string]
+$RemovedCaches = New-Object System.Collections.Generic.List[string]
+$SkippedCaches = New-Object System.Collections.Generic.List[string]
 $RemovedPythonCaches = New-Object System.Collections.Generic.List[string]
 $RemovedPythonBuildArtifacts = New-Object System.Collections.Generic.List[string]
 $RemovedEmptyGeneratedDirectories = New-Object System.Collections.Generic.List[string]
@@ -68,6 +91,24 @@ foreach ($RelativePath in $Targets) {
 
   Remove-Item -LiteralPath $Resolved -Recurse -Force
   $Removed.Add($RelativePath)
+}
+
+if ($Caches) {
+  foreach ($RelativePath in $CacheTargets) {
+    $Resolved = Resolve-RepoTarget -RelativePath $RelativePath
+    if (-not (Test-Path -LiteralPath $Resolved)) {
+      $SkippedCaches.Add($RelativePath)
+      continue
+    }
+
+    if ($DryRun) {
+      $RemovedCaches.Add("$RelativePath (dry run)")
+      continue
+    }
+
+    Remove-Item -LiteralPath $Resolved -Recurse -Force
+    $RemovedCaches.Add($RelativePath)
+  }
 }
 
 foreach ($RelativePath in $EmptyGeneratedDirectories) {
@@ -97,7 +138,15 @@ foreach ($RelativePath in $EmptyGeneratedDirectories) {
   $RemovedEmptyGeneratedDirectories.Add($RelativePath)
 }
 
-$PythonCaches = @(Get-ChildItem -LiteralPath $RepoRoot -Recurse -Directory -Filter '__pycache__' -ErrorAction SilentlyContinue | Sort-Object FullName)
+$PythonCaches = New-Object System.Collections.Generic.List[object]
+foreach ($RelativePath in $PythonCacheRoots) {
+  $ResolvedRoot = Resolve-RepoTarget -RelativePath $RelativePath
+  if (-not (Test-Path -LiteralPath $ResolvedRoot -PathType Container)) {
+    continue
+  }
+  Get-ChildItem -LiteralPath $ResolvedRoot -Recurse -Directory -Filter '__pycache__' -ErrorAction SilentlyContinue |
+    ForEach-Object { $PythonCaches.Add($_) }
+}
 foreach ($PythonCache in $PythonCaches) {
   $Resolved = (Resolve-Path -LiteralPath $PythonCache.FullName).Path
   if (-not $Resolved.StartsWith($RepoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -156,6 +205,18 @@ if ($RemovedPythonCaches.Count -gt 0) {
   Write-Host 'no Python cache directories to remove'
 }
 
+if ($RemovedCaches.Count -gt 0) {
+  if ($DryRun) {
+    Write-Host "would remove repo-local caches: $($RemovedCaches -join ', ')"
+  } else {
+    Write-Host "removed repo-local caches: $($RemovedCaches -join ', ')"
+  }
+} elseif ($Caches) {
+  Write-Host 'no repo-local caches to remove'
+} else {
+  Write-Host 'preserved repo-local caches; pass -Caches to remove downloads, Go cache, uv cache, and uv tool storage'
+}
+
 if ($RemovedPythonBuildArtifacts.Count -gt 0) {
   if ($DryRun) {
     Write-Host "would remove Python build artifacts: $($RemovedPythonBuildArtifacts.Count)"
@@ -182,6 +243,10 @@ if ($SkippedNonEmptyGeneratedDirectories.Count -gt 0) {
 
 if ($Skipped.Count -gt 0) {
   Write-Host "already clean: $($Skipped -join ', ')"
+}
+
+if ($Caches -and $SkippedCaches.Count -gt 0) {
+  Write-Host "already clean caches: $($SkippedCaches -join ', ')"
 }
 
 $DistRoot = Join-Path $RepoRoot 'dist'

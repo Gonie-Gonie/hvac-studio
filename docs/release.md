@@ -42,7 +42,9 @@ That folder is cleaned before each `scripts/dev/test-studio.ps1` run, so it
 shows only the most recent build check. Run
 `scripts/dev/clean-generated.ps1` after manual release checks to remove local
 build intermediates, old smoke executables, and Studio logs while preserving
-the final package zip files under `dist/`.
+the final package zip files under `dist/`. Add `-Caches` only when you also want
+to clear regenerable repo-local downloads, Go cache, uv cache, and uv tool
+storage before the next setup/test run rebuilds them.
 
 The portable Studio package is the first user-facing distribution:
 

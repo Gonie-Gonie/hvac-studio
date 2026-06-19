@@ -39,6 +39,7 @@ Update that file deliberately when the project decides to move toolchains.
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-fast.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\clean-generated.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\clean-generated.ps1 -Caches
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\run-runner.ps1 validate --project .\examples\001_scalar_component\project.bcsproj
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\freeze-project-python.ps1 -Project .\examples\001_scalar_component\project.bcsproj
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\run-studio.ps1
@@ -50,8 +51,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\run-studio.ps1
 
 `clean-generated.ps1` removes transient local outputs such as `artifacts/`,
 `bin/`, `dist/build/`, `dist/docs/`, `.repo_tools` smoke/log/staging folders,
-`.tmp/`, and Python `__pycache__/` directories plus package build folders while
-preserving release zip files already written under `dist/`.
+`.repo_tools/python/.temp`, `.tmp/`, and Python `__pycache__/` directories plus
+package build folders from source/example/test trees while preserving release
+zip files already written under `dist/`. Add `-Caches` when you also want to
+remove repo-local downloads, Go cache, uv cache, and uv tool storage; the next
+setup/test run can recreate those folders, but it will take longer than a
+normal cleanup.
 
 ## Documentation Screenshots
 
