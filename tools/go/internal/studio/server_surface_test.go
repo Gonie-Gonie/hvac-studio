@@ -278,6 +278,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	datasetMappingBody := getRouteBody(t, server, "/js/dataset-mapping.js")
 	downloadBody := getRouteBody(t, server, "/js/download.js")
 	validationPlotsBody := getRouteBody(t, server, "/js/validation-plots.js")
+	validationResultsBody := getRouteBody(t, server, "/js/validation-results.js")
 	candidateResultsBody := getRouteBody(t, server, "/js/candidate-results.js")
 	seriesResultsBody := getRouteBody(t, server, "/js/series-results.js")
 	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
@@ -403,8 +404,11 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte(`from "./download.js"`)) {
 		t.Fatalf("module entrypoint did not import download helpers")
 	}
-	if !bytes.Contains(body, []byte(`from "./validation-plots.js"`)) {
-		t.Fatalf("module entrypoint did not import validation plot helpers")
+	if !bytes.Contains(body, []byte(`from "./validation-results.js"`)) {
+		t.Fatalf("module entrypoint did not import validation result helpers")
+	}
+	if !bytes.Contains(validationResultsBody, []byte(`from "./validation-plots.js"`)) {
+		t.Fatalf("validation result module did not import validation plot helpers")
 	}
 	if !bytes.Contains(body, []byte(`from "./candidate-results.js"`)) {
 		t.Fatalf("module entrypoint did not import candidate result helpers")
@@ -469,7 +473,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(candidateResultsBody, []byte("Use for Runs")) || !bytes.Contains(candidateResultsBody, []byte("Revert Active")) {
 		t.Fatalf("module entrypoint did not expose calibration parameter-set apply/revert flow")
 	}
-	if !bytes.Contains(candidateResultsBody, []byte("Validation Before/After")) || !bytes.Contains(body, []byte("calibrationValidationComparisonSection")) {
+	if !bytes.Contains(candidateResultsBody, []byte("Validation Before/After")) || !bytes.Contains(validationResultsBody, []byte("calibrationValidationComparisonSection")) {
 		t.Fatalf("module entrypoint did not expose calibration before/after validation plots")
 	}
 	if !bytes.Contains(candidateResultsBody, []byte("Best Candidate")) || !bytes.Contains(candidateResultsBody, []byte("bestCandidateRows")) {
@@ -499,7 +503,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(body, []byte("include_records: includeRecords")) {
 		t.Fatalf("module entrypoint did not send runtime export record selection")
 	}
-	if !bytes.Contains(body, []byte("validationPlotSection")) ||
+	if !bytes.Contains(validationResultsBody, []byte("validationPlotSection")) ||
 		!bytes.Contains(validationPlotsBody, []byte("Measured vs Simulated")) ||
 		!bytes.Contains(validationPlotsBody, []byte("Residual Histogram")) {
 		t.Fatalf("module entrypoint did not render validation plots")
@@ -513,16 +517,16 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(datasetMappingBody, []byte("Sample Row Preview")) {
 		t.Fatalf("module entrypoint did not expose dataset mapping editor")
 	}
-	if !bytes.Contains(body, []byte("validationComparisonBaseline")) || !bytes.Contains(body, []byte("Parameter Set Comparison")) || !bytes.Contains(body, []byte("compareValidationParameterSet")) {
+	if !bytes.Contains(body, []byte("validationComparisonBaseline")) || !bytes.Contains(validationResultsBody, []byte("Parameter Set Comparison")) || !bytes.Contains(body, []byte("compareValidationParameterSet")) {
 		t.Fatalf("module entrypoint did not render validation parameter-set comparisons")
 	}
-	if !bytes.Contains(body, []byte("validationResultActions")) || !bytes.Contains(body, []byte("Create Calibration Setup")) {
+	if !bytes.Contains(validationResultsBody, []byte("validationResultActions")) || !bytes.Contains(validationResultsBody, []byte("Create Calibration Setup")) {
 		t.Fatalf("module entrypoint did not connect validation results to calibration setup")
 	}
-	if !bytes.Contains(body, []byte("Compare Parameter Set")) {
+	if !bytes.Contains(validationResultsBody, []byte("Compare Parameter Set")) {
 		t.Fatalf("module entrypoint did not expose validation parameter-set comparison action")
 	}
-	if !bytes.Contains(body, []byte("openHighErrorInspection")) || !bytes.Contains(body, []byte("High Error Inspection")) {
+	if !bytes.Contains(body, []byte("openHighErrorInspection")) || !bytes.Contains(validationResultsBody, []byte("highErrorInspectionSection")) {
 		t.Fatalf("module entrypoint did not expose high-error timestep inspection")
 	}
 	if !bytes.Contains(seriesResultsBody, []byte("downloadSeriesCSV")) ||
@@ -786,14 +790,14 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("deleteValidationMapping")) {
 		t.Fatalf("module entrypoint did not delete validation mappings")
 	}
-	if !bytes.Contains(body, []byte("validationResultSection")) ||
-		!bytes.Contains(body, []byte("validationPlotSection")) ||
+	if !bytes.Contains(validationResultsBody, []byte("validationResultSection")) ||
+		!bytes.Contains(validationResultsBody, []byte("validationPlotSection")) ||
 		!bytes.Contains(validationPlotsBody, []byte("Measured vs Simulated")) ||
 		!bytes.Contains(validationPlotsBody, []byte("Residual Histogram")) ||
-		!bytes.Contains(body, []byte("highErrorRows")) ||
+		!bytes.Contains(validationResultsBody, []byte("highErrorRows")) ||
 		!bytes.Contains(body, []byte("openHighErrorInspection")) ||
-		!bytes.Contains(body, []byte("Component Inputs")) ||
-		!bytes.Contains(body, []byte("Create Calibration Setup")) {
+		!bytes.Contains(validationResultsBody, []byte("Component Inputs")) ||
+		!bytes.Contains(validationResultsBody, []byte("Create Calibration Setup")) {
 		t.Fatalf("module entrypoint did not expose validation result plots, high-error inspection, and calibration handoff")
 	}
 	if !bytes.Contains(body, []byte("/api/project/calibration-setup")) {
