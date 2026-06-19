@@ -177,8 +177,12 @@ Current portable Studio smoke coverage:
 - Reopens the saved run record through `/api/project/run`.
 - Writes `exports/runtime_package/manifest.json`, copied project files, public IO schema, runner tools, packaged Python runtime and SDK, README, `docs/CLI_Guide.md`, `sdk-example.py`, `optimize-sdk.py` when optimization setups exist, and workflow scripts such as `check-env.ps1`, `run-default.ps1`, `run-scenario.ps1`, `run-batch.ps1`, `validate-data.ps1`, `calibrate.ps1`, `optimize.ps1`, and `serve.ps1` when matching artifacts exist. Run scripts also write component-log diagnostic bundles under `outputs/logs/`.
 - Runs the exported project through the exported `bin/bcs-runner.exe`.
-- Runs the exported `run-default.ps1`.
-- Runs exported `bin/bcs-env.exe check --root <export>` and verifies `runtime-export` mode.
+- Runs exported `bin/bcs-env.exe check --root <export>` and exported
+  `check-env.ps1 -Json`, verifying `runtime-export` mode.
+- Runs exported `run-default.ps1`, `run-scenario.ps1`, `run-series.ps1`,
+  `run-batch.ps1`, `validate-data.ps1`, `calibrate.ps1`, `optimize.ps1`, and
+  `serve.ps1` with result checks.
+- Runs exported SDK examples through the packaged Python runtime.
 
 The root-level `HVAC Studio.exe` opens the Wails desktop app without launching a browser or binding a normal-use TCP port. The included `Start-Studio.ps1` remains available for scripted launches, and server/API automation should use `bin\studio.exe --server` or `Start-Studio.ps1 -Server`.
 

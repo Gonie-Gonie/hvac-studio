@@ -67,35 +67,57 @@ powershell -ExecutionPolicy Bypass -File .\check-env.ps1 -Json
 
 The Studio Export workspace includes toggles for datasets, calibration setups, optimization setups, ML assets, SDK examples, and generated records. When `Records` is selected, Studio copies generated run, batch, validation, calibration, and optimization records into the package. Generated records are listed separately in `manifest.json` under `run_records`, `batch_records`, `validation_records`, `calibration_records`, and `optimization_records`.
 
-## Target Runtime Package Shape
+## Export Folder Layout
 
 ```text
-DeliveredModel/
+exports/runtime_package/
   bin/
     bcs-runner.exe
     bcs-env.exe
-  model/
+  project/
     project.bcsproj
     graph.json
     components/
-    schema/
+    inputs/
+    scenarios/
+    datasets/
+    validation/
+    calibration/
+    optimization/
   runtime/
     python/
-  examples/
-    input.json
-    run_once.ps1
-    run_batch.ps1
+  schema/
+    public-io.json
+    serve-request.schema.json
+    serve-response.schema.json
   docs/
-    UserGuide.pdf
-    CLI_Guide.pdf
+    CLI_Guide.md
+  check-env.ps1
+  run-default.ps1
+  run-scenario.ps1
+  run-batch.ps1
+  run-series.ps1
+  validate-data.ps1
+  calibrate.ps1
+  optimize.ps1
+  serve.ps1
+  sdk-example.py
+  optimize-sdk.py
+  manifest.json
+  README.md
 ```
 
 ## Delivery Requirements
 
-- no external Python installation requirement
-- clear input/output schema
-- example input/output files
-- structured errors and exit codes
-- smoke test after package expansion
+- No external Python installation requirement when exported from a package that
+  includes the bundled runtime.
+- Clear public input/output schema and serve protocol schemas.
+- Example inputs, scenarios, and workflow scripts for the artifacts selected at
+  export time.
+- Structured runner errors and stable exit code categories.
+- Smoke test after package expansion, including `check-env.ps1 -Json` and the
+  generated workflow scripts.
 
-`examples/007_runtime_only_package` mirrors this layout with a runnable `model/project.bcsproj`, first-run script, and concise CLI guide.
+`examples/007_runtime_only_package` is a static runtime-only delivery example
+with a runnable `model/project.bcsproj`, first-run scripts, and a concise CLI
+guide. Studio-created runtime exports use the `project/` layout shown above.
