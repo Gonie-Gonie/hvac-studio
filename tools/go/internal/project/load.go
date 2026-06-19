@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/artifactschema"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/jsonfile"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/projectpath"
 )
@@ -29,7 +30,7 @@ func Load(projectPath string) (*LoadedProject, error) {
 		return nil, err
 	}
 
-	projectBytes, err := os.ReadFile(absProjectPath)
+	projectBytes, err := jsonfile.Read(absProjectPath)
 	if err != nil {
 		return nil, fmt.Errorf("read project: %w", err)
 	}
@@ -62,7 +63,7 @@ func Load(projectPath string) (*LoadedProject, error) {
 		return nil, err
 	}
 
-	graphBytes, err := os.ReadFile(graphPath)
+	graphBytes, err := jsonfile.Read(graphPath)
 	if err != nil {
 		return nil, fmt.Errorf("read graph: %w", err)
 	}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/artifactmeta"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/jsonfile"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/modelvalidation"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/parameterset"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
@@ -152,7 +153,7 @@ func LoadRecord(projectRoot string, recordID string) (Record, error) {
 	if err != nil {
 		return Record{}, err
 	}
-	recordBytes, err := os.ReadFile(recordPath)
+	recordBytes, err := jsonfile.Read(recordPath)
 	if err != nil {
 		return Record{}, apperror.Wrap(apperror.CodeValidation, err)
 	}
@@ -170,7 +171,7 @@ func LoadRecordSummaries(projectRoot string) []RecordSummary {
 	}
 	summaries := []RecordSummary{}
 	for _, recordPath := range recordFiles {
-		recordBytes, err := os.ReadFile(recordPath)
+		recordBytes, err := jsonfile.Read(recordPath)
 		if err != nil {
 			continue
 		}
@@ -220,7 +221,7 @@ func LoadSetup(projectRoot string, relativePath string) (Setup, error) {
 	if err != nil {
 		return Setup{}, err
 	}
-	data, err := os.ReadFile(resolved)
+	data, err := jsonfile.Read(resolved)
 	if err != nil {
 		return Setup{}, apperror.Wrap(apperror.CodeInput, err)
 	}

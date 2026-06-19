@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/jsonfile"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/projectpath"
@@ -38,7 +39,7 @@ func Load(projectRoot string, relativePath string) (Set, error) {
 	if err != nil {
 		return Set{}, err
 	}
-	data, err := os.ReadFile(resolved)
+	data, err := jsonfile.Read(resolved)
 	if err != nil {
 		return Set{}, apperror.Wrap(apperror.CodeInput, err)
 	}

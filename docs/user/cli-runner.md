@@ -48,9 +48,10 @@ bcs-runner.exe run `
   --output external-output.json
 ```
 
-`run` and `run-series` accept UTF-8 JSON input files with or without a byte
-order mark, so input files written by Windows PowerShell still load through the
-same runner path.
+Runner-loaded project JSON files accept UTF-8 with or without a byte order mark,
+including `project.bcsproj`, `graph.json`, run inputs, parameter sets,
+validation mappings, and calibration/optimization setups. Files written by
+Windows PowerShell still load through the same runner path.
 
 ## Run Time Series
 

@@ -60,6 +60,109 @@ func TestMigrateCommandWritesCompatibleReport(t *testing.T) {
 	}
 }
 
+func TestWorkflowCommandsAcceptUTF8BOMProjectArtifacts(t *testing.T) {
+	tmpDir := t.TempDir()
+	plantRoot := filepath.Join(tmpDir, "plant")
+	copyTree(t, examplePath("005_chiller_plant_like_system"), plantRoot)
+	prefixBOMFile(t, filepath.Join(plantRoot, "project.bcsproj"))
+	prefixBOMFile(t, filepath.Join(plantRoot, "graph.json"))
+	prefixBOMFile(t, filepath.Join(plantRoot, "parameter_sets", "high_efficiency.json"))
+	prefixBOMFile(t, filepath.Join(plantRoot, "validation", "mappings", "plant_validation.json"))
+	prefixBOMFile(t, filepath.Join(plantRoot, "calibration", "setups", "chiller_cop_grid.json"))
+
+	if err := run([]string{
+		"bcs-runner",
+		"validate",
+		"--project",
+		filepath.Join(plantRoot, "project.bcsproj"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	runOutput := filepath.Join(tmpDir, "bom-run.json")
+	if err := run([]string{
+		"bcs-runner",
+		"run",
+		"--project",
+		filepath.Join(plantRoot, "project.bcsproj"),
+		"--input",
+		filepath.Join(plantRoot, "inputs", "case01.json"),
+		"--parameter-set",
+		filepath.Join("parameter_sets", "high_efficiency.json"),
+		"--output",
+		runOutput,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	validationOutput := filepath.Join(tmpDir, "bom-validation.json")
+	if err := run([]string{
+		"bcs-runner",
+		"validate-data",
+		"--project",
+		filepath.Join(plantRoot, "project.bcsproj"),
+		"--mapping",
+		filepath.Join("validation", "mappings", "plant_validation.json"),
+		"--output",
+		validationOutput,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	calibrationOutput := filepath.Join(tmpDir, "bom-calibration.json")
+	if err := run([]string{
+		"bcs-runner",
+		"calibrate",
+		"--project",
+		filepath.Join(plantRoot, "project.bcsproj"),
+		"--setup",
+		filepath.Join("calibration", "setups", "chiller_cop_grid.json"),
+		"--output",
+		calibrationOutput,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	optimizationRoot := filepath.Join(tmpDir, "optimization")
+	copyTree(t, examplePath("006_optimization_case"), optimizationRoot)
+	prefixBOMFile(t, filepath.Join(optimizationRoot, "optimization", "setups", "chw_setpoint_grid.json"))
+	optimizationOutput := filepath.Join(tmpDir, "bom-optimization.json")
+	if err := run([]string{
+		"bcs-runner",
+		"optimize",
+		"--project",
+		filepath.Join(optimizationRoot, "project.bcsproj"),
+		"--setup",
+		filepath.Join("optimization", "setups", "chw_setpoint_grid.json"),
+		"--output",
+		optimizationOutput,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var validation struct {
+		OK bool `json:"ok"`
+	}
+	readJSONFile(t, validationOutput, &validation)
+	if !validation.OK {
+		t.Fatalf("validation output = %#v", validation)
+	}
+	var calibration struct {
+		OK bool `json:"ok"`
+	}
+	readJSONFile(t, calibrationOutput, &calibration)
+	if !calibration.OK {
+		t.Fatalf("calibration output = %#v", calibration)
+	}
+	var optimization struct {
+		OK bool `json:"ok"`
+	}
+	readJSONFile(t, optimizationOutput, &optimization)
+	if !optimization.OK {
+		t.Fatalf("optimization output = %#v", optimization)
+	}
+}
+
 func TestMigrateCommandFailsForIncompatibleProject(t *testing.T) {
 	tmpDir := t.TempDir()
 	writeFile(t, filepath.Join(tmpDir, "project.bcsproj"), `{
@@ -809,6 +912,18 @@ func writeBOMFile(t *testing.T, path string, content string) {
 		t.Fatal(err)
 	}
 	bytes := append([]byte{0xef, 0xbb, 0xbf}, []byte(content)...)
+	if err := os.WriteFile(path, bytes, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func prefixBOMFile(t *testing.T, path string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bytes := append([]byte{0xef, 0xbb, 0xbf}, data...)
 	if err := os.WriteFile(path, bytes, 0o644); err != nil {
 		t.Fatal(err)
 	}

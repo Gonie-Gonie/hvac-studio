@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/artifactschema"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/jsonfile"
 )
 
 type Report struct {
@@ -97,7 +97,7 @@ func InspectProject(projectPath string, writeRequested bool) (Report, error) {
 }
 
 func readJSONObject(path string) (map[string]json.RawMessage, error) {
-	data, err := os.ReadFile(path)
+	data, err := jsonfile.Read(path)
 	if err != nil {
 		return nil, err
 	}
