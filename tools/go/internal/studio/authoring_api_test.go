@@ -1494,6 +1494,52 @@ func TestUpdateNodeEndpointRenamesNodeReferences(t *testing.T) {
 		}
 	}
 
+	projectRoot := filepath.Dir(projectSummary.ProjectPath)
+	userStepPath := filepath.Join(projectRoot, "components", "second_gain", "user_step.py")
+	userStepBefore := strings.Join([]string{
+		"def step(inputs, state, params, context):",
+		"    value = float(inputs.get(\"value\", 0.0))",
+		"    return {\"result\": value + 2.0}, state",
+		"",
+	}, "\n")
+	if err := os.WriteFile(userStepPath, []byte(userStepBefore), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	generatedRenamePayload, err := json.Marshal(map[string]any{
+		"project_path": projectSummary.ProjectPath,
+		"component_id": "second_gain",
+		"node_id":      "result",
+		"new_id":       "boosted_result",
+		"name":         "Boosted result",
+		"medium":       "signal",
+		"value_type":   "float",
+		"unit":         "",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	generatedRenameResponse := httptest.NewRecorder()
+	generatedRenameRequest := httptest.NewRequest(http.MethodPost, "/api/project/nodes/update", bytes.NewReader(generatedRenamePayload))
+	server.Handler().ServeHTTP(generatedRenameResponse, generatedRenameRequest)
+	if generatedRenameResponse.Code != http.StatusOK {
+		t.Fatalf("generated rename status = %d body=%s", generatedRenameResponse.Code, generatedRenameResponse.Body.String())
+	}
+	generatedWrapperBytes, err := os.ReadFile(filepath.Join(projectRoot, "components", "second_gain", "wrapper.py"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	generatedWrapperContent := string(generatedWrapperBytes)
+	if !strings.Contains(generatedWrapperContent, "Outputs: boosted_result") || strings.Contains(generatedWrapperContent, "Outputs: result") {
+		t.Fatalf("generated wrapper output contract was not renamed:\n%s", generatedWrapperContent)
+	}
+	userStepAfter, err := os.ReadFile(userStepPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(userStepAfter) != userStepBefore {
+		t.Fatalf("user step changed during wrapper regeneration:\n%s", string(userStepAfter))
+	}
+
 	duplicatePayload, err := json.Marshal(map[string]any{
 		"project_path": projectSummary.ProjectPath,
 		"component_id": "scalar",
