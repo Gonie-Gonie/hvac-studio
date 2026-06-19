@@ -162,6 +162,13 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	if !bytes.Contains(runDefaultBytes, []byte("Write-RunLogBundle")) || !bytes.Contains(runDefaultBytes, []byte("LogBundle")) || !bytes.Contains(runDefaultBytes, []byte("outputs\\logs")) {
 		t.Fatalf("run default script missing runtime log bundle support:\n%s", string(runDefaultBytes))
 	}
+	runScenarioBytes, err := os.ReadFile(filepath.Join(exportRoot, "run-scenario.ps1"))
+	if err != nil {
+		t.Fatalf("run scenario script: %v", err)
+	}
+	if !bytes.Contains(runScenarioBytes, []byte("InputFile")) || bytes.Contains(runScenarioBytes, []byte("[string]$Input ")) {
+		t.Fatalf("run scenario script should avoid the PowerShell $Input automatic variable:\n%s", string(runScenarioBytes))
+	}
 	runBatchBytes, err := os.ReadFile(filepath.Join(exportRoot, "run-batch.ps1"))
 	if err != nil {
 		t.Fatalf("run batch script: %v", err)
@@ -612,14 +619,19 @@ func TestExportEndpointRunsCompositionRuntimeWorkflows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read exported run-series script: %v", err)
 	}
-	if !bytes.Contains(seriesScript, []byte("run-series")) || !bytes.Contains(seriesScript, []byte("outputs\\series-result.json")) {
+	if !bytes.Contains(seriesScript, []byte("run-series")) ||
+		!bytes.Contains(seriesScript, []byte("outputs\\series-result.json")) ||
+		!bytes.Contains(seriesScript, []byte("project\\inputs\\series01.json")) {
 		t.Fatalf("run-series script missing runner command or output:\n%s", string(seriesScript))
+	}
+	if !bytes.Contains(seriesScript, []byte("InputFile")) || bytes.Contains(seriesScript, []byte("[string]$Input ")) {
+		t.Fatalf("run-series script should avoid the PowerShell $Input automatic variable:\n%s", string(seriesScript))
 	}
 	guideBytes, err := os.ReadFile(filepath.Join(exportRoot, "docs", "CLI_Guide.md"))
 	if err != nil {
 		t.Fatalf("read exported CLI guide: %v", err)
 	}
-	for _, text := range []string{"run-series.ps1", "outputs\\series-result.json", "final_states"} {
+	for _, text := range []string{"run-series.ps1", "-InputFile", "outputs\\series-result.json", "final_states"} {
 		if !bytes.Contains(guideBytes, []byte(text)) {
 			t.Fatalf("composition CLI guide missing %q:\n%s", text, string(guideBytes))
 		}

@@ -134,7 +134,7 @@ func runtimeExportEntrypoints(files []string, plan *compiler.Plan, projectPath s
 		entrypoints = append(entrypoints, runtimeExportEntrypoint{Rel: "run-batch.ps1", Content: runtimeExportBatchScript(projectPath)})
 	}
 	if seriesInput != "" {
-		entrypoints = append(entrypoints, runtimeExportEntrypoint{Rel: "run-series.ps1", Content: runtimeExportSeriesScript(projectPath, seriesInput)})
+		entrypoints = append(entrypoints, runtimeExportEntrypoint{Rel: "run-series.ps1", Content: runtimeExportSeriesScript(projectPath, exportArtifactPath(seriesInput))})
 	}
 	if mapping != "" {
 		entrypoints = append(entrypoints, runtimeExportEntrypoint{Rel: "validate-data.ps1", Content: runtimeExportValidationScript(projectPath, mapping)})
@@ -181,16 +181,16 @@ func runtimeExportSeriesScript(projectPath string, defaultInput string) string {
 	inputLiteral := powerShellSingleQuotedPath(defaultInput)
 	return strings.TrimLeft(fmt.Sprintf(`
 param(
-  [string]$Input = '%s',
+  [Alias('Input')][string]$InputFile = '%s',
   [string]$Output = "",
   [string]$ParameterSet = ""
 )
 
 %s
-if (-not $Input) {
+if (-not $InputFile) {
   throw 'Input is required because no series input was selected.'
-} elseif (-not [IO.Path]::IsPathRooted($Input)) {
-  $Input = Join-Path $Root $Input
+} elseif (-not [IO.Path]::IsPathRooted($InputFile)) {
+  $InputFile = Join-Path $Root $InputFile
 }
 if (-not $Output) {
   $Output = Join-Path $Root 'outputs\series-result.json'
@@ -201,7 +201,7 @@ $OutputDir = Split-Path -Parent $Output
 if ($OutputDir) {
   New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 }
-$RunArgs = @('run-series', '--project', $Project, '--input', $Input, '--output', $Output)
+$RunArgs = @('run-series', '--project', $Project, '--input', $InputFile, '--output', $Output)
 if ($ParameterSet) {
   $RunArgs += @('--parameter-set', $ParameterSet)
 }
@@ -269,17 +269,17 @@ func runtimeExportScenarioScript(projectPath string, defaultInput string) string
 	inputLiteral := powerShellSingleQuotedPath(defaultInput)
 	return strings.TrimLeft(fmt.Sprintf(`
 param(
-  [string]$Input = '%s',
+  [Alias('Input')][string]$InputFile = '%s',
   [string]$Output = "",
   [string]$ParameterSet = "",
   [string]$LogBundle = ""
 )
 
 %s
-if (-not $Input) {
+if (-not $InputFile) {
   throw 'Input is required because this project has no default input.'
-} elseif (-not [IO.Path]::IsPathRooted($Input)) {
-  $Input = Join-Path $Root $Input
+} elseif (-not [IO.Path]::IsPathRooted($InputFile)) {
+  $InputFile = Join-Path $Root $InputFile
 }
 if (-not $Output) {
   $Output = Join-Path $Root 'outputs\scenario-result.json'
@@ -290,7 +290,7 @@ $OutputDir = Split-Path -Parent $Output
 if ($OutputDir) {
   New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 }
-$RunArgs = @('run', '--project', $Project, '--input', $Input, '--output', $Output)
+$RunArgs = @('run', '--project', $Project, '--input', $InputFile, '--output', $Output)
 if ($ParameterSet) {
   $RunArgs += @('--parameter-set', $ParameterSet)
 }

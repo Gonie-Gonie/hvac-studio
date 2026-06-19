@@ -369,6 +369,36 @@ try {
   if ($InputJson.project.default_run_input.inputs.scalar_bias -ne 4) {
     throw "workspace input update mismatch: scalar_bias=$($InputJson.project.default_run_input.inputs.scalar_bias)"
   }
+  $SeriesInputPath = Join-Path (Split-Path -Parent $CreatedProject.project_path) 'inputs\series01.json'
+  $SeriesInputJson = @{
+    schema_version = '0.1.0'
+    context = @{
+      dt = 60
+    }
+    steps = @(
+      @{
+        id = 'step-1'
+        inputs = $InputValues
+        context = @{
+          time = 0
+        }
+      },
+      @{
+        id = 'step-2'
+        inputs = @{
+          value = 6
+          scalar_bias = 4
+        }
+        context = @{
+          time = 60
+        }
+      }
+    )
+  } | ConvertTo-Json -Depth 8
+  [IO.File]::WriteAllText($SeriesInputPath, $SeriesInputJson + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
+  if (-not (Test-Path -LiteralPath $SeriesInputPath)) {
+    throw "workspace series input was not written: $SeriesInputPath"
+  }
 
   $ValidateBody = @{
     project_path = $CreatedProject.project_path
@@ -471,7 +501,7 @@ try {
   if ($ExportJson.export.interface_schema -ne 'schema/public-io.json') {
     throw "workspace export interface schema mismatch: $($ExportJson.export.interface_schema)"
   }
-  foreach ($ExportFile in @('README.md', 'bin/bcs-runner.exe', 'bin/bcs-env.exe', 'project/project.bcsproj', 'project/graph.json', 'project/components/scalar.py', 'project/inputs/case01.json', 'check-env.ps1', 'docs/CLI_Guide.md', 'run-default.ps1', 'run-scenario.ps1', 'sdk-example.py', 'serve.ps1', 'runtime/python/python.exe', 'schema/public-io.json')) {
+  foreach ($ExportFile in @('README.md', 'bin/bcs-runner.exe', 'bin/bcs-env.exe', 'project/project.bcsproj', 'project/graph.json', 'project/components/scalar.py', 'project/inputs/case01.json', 'project/inputs/series01.json', 'check-env.ps1', 'docs/CLI_Guide.md', 'run-default.ps1', 'run-scenario.ps1', 'run-series.ps1', 'sdk-example.py', 'serve.ps1', 'runtime/python/python.exe', 'schema/public-io.json')) {
     if ($ExportJson.export.files -notcontains $ExportFile) {
       throw "workspace export file missing from manifest: $ExportFile"
     }
@@ -515,6 +545,26 @@ try {
   $ExportScriptRunJson = Get-Content -Raw -LiteralPath $ExportScriptOutputPath | ConvertFrom-Json
   if ($ExportScriptRunJson.outputs.result -ne 21) {
     throw "exported runtime script result mismatch: result=$($ExportScriptRunJson.outputs.result)"
+  }
+  $ExportScenarioScript = Join-Path (Split-Path -Parent $ExportManifestPath) 'run-scenario.ps1'
+  $ExportScenarioOutputPath = Join-Path $TestRoot 'exported-runtime-scenario-output.json'
+  Invoke-Checked $PowerShellExe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ExportScenarioScript, '-InputFile', 'project\inputs\case01.json', '-Output', $ExportScenarioOutputPath)
+  $ExportScenarioJson = Get-Content -Raw -LiteralPath $ExportScenarioOutputPath | ConvertFrom-Json
+  if ($ExportScenarioJson.outputs.result -ne 21) {
+    throw "exported runtime scenario script result mismatch: result=$($ExportScenarioJson.outputs.result)"
+  }
+  $ExportSeriesScript = Join-Path (Split-Path -Parent $ExportManifestPath) 'run-series.ps1'
+  $ExportSeriesOutputPath = Join-Path $TestRoot 'exported-runtime-series-output.json'
+  Invoke-Checked $PowerShellExe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ExportSeriesScript, '-Output', $ExportSeriesOutputPath)
+  $ExportSeriesJson = Get-Content -Raw -LiteralPath $ExportSeriesOutputPath | ConvertFrom-Json
+  if ($ExportSeriesJson.step_count -ne 2) {
+    throw "exported runtime series step count mismatch: steps=$($ExportSeriesJson.step_count)"
+  }
+  if (@($ExportSeriesJson.outputs.result)[0] -ne 21 -or @($ExportSeriesJson.outputs.result)[1] -ne 24) {
+    throw "exported runtime series result mismatch: result=$($ExportSeriesJson.outputs.result -join ',')"
+  }
+  if (@($ExportSeriesJson.outputs.PSObject.Properties[$ExtraOutputId].Value)[0] -ne 42 -or @($ExportSeriesJson.outputs.PSObject.Properties[$ExtraOutputId].Value)[1] -ne 48) {
+    throw "exported runtime series included component mismatch: $ExtraOutputId=$($ExportSeriesJson.outputs.PSObject.Properties[$ExtraOutputId].Value -join ',')"
   }
   $ExportScriptLogBundlePath = Join-Path (Split-Path -Parent $ExportManifestPath) 'outputs\logs\exported-runtime-script-output-logs.json'
   if (-not (Test-Path -LiteralPath $ExportScriptLogBundlePath)) {

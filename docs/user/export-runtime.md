@@ -53,9 +53,9 @@ From the export folder:
 ```text
 powershell -ExecutionPolicy Bypass -File .\run-default.ps1
 powershell -ExecutionPolicy Bypass -File .\run-default.ps1 -LogBundle outputs\logs\default-logs.json
-powershell -ExecutionPolicy Bypass -File .\run-scenario.ps1 -Input project\inputs\case01.json
+powershell -ExecutionPolicy Bypass -File .\run-scenario.ps1 -InputFile project\inputs\case01.json
 powershell -ExecutionPolicy Bypass -File .\run-batch.ps1
-powershell -ExecutionPolicy Bypass -File .\run-series.ps1 -Input project\inputs\series01.json
+powershell -ExecutionPolicy Bypass -File .\run-series.ps1 -InputFile project\inputs\series01.json
 powershell -ExecutionPolicy Bypass -File .\validate-data.ps1
 powershell -ExecutionPolicy Bypass -File .\calibrate.ps1
 powershell -ExecutionPolicy Bypass -File .\optimize.ps1

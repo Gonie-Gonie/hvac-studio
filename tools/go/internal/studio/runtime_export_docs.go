@@ -71,7 +71,7 @@ func runtimeExportCLIGuide(files []string, plan *compiler.Plan, projectPath stri
 		"- `powershell -ExecutionPolicy Bypass -File .\\check-env.ps1 -Json`",
 		"- `powershell -ExecutionPolicy Bypass -File .\\run-default.ps1`",
 		"- `powershell -ExecutionPolicy Bypass -File .\\run-default.ps1 -LogBundle outputs\\logs\\default-logs.json`",
-		fmt.Sprintf("- `powershell -ExecutionPolicy Bypass -File .\\run-scenario.ps1 -Input %s`", scenarioInput),
+		fmt.Sprintf("- `powershell -ExecutionPolicy Bypass -File .\\run-scenario.ps1 -InputFile %s`", scenarioInput),
 		"- `powershell -ExecutionPolicy Bypass -File .\\serve.ps1 -RequestFile requests.jsonl -Output outputs\\serve-responses.jsonl`",
 	}
 	if includeSDKExamples {
@@ -81,7 +81,7 @@ func runtimeExportCLIGuide(files []string, plan *compiler.Plan, projectPath stri
 		sections = append(sections, "- `powershell -ExecutionPolicy Bypass -File .\\run-batch.ps1`")
 	}
 	if seriesInput := firstProjectRelativeSeriesInputExport(files); seriesInput != "" {
-		sections = append(sections, fmt.Sprintf("- `powershell -ExecutionPolicy Bypass -File .\\run-series.ps1 -Input %s`", strings.ReplaceAll(exportArtifactPath(seriesInput), "/", `\`)))
+		sections = append(sections, fmt.Sprintf("- `powershell -ExecutionPolicy Bypass -File .\\run-series.ps1 -InputFile %s`", strings.ReplaceAll(exportArtifactPath(seriesInput), "/", `\`)))
 	}
 	if len(exportFilesWithPrefix(files, "project/validation/mappings/")) > 0 {
 		sections = append(sections, "- `powershell -ExecutionPolicy Bypass -File .\\validate-data.ps1`")
