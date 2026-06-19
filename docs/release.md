@@ -281,8 +281,8 @@ permissions:
 
 This page documents how to build, test, and publish release artifacts. It does
 not carry a separate roadmap. Use [Current Status](status.md) for what the
-current packages support and `planning/development-plan.md` for the active
-maintainer planning spine.
+current packages support, the retained build artifacts, and the active
+development focus.
 
 ## Runtime Exit Codes
 

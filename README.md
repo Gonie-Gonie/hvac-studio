@@ -91,10 +91,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-fast.ps1
 
 See [docs/setup.md](docs/setup.md) for the repo-local Go/Python layout.
 
-Read the maintainer planning archive when changing roadmap or release scope:
+Read the current status and release process when changing release scope:
 
 ```text
-planning/development-plan.md
+docs/status.md
+docs/release.md
 ```
 
 Read the user guide:

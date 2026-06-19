@@ -36,6 +36,21 @@ It is not yet a signed stable public release.
 - `.bcsproj` file association launch flow.
 - Certification of HVAC physics, equipment performance, or control safety.
 
+## Development Focus
+
+- Keep the release-candidate gate green and keep retained artifacts easy to
+  inspect.
+- Keep Studio workflows coherent from component authoring through runtime
+  export, with structured views before raw JSON.
+- Keep generated-wrapper authoring, source checks, quick fixes, completions,
+  and traceback mapping aligned with runner behavior.
+- Keep datasets, ML assets, validation, calibration, optimization, and saved
+  result artifacts usable without hidden baseline mutation.
+- Keep runtime exports, generated scripts, `bcs-env check`, SDK helpers, and
+  external-engine protocol examples self-contained.
+- Keep support promises explicit for Windows packages, experimental macOS
+  packages, signing, installer behavior, and platform boundaries.
+
 ## Build Outputs
 
 Final package zips are kept directly under `dist/`:
