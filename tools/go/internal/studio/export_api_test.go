@@ -194,7 +194,20 @@ func TestExportEndpointWritesRuntimeArtifact(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cli guide: %v", err)
 	}
-	for _, text := range []string{"Runtime CLI Guide", "Public Inputs", "Validation Mappings", "Calibration Setups", "Optimization Setups", "optimize-sdk.py", "outputs\\logs"} {
+	for _, text := range []string{
+		"Runtime CLI Guide",
+		"Expected Outputs",
+		"outputs\\latest.json",
+		"outputs\\validation-result.json",
+		"Exit Codes",
+		"| 3 | Input schema or input data error |",
+		"Public Inputs",
+		"Validation Mappings",
+		"Calibration Setups",
+		"Optimization Setups",
+		"optimize-sdk.py",
+		"outputs\\logs",
+	} {
 		if !bytes.Contains(guideBytes, []byte(text)) {
 			t.Fatalf("cli guide missing %q:\n%s", text, string(guideBytes))
 		}
