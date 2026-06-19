@@ -653,6 +653,22 @@ try {
   if (-not $ExportOptimizationJson.ok -or @($ExportOptimizationJson.candidates).Count -ne 3 -or $ExportOptimizationJson.best_inputs.value -ne 6) {
     throw "exported runtime optimization script mismatch: ok=$($ExportOptimizationJson.ok) candidates=$(@($ExportOptimizationJson.candidates).Count) value=$($ExportOptimizationJson.best_inputs.value)"
   }
+  $ExportRoot = Split-Path -Parent $ExportManifestPath
+  $ExportRuntimePython = Join-Path $ExportRoot 'runtime\python\python.exe'
+  $ExportSDKExample = Join-Path $ExportRoot 'sdk-example.py'
+  Invoke-Checked $ExportRuntimePython @($ExportSDKExample)
+  $ExportSDKOutputPath = Join-Path $ExportRoot 'outputs\sdk-example-output.json'
+  $ExportSDKJson = Get-Content -Raw -LiteralPath $ExportSDKOutputPath | ConvertFrom-Json
+  if ($ExportSDKJson.outputs.result -ne 21 -or $ExportSDKJson.outputs.PSObject.Properties[$ExtraOutputId].Value -ne 42) {
+    throw "exported runtime SDK example mismatch: result=$($ExportSDKJson.outputs.result) $ExtraOutputId=$($ExportSDKJson.outputs.PSObject.Properties[$ExtraOutputId].Value)"
+  }
+  $ExportOptimizeSDK = Join-Path $ExportRoot 'optimize-sdk.py'
+  $ExportOptimizeSDKOutputPath = Join-Path $TestRoot 'exported-runtime-optimization-sdk-output.json'
+  Invoke-Checked $ExportRuntimePython @($ExportOptimizeSDK, '--output', $ExportOptimizeSDKOutputPath)
+  $ExportOptimizeSDKJson = Get-Content -Raw -LiteralPath $ExportOptimizeSDKOutputPath | ConvertFrom-Json
+  if (-not $ExportOptimizeSDKJson.ok -or @($ExportOptimizeSDKJson.candidates).Count -ne 3 -or $ExportOptimizeSDKJson.best_inputs.value -ne 6) {
+    throw "exported runtime optimization SDK mismatch: ok=$($ExportOptimizeSDKJson.ok) candidates=$(@($ExportOptimizeSDKJson.candidates).Count) value=$($ExportOptimizeSDKJson.best_inputs.value)"
+  }
   $ExportScriptLogBundlePath = Join-Path (Split-Path -Parent $ExportManifestPath) 'outputs\logs\exported-runtime-script-output-logs.json'
   if (-not (Test-Path -LiteralPath $ExportScriptLogBundlePath)) {
     throw "exported runtime script log bundle was not written: $ExportScriptLogBundlePath"
