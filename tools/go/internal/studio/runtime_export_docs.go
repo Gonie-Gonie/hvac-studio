@@ -80,6 +80,9 @@ func runtimeExportCLIGuide(files []string, plan *compiler.Plan, projectPath stri
 	if len(exportFilesWithPrefix(files, "project/scenarios/")) > 0 {
 		sections = append(sections, "- `powershell -ExecutionPolicy Bypass -File .\\run-batch.ps1`")
 	}
+	if seriesInput := firstProjectRelativeSeriesInputExport(files); seriesInput != "" {
+		sections = append(sections, fmt.Sprintf("- `powershell -ExecutionPolicy Bypass -File .\\run-series.ps1 -Input %s`", strings.ReplaceAll(exportArtifactPath(seriesInput), "/", `\`)))
+	}
 	if len(exportFilesWithPrefix(files, "project/validation/mappings/")) > 0 {
 		sections = append(sections, "- `powershell -ExecutionPolicy Bypass -File .\\validate-data.ps1`")
 	}
@@ -162,6 +165,9 @@ func runtimeExportExpectedOutputs(files []string, includeSDKExamples bool) strin
 	}
 	if len(exportFilesWithPrefix(files, "project/scenarios/")) > 0 {
 		rows = append(rows, []string{"run-batch.ps1", "One JSON file per scenario under `outputs\\batch\\`, plus per-case log bundles under `outputs\\logs\\`."})
+	}
+	if firstProjectRelativeSeriesInputExport(files) != "" {
+		rows = append(rows, []string{"run-series.ps1", "`outputs\\series-result.json` with `series[]`, aggregated `outputs`, and `final_states`."})
 	}
 	if len(exportFilesWithPrefix(files, "project/validation/mappings/")) > 0 {
 		rows = append(rows, []string{"validate-data.ps1", "`outputs\\validation-result.json`."})

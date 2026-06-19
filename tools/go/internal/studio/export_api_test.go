@@ -583,10 +583,14 @@ func TestExportEndpointRunsCompositionRuntimeWorkflows(t *testing.T) {
 		"project/calibration/setups/chiller_cop_grid.json",
 		"project/optimization/setups/chw_pump_grid.json",
 		"project/inputs/series01.json",
+		"run-series.ps1",
 	} {
 		if !containsString(body.Export.Files, rel) {
 			t.Fatalf("composition export files missing %s in %v", rel, body.Export.Files)
 		}
+	}
+	if !containsString(body.Export.Commands, "run-series.ps1") {
+		t.Fatalf("composition export commands = %#v", body.Export.Commands)
 	}
 	if !containsString(body.Export.ModelAssets, "project/assets/ahu_state_ann/model.json") {
 		t.Fatalf("composition export model assets = %#v", body.Export.ModelAssets)
@@ -603,6 +607,22 @@ func TestExportEndpointRunsCompositionRuntimeWorkflows(t *testing.T) {
 	}
 	if _, err := compiler.Compile(exportedProject); err != nil {
 		t.Fatalf("compile exported composition project: %v", err)
+	}
+	seriesScript, err := os.ReadFile(filepath.Join(exportRoot, "run-series.ps1"))
+	if err != nil {
+		t.Fatalf("read exported run-series script: %v", err)
+	}
+	if !bytes.Contains(seriesScript, []byte("run-series")) || !bytes.Contains(seriesScript, []byte("outputs\\series-result.json")) {
+		t.Fatalf("run-series script missing runner command or output:\n%s", string(seriesScript))
+	}
+	guideBytes, err := os.ReadFile(filepath.Join(exportRoot, "docs", "CLI_Guide.md"))
+	if err != nil {
+		t.Fatalf("read exported CLI guide: %v", err)
+	}
+	for _, text := range []string{"run-series.ps1", "outputs\\series-result.json", "final_states"} {
+		if !bytes.Contains(guideBytes, []byte(text)) {
+			t.Fatalf("composition CLI guide missing %q:\n%s", text, string(guideBytes))
+		}
 	}
 	assertRuntimeExportCompositionWorkflowsRun(t, exportedProject)
 }

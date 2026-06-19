@@ -13,6 +13,7 @@ exports/runtime_package/check-env.ps1
 exports/runtime_package/run-default.ps1
 exports/runtime_package/run-scenario.ps1
 exports/runtime_package/run-batch.ps1
+exports/runtime_package/run-series.ps1
 exports/runtime_package/validate-data.ps1
 exports/runtime_package/calibrate.ps1
 exports/runtime_package/optimize.ps1
@@ -54,6 +55,7 @@ powershell -ExecutionPolicy Bypass -File .\run-default.ps1
 powershell -ExecutionPolicy Bypass -File .\run-default.ps1 -LogBundle outputs\logs\default-logs.json
 powershell -ExecutionPolicy Bypass -File .\run-scenario.ps1 -Input project\inputs\case01.json
 powershell -ExecutionPolicy Bypass -File .\run-batch.ps1
+powershell -ExecutionPolicy Bypass -File .\run-series.ps1 -Input project\inputs\series01.json
 powershell -ExecutionPolicy Bypass -File .\validate-data.ps1
 powershell -ExecutionPolicy Bypass -File .\calibrate.ps1
 powershell -ExecutionPolicy Bypass -File .\optimize.ps1

@@ -119,6 +119,7 @@ func runtimeExportEntrypoints(files []string, plan *compiler.Plan, projectPath s
 	mapping := firstProjectRelativeExport(files, "project/validation/mappings/")
 	calibrationSetup := firstProjectRelativeExport(files, "project/calibration/setups/")
 	optimizationSetup := firstProjectRelativeExport(files, "project/optimization/setups/")
+	seriesInput := firstProjectRelativeSeriesInputExport(files)
 	entrypoints := []runtimeExportEntrypoint{
 		{Rel: "check-env.ps1", Content: runtimeExportCheckEnvScript()},
 		{Rel: "run-default.ps1", Content: runtimeExportRunScript(projectPath, defaultInput)},
@@ -131,6 +132,9 @@ func runtimeExportEntrypoints(files []string, plan *compiler.Plan, projectPath s
 	}
 	if firstProjectRelativeExport(files, "project/scenarios/") != "" {
 		entrypoints = append(entrypoints, runtimeExportEntrypoint{Rel: "run-batch.ps1", Content: runtimeExportBatchScript(projectPath)})
+	}
+	if seriesInput != "" {
+		entrypoints = append(entrypoints, runtimeExportEntrypoint{Rel: "run-series.ps1", Content: runtimeExportSeriesScript(projectPath, seriesInput)})
 	}
 	if mapping != "" {
 		entrypoints = append(entrypoints, runtimeExportEntrypoint{Rel: "validate-data.ps1", Content: runtimeExportValidationScript(projectPath, mapping)})
@@ -148,6 +152,16 @@ func runtimeExportEntrypoints(files []string, plan *compiler.Plan, projectPath s
 	return entrypoints
 }
 
+func firstProjectRelativeSeriesInputExport(files []string) string {
+	for _, rel := range exportFilesWithPrefix(files, "project/inputs/") {
+		name := strings.ToLower(filepath.Base(rel))
+		if strings.Contains(name, "series") && strings.HasSuffix(name, ".json") {
+			return strings.TrimPrefix(rel, "project/")
+		}
+	}
+	return ""
+}
+
 func writeRuntimeExportEntrypoints(exportRoot string, files []runtimeExportEntrypoint) ([]string, error) {
 	written := []string{}
 	for _, file := range files {
@@ -161,6 +175,40 @@ func writeRuntimeExportEntrypoints(exportRoot string, files []runtimeExportEntry
 		written = append(written, file.Rel)
 	}
 	return written, nil
+}
+
+func runtimeExportSeriesScript(projectPath string, defaultInput string) string {
+	inputLiteral := powerShellSingleQuotedPath(defaultInput)
+	return strings.TrimLeft(fmt.Sprintf(`
+param(
+  [string]$Input = '%s',
+  [string]$Output = "",
+  [string]$ParameterSet = ""
+)
+
+%s
+if (-not $Input) {
+  throw 'Input is required because no series input was selected.'
+} elseif (-not [IO.Path]::IsPathRooted($Input)) {
+  $Input = Join-Path $Root $Input
+}
+if (-not $Output) {
+  $Output = Join-Path $Root 'outputs\series-result.json'
+} elseif (-not [IO.Path]::IsPathRooted($Output)) {
+  $Output = Join-Path $Root $Output
+}
+$OutputDir = Split-Path -Parent $Output
+if ($OutputDir) {
+  New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
+}
+$RunArgs = @('run-series', '--project', $Project, '--input', $Input, '--output', $Output)
+if ($ParameterSet) {
+  $RunArgs += @('--parameter-set', $ParameterSet)
+}
+& $Runner validate --project $Project
+& $Runner @RunArgs
+Write-Host "wrote $Output"
+`, inputLiteral, runtimeExportScriptPreamble(projectPath)), "\r\n")
 }
 
 func runtimeExportRunScript(projectPath string, defaultInput string) string {
