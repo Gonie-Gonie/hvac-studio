@@ -20,17 +20,9 @@ func createNode(loaded *project.LoadedProject, req createNodeRequest) (model.Nod
 	if !isIdentifierLike(nodeID) {
 		return model.Node{}, apperror.Errorf(apperror.CodeValidation, "node id must start with a letter or underscore and contain only letters, numbers, and underscores")
 	}
-	direction := strings.ToLower(strings.TrimSpace(req.Direction))
-	isInput := false
-	nodeDirection := ""
-	switch direction {
-	case "input", "in", "inlet":
-		isInput = true
-		nodeDirection = "inlet"
-	case "output", "out", "outlet":
-		nodeDirection = "outlet"
-	default:
-		return model.Node{}, apperror.Errorf(apperror.CodeValidation, "node direction must be input or output")
+	isInput, nodeDirection, err := nodeDirectionFromRequest(req.Direction)
+	if err != nil {
+		return model.Node{}, err
 	}
 
 	componentIndex := -1
@@ -90,18 +82,7 @@ func createNode(loaded *project.LoadedProject, req createNodeRequest) (model.Nod
 			if hasPublicInputFor(*system, componentID, nodeID) {
 				continue
 			}
-			publicID := uniquePublicNodeID(system.PublicInputs, componentID+"_"+nodeID)
-			system.PublicInputs = append(system.PublicInputs, model.PublicNodeRef{
-				ID:        publicID,
-				Name:      node.Name,
-				Component: componentID,
-				Node:      node.ID,
-				Medium:    node.Medium,
-				ValueType: node.ValueType,
-				Unit:      node.Unit,
-				Required:  node.Required,
-				Default:   node.Default,
-			})
+			publicID := addPublicInputForNode(system, componentID, node)
 			if _, exists := input.Inputs[publicID]; !exists {
 				input.Inputs[publicID] = defaultValueForNode(node)
 			}
@@ -110,17 +91,7 @@ func createNode(loaded *project.LoadedProject, req createNodeRequest) (model.Nod
 		if hasPublicOutputFor(*system, componentID, nodeID) {
 			continue
 		}
-		publicID := uniquePublicNodeID(system.PublicOutputs, componentID+"_"+nodeID)
-		system.PublicOutputs = append(system.PublicOutputs, model.PublicNodeRef{
-			ID:        publicID,
-			Name:      node.Name,
-			Component: componentID,
-			Node:      node.ID,
-			Medium:    node.Medium,
-			ValueType: node.ValueType,
-			Unit:      node.Unit,
-			Default:   node.Default,
-		})
+		addPublicOutputForNode(system, componentID, node)
 	}
 	if _, err := compiler.Compile(loaded); err != nil {
 		return model.Node{}, apperror.Wrap(apperror.CodeValidation, err)
@@ -177,6 +148,12 @@ func updateNode(loaded *project.LoadedProject, req updateNodeRequest) (model.Nod
 		return model.Node{}, apperror.Errorf(apperror.CodeValidation, "node not found: %s.%s", componentID, nodeID)
 	}
 
+	currentNode := model.Node{}
+	if isInput {
+		currentNode = component.Nodes.Inputs[nodeIndex]
+	} else {
+		currentNode = component.Nodes.Outputs[nodeIndex]
+	}
 	newID := strings.TrimSpace(req.NewID)
 	if newID == "" {
 		newID = nodeID
@@ -188,12 +165,18 @@ func updateNode(loaded *project.LoadedProject, req updateNodeRequest) (model.Nod
 		return model.Node{}, apperror.Errorf(apperror.CodeValidation, "component already has node: %s.%s", componentID, newID)
 	}
 
-	var node *model.Node
-	if isInput {
-		node = &component.Nodes.Inputs[nodeIndex]
-	} else {
-		node = &component.Nodes.Outputs[nodeIndex]
+	targetIsInput := isInput
+	targetDirection := strings.TrimSpace(currentNode.Direction)
+	if strings.TrimSpace(req.Direction) != "" {
+		var err error
+		targetIsInput, targetDirection, err = nodeDirectionFromRequest(req.Direction)
+		if err != nil {
+			return model.Node{}, err
+		}
+	} else if targetDirection == "" {
+		targetDirection = nodeDirectionForBucket(isInput)
 	}
+
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
 		name = nodeID
@@ -206,21 +189,41 @@ func updateNode(loaded *project.LoadedProject, req updateNodeRequest) (model.Nod
 	if valueType == "" {
 		valueType = "float"
 	}
-	node.ID = newID
-	node.Name = name
-	node.Medium = medium
-	node.ValueType = valueType
-	node.Unit = strings.TrimSpace(req.Unit)
-	node.Required = req.Required
+
+	updatedNode := currentNode
+	updatedNode.ID = newID
+	updatedNode.Name = name
+	updatedNode.Direction = targetDirection
+	updatedNode.Medium = medium
+	updatedNode.ValueType = valueType
+	updatedNode.Unit = strings.TrimSpace(req.Unit)
+	updatedNode.Required = req.Required
 	if req.DefaultProvided {
-		node.Default = req.Default
+		updatedNode.Default = req.Default
 	}
-	updatedNode := *node
+	if !targetIsInput {
+		updatedNode.Required = nil
+		updatedNode.Default = nil
+	}
+
+	if targetIsInput == isInput {
+		if isInput {
+			component.Nodes.Inputs[nodeIndex] = updatedNode
+		} else {
+			component.Nodes.Outputs[nodeIndex] = updatedNode
+		}
+	} else if isInput {
+		component.Nodes.Inputs = append(component.Nodes.Inputs[:nodeIndex], component.Nodes.Inputs[nodeIndex+1:]...)
+		component.Nodes.Outputs = append(component.Nodes.Outputs, updatedNode)
+	} else {
+		component.Nodes.Outputs = append(component.Nodes.Outputs[:nodeIndex], component.Nodes.Outputs[nodeIndex+1:]...)
+		component.Nodes.Inputs = append(component.Nodes.Inputs, updatedNode)
+	}
 
 	inputPath := ""
 	var input runtimecore.RunInput
 	inputDirty := false
-	if isInput {
+	if isInput || targetIsInput {
 		var err error
 		inputPath, input, err = loadEditableDefaultInput(loaded)
 		if err != nil {
@@ -233,7 +236,7 @@ func updateNode(loaded *project.LoadedProject, req updateNodeRequest) (model.Nod
 		if !containsString(system.Components, componentID) {
 			continue
 		}
-		if isInput {
+		if isInput && targetIsInput {
 			for refIndex := range system.PublicInputs {
 				ref := &system.PublicInputs[refIndex]
 				if ref.Component != componentID || ref.Node != nodeID {
@@ -252,15 +255,51 @@ func updateNode(loaded *project.LoadedProject, req updateNodeRequest) (model.Nod
 			}
 			continue
 		}
-		for refIndex := range system.PublicOutputs {
-			ref := &system.PublicOutputs[refIndex]
-			if ref.Component != componentID || ref.Node != nodeID {
+		if !isInput && !targetIsInput {
+			updatePublicOutputsForNode(system, componentID, nodeID, updatedNode)
+			continue
+		}
+		if isInput && !targetIsInput {
+			for _, inputID := range removePublicInputsFor(system, componentID, nodeID) {
+				delete(input.Inputs, inputID)
+				inputDirty = true
+			}
+			if !hasPublicOutputFor(*system, componentID, newID) {
+				addPublicOutputForNode(system, componentID, updatedNode)
+			}
+			removeIncomingConnectionsForNode(system, loaded.Graph, componentID, nodeID)
+			continue
+		}
+
+		removePublicOutputsFor(system, componentID, nodeID)
+		if !hasPublicInputFor(*system, componentID, newID) {
+			publicID := addPublicInputForNode(system, componentID, updatedNode)
+			input.Inputs[publicID] = defaultValueForNode(updatedNode)
+			inputDirty = true
+		}
+		for _, connection := range removeOutgoingConnectionsForNode(system, loaded.Graph, componentID, nodeID) {
+			if !containsString(system.Components, connection.To.Component) {
 				continue
 			}
-			updatePublicNodeRef(ref, updatedNode)
+			if systemHasIncomingConnection(*system, loaded.Graph, connection.To.Component, connection.To.Node) || hasPublicInputFor(*system, connection.To.Component, connection.To.Node) {
+				continue
+			}
+			targetComponent, foundComponent := findComponent(loaded.Graph, connection.To.Component)
+			if !foundComponent {
+				return model.Node{}, apperror.Errorf(apperror.CodeValidation, "connection target component not found: %s", connection.To.Component)
+			}
+			targetNode, foundTargetNode := findInputNode(targetComponent, connection.To.Node)
+			if !foundTargetNode {
+				return model.Node{}, apperror.Errorf(apperror.CodeValidation, "connection target input node not found: %s.%s", connection.To.Component, connection.To.Node)
+			}
+			publicID := addPublicInputForNode(system, connection.To.Component, targetNode)
+			if _, exists := input.Inputs[publicID]; !exists {
+				input.Inputs[publicID] = defaultValueForNode(targetNode)
+				inputDirty = true
+			}
 		}
 	}
-	if newID != nodeID {
+	if newID != nodeID && isInput == targetIsInput {
 		for connectionIndex := range loaded.Graph.Connections {
 			connection := &loaded.Graph.Connections[connectionIndex]
 			if endpointMatches(connection.From, componentID, nodeID) {
@@ -271,6 +310,7 @@ func updateNode(loaded *project.LoadedProject, req updateNodeRequest) (model.Nod
 			}
 		}
 	}
+	loaded.Graph.Connections = removeUnreferencedConnections(loaded.Graph.Connections, loaded.Graph.Systems)
 
 	if _, err := compiler.Compile(loaded); err != nil {
 		return model.Node{}, apperror.Wrap(apperror.CodeValidation, err)
@@ -287,6 +327,96 @@ func updateNode(loaded *project.LoadedProject, req updateNodeRequest) (model.Nod
 		return model.Node{}, err
 	}
 	return updatedNode, nil
+}
+
+func nodeDirectionFromRequest(direction string) (bool, string, error) {
+	switch strings.ToLower(strings.TrimSpace(direction)) {
+	case "input", "in", "inlet":
+		return true, "inlet", nil
+	case "output", "out", "outlet":
+		return false, "outlet", nil
+	default:
+		return false, "", apperror.Errorf(apperror.CodeValidation, "node direction must be input or output")
+	}
+}
+
+func nodeDirectionForBucket(isInput bool) string {
+	if isInput {
+		return "inlet"
+	}
+	return "outlet"
+}
+
+func addPublicInputForNode(system *model.System, componentID string, node model.Node) string {
+	publicID := uniquePublicNodeID(system.PublicInputs, componentID+"_"+node.ID)
+	system.PublicInputs = append(system.PublicInputs, model.PublicNodeRef{
+		ID:        publicID,
+		Name:      node.Name,
+		Component: componentID,
+		Node:      node.ID,
+		Medium:    node.Medium,
+		ValueType: node.ValueType,
+		Unit:      node.Unit,
+		Required:  node.Required,
+		Default:   node.Default,
+	})
+	return publicID
+}
+
+func addPublicOutputForNode(system *model.System, componentID string, node model.Node) string {
+	publicID := uniquePublicNodeID(system.PublicOutputs, componentID+"_"+node.ID)
+	system.PublicOutputs = append(system.PublicOutputs, model.PublicNodeRef{
+		ID:        publicID,
+		Name:      node.Name,
+		Component: componentID,
+		Node:      node.ID,
+		Medium:    node.Medium,
+		ValueType: node.ValueType,
+		Unit:      node.Unit,
+		Default:   node.Default,
+	})
+	return publicID
+}
+
+func updatePublicOutputsForNode(system *model.System, componentID string, nodeID string, updatedNode model.Node) {
+	for refIndex := range system.PublicOutputs {
+		ref := &system.PublicOutputs[refIndex]
+		if ref.Component != componentID || ref.Node != nodeID {
+			continue
+		}
+		updatePublicNodeRef(ref, updatedNode)
+	}
+}
+
+func removeIncomingConnectionsForNode(system *model.System, graph *model.Graph, componentID string, nodeID string) []model.Connection {
+	return removeSystemConnections(system, graph, func(connection model.Connection) bool {
+		return endpointMatches(connection.To, componentID, nodeID)
+	})
+}
+
+func removeOutgoingConnectionsForNode(system *model.System, graph *model.Graph, componentID string, nodeID string) []model.Connection {
+	return removeSystemConnections(system, graph, func(connection model.Connection) bool {
+		return endpointMatches(connection.From, componentID, nodeID)
+	})
+}
+
+func removeSystemConnections(system *model.System, graph *model.Graph, shouldRemove func(model.Connection) bool) []model.Connection {
+	removed := []model.Connection{}
+	keptConnectionIDs := system.Connections[:0]
+	for _, connectionID := range system.Connections {
+		connection, found := findConnection(graph, connectionID)
+		if !found {
+			keptConnectionIDs = append(keptConnectionIDs, connectionID)
+			continue
+		}
+		if shouldRemove(connection) {
+			removed = append(removed, connection)
+			continue
+		}
+		keptConnectionIDs = append(keptConnectionIDs, connectionID)
+	}
+	system.Connections = keptConnectionIDs
+	return removed
 }
 
 func deleteNode(loaded *project.LoadedProject, req deleteNodeRequest) (model.Node, error) {

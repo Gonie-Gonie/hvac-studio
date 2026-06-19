@@ -1386,6 +1386,18 @@ function editableNodeRow(component, node, direction) {
   nodeID.dataset.nodeField = "id";
   nodeID.setAttribute("aria-label", `${component.id}.${node.id} id`);
 
+  const directionSelect = document.createElement("select");
+  directionSelect.className = "inspector-input";
+  directionSelect.dataset.nodeField = "direction";
+  directionSelect.setAttribute("aria-label", `${component.id}.${node.id} direction`);
+  for (const value of ["input", "output"]) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    directionSelect.append(option);
+  }
+  directionSelect.value = direction === "output" ? "output" : "input";
+
   const name = document.createElement("input");
   name.className = "inspector-input";
   name.value = node.name || node.id;
@@ -1419,7 +1431,7 @@ function editableNodeRow(component, node, direction) {
   unit.dataset.nodeField = "unit";
   unit.setAttribute("aria-label", `${component.id}.${node.id} unit`);
 
-  controls.append(nodeID, name, medium, valueType, unit);
+  controls.append(directionSelect, nodeID, name, medium, valueType, unit);
 
   if (direction === "input") {
     const defaultValue = document.createElement("input");
@@ -5078,18 +5090,20 @@ async function updateNodeFromInspector(componentID, nodeID, direction, row) {
   const field = (name) => form.querySelector(`[data-node-field="${name}"]`);
   const updateResult = buildNodeUpdatePayload(state.currentProjectPath, component, nodeID, direction, {
     id: field("id")?.value || "",
+    direction: field("direction")?.value || direction,
     name: field("name")?.value || "",
     medium: field("medium")?.value || "",
     value_type: field("value_type")?.value || "float",
     unit: field("unit")?.value || "",
     default: field("default")?.value || "",
-    required: field("required")?.checked,
+    required: field("required") ? field("required").checked : true,
   });
   if (updateResult.error) {
     showInlineProblem(updateResult.error);
     return;
   }
   if (updateResult.renamed && !(await confirmNodeRename(component, nodeID, updateResult.newID))) return;
+  if (updateResult.directionChanged && !(await confirmNodeDirectionChange(component, nodeID, direction, updateResult.direction))) return;
   try {
     const body = await api("/api/project/nodes/update", {
       method: "POST",
@@ -5100,13 +5114,23 @@ async function updateNodeFromInspector(componentID, nodeID, direction, row) {
     markComponentContractChanged(componentID);
     markRunResultStale(false);
     renderAll();
-    log(`Node updated: ${componentID}.${nodeID}`);
+    log(`Node updated: ${componentID}.${updateResult.newID}`);
   } catch (error) {
     log(`Update node failed: ${error.message}`);
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
     renderProblems();
     setBottomTab("problems");
   }
+}
+
+async function confirmNodeDirectionChange(component, nodeID, direction, nextDirection) {
+  const node = [...(component.nodes.inputs || []), ...(component.nodes.outputs || [])].find((item) => item.id === nodeID);
+  const impact = nodeDeleteImpact(component, node || nodeID, currentSystem(), state.detail?.graph?.connections || []);
+  const sourceDetails = await nodeDirectionSourceDetails(component.id, nodeID, direction, nextDirection);
+  const addedPublicRef = nextDirection === "input"
+    ? "Adds a public input and default input value for the converted node."
+    : "Adds a public output for the converted node.";
+  return window.confirm(`Change node direction ${component.id}.${nodeID} from ${direction} to ${nextDirection}?\n${nodeDeleteImpactConfirmText(impact)}\n${addedPublicRef}\n${sourceDetails}`);
 }
 
 async function confirmNodeRename(component, nodeID, newID) {
@@ -5116,20 +5140,33 @@ async function confirmNodeRename(component, nodeID, newID) {
   return window.confirm(`Rename node ${component.id}.${nodeID} to ${newID}?\n${nodeRenameImpactConfirmText(impact, sourceDetails)}`);
 }
 
+async function nodeDirectionSourceDetails(componentID, nodeID, direction, nextDirection) {
+  const details = await nodeSourceReferenceDetails(componentID, nodeID);
+  if (!details) {
+    return "Source body: run source check after changing direction.";
+  }
+  return `${details} References may need to move from ${direction}s to ${nextDirection}s.`;
+}
+
 async function nodeRenameSourceDetails(componentID, nodeID) {
+  const details = await nodeSourceReferenceDetails(componentID, nodeID);
+  return details || "Source body: not loaded; run source check after rename.";
+}
+
+async function nodeSourceReferenceDetails(componentID, nodeID) {
   if (!state.sourceByComponent[componentID] && !state.loadingSource[componentID]) {
     await loadComponentSource(componentID);
   }
   const source = state.sourceByComponent[componentID];
   if (!source) {
-    return "Source body: not loaded; run source check after rename.";
+    return "";
   }
   const content = sourceDraft(componentID);
   const count = String(content || "").split(nodeID).length - 1;
   if (!count) {
-    return "Source body: no direct old node id text found in loaded source.";
+    return "Source body: no direct node id text found in loaded source.";
   }
-  return `Source body: ${count} direct reference${count === 1 ? "" : "s"} to old node id '${nodeID}' may need editing.`;
+  return `Source body: ${count} direct reference${count === 1 ? "" : "s"} to node id '${nodeID}' may need editing.`;
 }
 
 function findNodeEditRow(componentID, nodeID) {

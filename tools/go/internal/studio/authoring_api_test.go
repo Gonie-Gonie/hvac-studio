@@ -1512,6 +1512,185 @@ func TestUpdateNodeEndpointRenamesNodeReferences(t *testing.T) {
 	}
 }
 
+func TestUpdateNodeEndpointChangesDirectionAndCleansSystemReferences(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader([]byte(`{"name":"Direction Node Project"}`)))
+	server.Handler().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var createBody struct {
+		Project ProjectSummary `json:"project"`
+	}
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &createBody); err != nil {
+		t.Fatal(err)
+	}
+	projectPath := createBody.Project.ProjectPath
+
+	componentPayload, err := json.Marshal(map[string]any{
+		"project_path":      projectPath,
+		"name":              "Second Gain",
+		"template":          "scalar",
+		"include_in_system": false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	componentResponse := httptest.NewRecorder()
+	componentRequest := httptest.NewRequest(http.MethodPost, "/api/project/components", bytes.NewReader(componentPayload))
+	server.Handler().ServeHTTP(componentResponse, componentRequest)
+	if componentResponse.Code != http.StatusCreated {
+		t.Fatalf("component status = %d body=%s", componentResponse.Code, componentResponse.Body.String())
+	}
+	includePayload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"component_id": "second_gain",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	includeResponse := httptest.NewRecorder()
+	includeRequest := httptest.NewRequest(http.MethodPost, "/api/project/system/components", bytes.NewReader(includePayload))
+	server.Handler().ServeHTTP(includeResponse, includeRequest)
+	if includeResponse.Code != http.StatusOK {
+		t.Fatalf("include status = %d body=%s", includeResponse.Code, includeResponse.Body.String())
+	}
+	connectionPayload, err := json.Marshal(map[string]any{
+		"project_path":   projectPath,
+		"from_component": "scalar",
+		"from_node":      "result",
+		"to_component":   "second_gain",
+		"to_node":        "value",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	connectionResponse := httptest.NewRecorder()
+	connectionRequest := httptest.NewRequest(http.MethodPost, "/api/project/connections", bytes.NewReader(connectionPayload))
+	server.Handler().ServeHTTP(connectionResponse, connectionRequest)
+	if connectionResponse.Code != http.StatusCreated {
+		t.Fatalf("connection status = %d body=%s", connectionResponse.Code, connectionResponse.Body.String())
+	}
+
+	outputToInputPayload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"component_id": "scalar",
+		"node_id":      "result",
+		"direction":    "input",
+		"name":         "Result input",
+		"medium":       "signal",
+		"value_type":   "float",
+		"unit":         "",
+		"required":     true,
+		"default":      2.0,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	outputToInputResponse := httptest.NewRecorder()
+	outputToInputRequest := httptest.NewRequest(http.MethodPost, "/api/project/nodes/update", bytes.NewReader(outputToInputPayload))
+	server.Handler().ServeHTTP(outputToInputResponse, outputToInputRequest)
+	if outputToInputResponse.Code != http.StatusOK {
+		t.Fatalf("output-to-input status = %d body=%s", outputToInputResponse.Code, outputToInputResponse.Body.String())
+	}
+
+	loaded, err := project.Load(projectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scalar, found := findComponent(loaded.Graph, "scalar")
+	if !found {
+		t.Fatal("scalar component missing")
+	}
+	if componentHasOutputNode(scalar, "result") {
+		t.Fatalf("result should no longer be an output: %#v", scalar.Nodes.Outputs)
+	}
+	resultInput, found := findInputNode(scalar, "result")
+	if !found || resultInput.Direction != "inlet" || resultInput.Name != "Result input" {
+		t.Fatalf("result input was not converted correctly: %#v", scalar.Nodes.Inputs)
+	}
+	if len(loaded.Graph.Connections) != 0 || len(loaded.Graph.Systems[0].Connections) != 0 {
+		t.Fatalf("direction change should remove invalid outgoing connection: graph=%#v system=%#v", loaded.Graph.Connections, loaded.Graph.Systems[0].Connections)
+	}
+	if hasPublicOutputFor(loaded.Graph.Systems[0], "scalar", "result") {
+		t.Fatalf("converted input should not remain public output: %#v", loaded.Graph.Systems[0].PublicOutputs)
+	}
+	if !hasPublicInputFor(loaded.Graph.Systems[0], "scalar", "result") {
+		t.Fatalf("converted input should be public input: %#v", loaded.Graph.Systems[0].PublicInputs)
+	}
+	if !hasPublicInputFor(loaded.Graph.Systems[0], "second_gain", "value") {
+		t.Fatalf("downstream target should be restored as public input: %#v", loaded.Graph.Systems[0].PublicInputs)
+	}
+	runInput, err := runtimecore.LoadInput(filepath.Join(loaded.Root, loaded.Project.DefaultInput))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runInput.Inputs["scalar_result"] != 2.0 {
+		t.Fatalf("converted input default = %#v", runInput.Inputs["scalar_result"])
+	}
+	if _, exists := runInput.Inputs["second_gain_value"]; !exists {
+		t.Fatalf("restored downstream default input missing: %#v", runInput.Inputs)
+	}
+
+	inputToOutputPayload, err := json.Marshal(map[string]any{
+		"project_path": projectPath,
+		"component_id": "scalar",
+		"node_id":      "value",
+		"direction":    "output",
+		"name":         "Value output",
+		"medium":       "signal",
+		"value_type":   "float",
+		"unit":         "",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inputToOutputResponse := httptest.NewRecorder()
+	inputToOutputRequest := httptest.NewRequest(http.MethodPost, "/api/project/nodes/update", bytes.NewReader(inputToOutputPayload))
+	server.Handler().ServeHTTP(inputToOutputResponse, inputToOutputRequest)
+	if inputToOutputResponse.Code != http.StatusOK {
+		t.Fatalf("input-to-output status = %d body=%s", inputToOutputResponse.Code, inputToOutputResponse.Body.String())
+	}
+
+	loaded, err = project.Load(projectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scalar, found = findComponent(loaded.Graph, "scalar")
+	if !found {
+		t.Fatal("scalar component missing after input-to-output")
+	}
+	if _, found := findInputNode(scalar, "value"); found {
+		t.Fatalf("value should no longer be an input: %#v", scalar.Nodes.Inputs)
+	}
+	valueOutput := model.Node{}
+	found = false
+	for _, output := range scalar.Nodes.Outputs {
+		if output.ID == "value" {
+			valueOutput = output
+			found = true
+			break
+		}
+	}
+	if !found || valueOutput.Direction != "outlet" || valueOutput.Name != "Value output" || valueOutput.Required != nil || valueOutput.Default != nil {
+		t.Fatalf("value output was not converted correctly: %#v", scalar.Nodes.Outputs)
+	}
+	if hasPublicInputFor(loaded.Graph.Systems[0], "scalar", "value") {
+		t.Fatalf("converted output should not remain public input: %#v", loaded.Graph.Systems[0].PublicInputs)
+	}
+	if !hasPublicOutputFor(loaded.Graph.Systems[0], "scalar", "value") {
+		t.Fatalf("converted output should be public output: %#v", loaded.Graph.Systems[0].PublicOutputs)
+	}
+	runInput, err = runtimecore.LoadInput(filepath.Join(loaded.Root, loaded.Project.DefaultInput))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := runInput.Inputs["scalar_value"]; exists {
+		t.Fatalf("converted output default input should be removed: %#v", runInput.Inputs)
+	}
+}
+
 func TestDeleteNodeEndpointCleansPublicIOAndConnections(t *testing.T) {
 	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()

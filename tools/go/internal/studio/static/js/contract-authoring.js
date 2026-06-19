@@ -52,11 +52,15 @@ export function newNodePayload(projectPath, component, values = {}) {
 export function nodeUpdatePayload(projectPath, component, nodeID, direction, fields = {}) {
   const componentID = component?.id || "";
   const newID = (fields.id || "").trim();
+  const targetDirection = (fields.direction || direction || "input").trim();
   if (!newID) {
     return { error: "Node id is required" };
   }
   if (!IDENTIFIER_PATTERN.test(newID)) {
     return { error: "Node id must start with a letter or underscore and contain only letters, numbers, and underscores" };
+  }
+  if (targetDirection !== "input" && targetDirection !== "output") {
+    return { error: "Node direction must be input or output" };
   }
   if (newID !== nodeID) {
     const existingNodes = [...(component?.nodes?.inputs || []), ...(component?.nodes?.outputs || [])];
@@ -73,17 +77,18 @@ export function nodeUpdatePayload(projectPath, component, nodeID, direction, fie
     component_id: componentID,
     node_id: nodeID,
     new_id: newID,
+    direction: targetDirection,
     name,
     medium: (fields.medium || "").trim(),
     value_type: fields.value_type || "float",
     unit: (fields.unit || "").trim(),
   };
-  if (direction === "input") {
+  if (targetDirection === "input") {
     const rawDefault = fields.default || "";
     payload.required = Boolean(fields.required);
     payload.default = rawDefault.trim() === "" ? null : coerceParameter(rawDefault);
   }
-  return { payload, newID, renamed: newID !== nodeID };
+  return { payload, newID, direction: targetDirection, renamed: newID !== nodeID, directionChanged: targetDirection !== direction };
 }
 
 export function newParameterDefinition(name, value, options = {}) {
