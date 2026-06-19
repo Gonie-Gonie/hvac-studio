@@ -825,6 +825,51 @@ func TestDataValidationEndpointSavesWorkspaceRecord(t *testing.T) {
 	}
 }
 
+func TestWorkflowRunEndpointsRejectSavedSourceContractErrors(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	project := createWorkspaceProject(t, server, "Workflow Source Gate Project")
+	projectRoot := filepath.Dir(project.ProjectPath)
+	seedExportWorkflowArtifacts(t, projectRoot)
+	writeBrokenScalarSource(t, project)
+
+	tests := []struct {
+		name    string
+		path    string
+		payload map[string]any
+	}{
+		{
+			name: "validation",
+			path: "/api/validation/run",
+			payload: map[string]any{
+				"project_path": project.ProjectPath,
+				"mapping_path": filepath.Join("validation", "mappings", "scalar_validation.json"),
+			},
+		},
+		{
+			name: "calibration",
+			path: "/api/calibration/run",
+			payload: map[string]any{
+				"project_path": project.ProjectPath,
+				"setup_path":   filepath.Join("calibration", "setups", "scalar_gain.json"),
+			},
+		},
+		{
+			name: "optimization",
+			path: "/api/optimization/run",
+			payload: map[string]any{
+				"project_path": project.ProjectPath,
+				"setup_path":   filepath.Join("optimization", "setups", "scalar_grid.json"),
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assertSourceGateRejectsRequest(t, server, http.MethodPost, test.path, test.payload)
+		})
+	}
+}
+
 func TestCalibrationRunEndpointSavesWorkspaceRecord(t *testing.T) {
 	root, server := newIsolatedTestServer(t)
 	repoRoot, err := findRepoRoot()

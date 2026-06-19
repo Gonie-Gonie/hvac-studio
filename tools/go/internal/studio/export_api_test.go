@@ -644,26 +644,10 @@ func TestExportEndpointRejectsSavedSourceContractErrors(t *testing.T) {
 	project := createWorkspaceProject(t, server, "Export Source Gate Project")
 	writeBrokenScalarSource(t, project)
 
-	payload, err := json.Marshal(map[string]any{
+	assertSourceGateRejectsRequest(t, server, http.MethodPost, "/api/export", map[string]any{
 		"project_path": project.ProjectPath,
 		"profile":      "runtime_package",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	response := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/api/export", bytes.NewReader(payload))
-	server.Handler().ServeHTTP(response, request)
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
-	}
-	var body apiError
-	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
-		t.Fatal(err)
-	}
-	if !hasProblemMessage(body.Problems, "evaluate method is missing") {
-		t.Fatalf("source problem missing from %#v", body.Problems)
-	}
 }
 
 func TestExportEndpointRejectsExamples(t *testing.T) {

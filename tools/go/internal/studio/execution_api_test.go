@@ -389,26 +389,10 @@ func TestRunEndpointRejectsSavedSourceContractErrors(t *testing.T) {
 	project := createWorkspaceProject(t, server, "Run Source Gate Project")
 	writeBrokenScalarSource(t, project)
 
-	payload, err := json.Marshal(map[string]any{
+	assertSourceGateRejectsRequest(t, server, http.MethodPost, "/api/run", map[string]any{
 		"project_path": project.ProjectPath,
 		"inputs":       map[string]any{"value": 4},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	response := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/api/run", bytes.NewReader(payload))
-	server.Handler().ServeHTTP(response, request)
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
-	}
-	var body apiError
-	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
-		t.Fatal(err)
-	}
-	if !hasProblemMessage(body.Problems, "evaluate method is missing") {
-		t.Fatalf("source problem missing from %#v", body.Problems)
-	}
 }
 
 func TestValidateEndpointReturnsLinkedProblem(t *testing.T) {
@@ -800,6 +784,23 @@ func TestRunSeriesEndpointReturnsPlotReadyResult(t *testing.T) {
 	}
 }
 
+func TestRunSeriesEndpointRejectsSavedSourceContractErrors(t *testing.T) {
+	_, server := newIsolatedTestServer(t)
+	project := createWorkspaceProject(t, server, "Series Source Gate Project")
+	writeBrokenScalarSource(t, project)
+
+	assertSourceGateRejectsRequest(t, server, http.MethodPost, "/api/run-series", map[string]any{
+		"project_path":   project.ProjectPath,
+		"schema_version": "0.1.0",
+		"steps": []map[string]any{
+			{
+				"inputs":  map[string]any{"value": 2},
+				"context": map[string]any{"time": 0, "dt": 60},
+			},
+		},
+	})
+}
+
 func TestBatchEndpointRecordsProblemsForFailedCases(t *testing.T) {
 	_, server := newIsolatedTestServer(t)
 	createResponse := httptest.NewRecorder()
@@ -923,23 +924,7 @@ func TestBatchEndpointRejectsSavedSourceContractErrors(t *testing.T) {
 	}
 	writeBrokenScalarSource(t, project)
 
-	batchPayload, err := json.Marshal(map[string]any{"project_path": project.ProjectPath})
-	if err != nil {
-		t.Fatal(err)
-	}
-	response := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/api/batch", bytes.NewReader(batchPayload))
-	server.Handler().ServeHTTP(response, request)
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
-	}
-	var body apiError
-	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
-		t.Fatal(err)
-	}
-	if !hasProblemMessage(body.Problems, "evaluate method is missing") {
-		t.Fatalf("source problem missing from %#v", body.Problems)
-	}
+	assertSourceGateRejectsRequest(t, server, http.MethodPost, "/api/batch", map[string]any{"project_path": project.ProjectPath})
 }
 
 func TestCreateScenarioEndpointRejectsExamples(t *testing.T) {

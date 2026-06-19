@@ -80,6 +80,30 @@ func writeBrokenScalarSource(t *testing.T, project ProjectSummary) {
 	}
 }
 
+func assertSourceGateRejectsRequest(t *testing.T, server *Server, method string, path string, payload any) {
+	t.Helper()
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(method, path, bytes.NewReader(data))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("%s status = %d body=%s", path, response.Code, response.Body.String())
+	}
+	var body apiError
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(body.Message, "project source validation failed") {
+		t.Fatalf("message = %s", body.Message)
+	}
+	if !hasProblemMessage(body.Problems, "evaluate method is missing") {
+		t.Fatalf("source problem missing from %#v", body.Problems)
+	}
+}
+
 func newTestServer(t *testing.T) *Server {
 	t.Helper()
 	root, err := findRepoRoot()
