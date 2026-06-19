@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"path/filepath"
 	"strings"
 
 	graphindex "github.com/goniegonie/hvac-studio/tools/go/internal/graph"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/projectpath"
 )
 
 type Plan struct {
@@ -106,10 +106,6 @@ func validateMLAssets(loaded *project.LoadedProject) error {
 	if loaded == nil || loaded.Graph == nil {
 		return nil
 	}
-	root, err := filepath.Abs(loaded.Root)
-	if err != nil {
-		return err
-	}
 	for _, component := range loaded.Graph.Components {
 		if component.MLMetadata == nil {
 			continue
@@ -119,19 +115,9 @@ func validateMLAssets(loaded *project.LoadedProject) error {
 			if assetPath == "" {
 				continue
 			}
-			if filepath.IsAbs(assetPath) {
-				return fmt.Errorf("component %s ml_metadata.%s must be project-relative: %s", component.ID, asset.Field, asset.Path)
-			}
-			absAsset, err := filepath.Abs(filepath.Join(root, filepath.FromSlash(assetPath)))
+			absAsset, err := projectpath.ResolveInside(loaded.Root, assetPath)
 			if err != nil {
-				return err
-			}
-			rel, err := filepath.Rel(root, absAsset)
-			if err != nil {
-				return err
-			}
-			if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
-				return fmt.Errorf("component %s ml_metadata.%s must stay inside project root: %s", component.ID, asset.Field, asset.Path)
+				return fmt.Errorf("component %s ml_metadata.%s must be project-relative and stay inside project root: %s", component.ID, asset.Field, asset.Path)
 			}
 			info, err := os.Stat(absAsset)
 			if os.IsNotExist(err) {

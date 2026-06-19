@@ -2,11 +2,11 @@ package graph
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/artifactschema"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/projectpath"
 )
 
 type Index struct {
@@ -277,15 +277,10 @@ func validateMLMetadata(componentID string, metadata *model.MLMetadata) error {
 }
 
 func validateProjectRelativePath(label string, value string) error {
-	value = strings.TrimSpace(value)
-	if value == "" {
+	if strings.TrimSpace(value) == "" {
 		return nil
 	}
-	if strings.HasPrefix(value, "/") || strings.HasPrefix(value, `\`) {
-		return fmt.Errorf("%s must be project-relative and stay inside project root: %s", label, value)
-	}
-	clean := filepath.Clean(filepath.FromSlash(value))
-	if clean == "." || filepath.IsAbs(clean) || filepath.VolumeName(clean) != "" || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+	if _, err := projectpath.CleanRelative(value); err != nil {
 		return fmt.Errorf("%s must be project-relative and stay inside project root: %s", label, value)
 	}
 	return nil
