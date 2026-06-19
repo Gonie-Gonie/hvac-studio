@@ -1,156 +1,141 @@
 # Agent Working Memory
 
-Last updated: 2026-06-03
+Last updated: 2026-06-19
 
-## North Star
+This file is a compact maintainer note for agents working in this repository.
+User-facing documentation lives under `docs/`, especially `docs/status.md` and
+`docs/user/`. Release procedure lives in `docs/release.md`.
 
-This repository is for a Component-Node System Studio: an installable authoring/runtime system for building-system researchers who define equipment and control models in Python, then connect, validate, run, optimize, and deliver those models through a stable component-node-system runtime.
+## Product Center
 
-The core is not an HVAC component library. The core is preserving user-defined Python modeling freedom while making connections, schemas, execution order, runtime environment, and delivery reproducible.
+HVAC Studio is a Python-first component-node-system authoring and runtime tool
+for building-system researchers. It lets users define components, nodes,
+parameters, state, public inputs, and public outputs as project artifacts, then
+run, validate, calibrate, optimize, integrate through SDK or external engines,
+and export runtime-only packages.
 
-## Product Principles To Keep Checking
+The core is not a fixed HVAC component library. The core is preserving
+user-defined Python modeling freedom while making contracts, graph execution,
+runtime environment, and delivery reproducible.
 
-- User-defined component first, not component library first.
-- `project.bcsproj`, `graph.json`, component source files, schema files, and environment locks are the source of truth.
-- GUI is an authoring/viewing layer, not the source of truth.
-- Python object references and setter side effects must not define execution order.
-- User Python code is not translated to Go. The runtime manages the boundary and calls `initialize` / `evaluate`.
-- A component owns calculation logic; nodes are connection points. Avoid wording like "Chiller node".
-- Node schema is the component's external contract and should allow arbitrary inlet/outlet counts.
-- The same model must run through GUI, CLI, SDK, batch, and serve paths using the same runner.
-- Algebraic loops are detected in the MVP. They are not implicitly solved by recursive callbacks.
-- Built-in components are convenience/templates, not the modeling boundary.
+## Source Of Truth
 
-## Current Repository Direction
+- `project.bcsproj`, `graph.json`, component source files, schema files,
+  datasets, parameter sets, scenarios, setup artifacts, and saved records are
+  source artifacts.
+- Studio is an authoring and inspection surface over those artifacts.
+- `bcs-runner` is the execution engine.
+- The Python SDK is a thin client over runner commands and serve sessions.
+- Runtime exports must work without a source checkout when the selected package
+  profile includes the needed support files.
 
-- Start with MVP 1 runtime core:
-  - `project.bcsproj`
-  - `graph.json`
-  - user-defined Python component contract
-  - Python worker
-  - `bcs-runner validate`
-  - `bcs-runner run`
-  - JSON input/output
-  - golden example assets
-- Keep the monorepo shape from the design script:
-  - `tools/go` for runner/runtime/compiler packages.
-  - `python/bcs_worker` for the persistent Python component evaluator.
-  - `python/bcs_sdk` for research/optimization wrappers around the runner.
-  - `schema` for source-of-truth JSON schemas.
-  - `examples` as regression assets, not demos only.
-  - `tools/go/cmd/studio` hosts the current Wails desktop entrypoint and serves the modular static Studio workspace.
+## Current Product Surface
 
-## Active Design Decisions
+- Studio opens projects, creates template-backed components, edits contracts and
+  Python source, manages parameters, builds systems, runs cases, imports
+  datasets, creates validation/calibration/optimization setups, opens saved
+  records, and exports runtime packages.
+- Generated-wrapper components keep Studio-owned wrapper code separate from the
+  editable `user_step.py` body.
+- Source checks, quick fixes, completions, snippets, gutter markers, and
+  traceback mapping should stay aligned with runner behavior.
+- Examples are regression assets. Keep scalar, generated-wrapper, stateful,
+  plant workflow, optimization, runtime-only, vectorized, external executable,
+  solver boundary, unit conversion, composite, ANN asset, and RC/ANN composition
+  examples runnable.
+- Release packages currently target Windows-first portable, Windows installer
+  bundle, runtime-only package, experimental macOS support package, docs package,
+  and SDK package.
 
-- Public system input/output mappings should be explicit objects with `id`, `component`, and `node`. The design script shows simple string examples, but the runtime needs explicit endpoint mapping to avoid guessing.
-- The initial runner supports feed-forward acyclic systems. Cycles should produce a clear algebraic-loop validation error.
-- The Python worker uses JSONL over stdio for the MVP.
-- During development, the Go runner finds `python/bcs_worker` from the repo tree and adds it plus the project root to `PYTHONPATH`.
-- Python user components may use arbitrary internal logic, but inputs/outputs/states must be JSON-serializable across the worker boundary.
-- Python component returned output keys must match declared component output nodes exactly; missing and undeclared output keys are runtime contract errors.
-- Fresh clones should be bootstrappable into a repo-local development environment. `scripts/dev/setup.ps1` installs Go, uv, uv-managed Python, and `.venv` inside the clone so normal development does not depend on user-profile toolchains.
-- Dev/test/build scripts should load `scripts/dev/env.ps1` and prefer `.repo_tools` / `.venv` before falling back to system tools.
-- Work should be committed and pushed at sensible milestones, especially after a test pass. Treat "test green -> commit -> push" as an operating rule unless the user says to hold changes locally.
-- The Windows portable and runtime MVP zips should include `runtime/python` copied from repo-local setup. Included examples must run without system Python on `PATH`.
-- Project-specific third-party package locking/freezing remains a later environment-management milestone.
-- The first user-facing app release should be a Windows 10/11 x64 portable Studio zip. Installer packaging comes after portable behavior is reproducible.
-- macOS is a future experimental release target after MVP. Keep engine, project files, graph schema, and component schema OS-independent, but do not let macOS packaging slow the Windows MVP.
-- OS-specific path, process, runtime, executable naming, installer, signing, and packaging logic should be isolated behind platform/release boundaries.
-- The UX development plan is tracked in `planning/development-plan.md`. It folds in the Component-Node-System UX flow: project creation, component/node/parameter/state authoring, protected Python function-body editing, system canvas, validation, run/debug, datasets, validation, calibration, optimization, SDK, and runtime-only delivery.
-- GUI component editing should eventually show a generated scaffold but persist contract metadata separately from user-editable function bodies, e.g. `component.json`, `user_init.py`, `user_step.py`, and helpers.
-- Dataset, parameter set, scenario, run record, validation, calibration, and optimization artifacts must become source-of-truth project objects rather than transient GUI state.
-- Studio GUI work should start from the full product workspace shape, then connect behavior incrementally. Avoid ambiguous tiny demo screens that obscure the intended workflow.
-- Studio-created projects should live under `projects/` in the portable package. Workspace runs should be persisted as `runs/run-*.json` records inside the project.
-- GUI edits should persist to source-of-truth artifacts immediately and explicitly. Current write scope starts with workspace-only component parameters saved to `graph.json`; bundled examples remain read-only through the Studio API.
-- Studio run input fields should come from the project's `default_input` file when available, not from hardcoded sample values. Saving run inputs writes back to that source artifact for workspace projects.
-- Newly created components should first be persisted as source artifacts (`graph.json` plus `components/<id>.py`) without silently changing system execution. System membership, connections, and public IO should be explicit authoring actions.
-- Newly created projects should come from real source templates under `templates/projects/`, not hardcoded GUI/server mock data. The scalar project template is the first canonical template.
-- When a component is explicitly added to a system, the Studio should keep the runnable path intact by creating public IO mappings and extending `default_input` for new required public inputs.
-- When a node-to-node connection targets a previously public input, that input should stop being public and be removed from default input artifacts so the graph remains valid.
-- Saved runs are project artifacts. The GUI should be able to reopen `runs/run-*.json` records and use them for Results and Inspector state, not just show the latest transient response.
-- Export profiles should write concrete project artifacts under `exports/` before becoming full package builders. The first connected profile is `exports/runtime_package/`.
-- Runtime export should include a copied `exports/runtime_package/project/` source-of-truth project artifact, not only a manifest, before growing into a full runner/Python package builder.
-- Runtime export should carry `schema/public-io.json` beside the project artifact so external users can see the delivered input/output contract without opening Studio.
-- Runtime export from a packaged Studio should copy the packaged runner tools and Python runtime into the export folder when they are available, so the manifest paths correspond to real delivery files.
-- Runtime exports should include a small first-run entrypoint (`run-default.ps1`) and README so delivery users can execute the default case without reverse-engineering the manifest.
-- Export workspace summaries should show user-relevant artifact paths such as project file, default input, and public IO schema instead of hiding them only in raw manifest JSON.
-- Validation problems should carry structured metadata where possible. Even simple inferred `component_id` links are useful because they keep the Problems panel connected to the graph authoring surface.
-- Problems panel rows should navigate to the most specific authoring surface available: source line for Python problems, otherwise the selected component on the system canvas.
-- Successful actions should clear or replace stale Problems state; old errors must not survive after a run/save/export path has actually succeeded.
-- Python source editing must respect ownership: examples are read-only, workspace project component files can be saved, and the graph contract remains in `graph.json`.
-- Direct Python authoring belongs in a first-class Code workspace with component contract context, source drafts, explicit save/revert/check actions, and snippets; source files remain the source of truth.
-- Python edit feedback should be short without creating a second execution path: Code workspace save-and-run controls must call the same save/check/run flow used by normal Run actions.
-- Component authoring navigation should preserve selected component context between Canvas, Inspector, and Code workspace instead of making users reselect the same component.
-- The first Studio screen must be editable in a fresh app/package. If no workspace project exists, create/open a starter workspace instead of dropping users into a read-only example where Add, Save, connection, and source editing are disabled.
-- Code snippets should be generated from the selected component's graph contract, especially all declared input/output nodes, so they teach the actual component shape rather than a one-node toy shape.
-- Source-check feedback should be visible inside the Code workspace itself, not only in the global Problems panel, and line-specific issues should focus the editor line.
-- Code workspace runtime feedback should show selected-component values from actual runner results, keeping source edits, graph contract, and observed behavior in one place.
-- Last-run values should remain visible for comparison after edits, but must be marked stale whenever inputs, source, parameters, nodes, or connections change before the next successful run.
-- The Python editor should preserve familiar code-editing mechanics such as save/check shortcuts and line-based indent/outdent, without adding visible shortcut tutorial text inside the app UI.
-- Scenarios should start as explicit project artifacts under `scenarios/`, created from current run inputs/context, before adding richer dataset and validation workflows.
-- Saved scenarios should be reusable immediately in Studio by reopening them into the Run Inputs panel.
-- Studio execution actions should flush workspace model edits that affect runtime behavior, especially component parameters and Python source, before invoking run/export paths.
-- Removing a Studio connection should restore the target input as editable public IO and reinsert its default input value when no other incoming connection owns that target.
-- Canvas manipulation should use the same persisted graph APIs as Inspector forms. A visual pending connection state is useful only when the next click writes a real `graph.json` connection and immediately refreshes validation/run surfaces.
-- Canvas connection selection should stay tied to real connection IDs and reuse the same delete API as Inspector forms.
-- Canvas view layout is authoring metadata, not runtime graph data. Persist component positions in a Studio-owned project artifact such as `studio/layout.json`, and keep it out of compiler/runtime semantics.
-- Canvas cards must stay readable before adding richer interactions: avoid narrow cards, forced single-line truncation, and ambiguous node/parameter presentation.
-- Canvas run feedback should come from actual runner `component_inputs` and `component_outputs`, so users can see Python edits and graph connections changing values without hunting through raw JSON.
-- Deleting a component node must clean related public IO, default inputs, and connections; if deleting an output removes an upstream connection, restore the still-existing target input as public IO.
-- Parameter Manager should let workspace users create Python-friendly parameter keys, not only edit template-created keys, so source edits and graph parameters can evolve together.
-- Selected-component Inspector editing should cover common graph edits directly, including parameter value changes and parameter add/delete, while staying synchronized with broader manager views.
-- Parameter deletion is a graph edit only; it should preserve other pending parameter edits before removing the selected key and still reject bundled examples.
-- Node contract edits should be first-class Inspector actions for workspace projects. Keep node IDs/directions stable until full rename/refactor support exists, but allow display name, medium, value type, unit, required flag, and default value changes to update graph, public IO, and default inputs together.
-- Examples should remain read-only, but Studio needs a first-class copy-to-workspace path so users can turn an example into an editable project without manually duplicating files.
-- Removing a component from a runnable system should not delete its source artifact; it should clean system membership, touching connections, public IO, and default inputs so the graph remains valid and reversible.
-- Deleting a component artifact is allowed only after it is out of every system and has no connection references; then graph entry and unshared source file are removed together.
-- Duplicating a component should copy its graph contract, parameters, and Python source as a new unused component; system assembly remains explicit through `Use`.
-- Source checks should catch obvious authoring errors before execution: expected class name, `evaluate`/`initialize` signatures, return-shape hints, and Python syntax when a runtime is available.
-- Source checks should load the draft Python source in a short-lived Python process to catch import and class-load errors before run/export, while still treating actual component evaluation as runtime behavior.
-- Saving a Python source file should return the current source check result; execution actions should stop on saved source-check errors instead of letting users discover obvious contract breaks through later runtime failures.
-- Source checks may warn when graph input/output node names are not visibly referenced in Python source, but dynamic Python patterns should remain possible, so these contract-reference hints must stay warnings unless runtime validation proves an error.
-- Run, batch, and export APIs must gate on saved source-check errors server-side, not only through GUI dirty-draft handling, because API automation and reopened projects can bypass frontend state.
-- Studio project validation should combine graph compilation with Python source contract checks for all `user_python` components, so Validate reflects the actual component-node-system authoring contract.
-- Batch execution should start with saved scenarios and write explicit `runs/batch-*.json` artifacts before adding dataset-scale orchestration.
-- Failed batch cases should retain structured Problems metadata so reopening a batch record can still guide the user back to the component/source surface.
-- Component management should separate stable component IDs/classes from editable display labels until full refactoring/rename support exists.
-- Portable smoke coverage should keep exercising the connected Studio workflow, not just server startup. The current smoke path covers project copy/creation, node creation/deletion, source editing/checking, component creation/duplication/inclusion/removal/deletion, connection creation/removal, parameter creation/deletion, input/scenario/batch/run/export artifacts, and bundled Python execution.
-- Core workflow tests should assert value propagation through actual edited Python source, graph connections, and runner `component_inputs`/`component_outputs`, not only that API calls return success.
-- Routine test cadence can be looser during rapid product-building. Use targeted tests for small UI/docs/static or local API changes, and reserve full fast/release gates for riskier runtime/API/package boundaries or after several related commits.
-- Functional-change commits should include a build check before commit/push, not only tests. Use the narrowest relevant build for the touched surface, and use the Wails/portable build path when desktop launch or release packaging behavior is affected.
-- Release packaging must work from untagged development checkouts by falling back to a dev version with the current short SHA.
-- Local release readiness should have one canonical gate: `scripts/release/test-release-candidate.ps1`, which runs fast verification plus portable and runtime package smoke tests and reports the two zips.
-- The portable Studio package should have a user-facing root `HVAC Studio.exe` that opens a native Wails desktop window without launching a browser or binding a normal-use TCP port; `bin/studio.exe --server` remains the automation/server-only entrypoint.
-- Wails desktop binaries must be built with the Wails production tags (`-tags desktop,production`); plain `go build` can produce a runtime error dialog even when compilation succeeds.
-- User-facing package tools should not be placeholders. `bcs-env.exe check` is now the package self-diagnostic for Python runtime, worker, SDK, schema, examples, and entrypoints, and release smoke tests should keep using it.
-- Studio-created components should come from `templates/components/<template>/manifest.json` plus source files, with only generated IDs/classes rewritten. Avoid reintroducing hard-coded component scaffolds in Go code.
-- Studio component creation UI should discover available component templates from the same manifest-backed server API used by project creation, instead of hard-coding a template id in frontend code.
-- Package self-checks should validate template structure deeply enough to catch missing component manifests, missing component source, and manifest/source class mismatches before Studio users hit Add Component.
-- Exported runtime folders should also be self-diagnostic: `bin/bcs-env.exe check --root .` should detect `runtime-export` mode and verify manifest, project, schema, runner, run script, and packaged Python.
-- Studio static frontend should stay modular under `tools/go/internal/studio/static/js/`: shared state/API/DOM/format helpers and focused workspace renderers should be extracted instead of growing one monolithic `app.js`.
-- Studio UI should show only implemented workflow surfaces during development. Future dataset/validation/calibration/optimization areas belong in the plan/docs until runtime-backed artifacts and actions exist, so the running app stays understandable and honest.
-- Workspace detail views should render real artifact state, not only raw JSON. Keep JSON panes for inspection, but pair them with concise tables for records, exported files, paths, and statuses.
-- User documentation is part of the product. Keep Markdown source under `docs/user/`, explain both user workflows and the internal execution model users need to reason correctly, and plan for MkDocs HTML, in-app help, PDF manual, and release assets.
-- Quick Start and Troubleshooting should track the actual release package behavior: package self-check, desktop launch, Code workspace source checks, runtime export, export self-check, and `run-default.ps1`.
-- As of 2026-06-03, the `0.1.0-dev` release candidate gate passes through repo-local setup, fast verification, Wails Studio smoke build, portable package smoke, and runtime package smoke. The current user-test path should exercise project creation/copy, component creation/copy/use, Python source edit/check/save-run, canvas connection/layout, scenario/batch, run feedback, and runtime export.
+## Design Rules
+
+- Use Component, Node, System, Public Input, and Public Output consistently.
+  Avoid wording like "Chiller node"; chiller is a component, inlet/outlet/signal
+  points are nodes.
+- Baseline graph and component artifacts must not be silently mutated by
+  calibration, optimization, or validation results. Save named result artifacts
+  and make apply/revert actions explicit.
+- GUI workflows should be JSON-free for common paths. Raw JSON belongs in
+  diagnostics and inspection surfaces.
+- Problems should identify the most useful target: component, node, source line,
+  artifact, command, or package path.
+- Canvas, Inspector, Code, Run, Data, Parameters, Calibration, Optimization,
+  Artifacts, and Export views should call the same persisted APIs rather than
+  maintaining parallel state.
+- `tools/go/internal/studio/static/js/app.js` should stay as orchestration glue.
+  Extract focused modules for workspaces, result renderers, helpers, and shared
+  UI behavior when a section grows large.
+
+## Development Docs
+
+- Use `docs/status.md` for what works, current package limits, retained build
+  artifacts, cleanup guidance, and active development focus.
+- Use `docs/release.md` for release commands, package scope, provenance,
+  checksums, signing/trust notes, and release checklist.
+- Use `docs/repository-design.md` for architecture boundaries.
+- Keep `docs/user/` focused on workflows users can follow in the current
+  product surface.
+- Avoid adding separate roadmap archives. Fold enduring direction into
+  `docs/status.md` or the relevant user/release page.
+
+## Verification
+
+Choose the narrowest meaningful check for the change, then broaden when the
+change touches shared behavior, runtime contracts, packaging, or docs included
+in packages.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-fast.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-docs.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-product-wording.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1 -Version 0.1.0-dev -SkipSetup
+```
+
+For meaningful frontend UI changes, run the relevant Studio target and capture
+the screenshot matrix before declaring the surface ready.
+
+## Generated Outputs
+
+Retained release-candidate zip artifacts live directly under `dist/`:
+
+```text
+dist/hvac-studio-0.1.0-dev-windows-amd64-portable.zip
+dist/hvac-studio-0.1.0-dev-windows-amd64-installer.zip
+dist/hvac-studio-runtime-0.1.0-dev-windows-amd64.zip
+dist/hvac-studio-0.1.0-dev-macos-universal-experimental.zip
+dist/hvac-studio-docs-0.1.0-dev.zip
+dist/hvac-studio-sdk-0.1.0-dev.zip
+```
+
+Clean local intermediates after tests:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\clean-generated.ps1
+```
+
+The cleanup script preserves retained zip artifacts and removes local staging,
+logs, caches, smoke output, build folders, and empty generated directories.
+
+## Operating Rules
+
+- Read the codebase before refactoring. Prefer existing local patterns and
+  helpers.
+- Keep edits scoped to the requested workflow and surrounding ownership
+  boundary.
+- Do not revert user changes. Work with a dirty tree carefully.
+- Commit and push coherent units after tests pass unless the user asks to hold
+  changes locally.
+- Keep build/package outputs current when source changes affect release
+  artifacts.
 
 ## Monitoring Checklist
 
 - Are we accidentally turning the GUI into the model source of truth?
-- Are we adding built-in HVAC models before the runner/worker contract is stable?
-- Are we relying on global Python instances, callbacks, or side effects for graph execution?
-- Are error messages actionable for researchers connecting component nodes?
-- Can examples be run as regression tests?
-- Can a future optimization loop keep the runner alive instead of starting Python repeatedly?
-- Are setup scripts keeping tool caches inside the repo-local ignored directories rather than leaking assumptions into the user's global environment?
-- After a coherent unit is tested, did we commit and push before starting the next unit?
-- For functional changes, did we run a relevant build before committing?
-- Does every release package get smoke-tested after expansion, not just built?
-- Do release smoke tests constrain `PATH` so they prove bundled Python is being used?
-- Are Windows portable, runtime-only, and future installer packages clearly separated?
-- Are we accidentally hardcoding Windows-specific behavior into engine/compiler/runtime packages instead of release/platform code?
-- Are UX features being staged so runtime support and golden examples exist before GUI polish?
-- Does the GUI shell preserve the complete Studio workflow even while individual features are still being connected?
-- Are unimplemented future UI surfaces hidden until they have source-of-truth files and runtime-backed actions?
-- Do GUI edit APIs reject examples/templates unless the user has created or copied them into `projects/`?
-- Are user guide pages explaining source-of-truth files, runner behavior, public IO, and Python worker boundaries clearly enough for model authors?
+- Are Studio, CLI, SDK, and external-engine paths using the same runner
+  behavior?
+- Are examples still regression assets rather than disposable samples?
+- Can a user complete the primary path without editing raw JSON?
+- Do errors lead to the place the user can fix?
+- Do exported folders run after being moved or unzipped elsewhere?
+- Are package docs and retained zip artifacts current for the commit being
+  discussed?
