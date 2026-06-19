@@ -10,6 +10,7 @@ import (
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/apperror"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/projectpath"
 	runtimecore "github.com/goniegonie/hvac-studio/tools/go/internal/runtime"
 )
 
@@ -38,15 +39,14 @@ func sameFilesystemPath(left string, right string) bool {
 }
 
 func cleanRelativePath(rel string) (string, error) {
-	rel = strings.TrimSpace(rel)
-	if rel == "" {
+	if strings.TrimSpace(rel) == "" {
 		return "", apperror.Errorf(apperror.CodeValidation, "relative path is required")
 	}
-	clean := filepath.Clean(filepath.FromSlash(rel))
-	if filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+	clean, err := projectpath.CleanRelative(rel)
+	if err != nil {
 		return "", apperror.Errorf(apperror.CodeValidation, "relative path escapes project: %s", rel)
 	}
-	return clean, nil
+	return filepath.FromSlash(clean), nil
 }
 
 func classNameFromPath(classPath string) string {
@@ -109,26 +109,14 @@ func resolveProjectFile(projectRoot string, path string) string {
 }
 
 func resolveProjectOwnedFile(projectRoot string, path string) (string, error) {
-	if path == "" {
+	if strings.TrimSpace(path) == "" {
 		return "", apperror.Errorf(apperror.CodeValidation, "project file path is required")
 	}
-	resolved := resolveProjectFile(projectRoot, path)
-	absPath, err := filepath.Abs(resolved)
+	resolved, err := projectpath.ResolveOwned(projectRoot, path)
 	if err != nil {
-		return "", apperror.Wrap(apperror.CodeValidation, err)
-	}
-	absRoot, err := filepath.Abs(projectRoot)
-	if err != nil {
-		return "", apperror.Wrap(apperror.CodeValidation, err)
-	}
-	rel, err := filepath.Rel(absRoot, absPath)
-	if err != nil {
-		return "", apperror.Wrap(apperror.CodeValidation, err)
-	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
 		return "", apperror.Errorf(apperror.CodeValidation, "project file path must stay inside project root: %s", path)
 	}
-	return absPath, nil
+	return resolved, nil
 }
 
 func loadEditableDefaultInput(loaded *project.LoadedProject) (string, runtimecore.RunInput, error) {

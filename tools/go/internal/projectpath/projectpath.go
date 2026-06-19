@@ -30,11 +30,34 @@ func ResolveInside(root string, value string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return resolveCandidateInside(root, filepath.FromSlash(clean), value)
+}
+
+func ResolveOwned(root string, value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", fmt.Errorf("path must stay inside project root: %s", value)
+	}
+	nativeValue := filepath.FromSlash(value)
+	if filepath.IsAbs(nativeValue) || filepath.VolumeName(nativeValue) != "" || strings.HasPrefix(value, "/") || strings.HasPrefix(value, `\`) {
+		return resolveCandidateInside(root, nativeValue, value)
+	}
+	clean, err := CleanRelative(value)
+	if err != nil {
+		return "", err
+	}
+	return resolveCandidateInside(root, filepath.FromSlash(clean), value)
+}
+
+func resolveCandidateInside(root string, candidate string, original string) (string, error) {
 	absRoot, err := filepath.Abs(root)
 	if err != nil {
 		return "", err
 	}
-	resolved, err := filepath.Abs(filepath.Join(absRoot, filepath.FromSlash(clean)))
+	if !filepath.IsAbs(candidate) && filepath.VolumeName(candidate) == "" {
+		candidate = filepath.Join(absRoot, candidate)
+	}
+	resolved, err := filepath.Abs(candidate)
 	if err != nil {
 		return "", err
 	}
@@ -43,7 +66,7 @@ func ResolveInside(root string, value string) (string, error) {
 		return "", err
 	}
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
-		return "", fmt.Errorf("path must be project-relative and stay inside project root: %s", value)
+		return "", fmt.Errorf("path must stay inside project root: %s", original)
 	}
 	return resolved, nil
 }

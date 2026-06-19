@@ -46,3 +46,23 @@ func TestResolveInsideReturnsAbsoluteProjectPath(t *testing.T) {
 		t.Fatalf("resolved = %q want %q", got, want)
 	}
 }
+
+func TestResolveOwnedAcceptsAbsolutePathInsideProject(t *testing.T) {
+	root := t.TempDir()
+	inside := filepath.Join(root, "assets", "model.json")
+	got, err := ResolveOwned(root, inside)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != inside {
+		t.Fatalf("resolved = %q want %q", got, inside)
+	}
+}
+
+func TestResolveOwnedRejectsAbsolutePathOutsideProject(t *testing.T) {
+	root := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "model.json")
+	if _, err := ResolveOwned(root, outside); err == nil {
+		t.Fatalf("expected outside path to be rejected")
+	}
+}
