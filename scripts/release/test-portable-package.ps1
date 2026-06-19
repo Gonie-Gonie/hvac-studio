@@ -399,6 +399,72 @@ try {
   if (-not (Test-Path -LiteralPath $SeriesInputPath)) {
     throw "workspace series input was not written: $SeriesInputPath"
   }
+  $ProjectRoot = Split-Path -Parent $CreatedProject.project_path
+  $DatasetPath = Join-Path $ProjectRoot 'datasets\portable_smoke_validation.csv'
+  $ValidationMappingPath = Join-Path $ProjectRoot 'validation\mappings\portable_smoke_validation.json'
+  $CalibrationSetupPath = Join-Path $ProjectRoot 'calibration\setups\portable_smoke_gain.json'
+  $OptimizationSetupPath = Join-Path $ProjectRoot 'optimization\setups\portable_smoke_value_grid.json'
+  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $DatasetPath) | Out-Null
+  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $ValidationMappingPath) | Out-Null
+  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $CalibrationSetupPath) | Out-Null
+  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $OptimizationSetupPath) | Out-Null
+  [IO.File]::WriteAllText($DatasetPath, "value,scalar_bias,observed_result,observed_extra_result`n5,4,21,42`n6,4,24,48`n", [Text.UTF8Encoding]::new($false))
+  $ValidationMappingJson = @{
+    id = 'portable_smoke_validation'
+    dataset = 'datasets/portable_smoke_validation.csv'
+    input_columns = @{
+      value = 'value'
+      scalar_bias = 'scalar_bias'
+    }
+    observed_output_columns = @{
+      result = 'observed_result'
+    }
+  } | ConvertTo-Json -Depth 8
+  [IO.File]::WriteAllText($ValidationMappingPath, $ValidationMappingJson + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
+  $CalibrationSetupJson = @{
+    id = 'portable_smoke_gain'
+    algorithm = 'grid'
+    mapping = 'validation/mappings/portable_smoke_validation.json'
+    objective = @{
+      metric = 'rmse'
+      outputs = @{
+        result = 1.0
+      }
+    }
+    parameters = @(
+      @{
+        component = 'scalar'
+        name = 'gain'
+        min = 2.0
+        max = 4.0
+        step = 1.0
+      }
+    )
+  } | ConvertTo-Json -Depth 8
+  [IO.File]::WriteAllText($CalibrationSetupPath, $CalibrationSetupJson + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
+  $OptimizationSetupJson = @{
+    id = 'portable_smoke_value_grid'
+    algorithm = 'grid'
+    base_inputs = $InputValues
+    context = @{
+      time = 0
+      dt = 60
+    }
+    objective = @{
+      output = 'result'
+      sense = 'max'
+    }
+    decision_variables = @(
+      @{
+        kind = 'public_input'
+        name = 'value'
+        min = 4.0
+        max = 6.0
+        step = 1.0
+      }
+    )
+  } | ConvertTo-Json -Depth 8
+  [IO.File]::WriteAllText($OptimizationSetupPath, $OptimizationSetupJson + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
 
   $ValidateBody = @{
     project_path = $CreatedProject.project_path
@@ -501,7 +567,7 @@ try {
   if ($ExportJson.export.interface_schema -ne 'schema/public-io.json') {
     throw "workspace export interface schema mismatch: $($ExportJson.export.interface_schema)"
   }
-  foreach ($ExportFile in @('README.md', 'bin/bcs-runner.exe', 'bin/bcs-env.exe', 'project/project.bcsproj', 'project/graph.json', 'project/components/scalar.py', 'project/inputs/case01.json', 'project/inputs/series01.json', 'check-env.ps1', 'docs/CLI_Guide.md', 'run-default.ps1', 'run-scenario.ps1', 'run-series.ps1', 'sdk-example.py', 'serve.ps1', 'runtime/python/python.exe', 'schema/public-io.json')) {
+  foreach ($ExportFile in @('README.md', 'bin/bcs-runner.exe', 'bin/bcs-env.exe', 'project/project.bcsproj', 'project/graph.json', 'project/components/scalar.py', 'project/inputs/case01.json', 'project/inputs/series01.json', 'project/datasets/portable_smoke_validation.csv', 'project/validation/mappings/portable_smoke_validation.json', 'project/calibration/setups/portable_smoke_gain.json', 'project/optimization/setups/portable_smoke_value_grid.json', 'check-env.ps1', 'docs/CLI_Guide.md', 'run-default.ps1', 'run-scenario.ps1', 'run-series.ps1', 'validate-data.ps1', 'calibrate.ps1', 'optimize.ps1', 'optimize-sdk.py', 'sdk-example.py', 'serve.ps1', 'runtime/python/python.exe', 'schema/public-io.json')) {
     if ($ExportJson.export.files -notcontains $ExportFile) {
       throw "workspace export file missing from manifest: $ExportFile"
     }
@@ -565,6 +631,27 @@ try {
   }
   if (@($ExportSeriesJson.outputs.PSObject.Properties[$ExtraOutputId].Value)[0] -ne 42 -or @($ExportSeriesJson.outputs.PSObject.Properties[$ExtraOutputId].Value)[1] -ne 48) {
     throw "exported runtime series included component mismatch: $ExtraOutputId=$($ExportSeriesJson.outputs.PSObject.Properties[$ExtraOutputId].Value -join ',')"
+  }
+  $ExportValidationScript = Join-Path (Split-Path -Parent $ExportManifestPath) 'validate-data.ps1'
+  $ExportValidationOutputPath = Join-Path $TestRoot 'exported-runtime-validation-output.json'
+  Invoke-Checked $PowerShellExe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ExportValidationScript, '-Output', $ExportValidationOutputPath)
+  $ExportValidationJson = Get-Content -Raw -LiteralPath $ExportValidationOutputPath | ConvertFrom-Json
+  if (-not $ExportValidationJson.ok -or $ExportValidationJson.row_count -ne 2 -or $ExportValidationJson.metrics.result.rmse -ne 0) {
+    throw "exported runtime validation script mismatch: ok=$($ExportValidationJson.ok) rows=$($ExportValidationJson.row_count) rmse=$($ExportValidationJson.metrics.result.rmse)"
+  }
+  $ExportCalibrationScript = Join-Path (Split-Path -Parent $ExportManifestPath) 'calibrate.ps1'
+  $ExportCalibrationOutputPath = Join-Path $TestRoot 'exported-runtime-calibration-output.json'
+  Invoke-Checked $PowerShellExe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ExportCalibrationScript, '-Output', $ExportCalibrationOutputPath)
+  $ExportCalibrationJson = Get-Content -Raw -LiteralPath $ExportCalibrationOutputPath | ConvertFrom-Json
+  if (-not $ExportCalibrationJson.ok -or @($ExportCalibrationJson.candidates).Count -ne 3 -or $ExportCalibrationJson.best_parameter_set.components.scalar.gain -ne 3) {
+    throw "exported runtime calibration script mismatch: ok=$($ExportCalibrationJson.ok) candidates=$(@($ExportCalibrationJson.candidates).Count) gain=$($ExportCalibrationJson.best_parameter_set.components.scalar.gain)"
+  }
+  $ExportOptimizationScript = Join-Path (Split-Path -Parent $ExportManifestPath) 'optimize.ps1'
+  $ExportOptimizationOutputPath = Join-Path $TestRoot 'exported-runtime-optimization-output.json'
+  Invoke-Checked $PowerShellExe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ExportOptimizationScript, '-Output', $ExportOptimizationOutputPath)
+  $ExportOptimizationJson = Get-Content -Raw -LiteralPath $ExportOptimizationOutputPath | ConvertFrom-Json
+  if (-not $ExportOptimizationJson.ok -or @($ExportOptimizationJson.candidates).Count -ne 3 -or $ExportOptimizationJson.best_inputs.value -ne 6) {
+    throw "exported runtime optimization script mismatch: ok=$($ExportOptimizationJson.ok) candidates=$(@($ExportOptimizationJson.candidates).Count) value=$($ExportOptimizationJson.best_inputs.value)"
   }
   $ExportScriptLogBundlePath = Join-Path (Split-Path -Parent $ExportManifestPath) 'outputs\logs\exported-runtime-script-output-logs.json'
   if (-not (Test-Path -LiteralPath $ExportScriptLogBundlePath)) {
