@@ -281,8 +281,16 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	validationResultsBody := getRouteBody(t, server, "/js/validation-results.js")
 	candidateResultsBody := getRouteBody(t, server, "/js/candidate-results.js")
 	seriesResultsBody := getRouteBody(t, server, "/js/series-results.js")
+	calibrationSetupEditorBody := getRouteBody(t, server, "/js/calibration-setup-editor.js")
+	setupEditorUIBody := getRouteBody(t, server, "/js/setup-editor-ui.js")
 	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
 		t.Fatalf("module entrypoint did not contain expected imports")
+	}
+	if !bytes.Contains(body, []byte(`from "./calibration-setup-editor.js"`)) {
+		t.Fatalf("module entrypoint did not import calibration setup editor")
+	}
+	if !bytes.Contains(body, []byte(`from "./setup-editor-ui.js"`)) {
+		t.Fatalf("module entrypoint did not import shared setup editor UI helpers")
 	}
 	if !bytes.Contains(body, []byte(`from "./component-templates.js"`)) {
 		t.Fatalf("module entrypoint did not import component template helpers")
@@ -803,19 +811,24 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("/api/project/calibration-setup")) {
 		t.Fatalf("module entrypoint did not create calibration setups")
 	}
-	if !bytes.Contains(body, []byte("calibrationSetupEditorSection")) ||
-		!bytes.Contains(body, []byte("Candidate Parameters")) ||
-		!bytes.Contains(body, []byte("Differential Evolution")) ||
-		!bytes.Contains(body, []byte("differential_evolution")) ||
-		!bytes.Contains(body, []byte("Least Squares")) ||
-		!bytes.Contains(body, []byte("least_squares")) ||
-		!bytes.Contains(body, []byte("Expected Runs")) ||
-		!bytes.Contains(body, []byte("calibration-editor-warning")) ||
-		!bytes.Contains(body, []byte("Fix invalid parameter bounds")) ||
-		!bytes.Contains(body, []byte("Ready to create setup")) ||
-		!bytes.Contains(body, []byte("stopping_rules")) ||
-		!bytes.Contains(body, []byte("objective_outputs")) {
+	if !bytes.Contains(calibrationSetupEditorBody, []byte("calibrationSetupEditorSection")) ||
+		!bytes.Contains(calibrationSetupEditorBody, []byte("Candidate Parameters")) ||
+		!bytes.Contains(calibrationSetupEditorBody, []byte("Differential Evolution")) ||
+		!bytes.Contains(calibrationSetupEditorBody, []byte("differential_evolution")) ||
+		!bytes.Contains(calibrationSetupEditorBody, []byte("Least Squares")) ||
+		!bytes.Contains(calibrationSetupEditorBody, []byte("least_squares")) ||
+		!bytes.Contains(calibrationSetupEditorBody, []byte("Expected Runs")) ||
+		!bytes.Contains(calibrationSetupEditorBody, []byte("calibration-editor-warning")) ||
+		!bytes.Contains(calibrationSetupEditorBody, []byte("Fix invalid parameter bounds")) ||
+		!bytes.Contains(calibrationSetupEditorBody, []byte("Ready to create setup")) ||
+		!bytes.Contains(calibrationSetupEditorBody, []byte("stopping_rules")) ||
+		!bytes.Contains(calibrationSetupEditorBody, []byte("objective_outputs")) {
 		t.Fatalf("module entrypoint did not expose calibration setup editor")
+	}
+	if !bytes.Contains(setupEditorUIBody, []byte("defaultCalibrationGridStep")) ||
+		!bytes.Contains(setupEditorUIBody, []byte("formatExpectedRunCount")) ||
+		!bytes.Contains(setupEditorUIBody, []byte("labeledEditorControl")) {
+		t.Fatalf("module entrypoint did not expose shared setup editor UI helpers")
 	}
 	if !bytes.Contains(body, []byte("/api/project/optimization-setup")) {
 		t.Fatalf("module entrypoint did not create optimization setups")
