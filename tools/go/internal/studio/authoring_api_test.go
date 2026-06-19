@@ -2515,7 +2515,7 @@ func TestUpdateComponentContractEndpointWritesDefinitionsAndMetadata(t *testing.
 		t.Fatal(err)
 	}
 	wrapperContent := string(wrapperBytes)
-	for _, want := range []string{`\"Test Gain\"`, `\"optimization_variable\"`, `\"accumulator\"`, `\"count\"`} {
+	for _, want := range []string{`\"Test Gain\"`, `\"optimization_variable\"`, `\"accumulator\"`, `\"count\"`, "Inputs: value", "Outputs: result", "Parameters: gain", "State: accumulator"} {
 		if !strings.Contains(wrapperContent, want) {
 			t.Fatalf("wrapper contract did not reflect component contract update %q:\n%s", want, wrapperContent)
 		}
@@ -2584,6 +2584,9 @@ func TestUpdateComponentContractEndpointWritesDefinitionsAndMetadata(t *testing.
 		if strings.Contains(wrapperContent, removed) {
 			t.Fatalf("wrapper contract retained deleted metadata %q:\n%s", removed, wrapperContent)
 		}
+	}
+	if !strings.Contains(wrapperContent, "Parameters: gain") || !strings.Contains(wrapperContent, "State: none") {
+		t.Fatalf("wrapper docstring did not reflect deleted metadata:\n%s", wrapperContent)
 	}
 }
 

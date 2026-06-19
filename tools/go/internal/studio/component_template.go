@@ -451,10 +451,7 @@ func generatedWrapperContent(component model.Component) string {
 	return "import json\n" +
 		"from . import user_init, user_step\n\n\n" +
 		"class " + className + ":\n" +
-		"    \"\"\"Studio-owned runtime wrapper.\n\n" +
-		"    Component contract metadata is regenerated from graph.json/component.json.\n" +
-		"    Edit user_step.py for model logic.\n" +
-		"    \"\"\"\n\n" +
+		generatedWrapperDocstring(component) + "\n" +
 		"    input_nodes = json.loads(" + pythonStringLiteralForWrapper(componentNodeContractMap(component.Nodes.Inputs)) + ")\n" +
 		"    output_nodes = json.loads(" + pythonStringLiteralForWrapper(componentNodeContractMap(component.Nodes.Outputs)) + ")\n" +
 		"    parameter_schema = json.loads(" + pythonStringLiteralForWrapper(component.ParameterDefinitions) + ")\n" +
@@ -466,6 +463,62 @@ func generatedWrapperContent(component model.Component) string {
 		"        return state\n\n" +
 		"    def evaluate(self, inputs, state, params, context):\n" +
 		"        return user_step.step(inputs, state, params, context)\n"
+}
+
+func generatedWrapperDocstring(component model.Component) string {
+	return strings.Join([]string{
+		"    \"\"\"Studio-owned runtime wrapper.",
+		"",
+		"    Component contract metadata is regenerated from graph.json/component.json.",
+		"    Edit user_step.py for model logic.",
+		"",
+		"    Inputs: " + generatedWrapperNodeIDs(component.Nodes.Inputs),
+		"    Outputs: " + generatedWrapperNodeIDs(component.Nodes.Outputs),
+		"    Parameters: " + generatedWrapperParameterNames(component),
+		"    State: " + generatedWrapperStateNames(component),
+		"    \"\"\"",
+		"",
+	}, "\n")
+}
+
+func generatedWrapperNodeIDs(nodes []model.Node) string {
+	ids := []string{}
+	for _, node := range nodes {
+		if strings.TrimSpace(node.ID) != "" {
+			ids = append(ids, node.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return "none"
+	}
+	return strings.Join(ids, ", ")
+}
+
+func generatedWrapperParameterNames(component model.Component) string {
+	names := map[string]bool{}
+	for name := range component.Parameters {
+		names[name] = true
+	}
+	for name := range component.ParameterDefinitions {
+		names[name] = true
+	}
+	return generatedWrapperSortedNames(names)
+}
+
+func generatedWrapperStateNames(component model.Component) string {
+	names := map[string]bool{}
+	for name := range component.StateDefinitions {
+		names[name] = true
+	}
+	return generatedWrapperSortedNames(names)
+}
+
+func generatedWrapperSortedNames(names map[string]bool) string {
+	sorted := sortedMapKeys(names)
+	if len(sorted) == 0 {
+		return "none"
+	}
+	return strings.Join(sorted, ", ")
 }
 
 func componentNodeContractMap(nodes []model.Node) map[string]model.Node {
