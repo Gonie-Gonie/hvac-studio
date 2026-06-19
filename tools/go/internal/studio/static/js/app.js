@@ -112,23 +112,18 @@ import {
 import { seriesResultSection } from "./series-results.js";
 import {
   bracketCheck,
-  closestSourceName,
   contextSourceItems,
-  evaluateSnippet,
   formatPythonSource,
   highlightPython,
   nodeSourceItem,
   parameterSourceItems,
-  pythonIdentifier,
-  pythonInputBindings,
   pythonStringLiteral,
   sourceCompletionItems,
   sourceItemTitle,
   sourceOffsetForLineColumn,
-  sourceReferenceCandidates,
   sourceSnippet,
+  sourceQuickFixForProblem,
   stateSourceItems,
-  stepSnippet,
 } from "./source-authoring.js";
 import {
   calibrationValidationComparisonSection,
@@ -3576,7 +3571,8 @@ function sourceIssueRow(problem) {
     <span>${escapeHTML(problem.message)}${escapeHTML(line)}</span>
     <span class="contract-meta">${escapeHTML(problem.severity || "")}</span>
   `;
-  const quickFix = sourceQuickFixForProblem(problem, componentById(problem.component_id || state.selectedComponentId));
+  const component = componentById(problem.component_id || state.selectedComponentId);
+  const quickFix = canEditSource(component) ? sourceQuickFixForProblem(problem, component) : null;
   if (quickFix) {
     const button = document.createElement("button");
     button.type = "button";
@@ -3585,8 +3581,8 @@ function sourceIssueRow(problem) {
     button.title = quickFix.title;
     button.addEventListener("click", (event) => {
       event.stopPropagation();
-      if (quickFix.apply) {
-        quickFix.apply();
+      if (quickFix.replacement) {
+        replaceSourceIssueText(problem, quickFix.replacement.expected, quickFix.replacement.value);
       } else {
         insertSourceText(quickFix.snippet);
       }
@@ -3598,53 +3594,6 @@ function sourceIssueRow(problem) {
     row.addEventListener("click", () => focusSourceIssue(problem));
   }
   return row;
-}
-
-function sourceQuickFixForProblem(problem, component) {
-  if (!component || !canEditSource(component)) return null;
-  const message = String(problem.message || "");
-  let match = message.match(/^required input node is not referenced in source: (.+)$/);
-  if (match) {
-    const nodeID = match[1];
-    const variable = pythonIdentifier(nodeID) || "value";
-    return {
-      title: `Insert input read for ${nodeID}`,
-      snippet: `${variable} = inputs.get(${pythonStringLiteral(nodeID)}, 0.0)`,
-    };
-  }
-  match = message.match(/^output node is not obviously returned by source: (.+)$/);
-  if (match) {
-    const nodeID = match[1];
-    return {
-      title: `Insert output entry for ${nodeID}`,
-      snippet: `${pythonStringLiteral(nodeID)}: value`,
-    };
-  }
-  if (message === "evaluate method is missing") {
-    return {
-      title: "Insert evaluate method scaffold",
-      snippet: evaluateSnippet(component, pythonInputBindings(component)),
-    };
-  }
-  if (message === "step function is missing") {
-    return {
-      title: "Insert step function scaffold",
-      snippet: stepSnippet(component, pythonInputBindings(component)),
-    };
-  }
-  match = message.match(/^(input node|output node|parameter|state) reference is not in component contract: (.+)$/);
-  if (match && problem.line && problem.column) {
-    const scope = match[1];
-    const missingName = match[2];
-    const candidates = sourceReferenceCandidates(scope, component);
-    const replacement = closestSourceName(missingName, candidates);
-    if (!replacement) return null;
-    return {
-      title: `Replace ${scope} reference with ${replacement}`,
-      apply: () => replaceSourceIssueText(problem, missingName, replacement),
-    };
-  }
-  return null;
 }
 
 function replaceSourceIssueText(problem, expected, replacement) {

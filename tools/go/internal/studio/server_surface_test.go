@@ -405,10 +405,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("sourceLineProblemMap")) {
 		t.Fatalf("module entrypoint did not include source gutter problem markers")
 	}
-	if !bytes.Contains(body, []byte("sourceQuickFixForProblem")) {
+	if !bytes.Contains(sourceAuthoringBody, []byte("sourceQuickFixForProblem")) ||
+		!bytes.Contains(body, []byte("sourceQuickFixForProblem")) {
 		t.Fatalf("module entrypoint did not include source quick fixes")
 	}
 	if !bytes.Contains(body, []byte("replaceSourceIssueText")) ||
+		!bytes.Contains(sourceAuthoringBody, []byte("replacement")) ||
 		!bytes.Contains(sourceAuthoringBody, []byte("closestSourceName")) ||
 		!bytes.Contains(sourceAuthoringBody, []byte("sourceReferenceCandidates")) {
 		t.Fatalf("module entrypoint did not include typo-like source quick fixes")

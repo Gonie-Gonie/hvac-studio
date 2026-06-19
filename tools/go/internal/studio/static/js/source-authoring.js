@@ -63,6 +63,56 @@ export function evaluateSnippet(component, inputBindings) {
   return `\n    def evaluate(self, inputs, state, params, context):\n${inputLines}\n        return {\n${outputLines}\n        }, state\n`;
 }
 
+export function sourceQuickFixForProblem(problem, component) {
+  if (!component) return null;
+  const message = String(problem.message || "");
+  let match = message.match(/^required input node is not referenced in source: (.+)$/);
+  if (match) {
+    const nodeID = match[1];
+    const variable = pythonIdentifier(nodeID) || "value";
+    return {
+      title: `Insert input read for ${nodeID}`,
+      snippet: `${variable} = inputs.get(${pythonStringLiteral(nodeID)}, 0.0)`,
+    };
+  }
+  match = message.match(/^output node is not obviously returned by source: (.+)$/);
+  if (match) {
+    const nodeID = match[1];
+    return {
+      title: `Insert output entry for ${nodeID}`,
+      snippet: `${pythonStringLiteral(nodeID)}: value`,
+    };
+  }
+  if (message === "evaluate method is missing") {
+    return {
+      title: "Insert evaluate method scaffold",
+      snippet: evaluateSnippet(component, pythonInputBindings(component)),
+    };
+  }
+  if (message === "step function is missing") {
+    return {
+      title: "Insert step function scaffold",
+      snippet: stepSnippet(component, pythonInputBindings(component)),
+    };
+  }
+  match = message.match(/^(input node|output node|parameter|state) reference is not in component contract: (.+)$/);
+  if (match && problem.line && problem.column) {
+    const scope = match[1];
+    const missingName = match[2];
+    const candidates = sourceReferenceCandidates(scope, component);
+    const replacement = closestSourceName(missingName, candidates);
+    if (!replacement) return null;
+    return {
+      title: `Replace ${scope} reference with ${replacement}`,
+      replacement: {
+        expected: missingName,
+        value: replacement,
+      },
+    };
+  }
+  return null;
+}
+
 function vectorizedSnippet(component, inputBindings) {
   return component.source?.layout === "generated_wrapper"
     ? vectorizedStepSnippet(component, inputBindings)
