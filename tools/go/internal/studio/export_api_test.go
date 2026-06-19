@@ -545,6 +545,68 @@ func TestExportEndpointIncludesMLAssetsAndChecksums(t *testing.T) {
 	}
 }
 
+func TestExportEndpointRunsCompositionRuntimeWorkflows(t *testing.T) {
+	root, server := newIsolatedTestServer(t)
+	seedTestRuntimeSupport(t, root)
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectRoot := filepath.Join(root, "projects", "rc-ahu-ann-composition")
+	if err := copyProjectTree(filepath.Join(repoRoot, "examples", "015_rc_ahu_ann_composition"), projectRoot); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"project_path": filepath.Join(projectRoot, "project.bcsproj"),
+		"profile":      "runtime_package",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/export", bytes.NewReader(payload))
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Export ExportManifest `json:"export"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{
+		"project/assets/ahu_state_ann/model.json",
+		"project/datasets/rc_ahu_validation.csv",
+		"project/validation/mappings/rc_ahu_validation.json",
+		"project/calibration/setups/chiller_cop_grid.json",
+		"project/optimization/setups/chw_pump_grid.json",
+		"project/inputs/series01.json",
+	} {
+		if !containsString(body.Export.Files, rel) {
+			t.Fatalf("composition export files missing %s in %v", rel, body.Export.Files)
+		}
+	}
+	if !containsString(body.Export.ModelAssets, "project/assets/ahu_state_ann/model.json") {
+		t.Fatalf("composition export model assets = %#v", body.Export.ModelAssets)
+	}
+	if len(body.Export.MLValidationReports) != 1 || body.Export.MLValidationReports[0].ComponentID != "ahu_state_ann" {
+		t.Fatalf("composition export ML validation reports = %#v", body.Export.MLValidationReports)
+	}
+
+	exportRoot := filepath.Join(projectRoot, "exports", "runtime_package")
+	assertRuntimeExportHasNoSourceCheckoutPaths(t, exportRoot, root, projectRoot)
+	exportedProject, err := project.Load(filepath.Join(exportRoot, "project", "project.bcsproj"))
+	if err != nil {
+		t.Fatalf("load exported composition project: %v", err)
+	}
+	if _, err := compiler.Compile(exportedProject); err != nil {
+		t.Fatalf("compile exported composition project: %v", err)
+	}
+	assertRuntimeExportCompositionWorkflowsRun(t, exportedProject)
+}
+
 func TestExportEndpointRejectsSavedSourceContractErrors(t *testing.T) {
 	_, server := newIsolatedTestServer(t)
 	project := createWorkspaceProject(t, server, "Export Source Gate Project")

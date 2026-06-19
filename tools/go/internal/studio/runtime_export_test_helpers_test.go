@@ -14,6 +14,7 @@ import (
 	"github.com/goniegonie/hvac-studio/tools/go/internal/modelvalidation"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/optimization"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/project"
+	runtimecore "github.com/goniegonie/hvac-studio/tools/go/internal/runtime"
 )
 
 func assertRuntimeExportCompiles(t *testing.T, exportRoot string) {
@@ -118,6 +119,76 @@ func assertRuntimeExportWorkflowsRun(t *testing.T, loaded *project.LoadedProject
 	}
 	if !optimizationResult.OK || len(optimizationResult.Candidates) != 3 || optimizationResult.BestOutputs["result"] == nil {
 		t.Fatalf("exported optimization result = %#v", optimizationResult)
+	}
+}
+
+func assertRuntimeExportCompositionWorkflowsRun(t *testing.T, loaded *project.LoadedProject) {
+	t.Helper()
+	loaded.Project.Environment.Python = testPythonExecutable(t)
+	if err := writeJSONFile(loaded.Path, loaded.Project); err != nil {
+		t.Fatalf("write exported composition project python override: %v", err)
+	}
+
+	ctx := context.Background()
+	input, err := runtimecore.LoadInput(filepath.Join(loaded.Root, filepath.FromSlash(loaded.Project.DefaultInput)))
+	if err != nil {
+		t.Fatalf("load exported composition input: %v", err)
+	}
+	runResult, err := runtimecore.Run(ctx, loaded, input)
+	if err != nil {
+		t.Fatalf("run exported composition project: %v", err)
+	}
+	if !runResult.OK || runResult.Outputs["total_power_kw"] == nil || runResult.Outputs["zone_temperature_c"] == nil {
+		t.Fatalf("exported composition run result = %#v", runResult)
+	}
+
+	seriesInput, err := runtimecore.LoadSeriesInput(filepath.Join(loaded.Root, "inputs", "series01.json"))
+	if err != nil {
+		t.Fatalf("load exported composition series input: %v", err)
+	}
+	seriesResult, err := runtimecore.RunSeries(ctx, loaded, seriesInput)
+	if err != nil {
+		t.Fatalf("run exported composition series: %v", err)
+	}
+	zoneState := seriesResult.FinalStates["zone_rc"]
+	if !seriesResult.OK || seriesResult.StepCount != 3 || zoneState["zone_temperature_c"] == nil {
+		t.Fatalf("exported composition series result = %#v", seriesResult)
+	}
+
+	mapping, err := modelvalidation.LoadMapping(loaded.Root, filepath.Join("validation", "mappings", "rc_ahu_validation.json"))
+	if err != nil {
+		t.Fatalf("load exported composition validation mapping: %v", err)
+	}
+	validationResult, err := modelvalidation.Run(ctx, loaded, mapping, modelvalidation.Options{HighErrorRows: 1})
+	if err != nil {
+		t.Fatalf("run exported composition validation: %v", err)
+	}
+	if !validationResult.OK || validationResult.RowCount != 3 || validationResult.Metrics["total_power_kw"].Count != 3 {
+		t.Fatalf("exported composition validation result = %#v", validationResult)
+	}
+
+	calibrationSetup, err := calibration.LoadSetup(loaded.Root, filepath.Join("calibration", "setups", "chiller_cop_grid.json"))
+	if err != nil {
+		t.Fatalf("load exported composition calibration setup: %v", err)
+	}
+	calibrationResult, err := calibration.Run(ctx, loaded.Path, calibrationSetup, calibration.Options{})
+	if err != nil {
+		t.Fatalf("run exported composition calibration: %v", err)
+	}
+	if !calibrationResult.OK || len(calibrationResult.Candidates) != 3 || calibrationResult.BestParameterSet.Components["chiller"]["cop"] == nil {
+		t.Fatalf("exported composition calibration result = %#v", calibrationResult)
+	}
+
+	optimizationSetup, err := optimization.LoadSetup(loaded.Root, filepath.Join("optimization", "setups", "chw_pump_grid.json"))
+	if err != nil {
+		t.Fatalf("load exported composition optimization setup: %v", err)
+	}
+	optimizationResult, err := optimization.Run(ctx, loaded.Path, optimizationSetup, optimization.Options{})
+	if err != nil {
+		t.Fatalf("run exported composition optimization: %v", err)
+	}
+	if !optimizationResult.OK || len(optimizationResult.Candidates) != 9 || optimizationResult.BestInputs["pump_speed_fraction"] == nil {
+		t.Fatalf("exported composition optimization result = %#v", optimizationResult)
 	}
 }
 
