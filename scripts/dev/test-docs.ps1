@@ -59,8 +59,35 @@ function Test-ManualSourceCoverage {
   Write-Host 'manual source coverage ok'
 }
 
+function Test-UserGuideNavCoverage {
+  $MkDocsConfig = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $RepoRoot 'mkdocs.yml')
+  $Pattern = [regex]'user/[A-Za-z0-9._/-]+\.md'
+  $NavPages = New-Object System.Collections.Generic.HashSet[string]
+  foreach ($Match in $Pattern.Matches($MkDocsConfig)) {
+    [void]$NavPages.Add($Match.Value.Replace('/', '\'))
+  }
+
+  $Missing = New-Object System.Collections.Generic.List[string]
+  $UserRoot = Join-Path $RepoRoot 'docs\user'
+  Get-ChildItem -LiteralPath $UserRoot -Recurse -File -Filter '*.md' |
+    ForEach-Object {
+      $Relative = $_.FullName.Substring($UserRoot.Length + 1)
+      $UserPage = Join-Path 'user' $Relative
+      if (-not $NavPages.Contains($UserPage)) {
+        $Missing.Add("docs\$UserPage")
+      }
+    }
+
+  if ($Missing.Count -gt 0) {
+    throw "user guide pages are missing from mkdocs nav:`n$($Missing -join "`n")"
+  }
+
+  Write-Host 'user guide nav coverage ok'
+}
+
 Remove-Item -LiteralPath $SiteRoot -Recurse -Force -ErrorAction SilentlyContinue
 Invoke-MkDocsBuild -RepoRoot $RepoRoot -SiteRoot $SiteRoot
 Test-StudioHelpLinks
 Test-ManualSourceCoverage
+Test-UserGuideNavCoverage
 Write-Host "docs html ok: $SiteRoot"
