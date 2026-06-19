@@ -34,6 +34,29 @@ func TestLoadRejectsMissingEnvironmentLockfile(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsEnvironmentLockfileOutsideProject(t *testing.T) {
+	tests := []struct {
+		name     string
+		lockfile string
+	}{
+		{name: "parent traversal", lockfile: "../requirements.lock.txt"},
+		{name: "nested parent traversal", lockfile: "env/../../requirements.lock.txt"},
+		{name: "absolute path", lockfile: filepath.ToSlash(filepath.Join(t.TempDir(), "requirements.lock.txt"))},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeProjectFixture(t, root, `"lockfile": "`+tt.lockfile+`"`)
+
+			_, err := Load(filepath.Join(root, "project.bcsproj"))
+
+			if err == nil || !strings.Contains(err.Error(), "project environment lockfile must stay inside project root") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
 func TestLoadRejectsUnknownProjectFields(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "project.bcsproj"), `{

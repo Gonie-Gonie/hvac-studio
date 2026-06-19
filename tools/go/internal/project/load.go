@@ -12,6 +12,7 @@ import (
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/artifactschema"
 	"github.com/goniegonie/hvac-studio/tools/go/internal/model"
+	"github.com/goniegonie/hvac-studio/tools/go/internal/projectpath"
 )
 
 type LoadedProject struct {
@@ -127,22 +128,8 @@ func validateEnvironmentLockfile(projectRoot string, lockfile string) error {
 	if lockfile == "" {
 		return nil
 	}
-	if filepath.IsAbs(lockfile) {
-		return fmt.Errorf("project environment lockfile must be relative to project root: %s", lockfile)
-	}
-	absRoot, err := filepath.Abs(projectRoot)
+	lockPath, err := projectpath.ResolveInside(projectRoot, lockfile)
 	if err != nil {
-		return err
-	}
-	lockPath, err := filepath.Abs(filepath.Join(absRoot, lockfile))
-	if err != nil {
-		return err
-	}
-	rel, err := filepath.Rel(absRoot, lockPath)
-	if err != nil {
-		return err
-	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
 		return fmt.Errorf("project environment lockfile must stay inside project root: %s", lockfile)
 	}
 	info, err := os.Stat(lockPath)
