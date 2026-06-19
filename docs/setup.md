@@ -49,14 +49,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\run-studio.ps1
 
 `run-studio.ps1` opens the Wails Studio desktop app by default. Add `-Server` to run only the local HTTP API for automation.
 
-`clean-generated.ps1` removes transient local outputs such as `artifacts/`,
-`bin/`, `dist/build/`, `dist/docs/`, `.repo_tools` smoke/log/staging folders,
-`.repo_tools/python/.temp`, `.tmp/`, and Python `__pycache__/` directories plus
-package build folders from source/example/test trees while preserving release
-zip files already written under `dist/`. Add `-Caches` when you also want to
-remove repo-local downloads, Go cache, uv cache, and uv tool storage; the next
-setup/test run can recreate those folders, but it will take longer than a
-normal cleanup.
+`clean-generated.ps1` removes transient local outputs while preserving release
+zip files already written under `dist/`. Inspect the current cleanup inventory
+without deleting anything:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\clean-generated.ps1 -Inventory
+```
+
+Add `-Caches` when you also want to remove repo-local downloads and tool caches;
+the next setup/test run can recreate those folders, but it will take longer than
+a normal cleanup.
 
 ## Documentation Screenshots
 

@@ -45,6 +45,8 @@ build intermediates, old smoke executables, and Studio logs while preserving
 the final package zip files under `dist/`. Add `-Caches` only when you also want
 to clear regenerable repo-local downloads, Go cache, uv cache, and uv tool
 storage before the next setup/test run rebuilds them.
+Use `scripts/dev/clean-generated.ps1 -Inventory` to inspect the current cleanup
+target list without deleting files.
 
 The portable Studio package is the first user-facing distribution:
 

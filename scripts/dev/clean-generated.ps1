@@ -1,6 +1,7 @@
 param(
   [switch]$DryRun,
-  [switch]$Caches
+  [switch]$Caches,
+  [switch]$Inventory
 )
 
 $ErrorActionPreference = 'Stop'
@@ -44,6 +45,18 @@ $PythonCacheRoots = @(
   'tools'
 )
 
+function Write-InventorySection {
+  param(
+    [Parameter(Mandatory = $true)][string]$Title,
+    [Parameter(Mandatory = $true)][string[]]$Items
+  )
+
+  Write-Host $Title
+  foreach ($Item in $Items) {
+    Write-Host "  - $Item"
+  }
+}
+
 function Resolve-RepoTarget {
   param([Parameter(Mandatory = $true)][string]$RelativePath)
 
@@ -65,6 +78,21 @@ function ConvertTo-RepoRelative {
     [System.IO.Path]::DirectorySeparatorChar,
     [System.IO.Path]::AltDirectorySeparatorChar
   )
+}
+
+if ($Inventory) {
+  Write-Host "cleanup inventory for $RepoRoot"
+  Write-Host ''
+  Write-InventorySection -Title 'Generated paths removed by default:' -Items $Targets
+  Write-Host ''
+  Write-InventorySection -Title 'Repo-local caches removed only with -Caches:' -Items $CacheTargets
+  Write-Host ''
+  Write-InventorySection -Title 'Empty generated directories removed only when empty:' -Items $EmptyGeneratedDirectories
+  Write-Host ''
+  Write-InventorySection -Title 'Python cache/build scan roots:' -Items $PythonCacheRoots
+  Write-Host ''
+  Write-Host 'Final package zip files under dist\ are preserved.'
+  exit 0
 }
 
 $Removed = New-Object System.Collections.Generic.List[string]
