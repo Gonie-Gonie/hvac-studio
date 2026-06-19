@@ -2,6 +2,7 @@ package graph
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/goniegonie/hvac-studio/tools/go/internal/artifactschema"
@@ -139,6 +140,9 @@ func validateComponent(component model.Component) error {
 	if err := validateCompositeReference(component.ID, component.Kind, component.Composite); err != nil {
 		return err
 	}
+	if err := validateMLMetadata(component.ID, component.MLMetadata); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -248,6 +252,41 @@ func validateCompositeReference(componentID string, kind string, composite *mode
 	}
 	if composite == nil || strings.TrimSpace(composite.System) == "" {
 		return fmt.Errorf("component %s kind composite requires composite.system", componentID)
+	}
+	return nil
+}
+
+func validateMLMetadata(componentID string, metadata *model.MLMetadata) error {
+	if metadata == nil {
+		return nil
+	}
+	allowedFormats := model.AllowedMLModelFormats()
+	if err := validateOptionalEnum(
+		"component "+componentID+" ml_metadata model_format",
+		metadata.ModelFormat,
+		allowedFormats...,
+	); err != nil {
+		return err
+	}
+	for _, asset := range metadata.AssetPaths() {
+		if err := validateProjectRelativePath("component "+componentID+" ml_metadata "+asset.Field, asset.Path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateProjectRelativePath(label string, value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	if strings.HasPrefix(value, "/") || strings.HasPrefix(value, `\`) {
+		return fmt.Errorf("%s must be project-relative and stay inside project root: %s", label, value)
+	}
+	clean := filepath.Clean(filepath.FromSlash(value))
+	if clean == "." || filepath.IsAbs(clean) || filepath.VolumeName(clean) != "" || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("%s must be project-relative and stay inside project root: %s", label, value)
 	}
 	return nil
 }

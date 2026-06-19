@@ -52,8 +52,10 @@ metadata file:
 }
 ```
 
-Asset paths must be project-relative and stay inside the project root. The
-runner validates that referenced files exist before running or exporting.
+Asset paths must be project-relative and stay inside the project root. Graph
+validation rejects absolute paths or paths that escape the project before run or
+export. Missing files surface when the component loads assets or when export
+copies and records the selected ML assets.
 
 ## Feature Mapping
 

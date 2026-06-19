@@ -114,10 +114,6 @@ func validateMLAssets(loaded *project.LoadedProject) error {
 		if component.MLMetadata == nil {
 			continue
 		}
-		modelFormat := strings.TrimSpace(component.MLMetadata.ModelFormat)
-		if modelFormat != "" && !model.IsAllowedMLModelFormat(modelFormat) {
-			return fmt.Errorf("component %s ml_metadata.model_format is unsupported: %s", component.ID, component.MLMetadata.ModelFormat)
-		}
 		for _, asset := range component.MLMetadata.AssetPaths() {
 			assetPath := strings.TrimSpace(asset.Path)
 			if assetPath == "" {

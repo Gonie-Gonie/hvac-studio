@@ -182,6 +182,62 @@ func TestNewIndexRejectsCompositeWithoutSystemReference(t *testing.T) {
 	}
 }
 
+func TestNewIndexRejectsInvalidMLModelFormat(t *testing.T) {
+	graph := validGraph()
+	graph.Components[0].MLMetadata = &model.MLMetadata{
+		ModelFormat: "spreadsheet",
+		ModelFile:   "assets/model.json",
+	}
+
+	_, err := NewIndex(graph)
+
+	if err == nil || !strings.Contains(err.Error(), "component gain ml_metadata model_format is invalid: spreadsheet") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestNewIndexRejectsMLAssetPathOutsideProject(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+	}{
+		{name: "parent traversal", path: "../model.json"},
+		{name: "nested parent traversal", path: "assets/../../model.json"},
+		{name: "windows absolute", path: `C:\models\model.json`},
+		{name: "posix absolute", path: "/models/model.json"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			graph := validGraph()
+			graph.Components[0].MLMetadata = &model.MLMetadata{
+				ModelFormat: "custom",
+				ModelFile:   tt.path,
+			}
+
+			_, err := NewIndex(graph)
+
+			if err == nil || !strings.Contains(err.Error(), "component gain ml_metadata model_file must be project-relative and stay inside project root") {
+				t.Fatalf("error = %v", err)
+			}
+		})
+	}
+}
+
+func TestNewIndexAcceptsProjectRelativeMLAssetPaths(t *testing.T) {
+	graph := validGraph()
+	graph.Components[0].MLMetadata = &model.MLMetadata{
+		ModelFormat:          "custom",
+		ModelFile:            "assets/model.json",
+		FeatureSchemaFile:    "assets/feature_schema.json",
+		TargetSchemaFile:     "assets/target_schema.json",
+		ValidationReportFile: "assets/validation_report.json",
+	}
+
+	if _, err := NewIndex(graph); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func validGraph() *model.Graph {
 	return &model.Graph{
 		SchemaVersion: "0.1.0",

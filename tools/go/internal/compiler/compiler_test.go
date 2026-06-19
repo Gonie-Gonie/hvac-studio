@@ -174,14 +174,7 @@ func TestCompileValidatesMLAssetPaths(t *testing.T) {
 		},
 	}
 
-	loaded.Graph.Components[0].MLMetadata.ModelFormat = "custom-linear"
 	_, err := Compile(loaded)
-	if err == nil || !strings.Contains(err.Error(), "ml_metadata.model_format is unsupported: custom-linear") {
-		t.Fatalf("format error = %v", err)
-	}
-	loaded.Graph.Components[0].MLMetadata.ModelFormat = "custom"
-
-	_, err = Compile(loaded)
 	if err == nil || !strings.Contains(err.Error(), "ML asset not found: assets/features.json") {
 		t.Fatalf("error = %v", err)
 	}
