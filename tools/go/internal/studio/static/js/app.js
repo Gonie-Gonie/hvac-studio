@@ -27,6 +27,16 @@ import {
   nodeDeleteImpactDetails,
   nodeDeleteImpactSummary,
 } from "./node-impact.js";
+import {
+  parameterDeleteImpact,
+  parameterDeleteImpactConfirmText,
+  parameterDeleteImpactDetails,
+  parameterDeleteImpactSummary,
+  stateDeleteImpact,
+  stateDeleteImpactConfirmText,
+  stateDeleteImpactDetails,
+  stateDeleteImpactSummary,
+} from "./contract-impact.js";
 import { el, escapeAttr, escapeHTML } from "./dom.js";
 import {
   collectDatasetUnitHints,
@@ -1476,8 +1486,12 @@ function parameterInspectorBlock(component) {
     button.type = "button";
     button.className = "small-action";
     button.textContent = "Delete";
-    button.addEventListener("click", () => deleteParameterFromManager(component.id, name));
-    row.querySelector(".connection-value").append(button);
+    const impact = parameterDeleteImpact(component, name);
+    button.addEventListener("click", () => deleteParameterFromManager(component.id, name, impact));
+    row.querySelector(".connection-value").append(
+      impactBadge(parameterDeleteImpactSummary(impact), parameterDeleteImpactDetails(impact)),
+      button,
+    );
     block.append(row);
   }
 
@@ -1658,14 +1672,23 @@ function stateDefinitionRow(component, name, definition) {
   deleteButton.type = "button";
   deleteButton.className = "small-action";
   deleteButton.textContent = "Delete";
-  deleteButton.addEventListener("click", () => deleteStateDefinition(component.id, name));
+  const impact = stateDeleteImpact(component, name);
+  deleteButton.addEventListener("click", () => deleteStateDefinition(component.id, name, impact));
 
   for (const input of [displayName, initial, unit, description]) {
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter") saveStateDefinition(component.id, name, row);
     });
   }
-  controls.append(displayName, initial, unit, description, saveButton, deleteButton);
+  controls.append(
+    displayName,
+    initial,
+    unit,
+    description,
+    impactBadge(stateDeleteImpactSummary(impact), stateDeleteImpactDetails(impact)),
+    saveButton,
+    deleteButton,
+  );
   row.append(key, controls);
   return row;
 }
@@ -1678,6 +1701,15 @@ function contractInput(placeholder, value) {
   input.dataset.contractField = placeholder;
   input.setAttribute("aria-label", placeholder);
   return input;
+}
+
+function impactBadge(summary, details) {
+  if (!summary) return document.createDocumentFragment();
+  const badge = document.createElement("span");
+  badge.className = "contract-impact";
+  badge.textContent = summary;
+  if (details) badge.title = details;
+  return badge;
 }
 
 function componentEditor(component) {
@@ -5491,8 +5523,11 @@ async function saveStateDefinitionPayload(componentID, name, definition, success
   }
 }
 
-async function deleteStateDefinition(componentID, name) {
+async function deleteStateDefinition(componentID, name, impact = null) {
   if (!componentID || !name || !isWorkspaceProject()) return;
+  const component = componentById(componentID);
+  const currentImpact = impact || stateDeleteImpact(component, name);
+  if (!window.confirm(`Delete state ${componentID}.${name}?\n${stateDeleteImpactConfirmText(currentImpact)}`)) return;
   try {
     const body = await api("/api/project/component-contract", {
       method: "POST",
@@ -5543,9 +5578,11 @@ function syncParameterInputs(componentID, name, value, source) {
   }
 }
 
-async function deleteParameterFromManager(componentID, name) {
+async function deleteParameterFromManager(componentID, name, impact = null) {
   if (!componentID || !name || !isWorkspaceProject()) return;
-  if (!window.confirm(`Delete parameter ${componentID}.${name}?`)) return;
+  const component = componentById(componentID);
+  const currentImpact = impact || parameterDeleteImpact(component, name);
+  if (!window.confirm(`Delete parameter ${componentID}.${name}?\n${parameterDeleteImpactConfirmText(currentImpact)}`)) return;
   try {
     const pending = parameterUpdatesExcluding(componentID, name);
     if (Object.keys(pending).length) {

@@ -285,6 +285,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	sourceAuthoringBody := getRouteBody(t, server, "/js/source-authoring.js")
 	replacementPreviewBody := getRouteBody(t, server, "/js/replacement-preview.js")
 	nodeImpactBody := getRouteBody(t, server, "/js/node-impact.js")
+	contractImpactBody := getRouteBody(t, server, "/js/contract-impact.js")
 	calibrationSetupEditorBody := getRouteBody(t, server, "/js/calibration-setup-editor.js")
 	optimizationSetupEditorBody := getRouteBody(t, server, "/js/optimization-setup-editor.js")
 	setupEditorUIBody := getRouteBody(t, server, "/js/setup-editor-ui.js")
@@ -311,6 +312,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte(`from "./node-impact.js"`)) {
 		t.Fatalf("module entrypoint did not import node impact helpers")
+	}
+	if !bytes.Contains(body, []byte(`from "./contract-impact.js"`)) {
+		t.Fatalf("module entrypoint did not import contract impact helpers")
 	}
 	if !bytes.Contains(body, []byte(`from "./component-templates.js"`)) {
 		t.Fatalf("module entrypoint did not import component template helpers")
@@ -356,6 +360,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(sourceAuthoringBody, []byte("stateSourceItems")) ||
 		!bytes.Contains(sourceAuthoringBody, []byte("contextSourceItems")) {
 		t.Fatalf("module entrypoint did not include state/context source reference inserts")
+	}
+	if !bytes.Contains(body, []byte("parameterDeleteImpact")) ||
+		!bytes.Contains(body, []byte("stateDeleteImpact")) ||
+		!bytes.Contains(contractImpactBody, []byte("parameterDeleteImpactConfirmText")) ||
+		!bytes.Contains(contractImpactBody, []byte("stateDeleteImpactConfirmText")) {
+		t.Fatalf("module entrypoint did not include parameter/state delete impact hints")
 	}
 	if !bytes.Contains(sourceAuthoringBody, []byte("bracketCheck")) {
 		t.Fatalf("module entrypoint did not include bracket status checking")
