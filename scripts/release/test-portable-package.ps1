@@ -555,6 +555,7 @@ try {
   if (-not (Test-Path -LiteralPath $ExportManifestPath)) {
     throw "workspace export manifest was not written: $ExportManifestPath"
   }
+  $ExportRoot = Split-Path -Parent $ExportManifestPath
   if ($ExportJson.export.runner -ne 'bin/bcs-runner.exe') {
     throw "workspace export manifest runner mismatch: $($ExportJson.export.runner)"
   }
@@ -567,23 +568,24 @@ try {
   if ($ExportJson.export.interface_schema -ne 'schema/public-io.json') {
     throw "workspace export interface schema mismatch: $($ExportJson.export.interface_schema)"
   }
-  foreach ($ExportFile in @('README.md', 'bin/bcs-runner.exe', 'bin/bcs-env.exe', 'project/project.bcsproj', 'project/graph.json', 'project/components/scalar.py', 'project/inputs/case01.json', 'project/inputs/series01.json', 'project/datasets/portable_smoke_validation.csv', 'project/validation/mappings/portable_smoke_validation.json', 'project/calibration/setups/portable_smoke_gain.json', 'project/optimization/setups/portable_smoke_value_grid.json', 'check-env.ps1', 'docs/CLI_Guide.md', 'run-default.ps1', 'run-scenario.ps1', 'run-series.ps1', 'validate-data.ps1', 'calibrate.ps1', 'optimize.ps1', 'optimize-sdk.py', 'sdk-example.py', 'serve.ps1', 'runtime/python/python.exe', 'schema/public-io.json')) {
+  foreach ($ExportFile in @('README.md', 'bin/bcs-runner.exe', 'bin/bcs-env.exe', 'project/project.bcsproj', 'project/graph.json', 'project/components/scalar.py', 'project/inputs/case01.json', 'project/inputs/series01.json', 'project/datasets/portable_smoke_validation.csv', 'project/validation/mappings/portable_smoke_validation.json', 'project/calibration/setups/portable_smoke_gain.json', 'project/optimization/setups/portable_smoke_value_grid.json', 'check-env.ps1', 'docs/CLI_Guide.md', 'run-batch.ps1', 'run-default.ps1', 'run-scenario.ps1', 'run-series.ps1', 'validate-data.ps1', 'calibrate.ps1', 'optimize.ps1', 'optimize-sdk.py', 'sdk-example.py', 'serve.ps1', 'runtime/python/python.exe', 'schema/public-io.json')) {
     if ($ExportJson.export.files -notcontains $ExportFile) {
       throw "workspace export file missing from manifest: $ExportFile"
     }
-    $ExportArtifactPath = Join-Path (Split-Path -Parent $ExportManifestPath) ($ExportFile -replace '/', [IO.Path]::DirectorySeparatorChar)
+    $ExportArtifactPath = Join-Path $ExportRoot ($ExportFile -replace '/', [IO.Path]::DirectorySeparatorChar)
     if (-not (Test-Path -LiteralPath $ExportArtifactPath)) {
       throw "workspace export artifact was not written: $ExportArtifactPath"
     }
   }
-  $ExportSchemaPath = Join-Path (Split-Path -Parent $ExportManifestPath) 'schema\public-io.json'
+  $ExportSchemaPath = Join-Path $ExportRoot 'schema\public-io.json'
   $ExportSchemaJson = Get-Content -Raw -LiteralPath $ExportSchemaPath | ConvertFrom-Json
   if (@($ExportSchemaJson.inputs).Count -lt 1 -or @($ExportSchemaJson.outputs).Count -lt 1) {
     throw "workspace export schema missing public inputs or outputs"
   }
-  $ExportRunnerPath = Join-Path (Split-Path -Parent $ExportManifestPath) 'bin\bcs-runner.exe'
-  $ExportEnvToolPath = Join-Path (Split-Path -Parent $ExportManifestPath) 'bin\bcs-env.exe'
-  $ExportEnvStatusRaw = & $ExportEnvToolPath check --root (Split-Path -Parent $ExportManifestPath) --json
+  $ExportRunnerPath = Join-Path $ExportRoot 'bin\bcs-runner.exe'
+  $ExportEnvToolPath = Join-Path $ExportRoot 'bin\bcs-env.exe'
+  $PowerShellExe = Join-Path $PSHOME 'powershell.exe'
+  $ExportEnvStatusRaw = & $ExportEnvToolPath check --root $ExportRoot --json
   $ExportEnvStatus = $ExportEnvStatusRaw | ConvertFrom-Json
   if (-not $ExportEnvStatus.ok) {
     throw "exported runtime env check failed: $($ExportEnvStatus.problems -join '; ')"
@@ -591,8 +593,20 @@ try {
   if ($ExportEnvStatus.mode -ne 'runtime-export') {
     throw "exported runtime env mode mismatch: $($ExportEnvStatus.mode)"
   }
-  $ExportProjectPath = Join-Path (Split-Path -Parent $ExportManifestPath) 'project\project.bcsproj'
-  $ExportInputPath = Join-Path (Split-Path -Parent $ExportManifestPath) 'project\inputs\case01.json'
+  $ExportCheckEnvScript = Join-Path $ExportRoot 'check-env.ps1'
+  $ExportScriptEnvStatusRaw = & $PowerShellExe -NoProfile -ExecutionPolicy Bypass -File $ExportCheckEnvScript -Json
+  if ($LASTEXITCODE -ne 0) {
+    throw "exported runtime check-env script failed: $ExportScriptEnvStatusRaw"
+  }
+  $ExportScriptEnvStatus = $ExportScriptEnvStatusRaw | ConvertFrom-Json
+  if (-not $ExportScriptEnvStatus.ok) {
+    throw "exported runtime check-env script reported problems: $($ExportScriptEnvStatus.problems -join '; ')"
+  }
+  if ($ExportScriptEnvStatus.mode -ne 'runtime-export') {
+    throw "exported runtime check-env script mode mismatch: $($ExportScriptEnvStatus.mode)"
+  }
+  $ExportProjectPath = Join-Path $ExportRoot 'project\project.bcsproj'
+  $ExportInputPath = Join-Path $ExportRoot 'project\inputs\case01.json'
   $ExportOutputPath = Join-Path $TestRoot 'exported-runtime-output.json'
   Invoke-Checked $ExportRunnerPath @('validate', '--project', $ExportProjectPath)
   Invoke-Checked $ExportRunnerPath @('run', '--project', $ExportProjectPath, '--input', $ExportInputPath, '--output', $ExportOutputPath)
@@ -604,22 +618,21 @@ try {
   if ($ExportExtraOutput -ne 42) {
     throw "exported runtime included component result mismatch: $ExtraOutputId=$ExportExtraOutput"
   }
-  $ExportRunScript = Join-Path (Split-Path -Parent $ExportManifestPath) 'run-default.ps1'
+  $ExportRunScript = Join-Path $ExportRoot 'run-default.ps1'
   $ExportScriptOutputPath = Join-Path $TestRoot 'exported-runtime-script-output.json'
-  $PowerShellExe = Join-Path $PSHOME 'powershell.exe'
   Invoke-Checked $PowerShellExe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ExportRunScript, '-Output', $ExportScriptOutputPath)
   $ExportScriptRunJson = Get-Content -Raw -LiteralPath $ExportScriptOutputPath | ConvertFrom-Json
   if ($ExportScriptRunJson.outputs.result -ne 21) {
     throw "exported runtime script result mismatch: result=$($ExportScriptRunJson.outputs.result)"
   }
-  $ExportScenarioScript = Join-Path (Split-Path -Parent $ExportManifestPath) 'run-scenario.ps1'
+  $ExportScenarioScript = Join-Path $ExportRoot 'run-scenario.ps1'
   $ExportScenarioOutputPath = Join-Path $TestRoot 'exported-runtime-scenario-output.json'
   Invoke-Checked $PowerShellExe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ExportScenarioScript, '-InputFile', 'project\inputs\case01.json', '-Output', $ExportScenarioOutputPath)
   $ExportScenarioJson = Get-Content -Raw -LiteralPath $ExportScenarioOutputPath | ConvertFrom-Json
   if ($ExportScenarioJson.outputs.result -ne 21) {
     throw "exported runtime scenario script result mismatch: result=$($ExportScenarioJson.outputs.result)"
   }
-  $ExportSeriesScript = Join-Path (Split-Path -Parent $ExportManifestPath) 'run-series.ps1'
+  $ExportSeriesScript = Join-Path $ExportRoot 'run-series.ps1'
   $ExportSeriesOutputPath = Join-Path $TestRoot 'exported-runtime-series-output.json'
   Invoke-Checked $PowerShellExe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ExportSeriesScript, '-Output', $ExportSeriesOutputPath)
   $ExportSeriesJson = Get-Content -Raw -LiteralPath $ExportSeriesOutputPath | ConvertFrom-Json
@@ -632,28 +645,41 @@ try {
   if (@($ExportSeriesJson.outputs.PSObject.Properties[$ExtraOutputId].Value)[0] -ne 42 -or @($ExportSeriesJson.outputs.PSObject.Properties[$ExtraOutputId].Value)[1] -ne 48) {
     throw "exported runtime series included component mismatch: $ExtraOutputId=$($ExportSeriesJson.outputs.PSObject.Properties[$ExtraOutputId].Value -join ',')"
   }
-  $ExportValidationScript = Join-Path (Split-Path -Parent $ExportManifestPath) 'validate-data.ps1'
+  $ExportBatchScript = Join-Path $ExportRoot 'run-batch.ps1'
+  $ExportBatchScenarioDir = Join-Path $ExportRoot 'requests\batch'
+  New-Item -ItemType Directory -Force -Path $ExportBatchScenarioDir | Out-Null
+  Copy-Item -LiteralPath $ExportInputPath -Destination (Join-Path $ExportBatchScenarioDir 'case01.json') -Force
+  [IO.File]::WriteAllText((Join-Path $ExportBatchScenarioDir 'case02.json'), '{"inputs":{"value":6},"context":{"time":60}}', [Text.UTF8Encoding]::new($false))
+  Invoke-Checked $PowerShellExe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ExportBatchScript, '-ScenarioDir', 'requests\batch', '-OutputDir', 'outputs\portable-smoke-batch')
+  $ExportBatchCase1Json = Get-Content -Raw -LiteralPath (Join-Path $ExportRoot 'outputs\portable-smoke-batch\case01.json') | ConvertFrom-Json
+  $ExportBatchCase2Json = Get-Content -Raw -LiteralPath (Join-Path $ExportRoot 'outputs\portable-smoke-batch\case02.json') | ConvertFrom-Json
+  if ($ExportBatchCase1Json.outputs.result -ne 21 -or $ExportBatchCase1Json.outputs.PSObject.Properties[$ExtraOutputId].Value -ne 42) {
+    throw "exported runtime batch case01 mismatch: result=$($ExportBatchCase1Json.outputs.result) $ExtraOutputId=$($ExportBatchCase1Json.outputs.PSObject.Properties[$ExtraOutputId].Value)"
+  }
+  if ($ExportBatchCase2Json.outputs.result -ne 24 -or $ExportBatchCase2Json.outputs.PSObject.Properties[$ExtraOutputId].Value -ne 48) {
+    throw "exported runtime batch case02 mismatch: result=$($ExportBatchCase2Json.outputs.result) $ExtraOutputId=$($ExportBatchCase2Json.outputs.PSObject.Properties[$ExtraOutputId].Value)"
+  }
+  $ExportValidationScript = Join-Path $ExportRoot 'validate-data.ps1'
   $ExportValidationOutputPath = Join-Path $TestRoot 'exported-runtime-validation-output.json'
   Invoke-Checked $PowerShellExe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ExportValidationScript, '-Output', $ExportValidationOutputPath)
   $ExportValidationJson = Get-Content -Raw -LiteralPath $ExportValidationOutputPath | ConvertFrom-Json
   if (-not $ExportValidationJson.ok -or $ExportValidationJson.row_count -ne 2 -or $ExportValidationJson.metrics.result.rmse -ne 0) {
     throw "exported runtime validation script mismatch: ok=$($ExportValidationJson.ok) rows=$($ExportValidationJson.row_count) rmse=$($ExportValidationJson.metrics.result.rmse)"
   }
-  $ExportCalibrationScript = Join-Path (Split-Path -Parent $ExportManifestPath) 'calibrate.ps1'
+  $ExportCalibrationScript = Join-Path $ExportRoot 'calibrate.ps1'
   $ExportCalibrationOutputPath = Join-Path $TestRoot 'exported-runtime-calibration-output.json'
   Invoke-Checked $PowerShellExe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ExportCalibrationScript, '-Output', $ExportCalibrationOutputPath)
   $ExportCalibrationJson = Get-Content -Raw -LiteralPath $ExportCalibrationOutputPath | ConvertFrom-Json
   if (-not $ExportCalibrationJson.ok -or @($ExportCalibrationJson.candidates).Count -ne 3 -or $ExportCalibrationJson.best_parameter_set.components.scalar.gain -ne 3) {
     throw "exported runtime calibration script mismatch: ok=$($ExportCalibrationJson.ok) candidates=$(@($ExportCalibrationJson.candidates).Count) gain=$($ExportCalibrationJson.best_parameter_set.components.scalar.gain)"
   }
-  $ExportOptimizationScript = Join-Path (Split-Path -Parent $ExportManifestPath) 'optimize.ps1'
+  $ExportOptimizationScript = Join-Path $ExportRoot 'optimize.ps1'
   $ExportOptimizationOutputPath = Join-Path $TestRoot 'exported-runtime-optimization-output.json'
   Invoke-Checked $PowerShellExe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ExportOptimizationScript, '-Output', $ExportOptimizationOutputPath)
   $ExportOptimizationJson = Get-Content -Raw -LiteralPath $ExportOptimizationOutputPath | ConvertFrom-Json
   if (-not $ExportOptimizationJson.ok -or @($ExportOptimizationJson.candidates).Count -ne 3 -or $ExportOptimizationJson.best_inputs.value -ne 6) {
     throw "exported runtime optimization script mismatch: ok=$($ExportOptimizationJson.ok) candidates=$(@($ExportOptimizationJson.candidates).Count) value=$($ExportOptimizationJson.best_inputs.value)"
   }
-  $ExportRoot = Split-Path -Parent $ExportManifestPath
   $ExportServeScript = Join-Path $ExportRoot 'serve.ps1'
   $ExportServeRequestPath = Join-Path $ExportRoot 'requests\portable-smoke-serve.jsonl'
   New-Item -ItemType Directory -Force -Path (Split-Path -Parent $ExportServeRequestPath) | Out-Null
@@ -696,7 +722,7 @@ try {
   if (-not $ExportOptimizeSDKJson.ok -or @($ExportOptimizeSDKJson.candidates).Count -ne 3 -or $ExportOptimizeSDKJson.best_inputs.value -ne 6) {
     throw "exported runtime optimization SDK mismatch: ok=$($ExportOptimizeSDKJson.ok) candidates=$(@($ExportOptimizeSDKJson.candidates).Count) value=$($ExportOptimizeSDKJson.best_inputs.value)"
   }
-  $ExportScriptLogBundlePath = Join-Path (Split-Path -Parent $ExportManifestPath) 'outputs\logs\exported-runtime-script-output-logs.json'
+  $ExportScriptLogBundlePath = Join-Path $ExportRoot 'outputs\logs\exported-runtime-script-output-logs.json'
   if (-not (Test-Path -LiteralPath $ExportScriptLogBundlePath)) {
     throw "exported runtime script log bundle was not written: $ExportScriptLogBundlePath"
   }
