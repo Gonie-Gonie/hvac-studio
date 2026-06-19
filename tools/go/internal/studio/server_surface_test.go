@@ -282,6 +282,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	validationResultsBody := getRouteBody(t, server, "/js/validation-results.js")
 	candidateResultsBody := getRouteBody(t, server, "/js/candidate-results.js")
 	seriesResultsBody := getRouteBody(t, server, "/js/series-results.js")
+	sourceAuthoringBody := getRouteBody(t, server, "/js/source-authoring.js")
 	calibrationSetupEditorBody := getRouteBody(t, server, "/js/calibration-setup-editor.js")
 	optimizationSetupEditorBody := getRouteBody(t, server, "/js/optimization-setup-editor.js")
 	setupEditorUIBody := getRouteBody(t, server, "/js/setup-editor-ui.js")
@@ -300,6 +301,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte(`from "./setup-editor-ui.js"`)) {
 		t.Fatalf("module entrypoint did not import shared setup editor UI helpers")
 	}
+	if !bytes.Contains(body, []byte(`from "./source-authoring.js"`)) {
+		t.Fatalf("module entrypoint did not import source authoring helpers")
+	}
 	if !bytes.Contains(body, []byte(`from "./component-templates.js"`)) {
 		t.Fatalf("module entrypoint did not import component template helpers")
 	}
@@ -316,7 +320,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("applySourceSaveResponse")) {
 		t.Fatalf("module entrypoint did not include source save response handling")
 	}
-	if !bytes.Contains(body, []byte("evaluateSnippet")) {
+	if !bytes.Contains(sourceAuthoringBody, []byte("evaluateSnippet")) {
 		t.Fatalf("module entrypoint did not include contract-aware evaluate snippets")
 	}
 	if !bytes.Contains(body, []byte("setProblems")) {
@@ -331,18 +335,18 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("showSourceCompletionPanel")) {
 		t.Fatalf("module entrypoint did not include source completion handling")
 	}
-	if !bytes.Contains(body, []byte("sourceCompletionItems")) {
+	if !bytes.Contains(sourceAuthoringBody, []byte("sourceCompletionItems")) {
 		t.Fatalf("module entrypoint did not include contract-derived source completion items")
 	}
-	if !bytes.Contains(body, []byte("parameterSourceItems")) ||
-		!bytes.Contains(body, []byte("stateSourceItems")) ||
-		!bytes.Contains(body, []byte("contextSourceItems")) {
+	if !bytes.Contains(sourceAuthoringBody, []byte("parameterSourceItems")) ||
+		!bytes.Contains(sourceAuthoringBody, []byte("stateSourceItems")) ||
+		!bytes.Contains(sourceAuthoringBody, []byte("contextSourceItems")) {
 		t.Fatalf("module entrypoint did not include state/context source reference inserts")
 	}
-	if !bytes.Contains(body, []byte("bracketCheck")) {
+	if !bytes.Contains(sourceAuthoringBody, []byte("bracketCheck")) {
 		t.Fatalf("module entrypoint did not include bracket status checking")
 	}
-	if !bytes.Contains(body, []byte("highlightPython")) {
+	if !bytes.Contains(sourceAuthoringBody, []byte("highlightPython")) {
 		t.Fatalf("module entrypoint did not include Python syntax highlighting")
 	}
 	if !bytes.Contains(body, []byte("handleSourceNewline")) {
@@ -351,7 +355,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("formatCurrentSource")) {
 		t.Fatalf("module entrypoint did not include source formatting")
 	}
-	if !bytes.Contains(body, []byte("formatPythonSource")) {
+	if !bytes.Contains(sourceAuthoringBody, []byte("formatPythonSource")) {
 		t.Fatalf("module entrypoint did not include Python source formatting rules")
 	}
 	if !bytes.Contains(body, []byte("sourceLineProblemMap")) {
@@ -361,15 +365,15 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		t.Fatalf("module entrypoint did not include source quick fixes")
 	}
 	if !bytes.Contains(body, []byte("replaceSourceIssueText")) ||
-		!bytes.Contains(body, []byte("closestSourceName")) ||
-		!bytes.Contains(body, []byte("sourceReferenceCandidates")) {
+		!bytes.Contains(sourceAuthoringBody, []byte("closestSourceName")) ||
+		!bytes.Contains(sourceAuthoringBody, []byte("sourceReferenceCandidates")) {
 		t.Fatalf("module entrypoint did not include typo-like source quick fixes")
 	}
-	if !bytes.Contains(body, []byte("stepSnippet")) {
+	if !bytes.Contains(sourceAuthoringBody, []byte("stepSnippet")) {
 		t.Fatalf("module entrypoint did not include generated-wrapper step snippets")
 	}
-	if !bytes.Contains(body, []byte("evaluateBatchSnippet")) ||
-		!bytes.Contains(body, []byte("externalExecutableSnippet")) {
+	if !bytes.Contains(sourceAuthoringBody, []byte("evaluateBatchSnippet")) ||
+		!bytes.Contains(sourceAuthoringBody, []byte("externalExecutableSnippet")) {
 		t.Fatalf("module entrypoint did not include vectorized and external executable snippets")
 	}
 	if !bytes.Contains(body, []byte("Runtime Contract")) {
