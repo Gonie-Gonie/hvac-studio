@@ -329,6 +329,8 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		t.Fatalf("module entrypoint did not import contract impact helpers")
 	}
 	if !bytes.Contains(body, []byte(`from "./contract-authoring.js"`)) ||
+		!bytes.Contains(contractAuthoringBody, []byte("newNodePayload")) ||
+		!bytes.Contains(contractAuthoringBody, []byte("nodeUpdatePayload")) ||
 		!bytes.Contains(contractAuthoringBody, []byte("newParameterDefinition")) ||
 		!bytes.Contains(contractAuthoringBody, []byte("parameterDefinitionFromFields")) ||
 		!bytes.Contains(contractAuthoringBody, []byte("newStateDefinition")) ||

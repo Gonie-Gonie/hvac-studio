@@ -1,12 +1,74 @@
 import { coerceParameter } from "./format.js";
 import { PARAMETER_ROLES } from "./workspace-config.js";
 
+const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
 export function displayNameFromIdentifier(value) {
   return String(value || "")
     .split(/[_\-\s]+/)
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+export function newNodePayload(projectPath, component, values = {}) {
+  const componentID = component?.id || "";
+  const nodeID = (values.id || "").trim();
+  if (!component || !nodeID) {
+    return { error: "Select a component and node id" };
+  }
+  if (!IDENTIFIER_PATTERN.test(nodeID)) {
+    return { error: "Node id must start with a letter or underscore and contain only letters, numbers, and underscores" };
+  }
+  const existingNodes = [...(component.nodes?.inputs || []), ...(component.nodes?.outputs || [])];
+  if (existingNodes.some((node) => node.id === nodeID)) {
+    return { error: `Node already exists: ${componentID}.${nodeID}` };
+  }
+  const direction = (values.direction || "input").trim();
+  if (direction !== "input" && direction !== "output") {
+    return { error: "Node direction must be input or output" };
+  }
+  const rawDefault = values.default || "";
+  const payload = {
+    project_path: projectPath,
+    component_id: componentID,
+    direction,
+    id: nodeID,
+    name: (values.name || "").trim() || nodeID,
+    preset: values.preset || "",
+    medium: (values.medium || "").trim() || "signal",
+    value_type: values.value_type || "float",
+    unit: (values.unit || "").trim(),
+  };
+  if (direction === "input" && rawDefault.trim() !== "") {
+    payload.default = coerceParameter(rawDefault);
+  }
+  if (direction === "input") {
+    payload.required = Boolean(values.required);
+  }
+  return { payload, nodeID };
+}
+
+export function nodeUpdatePayload(projectPath, componentID, nodeID, direction, fields = {}) {
+  const name = (fields.name || "").trim();
+  if (!name) {
+    return { error: "Node name is required" };
+  }
+  const payload = {
+    project_path: projectPath,
+    component_id: componentID,
+    node_id: nodeID,
+    name,
+    medium: (fields.medium || "").trim(),
+    value_type: fields.value_type || "float",
+    unit: (fields.unit || "").trim(),
+  };
+  if (direction === "input") {
+    const rawDefault = fields.default || "";
+    payload.required = Boolean(fields.required);
+    payload.default = rawDefault.trim() === "" ? null : coerceParameter(rawDefault);
+  }
+  return { payload };
 }
 
 export function newParameterDefinition(name, value, options = {}) {

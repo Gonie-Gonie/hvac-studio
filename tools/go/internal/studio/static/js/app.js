@@ -46,7 +46,9 @@ import {
 import {
   displayNameFromIdentifier,
   newParameterDefinition as buildNewParameterDefinition,
+  newNodePayload as buildNewNodePayload,
   newStateDefinition as buildNewStateDefinition,
+  nodeUpdatePayload as buildNodeUpdatePayload,
   parameterDefinitionFromFields,
   stateDefinitionFromFields,
 } from "./contract-authoring.js";
@@ -5024,56 +5026,32 @@ async function updateConnectionUnitConversion(connectionId, unitConversion) {
 async function addNodeFromInspector(componentID) {
   if (!componentID || !isWorkspaceProject()) return;
   const component = componentById(componentID);
-  const preset = el("newNodePreset")?.value || "";
-  const direction = el("newNodeDirection")?.value || "input";
-  const nodeID = (el("newNodeId")?.value || "").trim();
-  const nodeName = (el("newNodeName")?.value || "").trim() || nodeID;
-  const valueType = el("newNodeValueType")?.value || "float";
-  const medium = (el("newNodeMedium")?.value || "").trim() || "signal";
-  const unit = (el("newNodeUnit")?.value || "").trim();
-  const rawDefault = el("newNodeDefault")?.value || "";
-  if (!component || !nodeID) {
-    showInlineProblem("Select a component and node id");
+  const nodeResult = buildNewNodePayload(state.currentProjectPath, component, {
+    preset: el("newNodePreset")?.value || "",
+    direction: el("newNodeDirection")?.value || "input",
+    id: el("newNodeId")?.value || "",
+    name: el("newNodeName")?.value || "",
+    value_type: el("newNodeValueType")?.value || "float",
+    medium: el("newNodeMedium")?.value || "",
+    unit: el("newNodeUnit")?.value || "",
+    default: el("newNodeDefault")?.value || "",
+    required: el("newNodeRequired")?.checked,
+  });
+  if (nodeResult.error) {
+    showInlineProblem(nodeResult.error);
     return;
-  }
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(nodeID)) {
-    showInlineProblem("Node id must start with a letter or underscore and contain only letters, numbers, and underscores");
-    return;
-  }
-  const existingNodes = [...(component.nodes.inputs || []), ...(component.nodes.outputs || [])];
-  if (existingNodes.some((node) => node.id === nodeID)) {
-    showInlineProblem(`Node already exists: ${componentID}.${nodeID}`);
-    return;
-  }
-
-  const payload = {
-    project_path: state.currentProjectPath,
-    component_id: componentID,
-    direction,
-    id: nodeID,
-    name: nodeName,
-    preset,
-    medium,
-    value_type: valueType,
-    unit,
-  };
-  if (direction === "input" && rawDefault.trim() !== "") {
-    payload.default = coerceParameter(rawDefault);
-  }
-  if (direction === "input") {
-    payload.required = Boolean(el("newNodeRequired")?.checked);
   }
 
   try {
     const body = await api("/api/project/nodes", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify(nodeResult.payload),
     });
     state.detail = body.project;
     state.selectedComponentId = componentID;
     markRunResultStale(false);
     renderAll();
-    log(`Node added: ${componentID}.${nodeID}`);
+    log(`Node added: ${componentID}.${nodeResult.nodeID}`);
   } catch (error) {
     log(`Add node failed: ${error.message}`);
     state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
@@ -5087,32 +5065,22 @@ async function updateNodeFromInspector(componentID, nodeID, direction, row) {
   const form = row || findNodeEditRow(componentID, nodeID);
   if (!form) return;
   const field = (name) => form.querySelector(`[data-node-field="${name}"]`);
-  const name = (field("name")?.value || "").trim();
-  const medium = (field("medium")?.value || "").trim();
-  const valueType = field("value_type")?.value || "float";
-  const unit = (field("unit")?.value || "").trim();
-  if (!name) {
-    showInlineProblem("Node name is required");
+  const updateResult = buildNodeUpdatePayload(state.currentProjectPath, componentID, nodeID, direction, {
+    name: field("name")?.value || "",
+    medium: field("medium")?.value || "",
+    value_type: field("value_type")?.value || "float",
+    unit: field("unit")?.value || "",
+    default: field("default")?.value || "",
+    required: field("required")?.checked,
+  });
+  if (updateResult.error) {
+    showInlineProblem(updateResult.error);
     return;
-  }
-  const payload = {
-    project_path: state.currentProjectPath,
-    component_id: componentID,
-    node_id: nodeID,
-    name,
-    medium,
-    value_type: valueType,
-    unit,
-  };
-  if (direction === "input") {
-    const rawDefault = field("default")?.value || "";
-    payload.required = Boolean(field("required")?.checked);
-    payload.default = rawDefault.trim() === "" ? null : coerceParameter(rawDefault);
   }
   try {
     const body = await api("/api/project/nodes/update", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify(updateResult.payload),
     });
     state.detail = body.project;
     state.selectedComponentId = componentID;
