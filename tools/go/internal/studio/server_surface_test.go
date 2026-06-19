@@ -283,6 +283,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	candidateResultsBody := getRouteBody(t, server, "/js/candidate-results.js")
 	seriesResultsBody := getRouteBody(t, server, "/js/series-results.js")
 	sourceAuthoringBody := getRouteBody(t, server, "/js/source-authoring.js")
+	pythonSourceBody := getRouteBody(t, server, "/js/python-source.js")
 	replacementPreviewBody := getRouteBody(t, server, "/js/replacement-preview.js")
 	nodeImpactBody := getRouteBody(t, server, "/js/node-impact.js")
 	contractImpactBody := getRouteBody(t, server, "/js/contract-impact.js")
@@ -308,6 +309,14 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(body, []byte(`from "./source-authoring.js"`)) {
 		t.Fatalf("module entrypoint did not import source authoring helpers")
+	}
+	if !bytes.Contains(sourceAuthoringBody, []byte(`from "./python-source.js"`)) {
+		t.Fatalf("source authoring module did not import Python source helpers")
+	}
+	if !bytes.Contains(sourceAuthoringBody, []byte("bracketCheck")) ||
+		!bytes.Contains(sourceAuthoringBody, []byte("formatPythonSource")) ||
+		!bytes.Contains(sourceAuthoringBody, []byte("pythonStringLiteral")) {
+		t.Fatalf("source authoring module did not re-export Python source helpers")
 	}
 	if !bytes.Contains(body, []byte(`from "./replacement-preview.js"`)) {
 		t.Fatalf("module entrypoint did not import replacement preview helpers")
@@ -378,10 +387,10 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(contractImpactBody, []byte("stateDeleteImpactConfirmText")) {
 		t.Fatalf("module entrypoint did not include parameter/state delete impact hints")
 	}
-	if !bytes.Contains(sourceAuthoringBody, []byte("bracketCheck")) {
+	if !bytes.Contains(pythonSourceBody, []byte("bracketCheck")) {
 		t.Fatalf("module entrypoint did not include bracket status checking")
 	}
-	if !bytes.Contains(sourceAuthoringBody, []byte("highlightPython")) {
+	if !bytes.Contains(pythonSourceBody, []byte("highlightPython")) {
 		t.Fatalf("module entrypoint did not include Python syntax highlighting")
 	}
 	if !bytes.Contains(body, []byte("handleSourceNewline")) {
@@ -390,7 +399,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("formatCurrentSource")) {
 		t.Fatalf("module entrypoint did not include source formatting")
 	}
-	if !bytes.Contains(sourceAuthoringBody, []byte("formatPythonSource")) {
+	if !bytes.Contains(pythonSourceBody, []byte("formatPythonSource")) {
 		t.Fatalf("module entrypoint did not include Python source formatting rules")
 	}
 	if !bytes.Contains(body, []byte("sourceLineProblemMap")) {
