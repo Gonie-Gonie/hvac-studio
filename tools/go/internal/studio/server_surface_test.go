@@ -582,6 +582,15 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(candidateResultsBody, []byte("Best Decision Variables")) || !bytes.Contains(candidateResultsBody, []byte("Output Comparison")) || !bytes.Contains(candidateResultsBody, []byte("Constraint Status")) {
 		t.Fatalf("module entrypoint did not render optimization result comparison")
 	}
+	if !bytes.Contains(candidateResultsBody, []byte("Open Saved Scenario")) ||
+		!bytes.Contains(candidateResultsBody, []byte("scenarioIDFromPath")) ||
+		!bytes.Contains(body, []byte("loadScenario")) {
+		t.Fatalf("module entrypoint did not expose saved optimization scenario action")
+	}
+	if !bytes.Contains(candidateResultsBody, []byte("Use Saved Parameter Set")) ||
+		!bytes.Contains(candidateResultsBody, []byte("Apply Saved Parameter Set")) {
+		t.Fatalf("module entrypoint did not expose saved optimization parameter-set actions")
+	}
 	if !bytes.Contains(candidateResultsBody, []byte("Export SDK Script")) || !bytes.Contains(candidateResultsBody, []byte("downloadOptimizationSDKScript")) || !bytes.Contains(candidateResultsBody, []byte("run_optimization")) {
 		t.Fatalf("module entrypoint did not expose optimization SDK script export")
 	}

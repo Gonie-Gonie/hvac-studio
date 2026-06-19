@@ -2735,6 +2735,7 @@ function candidateResultContext() {
     applyParameterSetToGraph,
     currentProjectPath: state.currentProjectPath,
     isWorkspaceProject: isWorkspaceProject(),
+    loadScenario,
     parameterSets: state.detail?.parameter_sets || [],
     pythonStringLiteral,
     runCalibrationParameterSetComparison,

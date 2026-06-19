@@ -64,8 +64,10 @@ parameter set path. Studio result views show best decision variables, best
 outputs, constraint status, candidate output comparison, export the candidate
 table as CSV for spreadsheet review, download a Markdown report, and export a
 Python SDK script that calls `RunnerClient.run_optimization(...)` with the same
-setup. `--save-record` writes a reproducible result artifact under
-`optimization/results/`.
+setup. Saved optimization scenarios can be opened directly from the result view,
+and parameter-variable studies can activate or apply the saved parameter set
+from the same result actions. `--save-record` writes a reproducible result
+artifact under `optimization/results/`.
 
 For component-parameter studies, save the best parameter values separately:
 

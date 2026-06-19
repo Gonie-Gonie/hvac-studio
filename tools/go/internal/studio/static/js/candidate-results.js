@@ -81,6 +81,28 @@ export function candidateResultSection(result, savedLabel, savedPath, context = 
     exportSDK.addEventListener("click", () => downloadOptimizationSDKScript(result, context));
     actions.append(exportSDK);
   }
+  if (result.saved_scenario && context.isWorkspaceProject) {
+    const openScenario = document.createElement("button");
+    openScenario.type = "button";
+    openScenario.className = "small-action";
+    openScenario.textContent = "Open Saved Scenario";
+    openScenario.addEventListener("click", () => context.loadScenario?.(scenarioIDFromPath(result.saved_scenario)));
+    actions.append(openScenario);
+  }
+  if (savedLabel !== "Saved parameter set" && result.saved_parameter_set && context.isWorkspaceProject) {
+    const useSavedParameterSet = document.createElement("button");
+    useSavedParameterSet.type = "button";
+    useSavedParameterSet.className = "small-action";
+    useSavedParameterSet.textContent = "Use Saved Parameter Set";
+    useSavedParameterSet.addEventListener("click", () => context.activateParameterSetForRuns?.(result.saved_parameter_set));
+    actions.append(useSavedParameterSet);
+    const applySavedParameterSet = document.createElement("button");
+    applySavedParameterSet.type = "button";
+    applySavedParameterSet.className = "small-action";
+    applySavedParameterSet.textContent = "Apply Saved Parameter Set";
+    applySavedParameterSet.addEventListener("click", () => context.applyParameterSetToGraph?.(result.saved_parameter_set));
+    actions.append(applySavedParameterSet);
+  }
   if (savedLabel === "Saved parameter set" && savedPath && context.isWorkspaceProject) {
     const useForRuns = document.createElement("button");
     useForRuns.type = "button";
@@ -214,6 +236,10 @@ function bestCandidate(result) {
   const bestObjective = Number(result.best_objective);
   if (!Number.isFinite(bestObjective)) return candidates.find((item) => !item.error) || null;
   return candidates.find((item) => !item.error && Math.abs(Number(item.objective) - bestObjective) <= 1e-9) || candidates.find((item) => !item.error) || null;
+}
+
+function scenarioIDFromPath(path) {
+  return String(path || "").split(/[\\/]/).pop().replace(/\.json$/i, "");
 }
 
 function calibrationCompareParameterSetChoices(savedPath, parameterSets) {
