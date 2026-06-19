@@ -11,6 +11,12 @@ import {
 import { calibrationSetupEditorSection } from "./calibration-setup-editor.js";
 import { optimizationSetupEditorSection } from "./optimization-setup-editor.js";
 import {
+  calibrationParameterCandidates as buildCalibrationParameterCandidates,
+  defaultDecisionBounds,
+  optimizationDecisionCandidates as buildOptimizationDecisionCandidates,
+  optimizationPublicOutputs as buildOptimizationPublicOutputs,
+} from "./workflow-candidates.js";
+import {
   componentTemplateByID as findComponentTemplateByID,
   componentTemplateMetaText,
   componentTemplateOptionLabel,
@@ -124,7 +130,6 @@ import {
   stateSourceItems,
   stepSnippet,
 } from "./source-authoring.js";
-import { defaultCalibrationGridStep } from "./setup-editor-ui.js";
 import {
   calibrationValidationComparisonSection,
   highErrorInspectionSection,
@@ -2956,7 +2961,7 @@ async function openCalibrationSetupEditor(mappingPath = "") {
       kind: "calibration_setup_editor",
       mapping_summary: mapping,
       mapping: body.mapping,
-      candidates: calibrationParameterCandidates(),
+      candidates: buildCalibrationParameterCandidates(state.detail?.graph),
     };
     renderResults();
     setMode("artifacts");
@@ -2993,38 +2998,6 @@ async function createCalibrationSetup(payload) {
   }
 }
 
-function calibrationParameterCandidates() {
-  const candidates = [];
-  for (const component of state.detail?.graph?.components || []) {
-    const definitions = component.parameter_defs || {};
-    const names = [...new Set([...Object.keys(component.parameters || {}), ...Object.keys(definitions)])].sort();
-    for (const name of names) {
-      const definition = definitions[name] || {};
-      const bounds = definition.bounds || {};
-      const min = finiteNumber(bounds.min);
-      const max = finiteNumber(bounds.max);
-      const hasBounds = min !== null && max !== null && max >= min;
-      const current = component.parameters?.[name] ?? definition.current ?? definition.default ?? "";
-      const role = definition.role || "fixed";
-      const selected = role === "calibration_target" && hasBounds && finiteNumber(current) !== null;
-      candidates.push({
-        component: component.id,
-        componentName: component.name || component.id,
-        name,
-        role,
-        unit: definition.unit || "",
-        current,
-        min,
-        max,
-        step: hasBounds ? defaultCalibrationGridStep(min, max) : "",
-        hasBounds,
-        selected,
-      });
-    }
-  }
-  return candidates;
-}
-
 function openOptimizationSetupEditor() {
   const baseInputs = collectRunInputs();
   const baseContext = currentRunContext();
@@ -3032,8 +3005,8 @@ function openOptimizationSetupEditor() {
     kind: "optimization_setup_editor",
     base_inputs: baseInputs,
     context: baseContext,
-    candidates: optimizationDecisionCandidates(baseInputs),
-    outputs: optimizationPublicOutputs(),
+    candidates: buildOptimizationDecisionCandidates(state.detail?.graph, currentSystem(), baseInputs),
+    outputs: buildOptimizationPublicOutputs(currentSystem()),
   };
   renderResults();
   setMode("artifacts");
@@ -3064,10 +3037,6 @@ async function createOptimizationSetup(payload) {
   }
 }
 
-function optimizationPublicOutputs() {
-  return (currentSystem()?.public_outputs || []).filter((output) => isNumericValueType(output.value_type || output.valueType || "float"));
-}
-
 async function loadOptimizationBaseSource(source) {
   let inputs = collectRunInputs();
   let context = currentRunContext();
@@ -3091,75 +3060,6 @@ function handleOptimizationBaseSourceError(error) {
   renderProblems();
   setBottomTab("problems");
   log(`Optimization base input load failed: ${error.message}`);
-}
-
-function optimizationDecisionCandidates(baseInputs = collectRunInputs()) {
-  const candidates = [];
-  const runInputs = baseInputs || {};
-  for (const input of currentSystem()?.public_inputs || []) {
-    const value = finiteNumber(runInputs[input.id]);
-    if (value === null) continue;
-    const [min, max] = defaultDecisionBounds(value);
-    const name = input.id || "";
-    candidates.push({
-      kind: "public_input",
-      label: name,
-      name,
-      component: "",
-      role: "public_input",
-      unit: input.unit || "",
-      current: value,
-      min,
-      max,
-      step: defaultCalibrationGridStep(min, max),
-      selected: /setpoint|speed|fraction|load/i.test(name),
-    });
-  }
-  const systemComponentIDs = new Set(currentSystem()?.components || []);
-  const systemID = currentSystem()?.id || "system";
-  for (const component of state.detail?.graph?.components || []) {
-    const definitions = component.parameter_defs || {};
-    for (const name of Object.keys(definitions).sort()) {
-      const definition = definitions[name] || {};
-      const current = finiteNumber(component.parameters?.[name] ?? definition.current ?? definition.default);
-      const min = finiteNumber(definition.bounds?.min);
-      const max = finiteNumber(definition.bounds?.max);
-      if (current === null || min === null || max === null || max < min) continue;
-      const candidate = {
-        kind: "component_parameter",
-        label: `${component.id}.${name}`,
-        name,
-        component: component.id,
-        role: definition.role || "fixed",
-        unit: definition.unit || "",
-        current,
-        min,
-        max,
-        step: defaultCalibrationGridStep(min, max),
-        selected: definition.role === "optimization_variable",
-      };
-      candidates.push(candidate);
-      if (systemComponentIDs.has(component.id)) {
-        candidates.push({
-          ...candidate,
-          kind: "system_parameter",
-          label: `${systemID}.${component.id}.${name}`,
-          selected: false,
-        });
-      }
-    }
-  }
-  return candidates;
-}
-
-function defaultDecisionBounds(value) {
-  const numeric = Number(value);
-  const delta = Math.max(Math.abs(numeric) * 0.2, 1);
-  return [numeric - delta, numeric + delta];
-}
-
-function isNumericValueType(valueType) {
-  return ["float", "int", "integer", "number"].includes(String(valueType || "").toLowerCase());
 }
 
 async function applyParameterSetToGraph(path) {

@@ -289,6 +289,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	contractLabelsBody := getRouteBody(t, server, "/js/contract-labels.js")
 	calibrationSetupEditorBody := getRouteBody(t, server, "/js/calibration-setup-editor.js")
 	optimizationSetupEditorBody := getRouteBody(t, server, "/js/optimization-setup-editor.js")
+	workflowCandidatesBody := getRouteBody(t, server, "/js/workflow-candidates.js")
 	setupEditorUIBody := getRouteBody(t, server, "/js/setup-editor-ui.js")
 	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
 		t.Fatalf("module entrypoint did not contain expected imports")
@@ -302,8 +303,8 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte(`from "./optimization-setup-editor.js"`)) {
 		t.Fatalf("module entrypoint did not import optimization setup editor")
 	}
-	if !bytes.Contains(body, []byte(`from "./setup-editor-ui.js"`)) {
-		t.Fatalf("module entrypoint did not import shared setup editor UI helpers")
+	if !bytes.Contains(body, []byte(`from "./workflow-candidates.js"`)) {
+		t.Fatalf("module entrypoint did not import workflow candidate helpers")
 	}
 	if !bytes.Contains(body, []byte(`from "./source-authoring.js"`)) {
 		t.Fatalf("module entrypoint did not import source authoring helpers")
@@ -898,13 +899,20 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(setupEditorUIBody, []byte("labeledEditorControl")) {
 		t.Fatalf("module entrypoint did not expose shared setup editor UI helpers")
 	}
+	if !bytes.Contains(workflowCandidatesBody, []byte("calibrationParameterCandidates")) ||
+		!bytes.Contains(workflowCandidatesBody, []byte("optimizationDecisionCandidates")) ||
+		!bytes.Contains(workflowCandidatesBody, []byte("optimizationPublicOutputs")) ||
+		!bytes.Contains(workflowCandidatesBody, []byte(`role === "calibration_target"`)) ||
+		!bytes.Contains(workflowCandidatesBody, []byte(`definition.role === "optimization_variable"`)) ||
+		!bytes.Contains(workflowCandidatesBody, []byte("system_parameter")) {
+		t.Fatalf("module entrypoint did not expose role-aware workflow candidate helpers")
+	}
 	if !bytes.Contains(body, []byte("/api/project/optimization-setup")) {
 		t.Fatalf("module entrypoint did not create optimization setups")
 	}
 	if !bytes.Contains(optimizationSetupEditorBody, []byte("optimizationSetupEditorSection")) ||
 		!bytes.Contains(optimizationSetupEditorBody, []byte("Decision Variables")) ||
 		!bytes.Contains(optimizationSetupEditorBody, []byte("Base Input/Scenario")) ||
-		!bytes.Contains(body, []byte("system_parameter")) ||
 		!bytes.Contains(optimizationSetupEditorBody, []byte("Differential Evolution")) ||
 		!bytes.Contains(optimizationSetupEditorBody, []byte("differential_evolution")) ||
 		!bytes.Contains(optimizationSetupEditorBody, []byte("Custom SDK Script")) ||
