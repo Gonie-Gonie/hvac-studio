@@ -363,6 +363,10 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("applySourceSaveResponse")) {
 		t.Fatalf("module entrypoint did not include source save response handling")
 	}
+	if !bytes.Contains(body, []byte("markComponentContractChanged")) ||
+		!bytes.Contains(body, []byte("delete state.sourceCheckByComponent[componentID]")) {
+		t.Fatalf("module entrypoint did not clear stale source checks after contract edits")
+	}
 	if !bytes.Contains(sourceAuthoringBody, []byte("evaluateSnippet")) {
 		t.Fatalf("module entrypoint did not include contract-aware evaluate snippets")
 	}

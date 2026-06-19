@@ -5058,6 +5058,7 @@ async function addNodeFromInspector(componentID) {
     });
     state.detail = body.project;
     state.selectedComponentId = componentID;
+    markComponentContractChanged(componentID);
     markRunResultStale(false);
     renderAll();
     log(`Node added: ${componentID}.${nodeResult.nodeID}`);
@@ -5096,6 +5097,7 @@ async function updateNodeFromInspector(componentID, nodeID, direction, row) {
     });
     state.detail = body.project;
     state.selectedComponentId = componentID;
+    markComponentContractChanged(componentID);
     markRunResultStale(false);
     renderAll();
     log(`Node updated: ${componentID}.${nodeID}`);
@@ -5151,6 +5153,7 @@ async function deleteNodeFromInspector(componentID, nodeID, impact = null) {
     });
     state.detail = body.project;
     state.selectedComponentId = componentID;
+    markComponentContractChanged(componentID);
     markRunResultStale(false);
     renderAll();
     log(`Node deleted: ${componentID}.${nodeID}`);
@@ -5214,6 +5217,7 @@ async function addParameter(componentID, name, value, options = {}) {
       });
     state.detail = body.project;
     state.selectedComponentId = componentID;
+    markComponentContractChanged(componentID);
     markRunResultStale(false);
     renderAll();
     log(`Parameter added: ${componentID}.${name}`);
@@ -5244,6 +5248,7 @@ async function saveParameterDefinition(componentID, name, row) {
       }),
     });
     state.detail = body.project;
+    markComponentContractChanged(componentID);
     markRunResultStale(false);
     renderAll();
     log(`Parameter definition saved: ${componentID}.${name}`);
@@ -5267,6 +5272,7 @@ async function deleteParameterDefinition(componentID, name) {
       }),
     });
     state.detail = body.project;
+    markComponentContractChanged(componentID);
     renderAll();
     log(`Parameter metadata cleared: ${componentID}.${name}`);
   } catch (error) {
@@ -5309,6 +5315,7 @@ async function saveStateDefinitionPayload(componentID, name, definition, success
       }),
     });
     state.detail = body.project;
+    markComponentContractChanged(componentID);
     markRunResultStale(false);
     renderAll();
     log(successMessage);
@@ -5335,6 +5342,7 @@ async function deleteStateDefinition(componentID, name, impact = null) {
       }),
     });
     state.detail = body.project;
+    markComponentContractChanged(componentID);
     markRunResultStale(false);
     renderAll();
     log(`State definition deleted: ${componentID}.${name}`);
@@ -5386,6 +5394,7 @@ async function deleteParameterFromManager(componentID, name, impact = null) {
       body: JSON.stringify({ project_path: state.currentProjectPath, component_id: componentID, name }),
     });
     state.detail = body.project;
+    markComponentContractChanged(componentID);
     markRunResultStale(false);
     renderAll();
     log(`Parameter deleted: ${componentID}.${name}`);
@@ -5619,6 +5628,11 @@ function markProjectDirty() {
   if (isWorkspaceProject()) {
     el("saveProjectButton").classList.add("dirty");
   }
+}
+
+function markComponentContractChanged(componentID) {
+  if (!componentID) return;
+  delete state.sourceCheckByComponent[componentID];
 }
 
 function markRunResultStale(render = true) {
