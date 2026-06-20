@@ -26,7 +26,7 @@ and SDK workflows.
 
 Distribution is Windows-first, but source-of-truth files and engine packages should stay OS-independent. OS-specific path, process, runtime, executable naming, installer, signing, and packaging behavior should be isolated instead of leaking through compiler/runtime code.
 
-`docs/status.md` records what the current checkout supports, while `docs/release.md`
+`docs/status.md` records what the current checkout supports, while `docs/maintainer/release.md`
 records the package gate and release checklist. Keep those documents aligned
 with this runtime-first architecture instead of carrying a separate roadmap file.
 

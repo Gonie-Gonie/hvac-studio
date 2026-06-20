@@ -89,18 +89,18 @@ If PowerShell script execution is disabled on your machine, run:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-fast.ps1
 ```
 
-See [docs/setup.md](docs/setup.md) for the repo-local Go/Python layout.
+See [docs/maintainer/setup.md](docs/maintainer/setup.md) for the repo-local Go/Python layout.
 
 Read the current status and release process when changing release scope:
 
 ```text
 docs/status.md
-docs/release.md
+docs/maintainer/release.md
 ```
 
 `docs/status.md` is the maintainer-facing snapshot for what works now, what is
 not supported yet, where retained local build zips live, and which generated
-folders are safe to clean. `docs/release.md` owns package scope, release gates,
+folders are safe to clean. `docs/maintainer/release.md` owns package scope, release gates,
 checksums, provenance, signing/trust notes, and GitHub Release procedure.
 
 Read the user guide:
@@ -160,8 +160,8 @@ The macOS package is a support bundle with a package plan, prerequisite checks,
 docs, schemas, examples, and signing/notarization caveats. It is not a signed
 or notarized public macOS app.
 
-See [docs/release.md](docs/release.md) for the GitHub Release process.
-See [docs/release-trust.md](docs/release-trust.md) for signing, checksum,
+See [docs/maintainer/release.md](docs/maintainer/release.md) for the GitHub Release process.
+See [docs/maintainer/release-trust.md](docs/maintainer/release-trust.md) for signing, checksum,
 license notice, dependency notice, support matrix, and release-note policy.
 
 Run the runner directly for a quick smoke check:

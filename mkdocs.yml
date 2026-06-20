@@ -4,10 +4,7 @@ site_dir: dist/docs/site
 exclude_docs: |
   adr/
   legal/
-  release.md
-  release-trust.md
-  repository-design.md
-  setup.md
+  maintainer/
 
 nav:
   - Home: index.md

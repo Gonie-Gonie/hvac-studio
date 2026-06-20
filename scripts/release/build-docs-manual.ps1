@@ -46,7 +46,7 @@ $Sources = @(
   'docs\user\python-sdk.md',
   'docs\user\cli-runner.md',
   'docs\user\external-engine-protocol.md',
-  'docs\release-trust.md',
+  'docs\maintainer\release-trust.md',
   'docs\legal\support-matrix.md',
   'docs\legal\release-notes-policy.md',
   'docs\legal\license-notices.md',
