@@ -295,11 +295,15 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	nodeImpactBody := getRouteBody(t, server, "/js/node-impact.js")
 	contractImpactBody := getRouteBody(t, server, "/js/contract-impact.js")
 	contractAuthoringBody := getRouteBody(t, server, "/js/contract-authoring.js")
+	contractEditorBody := getRouteBody(t, server, "/js/component-contract-editor.js")
 	contractLabelsBody := getRouteBody(t, server, "/js/contract-labels.js")
 	calibrationSetupEditorBody := getRouteBody(t, server, "/js/calibration-setup-editor.js")
 	optimizationSetupEditorBody := getRouteBody(t, server, "/js/optimization-setup-editor.js")
 	workflowCandidatesBody := getRouteBody(t, server, "/js/workflow-candidates.js")
 	setupEditorUIBody := getRouteBody(t, server, "/js/setup-editor-ui.js")
+	if !bytes.Contains(body, []byte(`from "./component-contract-editor.js"`)) {
+		t.Fatalf("module entrypoint did not import component contract editor")
+	}
 	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
 		t.Fatalf("module entrypoint did not contain expected imports")
 	}
@@ -822,7 +826,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("stateDefinitionBlock")) {
 		t.Fatalf("module entrypoint did not include inspector state definition editing")
 	}
-	if !bytes.Contains(body, []byte("newStateUnit")) || !bytes.Contains(body, []byte("newStateDescription")) {
+	if !bytes.Contains(contractEditorBody, []byte("newStateUnit")) || !bytes.Contains(contractEditorBody, []byte("newStateDescription")) {
 		t.Fatalf("module entrypoint did not include state unit/description creation fields")
 	}
 	if !bytes.Contains(body, []byte("/api/project/component-contract")) {
@@ -836,7 +840,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(body, []byte("PARAMETER_ROLES")) {
 		t.Fatalf("module entrypoint did not include parameter role and bounds creation fields")
 	}
-	if !bytes.Contains(body, []byte("editableNodeRow")) {
+	if !bytes.Contains(contractEditorBody, []byte("editableNodeRow")) {
 		t.Fatalf("module entrypoint did not include editable node rows")
 	}
 	if !bytes.Contains(body, []byte("updateNodeFromInspector")) {
@@ -850,7 +854,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(nodeImpactBody, []byte("nodeRenameImpactConfirmText")) {
 		t.Fatalf("module entrypoint did not include node rename impact confirmation")
 	}
-	if !bytes.Contains(body, []byte("node-impact")) ||
+	if !bytes.Contains(contractEditorBody, []byte("node-impact")) ||
 		!bytes.Contains(body, []byte("nodeDeleteImpactConfirmText")) ||
 		!bytes.Contains(nodeImpactBody, []byte("nodeDeleteImpact")) ||
 		!bytes.Contains(nodeImpactBody, []byte("nodeDeleteImpactSummary")) ||
