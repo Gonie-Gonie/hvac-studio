@@ -3,8 +3,8 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
 import subprocess
-import tempfile
 import unittest
 import uuid
 from contextlib import contextmanager
@@ -186,7 +186,7 @@ class RunnerClientTests(unittest.TestCase):
             stderr="",
         )
 
-        with tempfile.TemporaryDirectory() as tmp:
+        with test_temp_dir() as tmp:
             with patch.dict(os.environ, {"HVAC_STUDIO_TMP": tmp}):
                 with patch("subprocess.run", return_value=completed) as run:
                     client = RunnerClient(project="project.bcsproj", runner="bcs-runner", persistent=False)
@@ -300,7 +300,10 @@ def test_temp_dir() -> Iterator[str]:
     root.mkdir(parents=True, exist_ok=True)
     tmp_dir = root / f"tmp-{uuid.uuid4().hex}"
     tmp_dir.mkdir(parents=True, exist_ok=False)
-    yield str(tmp_dir)
+    try:
+        yield str(tmp_dir)
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":
