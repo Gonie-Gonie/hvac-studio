@@ -6,6 +6,7 @@ $Forbidden = @(
   @{ Label = 'not implemented'; Pattern = '\bnot\s+implemented\b' },
   @{ Label = 'mock'; Pattern = '\bmock\b' },
   @{ Label = 'demo'; Pattern = '\bdemo\b' },
+  @{ Label = 'stub'; Pattern = '\bstub\b' },
   @{ Label = 'placeholder'; Pattern = '\bplaceholder\b' },
   @{ Label = 'future'; Pattern = '\bfuture\b' },
   @{ Label = 'dev only'; Pattern = '\bdev[\s_-]+only\b' },

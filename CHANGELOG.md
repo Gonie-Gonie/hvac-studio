@@ -47,7 +47,7 @@
 - Build Wails Studio binaries with the required production tags and make portable smoke detect Wails error dialogs.
 - Replace the initial `bcs-env` command with a package environment checker used by portable and runtime smoke tests.
 - Replace initial portable templates with source project/component templates used by Studio project creation.
-- Split Studio static JavaScript into ES modules and replace the static validation plot stub with a runtime output preview.
+- Split Studio static JavaScript into ES modules and replace the static validation plot shell with a runtime output preview.
 - Remove inactive Studio workspaces from the active UI and promote actual run output state into a focused Run workspace.
 - Expand Studio runtime export from a manifest-only artifact to a project artifact containing source-of-truth project files.
 - Verify exported Studio runtime project artifacts can be loaded, compiled, and run by packaged release smoke tests.
