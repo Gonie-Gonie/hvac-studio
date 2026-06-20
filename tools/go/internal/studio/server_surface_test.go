@@ -282,6 +282,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	stylesBody := getRouteBody(t, server, "/styles.css")
 	mlInspectorBody := getRouteBody(t, server, "/js/ml-inspector.js")
 	componentTemplatesBody := getRouteBody(t, server, "/js/component-templates.js")
+	componentTemplateControlsBody := getRouteBody(t, server, "/js/component-template-controls.js")
 	datasetMappingBody := getRouteBody(t, server, "/js/dataset-mapping.js")
 	downloadBody := getRouteBody(t, server, "/js/download.js")
 	validationPlotsBody := getRouteBody(t, server, "/js/validation-plots.js")
@@ -353,10 +354,18 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte(`from "./component-templates.js"`)) {
 		t.Fatalf("module entrypoint did not import component template helpers")
 	}
+	if !bytes.Contains(body, []byte(`from "./component-template-controls.js"`)) {
+		t.Fatalf("module entrypoint did not import component template control helpers")
+	}
 	if !bytes.Contains(componentTemplatesBody, []byte("componentTemplateOptionLabel")) ||
 		!bytes.Contains(componentTemplatesBody, []byte("componentTemplateMetaText")) ||
 		!bytes.Contains(componentTemplatesBody, []byte("availableComponentFilterOptions")) {
 		t.Fatalf("component template module did not expose selector helpers")
+	}
+	if !bytes.Contains(componentTemplateControlsBody, []byte("renderComponentTemplateControls")) ||
+		!bytes.Contains(componentTemplateControlsBody, []byte("renderSelectedComponentTemplateMeta")) ||
+		!bytes.Contains(componentTemplateControlsBody, []byte("currentComponentTemplateOptions")) {
+		t.Fatalf("component template controls module did not expose selector render helpers")
 	}
 	if !bytes.Contains(body, []byte(`from "./export-workspace.js"`)) {
 		t.Fatalf("module entrypoint did not import export workspace renderer")

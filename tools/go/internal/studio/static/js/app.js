@@ -17,13 +17,14 @@ import {
   optimizationPublicOutputs as buildOptimizationPublicOutputs,
 } from "./workflow-candidates.js";
 import {
-  availableComponentFilterOptions,
   componentTemplateByID as findComponentTemplateByID,
-  componentTemplateMetaText,
-  componentTemplateOptionLabel,
   defaultComponentName as defaultTemplateComponentName,
-  filteredComponentTemplates as filterComponentTemplates,
 } from "./component-templates.js";
+import {
+  currentComponentTemplateOptions,
+  renderComponentTemplateControls,
+  renderSelectedComponentTemplateMeta as renderSelectedComponentTemplateMetaView,
+} from "./component-template-controls.js";
 import {
   replacementDiffText,
   replacementPreview,
@@ -208,62 +209,16 @@ async function loadComponentTemplates() {
 }
 
 function renderComponentTemplateSelect() {
-  const categorySelect = el("componentCategorySelect");
-  const modeSelect = el("componentExecutionModeSelect");
-  renderComponentFilterSelect(
-    categorySelect,
-    availableComponentFilterOptions(state.componentTemplates, COMPONENT_CATEGORIES, "category"),
-  );
-  const category = categorySelect?.value || "";
-  renderComponentFilterSelect(
-    modeSelect,
-    availableComponentFilterOptions(
-      filterComponentTemplates(state.componentTemplates, { category }),
-      EXECUTION_MODES,
-      "execution_mode",
-    ),
-  );
-  const select = el("componentTemplateSelect");
-  if (!select) return;
-  const previous = select.value;
-  const templates = filteredComponentTemplates();
-  select.innerHTML = "";
-  for (const template of templates) {
-    const option = document.createElement("option");
-    option.value = template.id;
-    option.textContent = componentTemplateOptionLabel(template);
-    select.append(option);
-  }
-  if (!templates.length) {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = "No matching templates";
-    select.append(option);
-  } else if (templates.some((template) => template.id === previous)) {
-    select.value = previous;
-  }
-  renderComponentTemplateMeta();
-}
-
-function renderComponentFilterSelect(select, options) {
-  if (!select) return;
-  const previous = select.value;
-  select.innerHTML = "";
-  for (const [value, label] of options) {
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = label;
-    select.append(option);
-  }
-  if (options.some(([value]) => value === previous)) {
-    select.value = previous;
-  }
+  renderComponentTemplateControls({
+    templates: state.componentTemplates,
+    categoryOptions: COMPONENT_CATEGORIES,
+    modeOptions: EXECUTION_MODES,
+    elements: componentTemplateElements(),
+  });
 }
 
 function filteredComponentTemplates() {
-  const category = el("componentCategorySelect")?.value || "";
-  const mode = el("componentExecutionModeSelect")?.value || "";
-  return filterComponentTemplates(state.componentTemplates, { category, executionMode: mode });
+  return currentComponentTemplateOptions(state.componentTemplates, componentTemplateElements());
 }
 
 function selectedComponentTemplate() {
@@ -280,14 +235,16 @@ function defaultComponentName(templateID) {
 }
 
 function renderComponentTemplateMeta() {
-  const meta = el("componentTemplateMeta");
-  if (!meta) return;
-  const template = selectedComponentTemplate();
-  if (!template) {
-    meta.textContent = "";
-    return;
-  }
-  meta.textContent = componentTemplateMetaText(template);
+  renderSelectedComponentTemplateMetaView(state.componentTemplates, componentTemplateElements());
+}
+
+function componentTemplateElements() {
+  return {
+    categorySelect: el("componentCategorySelect"),
+    modeSelect: el("componentExecutionModeSelect"),
+    templateSelect: el("componentTemplateSelect"),
+    meta: el("componentTemplateMeta"),
+  };
 }
 
 async function ensureEditableProject(preferredProjectPath) {
