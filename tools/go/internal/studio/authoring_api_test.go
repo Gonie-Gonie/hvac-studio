@@ -2920,6 +2920,34 @@ func TestUpdateComponentContractEndpointWritesDefinitionsAndMetadata(t *testing.
 		t.Fatalf("bad bounds message = %#v", badBody)
 	}
 
+	badNumericBoundsPayload, err := json.Marshal(map[string]any{
+		"project_path": createBody.Project.ProjectPath,
+		"component_id": "second_gain",
+		"parameter_defs": map[string]model.ParameterDefinition{
+			"gain": {
+				Current: 4.5,
+				Bounds:  &model.ValueBounds{Min: "low", Max: 10.0},
+				Role:    "optimization_variable",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	badNumericBoundsResponse := httptest.NewRecorder()
+	badNumericBoundsRequest := httptest.NewRequest(http.MethodPost, "/api/project/component-contract", bytes.NewReader(badNumericBoundsPayload))
+	server.Handler().ServeHTTP(badNumericBoundsResponse, badNumericBoundsRequest)
+	if badNumericBoundsResponse.Code != http.StatusBadRequest {
+		t.Fatalf("bad numeric bounds status = %d body=%s", badNumericBoundsResponse.Code, badNumericBoundsResponse.Body.String())
+	}
+	var badNumericBoundsBody apiError
+	if err := json.Unmarshal(badNumericBoundsResponse.Body.Bytes(), &badNumericBoundsBody); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(badNumericBoundsBody.Message, "parameter bounds min must be numeric") {
+		t.Fatalf("bad numeric bounds message = %#v", badNumericBoundsBody)
+	}
+
 	badRolePayload, err := json.Marshal(map[string]any{
 		"project_path": createBody.Project.ProjectPath,
 		"component_id": "second_gain",
