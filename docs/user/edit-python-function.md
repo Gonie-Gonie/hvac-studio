@@ -32,7 +32,7 @@ the inserted snippet. They can insert:
 
 For single-file components, source checks also treat keys returned by `initialize()` as initialized state references, so model assets or cached schemas loaded into `state` can be used from `evaluate`.
 
-Source check warnings include contract-reference hints, unknown input/output/parameter/state references, and likely undefined names. Undefined-name warnings do not block save/run by themselves; source-check errors such as missing signatures, wrong return shapes, syntax failures, import/load failures, or missing output contracts block run, batch, and export. The Problems panel includes source file, line, and column when the server can map the issue.
+Source check warnings include contract-reference hints, missing or unknown input/output/parameter/state references, and likely undefined names. These warnings stay visible with Fix actions when Studio can suggest an edit, but they do not block save or run by themselves because static checks can be conservative. Source-check errors such as missing signatures, wrong return shapes, syntax failures, or import/load failures block run, batch, and export. If a component actually omits a declared output at runtime, the run fails with a linked problem for the component/node/source location. The Problems panel includes source file, line, and column when the server can map the issue.
 
 ## Component Class Shape
 
