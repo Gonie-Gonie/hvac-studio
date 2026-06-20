@@ -354,7 +354,8 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		t.Fatalf("module entrypoint did not import component template helpers")
 	}
 	if !bytes.Contains(componentTemplatesBody, []byte("componentTemplateOptionLabel")) ||
-		!bytes.Contains(componentTemplatesBody, []byte("componentTemplateMetaText")) {
+		!bytes.Contains(componentTemplatesBody, []byte("componentTemplateMetaText")) ||
+		!bytes.Contains(componentTemplatesBody, []byte("availableComponentFilterOptions")) {
 		t.Fatalf("component template module did not expose selector helpers")
 	}
 	if !bytes.Contains(body, []byte(`from "./export-workspace.js"`)) {

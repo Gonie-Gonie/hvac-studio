@@ -17,6 +17,7 @@ import {
   optimizationPublicOutputs as buildOptimizationPublicOutputs,
 } from "./workflow-candidates.js";
 import {
+  availableComponentFilterOptions,
   componentTemplateByID as findComponentTemplateByID,
   componentTemplateMetaText,
   componentTemplateOptionLabel,
@@ -207,8 +208,21 @@ async function loadComponentTemplates() {
 }
 
 function renderComponentTemplateSelect() {
-  renderComponentFilterSelect(el("componentCategorySelect"), COMPONENT_CATEGORIES);
-  renderComponentFilterSelect(el("componentExecutionModeSelect"), EXECUTION_MODES);
+  const categorySelect = el("componentCategorySelect");
+  const modeSelect = el("componentExecutionModeSelect");
+  renderComponentFilterSelect(
+    categorySelect,
+    availableComponentFilterOptions(state.componentTemplates, COMPONENT_CATEGORIES, "category"),
+  );
+  const category = categorySelect?.value || "";
+  renderComponentFilterSelect(
+    modeSelect,
+    availableComponentFilterOptions(
+      filterComponentTemplates(state.componentTemplates, { category }),
+      EXECUTION_MODES,
+      "execution_mode",
+    ),
+  );
   const select = el("componentTemplateSelect");
   if (!select) return;
   const previous = select.value;
@@ -232,12 +246,17 @@ function renderComponentTemplateSelect() {
 }
 
 function renderComponentFilterSelect(select, options) {
-  if (!select || select.options.length) return;
+  if (!select) return;
+  const previous = select.value;
+  select.innerHTML = "";
   for (const [value, label] of options) {
     const option = document.createElement("option");
     option.value = value;
     option.textContent = label;
     select.append(option);
+  }
+  if (options.some(([value]) => value === previous)) {
+    select.value = previous;
   }
 }
 

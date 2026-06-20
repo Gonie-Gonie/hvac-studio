@@ -12,6 +12,11 @@ export function filteredComponentTemplates(templates, filters = {}) {
   });
 }
 
+export function availableComponentFilterOptions(templates, options, field) {
+  const available = new Set((templates || []).map((template) => template[field]).filter(Boolean));
+  return (options || []).filter(([value]) => !value || available.has(value));
+}
+
 export function defaultComponentName(templates, templateID, fallbackName = "") {
   const template = componentTemplateByID(templates, templateID);
   return template?.name || fallbackName || "Component";
