@@ -7,12 +7,16 @@ import {
 } from "./python-source.js";
 
 export {
+  applyEditorIndent,
+  applyEditorNewline,
   bracketCheck,
   formatPythonSource,
   highlightPython,
+  insertEditorText,
   pythonIdentifier,
   pythonLiteral,
   pythonStringLiteral,
+  syncEditorScroll,
   sourceOffsetForLineColumn,
 } from "./python-source.js";
 

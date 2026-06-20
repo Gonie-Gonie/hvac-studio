@@ -132,10 +132,14 @@ import {
   parameterSourceItems,
   pythonStringLiteral,
   sourceCompletionItems,
+  applyEditorIndent,
+  applyEditorNewline,
+  insertEditorText,
   sourceItemTitle,
   sourceOffsetForLineColumn,
   sourceSnippet,
   sourceQuickFixForProblem,
+  syncEditorScroll,
   stateSourceItems,
 } from "./source-authoring.js";
 import {
@@ -4534,10 +4538,7 @@ function insertSourceText(snippet) {
   const source = component ? state.sourceByComponent[component.id] : null;
   const editor = el("sourceEditor") || el("pythonPanel");
   if (!component || !source || source.read_only || !isWorkspaceProject() || !editor || editor.readOnly) return;
-  const start = editor.selectionStart ?? editor.value.length;
-  const end = editor.selectionEnd ?? editor.value.length;
-  editor.value = `${editor.value.slice(0, start)}${snippet}${editor.value.slice(end)}`;
-  editor.selectionStart = editor.selectionEnd = start + snippet.length;
+  insertEditorText(editor, snippet);
   updateSourceDraftFromEditor(editor);
   hideSourceCompletionPanel();
   editor.focus();
@@ -5743,62 +5744,17 @@ function handleSourceEditorKeydown(event) {
 }
 
 function handleSourceNewline(editor) {
-  const start = editor.selectionStart ?? 0;
-  const end = editor.selectionEnd ?? start;
-  const value = editor.value;
-  const lineStart = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
-  const currentLine = value.slice(lineStart, start);
-  const indent = currentLine.match(/^\s*/)?.[0] || "";
-  const extra = currentLine.trimEnd().endsWith(":") ? "    " : "";
-  const insert = `\n${indent}${extra}`;
-  editor.value = `${value.slice(0, start)}${insert}${value.slice(end)}`;
-  editor.selectionStart = editor.selectionEnd = start + insert.length;
+  applyEditorNewline(editor);
   updateSourceDraftFromEditor(editor);
 }
 
 function handleSourceIndent(editor, outdent) {
-  const start = editor.selectionStart ?? 0;
-  const end = editor.selectionEnd ?? start;
-  if (!outdent && start === end) {
-    editor.value = `${editor.value.slice(0, start)}    ${editor.value.slice(end)}`;
-    editor.selectionStart = editor.selectionEnd = start + 4;
-    updateSourceDraftFromEditor(editor);
-    return;
-  }
-
-  const value = editor.value;
-  const lineStart = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
-  const adjustedEnd = end > start && value[end - 1] === "\n" ? end - 1 : end;
-  const nextLineBreak = value.indexOf("\n", adjustedEnd);
-  const lineEnd = nextLineBreak < 0 ? value.length : nextLineBreak;
-  const selected = value.slice(lineStart, lineEnd);
-  const lines = selected.split("\n");
-  const transformed = lines.map((line) => (outdent ? outdentLine(line) : `    ${line}`));
-  const replacement = transformed.join("\n");
-  const delta = replacement.length - selected.length;
-  const firstLineDelta = transformed[0].length - lines[0].length;
-
-  editor.value = `${value.slice(0, lineStart)}${replacement}${value.slice(lineEnd)}`;
-  editor.selectionStart = Math.max(lineStart, start + firstLineDelta);
-  editor.selectionEnd = Math.max(editor.selectionStart, end + delta);
+  applyEditorIndent(editor, outdent);
   updateSourceDraftFromEditor(editor);
 }
 
-function outdentLine(line) {
-  if (line.startsWith("    ")) return line.slice(4);
-  if (line.startsWith("\t")) return line.slice(1);
-  const leadingSpaces = line.match(/^ +/)?.[0]?.length || 0;
-  return line.slice(Math.min(4, leadingSpaces));
-}
-
 function syncSourceGutterScroll(event) {
-  const gutter = el("sourceLineNumbers");
-  if (gutter) gutter.scrollTop = event.target.scrollTop;
-  const highlight = el("sourceHighlight");
-  if (highlight) {
-    highlight.scrollTop = event.target.scrollTop;
-    highlight.scrollLeft = event.target.scrollLeft;
-  }
+  syncEditorScroll(event.target, el("sourceLineNumbers"), el("sourceHighlight"));
 }
 
 function bindEvents() {

@@ -433,6 +433,11 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(pythonSourceBody, []byte("formatPythonSource")) {
 		t.Fatalf("module entrypoint did not include Python source formatting rules")
 	}
+	if !bytes.Contains(pythonSourceBody, []byte("applyEditorIndent")) ||
+		!bytes.Contains(pythonSourceBody, []byte("applyEditorNewline")) ||
+		!bytes.Contains(pythonSourceBody, []byte("insertEditorText")) {
+		t.Fatalf("Python source module did not include editor text helpers")
+	}
 	if !bytes.Contains(body, []byte("sourceLineProblemMap")) {
 		t.Fatalf("module entrypoint did not include source gutter problem markers")
 	}

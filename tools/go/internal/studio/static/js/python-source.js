@@ -13,6 +13,68 @@ export function formatPythonSource(value) {
   return `${lines.join("\n")}\n`;
 }
 
+export function insertEditorText(editor, text) {
+  const insert = String(text || "");
+  const start = editor.selectionStart ?? editor.value.length;
+  const end = editor.selectionEnd ?? editor.value.length;
+  editor.value = `${editor.value.slice(0, start)}${insert}${editor.value.slice(end)}`;
+  editor.selectionStart = editor.selectionEnd = start + insert.length;
+}
+
+export function applyEditorNewline(editor) {
+  const start = editor.selectionStart ?? 0;
+  const end = editor.selectionEnd ?? start;
+  const value = editor.value;
+  const lineStart = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+  const currentLine = value.slice(lineStart, start);
+  const indent = currentLine.match(/^\s*/)?.[0] || "";
+  const extra = currentLine.trimEnd().endsWith(":") ? "    " : "";
+  const insert = `\n${indent}${extra}`;
+  editor.value = `${value.slice(0, start)}${insert}${value.slice(end)}`;
+  editor.selectionStart = editor.selectionEnd = start + insert.length;
+}
+
+export function applyEditorIndent(editor, outdent) {
+  const start = editor.selectionStart ?? 0;
+  const end = editor.selectionEnd ?? start;
+  if (!outdent && start === end) {
+    editor.value = `${editor.value.slice(0, start)}    ${editor.value.slice(end)}`;
+    editor.selectionStart = editor.selectionEnd = start + 4;
+    return;
+  }
+
+  const value = editor.value;
+  const lineStart = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+  const adjustedEnd = end > start && value[end - 1] === "\n" ? end - 1 : end;
+  const nextLineBreak = value.indexOf("\n", adjustedEnd);
+  const lineEnd = nextLineBreak < 0 ? value.length : nextLineBreak;
+  const selected = value.slice(lineStart, lineEnd);
+  const lines = selected.split("\n");
+  const transformed = lines.map((line) => (outdent ? outdentEditorLine(line) : `    ${line}`));
+  const replacement = transformed.join("\n");
+  const delta = replacement.length - selected.length;
+  const firstLineDelta = transformed[0].length - lines[0].length;
+
+  editor.value = `${value.slice(0, lineStart)}${replacement}${value.slice(lineEnd)}`;
+  editor.selectionStart = Math.max(lineStart, start + firstLineDelta);
+  editor.selectionEnd = Math.max(editor.selectionStart, end + delta);
+}
+
+export function syncEditorScroll(source, gutter, highlight) {
+  if (gutter) gutter.scrollTop = source.scrollTop;
+  if (highlight) {
+    highlight.scrollTop = source.scrollTop;
+    highlight.scrollLeft = source.scrollLeft;
+  }
+}
+
+function outdentEditorLine(line) {
+  if (line.startsWith("    ")) return line.slice(4);
+  if (line.startsWith("\t")) return line.slice(1);
+  const leadingSpaces = line.match(/^ +/)?.[0]?.length || 0;
+  return line.slice(Math.min(4, leadingSpaces));
+}
+
 export function sourceOffsetForLineColumn(value, line, column) {
   let offset = 0;
   for (let currentLine = 1; currentLine < line; currentLine++) {
