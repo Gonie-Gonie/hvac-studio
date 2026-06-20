@@ -292,6 +292,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	sourceAuthoringBody := getRouteBody(t, server, "/js/source-authoring.js")
 	pythonSourceBody := getRouteBody(t, server, "/js/python-source.js")
 	replacementPreviewBody := getRouteBody(t, server, "/js/replacement-preview.js")
+	componentInspectorBody := getRouteBody(t, server, "/js/component-inspector.js")
 	nodeImpactBody := getRouteBody(t, server, "/js/node-impact.js")
 	contractImpactBody := getRouteBody(t, server, "/js/contract-impact.js")
 	contractAuthoringBody := getRouteBody(t, server, "/js/contract-authoring.js")
@@ -330,8 +331,8 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(sourceAuthoringBody, []byte("pythonStringLiteral")) {
 		t.Fatalf("source authoring module did not re-export Python source helpers")
 	}
-	if !bytes.Contains(body, []byte(`from "./replacement-preview.js"`)) {
-		t.Fatalf("module entrypoint did not import replacement preview helpers")
+	if !bytes.Contains(componentInspectorBody, []byte(`from "./replacement-preview.js"`)) {
+		t.Fatalf("component inspector module did not import replacement preview helpers")
 	}
 	if !bytes.Contains(body, []byte(`from "./node-impact.js"`)) {
 		t.Fatalf("module entrypoint did not import node impact helpers")
@@ -557,9 +558,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("replaceSelectedComponent")) || !bytes.Contains(body, []byte("/api/project/components/replace")) || !bytes.Contains(body, []byte("replaceComponentButton")) {
 		t.Fatalf("module entrypoint did not expose model replacement workflow")
 	}
-	if !bytes.Contains(body, []byte("replacementPreviewBlock")) ||
-		!bytes.Contains(body, []byte("replacementMapParameters")) ||
-		!bytes.Contains(body, []byte("Replace And Validate")) ||
+	if !bytes.Contains(body, []byte(`from "./component-inspector.js"`)) || !bytes.Contains(componentInspectorBody, []byte("replacementPreviewBlock")) ||
+		!bytes.Contains(componentInspectorBody, []byte("replacementMapParameters")) ||
+		!bytes.Contains(componentInspectorBody, []byte("Replace And Validate")) ||
 		!bytes.Contains(replacementPreviewBody, []byte("replacementPreview")) ||
 		!bytes.Contains(replacementPreviewBody, []byte("replacementContractDiff")) ||
 		!bytes.Contains(replacementPreviewBody, []byte("replacementNodeMappings")) ||
