@@ -225,6 +225,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	body := getRouteBody(t, server, "/js/app.js")
 	configBody := getRouteBody(t, server, "/js/workspace-config.js")
 	connectionsBody := getRouteBody(t, server, "/js/connections.js")
+	connectionInspectorBody := getRouteBody(t, server, "/js/connection-inspector.js")
 	assertStaticOptions(t, configBody, "component category options", []staticOption{
 		{"physical_component", "Physical Component"},
 		{"controller", "Controller"},
@@ -305,6 +306,10 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	setupEditorUIBody := getRouteBody(t, server, "/js/setup-editor-ui.js")
 	if !bytes.Contains(body, []byte(`from "./component-contract-editor.js"`)) {
 		t.Fatalf("module entrypoint did not import component contract editor")
+	}
+	if !bytes.Contains(body, []byte(`from "./connection-inspector.js"`)) ||
+		!bytes.Contains(connectionInspectorBody, []byte("connectionEditor")) {
+		t.Fatalf("module entrypoint did not import connection inspector")
 	}
 	if !bytes.Contains(body, []byte(`from "./state.js"`)) {
 		t.Fatalf("module entrypoint did not contain expected imports")
@@ -731,10 +736,10 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("selectedConnectionId")) {
 		t.Fatalf("module entrypoint did not include canvas connection selection state")
 	}
-	if !bytes.Contains(body, []byte("connectionUnitConversionEditor")) ||
-		!bytes.Contains(body, []byte("UNIT_CONVERSION_PRESETS")) ||
+	if !bytes.Contains(connectionInspectorBody, []byte("connectionUnitConversionEditor")) ||
+		!bytes.Contains(connectionInspectorBody, []byte("UNIT_CONVERSION_PRESETS")) ||
 		!bytes.Contains(body, []byte("/api/project/connections/update")) ||
-		!bytes.Contains(body, []byte("connectionUnitConversionPreview")) ||
+		!bytes.Contains(connectionInspectorBody, []byte("connectionUnitConversionPreview")) ||
 		!bytes.Contains(connectionsBody, []byte("connectionUnitConversionPresetID")) ||
 		!bytes.Contains(connectionsBody, []byte("unitConversionPresetDefinition")) ||
 		!bytes.Contains(connectionsBody, []byte("unitConversionInitialNumber")) {
@@ -812,12 +817,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("medium-override")) {
 		t.Fatalf("module entrypoint did not mark explicit canvas medium overrides")
 	}
-	if !bytes.Contains(body, []byte("connectionMediumBadge")) || !bytes.Contains(body, []byte("medium mismatch")) {
+	if !bytes.Contains(connectionInspectorBody, []byte("connectionMediumBadge")) || !bytes.Contains(connectionInspectorBody, []byte("medium mismatch")) {
 		t.Fatalf("module entrypoint did not mirror canvas medium status in the Inspector")
 	}
-	if !bytes.Contains(body, []byte("connectionContractBadge")) ||
-		!bytes.Contains(body, []byte("contract-state")) ||
-		!bytes.Contains(body, []byte("value_type")) {
+	if !bytes.Contains(connectionInspectorBody, []byte("connectionContractBadge")) ||
+		!bytes.Contains(connectionInspectorBody, []byte("contract-state")) ||
+		!bytes.Contains(connectionInspectorBody, []byte("value_type")) {
 		t.Fatalf("module entrypoint did not mirror connection unit and value_type status in the Inspector")
 	}
 	if !bytes.Contains(body, []byte("long-path")) {

@@ -30,6 +30,8 @@ import {
   replacementPreviewBlock,
   replacementPreviewForComponent,
 } from "./component-inspector.js";
+import { connectionEditor as connectionEditorView } from "./connection-inspector.js";
+
 import {
   nodeDeleteImpact,
   nodeDeleteImpactConfirmText,
@@ -91,12 +93,8 @@ import {
   connectionContractLabels,
   connectionMediumStateForNodes,
   connectionStatusLabel as connectionStatusLabelText,
-  connectionUnitConversionPresetID,
   connectionUnitConversionSummary as connectionUnitConversionSummaryText,
   connectionUnitStateForNodes,
-  finiteNumberOrDefault,
-  unitConversionInitialNumber,
-  unitConversionPresetDefinition,
 } from "./connections.js";
 import { renderLogs as renderLogsView } from "./logs-panel.js";
 import {
@@ -173,7 +171,6 @@ import {
   ML_MODEL_FORMATS,
   PARAMETER_ROLES,
   RESULT_HELP,
-  UNIT_CONVERSION_PRESETS,
   WORKSPACE_HELP,
 } from "./workspace-config.js";
 
@@ -1280,7 +1277,7 @@ function renderInspector() {
     container.append(parameterDefinitionBlock(component, contractOptions));
     container.append(stateDefinitionBlock(component, contractOptions));
   }
-  container.append(connectionEditor(component));
+  container.append(connectionEditorView(component, connectionInspectorContext(component), connectionInspectorActions()));
   const result = latestRuntimeResult();
   const latestInputs = result?.component_inputs?.[component.id];
   const latestOutputs = result?.component_outputs?.[component.id];
@@ -1320,6 +1317,29 @@ function componentContractEditorOptions() {
   };
 }
 
+function connectionInspectorContext(component) {
+  return {
+    canEditConnections: isWorkspaceProject() && selectedComponentInSystem(),
+    connectionRows: connectionRowsFor(component),
+    connectionMediumState,
+    connectionUnitState,
+    latestConnectionValue,
+    latestResultStale: state.latestResultStale,
+    selectedConnection: selectedConnectionForInspector(component.id),
+    selectedConnectionId: state.selectedConnectionId,
+    sourceOptions: systemOutputEndpoints(component.id),
+  };
+}
+
+function connectionInspectorActions() {
+  return {
+    onCreateConnection: createConnectionFromInspector,
+    onDeleteConnection: deleteConnectionFromInspector,
+    onProblem: showInlineProblem,
+    onSelectConnection: selectConnection,
+    onUpdateUnitConversion: updateConnectionUnitConversion,
+  };
+}
 function inspectorBlock(title, rows) {
   return sharedInspectorBlock(title, rows, { emptyMessagePlacement: "key" });
 }
@@ -1367,264 +1387,12 @@ function openComponentCode(componentID) {
   updateCommandState();
 }
 
-function connectionEditor(targetComponent) {
-  const block = document.createElement("div");
-  block.className = "inspector-block";
-  block.innerHTML = `<div class="inspector-title">Connections</div>`;
-  const existingRows = connectionRowsFor(targetComponent);
-  const canEditConnections = isWorkspaceProject() && selectedComponentInSystem();
-  if (existingRows.length) {
-    for (const connectionRow of existingRows) {
-      const latest = latestConnectionValue(connectionRow.connection);
-      const flowValue = latest.hasValue
-        ? `<span class="connection-flow ${state.latestResultStale ? "stale" : ""}">${escapeHTML(formatValue(latest.value))}</span>`
-        : "";
-      const unitState = connectionUnitState(connectionRow.connection);
-      const mediumValue = connectionMediumBadge(connectionRow.connection);
-      const contractValue = connectionContractBadge(connectionRow.connection, unitState);
-      const conversionValue = connectionRow.connection.unit_conversion
-        ? `<span class="connection-flow converted">${escapeHTML(connectionUnitConversionSummary(connectionRow.connection))}</span>`
-        : (unitState.status === "warning" ? `<span class="connection-flow warning">unit mismatch</span>` : "");
-      const rowEl = document.createElement("div");
-      rowEl.className = `kv connection-row ${connectionRow.id === state.selectedConnectionId ? "selected" : ""}`;
-      rowEl.innerHTML = `
-        <span class="kv-key">${escapeHTML(connectionRow.key)}</span>
-        <span class="connection-value">
-          <span>${escapeHTML(connectionRow.value)}</span>
-          ${mediumValue}
-          ${contractValue}
-          ${conversionValue}
-          ${flowValue}
-        </span>
-      `;
-      rowEl.addEventListener("click", () => selectConnection(connectionRow.id));
-      if (canEditConnections) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "small-action";
-        button.textContent = "Remove";
-        button.addEventListener("click", (event) => {
-          event.stopPropagation();
-          deleteConnectionFromInspector(connectionRow.id);
-        });
-        rowEl.querySelector(".connection-value").append(button);
-      }
-      block.append(rowEl);
-    }
-  }
-
-  const selectedConnection = selectedConnectionForInspector(targetComponent.id);
-  if (selectedConnection && canEditConnections) {
-    block.append(connectionUnitConversionEditor(selectedConnection));
-  }
-
-  if (!canEditConnections) {
-    if (!existingRows.length) {
-      block.append(emptyKVRow("No connections"));
-    }
-    return block;
-  }
-
-  const sourceOptions = systemOutputEndpoints(targetComponent.id);
-  const targetOptions = targetComponent.nodes.inputs || [];
-  if (!sourceOptions.length || !targetOptions.length) return block;
-
-  const form = document.createElement("div");
-  form.className = "connection-form";
-  const sourceSelect = document.createElement("select");
-  sourceSelect.dataset.connectionSource = "true";
-  for (const endpoint of sourceOptions) {
-    const option = document.createElement("option");
-    option.value = `${endpoint.component}.${endpoint.node}`;
-    option.textContent = `${endpoint.component}.${endpoint.node}`;
-    sourceSelect.append(option);
-  }
-  const targetSelect = document.createElement("select");
-  targetSelect.dataset.connectionTarget = "true";
-  for (const node of targetOptions) {
-    const option = document.createElement("option");
-    option.value = node.id;
-    option.textContent = `${targetComponent.id}.${node.id}`;
-    targetSelect.append(option);
-  }
-  const button = document.createElement("button");
-  button.type = "button";
-  button.textContent = "Connect";
-  button.addEventListener("click", () => createConnectionFromInspector(sourceSelect.value, targetComponent.id, targetSelect.value));
-  form.append(sourceSelect, targetSelect, button);
-  block.append(form);
-  return block;
-}
-
-function connectionContractBadge(connection, unitState = connectionUnitState(connection)) {
-  const labels = [
-    unitState.label ? `unit ${unitState.label}` : "",
-    unitState.valueTypeLabel ? `value_type ${unitState.valueTypeLabel}` : "",
-  ].filter(Boolean);
-  if (!labels.length) return "";
-  const classes = ["connection-flow", "contract-state"];
-  if (unitState.status === "warning") classes.push("warning");
-  if (unitState.status === "converted") classes.push("converted");
-  const title = [
-    unitState.sourceUnit ? `source unit ${unitState.sourceUnit}` : "",
-    unitState.targetUnit ? `target unit ${unitState.targetUnit}` : "",
-    unitState.sourceValueType ? `source value_type ${unitState.sourceValueType}` : "",
-    unitState.targetValueType ? `target value_type ${unitState.targetValueType}` : "",
-    connection.unit_conversion ? connectionUnitConversionSummary(connection, unitState) : "",
-  ].filter(Boolean).join(" / ");
-  return `<span class="${classes.join(" ")}"${title ? ` title="${escapeAttr(title)}"` : ""}>${escapeHTML(labels.join(" / "))}</span>`;
-}
-
-function connectionMediumBadge(connection) {
-  const mediumState = connectionMediumState(connection);
-  if (!mediumState.label && mediumState.status === "ok") return "";
-  const classes = ["connection-flow", "medium-state"];
-  let label = mediumState.label || "medium";
-  if (mediumState.status === "error") {
-    classes.push("error");
-    label = `medium mismatch ${label}`;
-  } else if (mediumState.status === "override") {
-    classes.push("warning");
-    label = `override ${label}`;
-  } else if (mediumState.status === "warning") {
-    classes.push("warning");
-    label = `signal warning ${label}`;
-  }
-  const title = [
-    mediumState.sourceMedium ? `source ${mediumState.sourceMedium}` : "",
-    mediumState.targetMedium ? `target ${mediumState.targetMedium}` : "",
-    connection.medium_override_reason || "",
-  ].filter(Boolean).join(" / ");
-  return `<span class="${classes.join(" ")}"${title ? ` title="${escapeAttr(title)}"` : ""}>${escapeHTML(label)}</span>`;
-}
-
 function selectedConnectionForInspector(componentID) {
   if (!state.selectedConnectionId) return null;
   const connection = state.detail?.graph?.connections?.find((item) => item.id === state.selectedConnectionId);
   if (!connection) return null;
   if (connection.from.component !== componentID && connection.to.component !== componentID) return null;
   return connection;
-}
-
-function connectionUnitConversionEditor(connection) {
-  const wrapper = document.createElement("div");
-  wrapper.className = "connection-conversion-editor";
-  const unitState = connectionUnitState(connection);
-  const conversion = connection.unit_conversion || null;
-  const presetID = connectionUnitConversionPresetID(connection, conversion, unitState, UNIT_CONVERSION_PRESETS);
-  const activePresetDefinition = unitConversionPresetDefinition(UNIT_CONVERSION_PRESETS, presetID);
-
-  const header = document.createElement("div");
-  header.className = "connection-conversion-header";
-  header.innerHTML = `
-    <span>Unit Conversion</span>
-    <span>${escapeHTML(unitState.label || "same unit")}</span>
-  `;
-
-  const form = document.createElement("div");
-  form.className = "connection-conversion-form";
-
-  const preset = document.createElement("select");
-  preset.id = "connectionUnitConversionPreset";
-  for (const [id, label] of UNIT_CONVERSION_PRESETS) {
-    const option = document.createElement("option");
-    option.value = id;
-    option.textContent = label;
-    preset.append(option);
-  }
-  preset.value = presetID;
-
-  const factor = document.createElement("input");
-  factor.id = "connectionUnitConversionFactor";
-  factor.type = "number";
-  factor.step = "any";
-  factor.value = String(unitConversionInitialNumber(conversion, activePresetDefinition, "factor", 1));
-  factor.placeholder = "Factor";
-
-  const offset = document.createElement("input");
-  offset.id = "connectionUnitConversionOffset";
-  offset.type = "number";
-  offset.step = "any";
-  offset.value = String(unitConversionInitialNumber(conversion, activePresetDefinition, "offset", 0));
-  offset.placeholder = "Offset";
-
-  const sample = document.createElement("input");
-  sample.id = "connectionUnitConversionSample";
-  sample.type = "number";
-  sample.step = "any";
-  sample.value = "1";
-  sample.placeholder = "Sample";
-
-  const description = document.createElement("input");
-  description.id = "connectionUnitConversionDescription";
-  description.value = conversion?.description || activePresetDefinition?.description || "";
-  description.placeholder = "Description";
-
-  const preview = document.createElement("div");
-  preview.id = "connectionUnitConversionPreview";
-  preview.className = "connection-conversion-preview";
-
-  const save = document.createElement("button");
-  save.type = "button";
-  save.id = "saveConnectionUnitConversionButton";
-  save.textContent = "Save Conversion";
-  save.addEventListener("click", () => {
-    const parsedFactor = finiteNumberOrDefault(factor.value, 1);
-    const parsedOffset = finiteNumberOrDefault(offset.value, 0);
-    if (!Number.isFinite(parsedFactor) || parsedFactor === 0) {
-      showInlineProblem("Conversion factor must be a non-zero number");
-      return;
-    }
-    if (!Number.isFinite(parsedOffset)) {
-      showInlineProblem("Conversion offset must be numeric");
-      return;
-    }
-    updateConnectionUnitConversion(connection.id, {
-      mode: "linear",
-      factor: parsedFactor,
-      offset: parsedOffset,
-      description: description.value.trim(),
-    });
-  });
-
-  const clear = document.createElement("button");
-  clear.type = "button";
-  clear.id = "clearConnectionUnitConversionButton";
-  clear.className = "ghost";
-  clear.textContent = "Clear";
-  clear.addEventListener("click", () => updateConnectionUnitConversion(connection.id, null));
-
-  const updatePreview = () => {
-    const parsedFactor = finiteNumberOrDefault(factor.value, 1);
-    const parsedOffset = finiteNumberOrDefault(offset.value, 0);
-    const sampleValue = finiteNumberOrDefault(sample.value, 1);
-    if (!Number.isFinite(parsedFactor) || !Number.isFinite(parsedOffset) || !Number.isFinite(sampleValue) || parsedFactor === 0) {
-      preview.textContent = "Invalid conversion";
-      preview.className = "connection-conversion-preview invalid";
-      return;
-    }
-    const converted = sampleValue * parsedFactor + parsedOffset;
-    const units = [unitState.sourceUnit, unitState.targetUnit].filter(Boolean).join(" to ");
-    preview.textContent = `${formatValue(sampleValue)}${unitState.sourceUnit ? ` ${unitState.sourceUnit}` : ""} = ${formatValue(converted)}${unitState.targetUnit ? ` ${unitState.targetUnit}` : ""}${units ? ` / ${units}` : ""}`;
-    preview.className = "connection-conversion-preview";
-  };
-
-  preset.addEventListener("change", () => {
-    const definition = unitConversionPresetDefinition(UNIT_CONVERSION_PRESETS, preset.value);
-    if (!definition) {
-      updatePreview();
-      return;
-    }
-    factor.value = String(definition.factor);
-    offset.value = String(definition.offset);
-    description.value = definition.description || "";
-    updatePreview();
-  });
-  [factor, offset, sample, description].forEach((input) => input.addEventListener("input", updatePreview));
-  form.append(preset, factor, offset, sample, description, preview, save, clear);
-  wrapper.append(header, form);
-  updatePreview();
-  return wrapper;
 }
 
 function connectionUnitConversionSummary(connection, unitState = connectionUnitState(connection)) {
