@@ -226,6 +226,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	configBody := getRouteBody(t, server, "/js/workspace-config.js")
 	connectionsBody := getRouteBody(t, server, "/js/connections.js")
 	connectionInspectorBody := getRouteBody(t, server, "/js/connection-inspector.js")
+	parameterManagerBody := getRouteBody(t, server, "/js/parameter-manager.js")
 	assertStaticOptions(t, configBody, "component category options", []staticOption{
 		{"physical_component", "Physical Component"},
 		{"controller", "Controller"},
@@ -307,6 +308,10 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte(`from "./component-contract-editor.js"`)) {
 		t.Fatalf("module entrypoint did not import component contract editor")
 	}
+	if !bytes.Contains(body, []byte(`from "./parameter-manager.js"`)) ||
+		!bytes.Contains(parameterManagerBody, []byte("renderParameterManager")) {
+		t.Fatalf("module entrypoint did not import parameter manager")
+	}
 	if !bytes.Contains(body, []byte(`from "./connection-inspector.js"`)) ||
 		!bytes.Contains(connectionInspectorBody, []byte("connectionEditor")) {
 		t.Fatalf("module entrypoint did not import connection inspector")
@@ -363,7 +368,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(contractAuthoringBody, []byte("PARAMETER_ROLES")) {
 		t.Fatalf("module entrypoint did not import shared contract authoring helpers")
 	}
-	if !bytes.Contains(body, []byte(`from "./contract-labels.js"`)) ||
+	if !bytes.Contains(parameterManagerBody, []byte(`from "./contract-labels.js"`)) ||
 		!bytes.Contains(sourceAuthoringBody, []byte(`from "./contract-labels.js"`)) ||
 		!bytes.Contains(contractImpactBody, []byte(`from "./contract-labels.js"`)) ||
 		!bytes.Contains(contractLabelsBody, []byte("roleLabel")) {
@@ -849,9 +854,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("syncParameterInputs")) {
 		t.Fatalf("module entrypoint did not include synchronized parameter input editing")
 	}
-	if !bytes.Contains(body, []byte("newParameterRole")) ||
-		!bytes.Contains(body, []byte("newParameterMin")) ||
-		!bytes.Contains(body, []byte("PARAMETER_ROLES")) {
+	if !bytes.Contains(parameterManagerBody, []byte("newParameterRole")) ||
+		!bytes.Contains(parameterManagerBody, []byte("newParameterMin")) ||
+		!bytes.Contains(parameterManagerBody, []byte("PARAMETER_ROLES")) {
 		t.Fatalf("module entrypoint did not include parameter role and bounds creation fields")
 	}
 	if !bytes.Contains(contractEditorBody, []byte("editableNodeRow")) {

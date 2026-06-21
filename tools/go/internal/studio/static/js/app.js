@@ -31,6 +31,7 @@ import {
   replacementPreviewForComponent,
 } from "./component-inspector.js";
 import { connectionEditor as connectionEditorView } from "./connection-inspector.js";
+import { renderParameterManager } from "./parameter-manager.js";
 
 import {
   nodeDeleteImpact,
@@ -118,7 +119,6 @@ import {
   scenarioNameField as scenarioNameFieldView,
 } from "./run-inputs.js";
 import { renderRunOutputWorkspace } from "./run-output.js";
-import { roleLabel } from "./contract-labels.js";
 import {
   objectRows,
   rawJSONBlock,
@@ -169,7 +169,6 @@ import {
   EXECUTION_MODES,
   ML_ASSET_FIELDS,
   ML_MODEL_FORMATS,
-  PARAMETER_ROLES,
   RESULT_HELP,
   WORKSPACE_HELP,
 } from "./workspace-config.js";
@@ -1445,23 +1444,31 @@ function systemOutputEndpoints(excludeComponentId) {
 }
 
 function renderParameters() {
-  const tbody = el("parameterRows");
-  const addForm = el("parameterAddForm");
-  tbody.innerHTML = "";
-  addForm.innerHTML = "";
-  const components = state.detail?.graph?.components || [];
-  const editable = isWorkspaceProject();
-  renderParameterAddForm(addForm, components, editable);
-  let count = 0;
-  for (const component of components) {
-    for (const [name, value] of Object.entries(component.parameters || {})) {
-      count++;
-      tbody.append(parameterRow(component, name, value, editable));
-    }
-  }
-  if (!count) {
-    tbody.append(emptyRow(4, "No parameters"));
-  }
+  renderParameterManager(parameterManagerContext(), parameterManagerElements(), parameterManagerActions());
+}
+
+function parameterManagerContext() {
+  return {
+    components: state.detail?.graph?.components || [],
+    editable: isWorkspaceProject(),
+    selectedComponentId: state.selectedComponentId,
+  };
+}
+
+function parameterManagerElements() {
+  return {
+    addForm: el("parameterAddForm"),
+    rows: el("parameterRows"),
+  };
+}
+
+function parameterManagerActions() {
+  return {
+    onAddParameter: addParameter,
+    onDeleteParameter: deleteParameterFromManager,
+    onProjectDirty: markProjectDirty,
+    onSyncParameterInputs: syncParameterInputs,
+  };
 }
 
 function featureMappingSuggestions(targetComponent) {
@@ -1551,111 +1558,8 @@ async function applyMLSchemaNodes(componentID) {
   }
 }
 
-function renderParameterAddForm(container, components, editable) {
-  if (!editable || !components.length) return;
-  const select = document.createElement("select");
-  select.id = "newParameterComponent";
-  select.setAttribute("aria-label", "Component");
-  for (const component of components) {
-    const option = document.createElement("option");
-    option.value = component.id;
-    option.textContent = componentOptionLabel(component);
-    select.append(option);
-  }
-  if (state.selectedComponentId && components.some((component) => component.id === state.selectedComponentId)) {
-    select.value = state.selectedComponentId;
-  }
-
-  const name = document.createElement("input");
-  name.id = "newParameterName";
-  name.placeholder = "name";
-  name.setAttribute("aria-label", "Parameter name");
-
-  const value = document.createElement("input");
-  value.id = "newParameterValue";
-  value.placeholder = "value";
-  value.setAttribute("aria-label", "Parameter value");
-
-  const role = document.createElement("select");
-  role.id = "newParameterRole";
-  role.setAttribute("aria-label", "Parameter role");
-  for (const value of PARAMETER_ROLES) {
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = roleLabel(value);
-    role.append(option);
-  }
-
-  const min = document.createElement("input");
-  min.id = "newParameterMin";
-  min.placeholder = "min";
-  min.setAttribute("aria-label", "Parameter minimum bound");
-
-  const max = document.createElement("input");
-  max.id = "newParameterMax";
-  max.placeholder = "max";
-  max.setAttribute("aria-label", "Parameter maximum bound");
-
-  const button = document.createElement("button");
-  button.type = "button";
-  button.textContent = "Add";
-  button.addEventListener("click", addParameterFromManager);
-
-  for (const input of [name, value, role, min, max]) {
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") addParameterFromManager();
-    });
-  }
-  container.append(select, name, value, role, min, max, button);
-}
-
-function parameterRow(component, name, value, editable) {
-  const tr = document.createElement("tr");
-  for (const cellValue of [component.id, name]) {
-    const td = document.createElement("td");
-    td.textContent = cellValue;
-    tr.append(td);
-  }
-
-  const valueCell = document.createElement("td");
-  if (editable) {
-    const input = document.createElement("input");
-    input.className = "table-input";
-    input.value = parameterInputValue(value);
-    input.dataset.parameterComponent = component.id;
-    input.dataset.parameterName = name;
-    input.addEventListener("input", () => {
-      syncParameterInputs(component.id, name, input.value, input);
-      markProjectDirty();
-    });
-    valueCell.append(input);
-  } else {
-    valueCell.textContent = parameterInputValue(value);
-  }
-  tr.append(valueCell);
-
-  const actionCell = document.createElement("td");
-  actionCell.className = "action-cell";
-  if (editable) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "small-action table-action";
-    button.textContent = "Delete";
-    button.addEventListener("click", () => deleteParameterFromManager(component.id, name));
-    actionCell.append(button);
-  }
-  tr.append(actionCell);
-  return tr;
-}
-
 function emptyKVRow(message) {
   return sharedEmptyKVRow(message, { messagePlacement: "key" });
-}
-
-function emptyRow(cols, message = "No rows") {
-  const tr = document.createElement("tr");
-  tr.innerHTML = `<td colspan="${cols}" class="empty-cell">${escapeHTML(message)}</td>`;
-  return tr;
 }
 
 function renderProblems() {
@@ -4352,18 +4256,6 @@ async function deleteNodeFromInspector(componentID, nodeID, impact = null) {
     renderProblems();
     setBottomTab("problems");
   }
-}
-
-async function addParameterFromManager() {
-  if (!isWorkspaceProject()) return;
-  const componentID = el("newParameterComponent")?.value || "";
-  const name = (el("newParameterName")?.value || "").trim();
-  const value = el("newParameterValue")?.value || "";
-  await addParameter(componentID, name, value, {
-    role: el("newParameterRole")?.value || "fixed",
-    min: el("newParameterMin")?.value || "",
-    max: el("newParameterMax")?.value || "",
-  });
 }
 
 async function addParameter(componentID, name, value, options = {}) {
