@@ -862,10 +862,10 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(nodeImpactBody, []byte("Restores")) {
 		t.Fatalf("module entrypoint did not include node delete impact preview")
 	}
-	if !bytes.Contains(body, []byte("newNodeName")) {
+	if !bytes.Contains(contractEditorBody, []byte("newNodeName")) {
 		t.Fatalf("module entrypoint did not include detailed node creation fields")
 	}
-	if !bytes.Contains(body, []byte("newNodePreset")) || !bytes.Contains(body, []byte("NODE_PRESETS")) {
+	if !bytes.Contains(contractEditorBody, []byte("newNodePreset")) || !bytes.Contains(contractEditorBody, []byte("NODE_PRESETS")) {
 		t.Fatalf("module entrypoint did not include node preset creation fields")
 	}
 	if !bytes.Contains(body, []byte("/api/project/nodes/update")) {
