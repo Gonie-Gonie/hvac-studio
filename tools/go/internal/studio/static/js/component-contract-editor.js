@@ -8,6 +8,7 @@ import {
 } from './contract-impact.js';
 import { roleLabel } from './contract-labels.js';
 import { escapeAttr, escapeHTML } from './dom.js';
+import { emptyKVRow, inspectorBlock } from './inspector-ui.js';
 import { parameterInputValue } from './format.js';
 import { nodeDeleteImpact, nodeDeleteImpactDetails, nodeDeleteImpactSummary } from './node-impact.js';
 import { NODE_PRESETS, PARAMETER_ROLES } from './workspace-config.js';
@@ -534,28 +535,4 @@ function impactBadge(summary, details) {
   badge.textContent = summary;
   if (details) badge.title = details;
   return badge;
-}
-
-function inspectorBlock(title, rows) {
-  const block = document.createElement('div');
-  block.className = 'inspector-block';
-  block.innerHTML = `<div class='inspector-title'>${escapeHTML(title)}</div>`;
-  if (!rows.length) {
-    block.append(emptyKVRow('No values'));
-    return block;
-  }
-  for (const [key, value] of rows) {
-    const row = document.createElement('div');
-    row.className = 'kv';
-    row.innerHTML = `<span class='kv-key'>${escapeHTML(key)}</span><span>${escapeHTML(value)}</span>`;
-    block.append(row);
-  }
-  return block;
-}
-
-function emptyKVRow(message) {
-  const row = document.createElement('div');
-  row.className = 'kv';
-  row.innerHTML = `<span class='kv-key'></span><span>${escapeHTML(message)}</span>`;
-  return row;
 }

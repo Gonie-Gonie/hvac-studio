@@ -61,6 +61,7 @@ import {
   stateDefinitionBlock,
 } from "./component-contract-editor.js";
 import { el, escapeAttr, escapeHTML } from "./dom.js";
+import { emptyKVRow as sharedEmptyKVRow, inspectorBlock as sharedInspectorBlock } from "./inspector-ui.js";
 import {
   collectDatasetUnitHints,
   collectValidationColumnMap,
@@ -1320,20 +1321,7 @@ function componentContractEditorOptions() {
 }
 
 function inspectorBlock(title, rows) {
-  const block = document.createElement("div");
-  block.className = "inspector-block";
-  block.innerHTML = `<div class="inspector-title">${escapeHTML(title)}</div>`;
-  if (!rows.length) {
-    block.append(emptyKVRow("No values"));
-    return block;
-  }
-  for (const [key, value] of rows) {
-    const row = document.createElement("div");
-    row.className = "kv";
-    row.innerHTML = `<span class="kv-key">${escapeHTML(key)}</span><span>${escapeHTML(value)}</span>`;
-    block.append(row);
-  }
-  return block;
+  return sharedInspectorBlock(title, rows, { emptyMessagePlacement: "key" });
 }
 
 function componentInspectorActions() {
@@ -1893,10 +1881,7 @@ function parameterRow(component, name, value, editable) {
 }
 
 function emptyKVRow(message) {
-  const row = document.createElement("div");
-  row.className = "kv";
-  row.innerHTML = `<span class="kv-key">${escapeHTML(message)}</span><span></span>`;
-  return row;
+  return sharedEmptyKVRow(message, { messagePlacement: "key" });
 }
 
 function emptyRow(cols, message = "No rows") {

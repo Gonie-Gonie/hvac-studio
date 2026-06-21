@@ -293,6 +293,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	pythonSourceBody := getRouteBody(t, server, "/js/python-source.js")
 	replacementPreviewBody := getRouteBody(t, server, "/js/replacement-preview.js")
 	componentInspectorBody := getRouteBody(t, server, "/js/component-inspector.js")
+	inspectorUIBody := getRouteBody(t, server, "/js/inspector-ui.js")
 	nodeImpactBody := getRouteBody(t, server, "/js/node-impact.js")
 	contractImpactBody := getRouteBody(t, server, "/js/contract-impact.js")
 	contractAuthoringBody := getRouteBody(t, server, "/js/contract-authoring.js")
@@ -333,6 +334,13 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(componentInspectorBody, []byte(`from "./replacement-preview.js"`)) {
 		t.Fatalf("component inspector module did not import replacement preview helpers")
+	}
+	if !bytes.Contains(body, []byte(`from "./inspector-ui.js"`)) ||
+		!bytes.Contains(componentInspectorBody, []byte(`from "./inspector-ui.js"`)) ||
+		!bytes.Contains(contractEditorBody, []byte(`from './inspector-ui.js'`)) ||
+		!bytes.Contains(inspectorUIBody, []byte("inspectorBlock")) ||
+		!bytes.Contains(inspectorUIBody, []byte("emptyKVRow")) {
+		t.Fatalf("module entrypoint did not import shared inspector UI helpers")
 	}
 	if !bytes.Contains(body, []byte(`from "./node-impact.js"`)) {
 		t.Fatalf("module entrypoint did not import node impact helpers")

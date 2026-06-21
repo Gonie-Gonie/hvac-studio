@@ -1,4 +1,5 @@
 import { escapeHTML } from "./dom.js";
+import { emptyKVRow, inspectorKVRow } from "./inspector-ui.js";
 import {
   replacementDiffText,
   replacementPreview,
@@ -85,13 +86,6 @@ export function replacementPreviewBlock(component, context, actions) {
   return block;
 }
 
-function inspectorKVRow(key, value) {
-  const row = document.createElement("div");
-  row.className = "kv";
-  row.innerHTML = `<span class="kv-key">${escapeHTML(key)}</span><span>${escapeHTML(value)}</span>`;
-  return row;
-}
-
 function replacementMappingTable(title, mappings) {
   const wrap = document.createElement("div");
   wrap.className = "replacement-table-wrap";
@@ -133,11 +127,4 @@ function replacementDiffSummary(diff) {
   ];
   for (const [key, value] of rows) wrap.append(inspectorKVRow(key, value));
   return wrap;
-}
-
-function emptyKVRow(message) {
-  const row = document.createElement("div");
-  row.className = "kv";
-  row.innerHTML = `<span class="kv-key"></span><span>${escapeHTML(message)}</span>`;
-  return row;
 }
