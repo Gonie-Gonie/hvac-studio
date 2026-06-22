@@ -64,23 +64,15 @@ dist/hvac-studio-docs-<version>.zip
 dist/hvac-studio-sdk-<version>.zip
 ```
 
-Retained zips are the last locally generated release-candidate artifacts. If
-source files changed after they were built, rerun the release-candidate gate
-before treating them as packages for the current `HEAD`.
+Retained zips are the last locally generated release-candidate artifacts. Local
+development release candidates use `0.1.0-dev-<short-commit>` by default, so the
+zip names show which commit they were built from. If source files changed after
+they were built, rerun the release-candidate gate before treating them as
+packages for the current `HEAD`.
 
-The current checkout has these retained development package artifacts:
-
-```text
-dist/hvac-studio-0.1.0-dev-windows-amd64-portable.zip
-dist/hvac-studio-0.1.0-dev-windows-amd64-installer.zip
-dist/hvac-studio-runtime-0.1.0-dev-windows-amd64.zip
-dist/hvac-studio-0.1.0-dev-macos-universal-experimental.zip
-dist/hvac-studio-docs-0.1.0-dev.zip
-dist/hvac-studio-sdk-0.1.0-dev.zip
-```
-
-To inspect the exact local file sizes and timestamps for the retained build
-outputs, run:
+The current checkout should retain only the zip set from the latest successful
+release-candidate run. To inspect the exact local file sizes and timestamps for
+those retained build outputs, run:
 
 ```powershell
 Get-ChildItem -File dist | Select-Object Name,Length,LastWriteTime | Sort-Object Name
@@ -120,5 +112,5 @@ Use these before treating a checkout or package as usable:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-fast.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\test-screenshot-matrix.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1 -Version 0.1.0-dev -SkipSetup
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release\test-release-candidate.ps1
 ```
