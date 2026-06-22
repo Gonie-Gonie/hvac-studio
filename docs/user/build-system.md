@@ -34,7 +34,10 @@ Selecting the connected component shows the same medium mismatch, warning, or ov
 Connections do not infer unit conversion from labels. If a source output and
 target input use different units, select the connection and use the Inspector
 Unit Conversion editor. Studio provides common linear presets for W to kW, kW
-to W, degC to K, kg/s to kg/h, and fraction to percent. Custom conversions use
+to W, degC to K, degF to degC, degC to degF, Btu/h to kW, kW to Btu/h,
+refrigeration tons to kW, kW to refrigeration tons, kg/s to kg/h, and fraction
+to percent. Preset detection accepts common aliases such as `Celsius`, `deg F`,
+`BTU/hr`, `kg per second`, `kg/hr`, `pct`, and `%`. Custom conversions use
 `converted = source * factor + offset`, with an immediate sample preview before
 saving.
 

@@ -58,6 +58,12 @@ export const UNIT_CONVERSION_PRESETS = [
   ["w_to_kw", "W to kW", { factor: 0.001, offset: 0, description: "Convert W to kW." }],
   ["kw_to_w", "kW to W", { factor: 1000, offset: 0, description: "Convert kW to W." }],
   ["degc_to_k", "degC to K", { factor: 1, offset: 273.15, description: "Convert degC to K." }],
+  ["degf_to_degc", "degF to degC", { factor: 0.5555555555555556, offset: -17.77777777777778, description: "Convert degF to degC." }],
+  ["degc_to_degf", "degC to degF", { factor: 1.8, offset: 32, description: "Convert degC to degF." }],
+  ["btuh_to_kw", "Btu/h to kW", { factor: 0.00029307107, offset: 0, description: "Convert Btu/h to kW." }],
+  ["kw_to_btuh", "kW to Btu/h", { factor: 3412.141633, offset: 0, description: "Convert kW to Btu/h." }],
+  ["rt_to_kw", "RT to kW", { factor: 3.5168528421, offset: 0, description: "Convert refrigeration tons to kW." }],
+  ["kw_to_rt", "kW to RT", { factor: 0.2843451361, offset: 0, description: "Convert kW to refrigeration tons." }],
   ["kgs_to_kgh", "kg/s to kg/h", { factor: 3600, offset: 0, description: "Convert kg/s to kg/h." }],
   ["fraction_to_percent", "fraction to percent", { factor: 100, offset: 0, description: "Convert fraction to percent." }],
 ];

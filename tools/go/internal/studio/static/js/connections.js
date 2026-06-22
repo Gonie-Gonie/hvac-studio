@@ -31,6 +31,72 @@ export function normalizedMedium(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+const UNIT_ALIASES = new Map([
+  ["w", "w"],
+  ["watt", "w"],
+  ["watts", "w"],
+  ["kw", "kw"],
+  ["kilowatt", "kw"],
+  ["kilowatts", "kw"],
+  ["degc", "degc"],
+  ["c", "degc"],
+  ["celsius", "degc"],
+  ["celcius", "degc"],
+  ["degf", "degf"],
+  ["f", "degf"],
+  ["fahrenheit", "degf"],
+  ["k", "k"],
+  ["kelvin", "k"],
+  ["btuh", "btuh"],
+  ["btu/h", "btuh"],
+  ["btu/hr", "btuh"],
+  ["btu/hour", "btuh"],
+  ["btuperhour", "btuh"],
+  ["kg/s", "kg/s"],
+  ["kgs", "kg/s"],
+  ["kgps", "kg/s"],
+  ["kgs1", "kg/s"],
+  ["kg/sec", "kg/s"],
+  ["kg/second", "kg/s"],
+  ["kg/seconds", "kg/s"],
+  ["kilogram/s", "kg/s"],
+  ["kilograms/s", "kg/s"],
+  ["kilogram/sec", "kg/s"],
+  ["kilograms/sec", "kg/s"],
+  ["kilogram/second", "kg/s"],
+  ["kilograms/second", "kg/s"],
+  ["kg/h", "kg/h"],
+  ["kgh", "kg/h"],
+  ["kgph", "kg/h"],
+  ["kgh1", "kg/h"],
+  ["kg/hr", "kg/h"],
+  ["kg/hour", "kg/h"],
+  ["kilogram/h", "kg/h"],
+  ["kilograms/h", "kg/h"],
+  ["kilogram/hr", "kg/h"],
+  ["kilograms/hr", "kg/h"],
+  ["kilogram/hour", "kg/h"],
+  ["kilograms/hour", "kg/h"],
+  ["fraction", "fraction"],
+  ["frac", "fraction"],
+  ["ratio", "fraction"],
+  ["pu", "fraction"],
+  ["perunit", "fraction"],
+  ["percent", "percent"],
+  ["percentage", "percent"],
+  ["pct", "percent"],
+  ["%", "percent"],
+  ["rt", "rt"],
+  ["tr", "rt"],
+  ["ton", "rt"],
+  ["tons", "rt"],
+  ["tonrefrigeration", "rt"],
+  ["tonsrefrigeration", "rt"],
+  ["refrigerationton", "rt"],
+  ["refrigerationtons", "rt"],
+  ["usrt", "rt"],
+]);
+
 export function connectionUnitStateForNodes(connection, sourceNode, targetNode) {
   const sourceUnit = sourceNode?.unit || "";
   const targetUnit = targetNode?.unit || "";
@@ -61,7 +127,18 @@ export function connectionUnitStateForNodes(connection, sourceNode, targetNode) 
 }
 
 export function normalizedUnit(value) {
-  return String(value || "").trim().toLowerCase();
+  const raw = String(value || "").trim().toLowerCase();
+  if (!raw) return "";
+  const compact = raw
+    .replace(/\u00b0/g, "deg")
+    .replace(/\u2103/g, "degc")
+    .replace(/\u2109/g, "degf")
+    .replace(/degrees?/g, "deg")
+    .replace(/\s+/g, "")
+    .replace(/[_.-]/g, "")
+    .replace(/\^/g, "")
+    .replace(/per/g, "/");
+  return UNIT_ALIASES.get(raw) || UNIT_ALIASES.get(compact) || compact;
 }
 
 export function connectionStatusLabel(connection, mediumState, route, unitState) {
@@ -101,6 +178,12 @@ export function connectionUnitConversionPresetID(connection, conversion, unitSta
   if (sourceUnit === "w" && targetUnit === "kw") return "w_to_kw";
   if (sourceUnit === "kw" && targetUnit === "w") return "kw_to_w";
   if (sourceUnit === "degc" && targetUnit === "k") return "degc_to_k";
+  if (sourceUnit === "degf" && targetUnit === "degc") return "degf_to_degc";
+  if (sourceUnit === "degc" && targetUnit === "degf") return "degc_to_degf";
+  if (sourceUnit === "btuh" && targetUnit === "kw") return "btuh_to_kw";
+  if (sourceUnit === "kw" && targetUnit === "btuh") return "kw_to_btuh";
+  if (sourceUnit === "rt" && targetUnit === "kw") return "rt_to_kw";
+  if (sourceUnit === "kw" && targetUnit === "rt") return "kw_to_rt";
   if (sourceUnit === "kg/s" && targetUnit === "kg/h") return "kgs_to_kgh";
   if (sourceUnit === "fraction" && targetUnit === "percent") return "fraction_to_percent";
   return "custom";

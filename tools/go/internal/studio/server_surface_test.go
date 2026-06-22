@@ -747,7 +747,11 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(connectionInspectorBody, []byte("connectionUnitConversionPreview")) ||
 		!bytes.Contains(connectionsBody, []byte("connectionUnitConversionPresetID")) ||
 		!bytes.Contains(connectionsBody, []byte("unitConversionPresetDefinition")) ||
-		!bytes.Contains(connectionsBody, []byte("unitConversionInitialNumber")) {
+		!bytes.Contains(connectionsBody, []byte("unitConversionInitialNumber")) ||
+		!bytes.Contains(connectionsBody, []byte("UNIT_ALIASES")) ||
+		!bytes.Contains(connectionsBody, []byte("btuh_to_kw")) ||
+		!bytes.Contains(configBody, []byte("degf_to_degc")) ||
+		!bytes.Contains(configBody, []byte("rt_to_kw")) {
 		t.Fatalf("module entrypoint did not expose connection unit conversion editing")
 	}
 	if !bytes.Contains(body, []byte("saveRunSourceButton")) {
