@@ -856,8 +856,12 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	}
 	if !bytes.Contains(parameterManagerBody, []byte("newParameterRole")) ||
 		!bytes.Contains(parameterManagerBody, []byte("newParameterMin")) ||
+		!bytes.Contains(parameterManagerBody, []byte("newParameterUnit")) ||
+		!bytes.Contains(parameterManagerBody, []byte("newParameterGroup")) ||
+		!bytes.Contains(parameterManagerBody, []byte("newParameterDescription")) ||
+		!bytes.Contains(parameterManagerBody, []byte("parameterMetadataItems")) ||
 		!bytes.Contains(parameterManagerBody, []byte("PARAMETER_ROLES")) {
-		t.Fatalf("module entrypoint did not include parameter role and bounds creation fields")
+		t.Fatalf("module entrypoint did not include parameter role, bounds, and metadata fields")
 	}
 	if !bytes.Contains(contractEditorBody, []byte("editableNodeRow")) {
 		t.Fatalf("module entrypoint did not include editable node rows")

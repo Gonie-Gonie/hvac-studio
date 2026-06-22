@@ -4,7 +4,7 @@ Parameters are model values used by component logic.
 
 ## Current Studio Behavior
 
-Workspace component parameters can be added, edited, or deleted in the Parameter Manager and saved to `graph.json`. The add row can set the initial value, role, and numeric bounds in one action so calibration and optimization candidates do not require a second metadata pass. Component selectors show display names with stable IDs when they differ. Bundled examples are read-only through Studio write APIs.
+Workspace component parameters can be added, edited, or deleted in the Parameter Manager and saved to `graph.json`. The add row can set the initial value, display name, role, unit, numeric bounds, group, and description in one action so calibration and optimization candidates do not require a second metadata pass. The parameter table shows workflow metadata beside each value, including role, unit, default, bounds, group, visibility, and description when those fields exist. Component selectors show display names with stable IDs when they differ. Bundled examples are read-only through Studio write APIs.
 
 The Inspector edits parameter definitions for the selected component. Definition fields include display name, current value, default, unit, role, bounds, group, description, and visibility. For generated-wrapper components, Studio also keeps `components/<component_id>/component.json` synchronized with the edited contract.
 

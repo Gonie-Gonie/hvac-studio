@@ -95,19 +95,27 @@ export function newParameterDefinition(name, value, options = {}) {
   const role = (options.role || "fixed").trim() || "fixed";
   const min = (options.min || "").trim();
   const max = (options.max || "").trim();
-  if (role === "fixed" && min === "" && max === "") return { definition: null };
+  const display = (options.display || "").trim();
+  const unit = (options.unit || "").trim();
+  const group = (options.group || "").trim();
+  const description = (options.description || "").trim();
+  const hasMetadata = Boolean(display || unit || group || description || options.visible === false);
+  if (role === "fixed" && min === "" && max === "" && !hasMetadata) return { definition: null };
   if (!PARAMETER_ROLES.includes(role)) {
     return { error: `Parameter role is invalid: ${role}` };
   }
   const boundsResult = parameterBoundsFromInputs(name, min, max);
   if (boundsResult.error) return boundsResult;
   const definition = {
-    display_name: displayNameFromIdentifier(name),
+    display_name: display || displayNameFromIdentifier(name),
     role,
     current: value,
     default: value,
-    visible: true,
+    visible: options.visible !== false,
   };
+  if (unit) definition.unit = unit;
+  if (group) definition.group = group;
+  if (description) definition.description = description;
   if (boundsResult.bounds) definition.bounds = boundsResult.bounds;
   return { definition };
 }

@@ -13,13 +13,15 @@ export function renderParameterManager(context, elements, actions) {
   renderParameterAddForm(addForm, components, context.selectedComponentId, editable, actions);
   let count = 0;
   for (const component of components) {
-    for (const [name, value] of Object.entries(component.parameters || {})) {
+    for (const name of componentParameterNames(component)) {
       count++;
-      tbody.append(parameterRow(component, name, value, editable, actions));
+      const definition = component.parameter_defs?.[name] || {};
+      const value = component.parameters?.[name] ?? definition.current ?? definition.default ?? "";
+      tbody.append(parameterRow(component, name, value, definition, editable, actions));
     }
   }
   if (!count) {
-    tbody.append(emptyRow(4, "No parameters"));
+    tbody.append(emptyRow(5, "No parameters"));
   }
 }
 
@@ -48,6 +50,11 @@ function renderParameterAddForm(container, components, selectedComponentId, edit
   value.placeholder = "value";
   value.setAttribute("aria-label", "Parameter value");
 
+  const display = document.createElement("input");
+  display.id = "newParameterDisplayName";
+  display.placeholder = "display";
+  display.setAttribute("aria-label", "Parameter display name");
+
   const role = document.createElement("select");
   role.id = "newParameterRole";
   role.setAttribute("aria-label", "Parameter role");
@@ -57,6 +64,11 @@ function renderParameterAddForm(container, components, selectedComponentId, edit
     option.textContent = roleLabel(value);
     role.append(option);
   }
+
+  const unit = document.createElement("input");
+  unit.id = "newParameterUnit";
+  unit.placeholder = "unit";
+  unit.setAttribute("aria-label", "Parameter unit");
 
   const min = document.createElement("input");
   min.id = "newParameterMin";
@@ -68,10 +80,24 @@ function renderParameterAddForm(container, components, selectedComponentId, edit
   max.placeholder = "max";
   max.setAttribute("aria-label", "Parameter maximum bound");
 
+  const group = document.createElement("input");
+  group.id = "newParameterGroup";
+  group.placeholder = "group";
+  group.setAttribute("aria-label", "Parameter group");
+
+  const description = document.createElement("input");
+  description.id = "newParameterDescription";
+  description.placeholder = "description";
+  description.setAttribute("aria-label", "Parameter description");
+
   const add = () => actions.onAddParameter(select.value, name.value, value.value, {
+    display: display.value || "",
     role: role.value || "fixed",
+    unit: unit.value || "",
     min: min.value || "",
     max: max.value || "",
+    group: group.value || "",
+    description: description.value || "",
   });
 
   const button = document.createElement("button");
@@ -79,15 +105,15 @@ function renderParameterAddForm(container, components, selectedComponentId, edit
   button.textContent = "Add";
   button.addEventListener("click", add);
 
-  for (const input of [name, value, role, min, max]) {
+  for (const input of [name, value, display, role, unit, min, max, group, description]) {
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter") add();
     });
   }
-  container.append(select, name, value, role, min, max, button);
+  container.append(select, name, value, display, role, unit, min, max, group, description, button);
 }
 
-function parameterRow(component, name, value, editable, actions) {
+function parameterRow(component, name, value, definition, editable, actions) {
   const tr = document.createElement("tr");
   for (const cellValue of [component.id, name]) {
     const td = document.createElement("td");
@@ -110,11 +136,11 @@ function parameterRow(component, name, value, editable, actions) {
   } else {
     valueCell.textContent = parameterInputValue(value);
   }
-  tr.append(valueCell);
+  tr.append(valueCell, parameterMetadataCell(name, definition));
 
   const actionCell = document.createElement("td");
   actionCell.className = "action-cell";
-  if (editable) {
+  if (editable && Object.prototype.hasOwnProperty.call(component.parameters || {}, name)) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "small-action table-action";
@@ -124,6 +150,50 @@ function parameterRow(component, name, value, editable, actions) {
   }
   tr.append(actionCell);
   return tr;
+}
+
+function parameterMetadataCell(name, definition) {
+  const td = document.createElement("td");
+  td.className = "parameter-meta-cell";
+  const items = parameterMetadataItems(name, definition);
+  if (!items.length) {
+    td.textContent = "";
+    return td;
+  }
+  const stack = document.createElement("div");
+  stack.className = "parameter-meta-stack";
+  for (const item of items) {
+    const span = document.createElement("span");
+    span.className = "parameter-meta-pill";
+    span.textContent = item;
+    stack.append(span);
+  }
+  td.append(stack);
+  return td;
+}
+
+function parameterMetadataItems(name, definition = {}) {
+  const items = [];
+  if (!definition || !Object.keys(definition).length) return items;
+  if (definition.display_name && definition.display_name !== name) items.push(`Display: ${definition.display_name}`);
+  items.push(roleLabel(definition.role || "fixed"));
+  if (definition.unit) items.push(`Unit: ${definition.unit}`);
+  if (definition.default !== undefined) items.push(`Default: ${parameterInputValue(definition.default)}`);
+  const bounds = definition.bounds || {};
+  const min = bounds.min !== undefined ? parameterInputValue(bounds.min) : "";
+  const max = bounds.max !== undefined ? parameterInputValue(bounds.max) : "";
+  if (min || max) items.push(`Bounds: ${min || "..."} to ${max || "..."}`);
+  if (definition.group) items.push(`Group: ${definition.group}`);
+  if (definition.description) items.push(definition.description);
+  if (definition.visible === false) items.push("Hidden");
+  return items;
+}
+
+function componentParameterNames(component) {
+  return [...new Set([
+    ...Object.keys(component.parameters || {}),
+    ...Object.keys(component.parameter_defs || {}),
+  ])].sort();
 }
 
 function componentOptionLabel(component) {
