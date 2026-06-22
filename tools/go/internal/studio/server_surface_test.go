@@ -227,6 +227,7 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	connectionsBody := getRouteBody(t, server, "/js/connections.js")
 	connectionInspectorBody := getRouteBody(t, server, "/js/connection-inspector.js")
 	parameterManagerBody := getRouteBody(t, server, "/js/parameter-manager.js")
+	resultStateBody := getRouteBody(t, server, "/js/result-state.js")
 	assertStaticOptions(t, configBody, "component category options", []staticOption{
 		{"physical_component", "Physical Component"},
 		{"controller", "Controller"},
@@ -496,7 +497,10 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("latestConnectionValue")) {
 		t.Fatalf("module entrypoint did not include connection result rendering")
 	}
-	if !bytes.Contains(body, []byte("latestRuntimeResult")) {
+	if !bytes.Contains(body, []byte("latestRuntimeResult")) ||
+		!bytes.Contains(body, []byte("./result-state.js")) ||
+		!bytes.Contains(resultStateBody, []byte("latestRuntimeComparisonContext")) ||
+		!bytes.Contains(resultStateBody, []byte("firstSuccessfulBatchCase")) {
 		t.Fatalf("module entrypoint did not share latest runtime result state")
 	}
 	if !bytes.Contains(body, []byte("WORKSPACE_HELP")) {
@@ -1404,7 +1408,8 @@ func TestStaticRunOutputModuleServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("renderExecutionTrace")) {
 		t.Fatalf("run output module did not render execution traces")
 	}
-	if !bytes.Contains(body, []byte("renderRunComparison")) {
+	if !bytes.Contains(body, []byte("renderRunComparison")) ||
+		!bytes.Contains(body, []byte("./result-state.js")) {
 		t.Fatalf("run output module did not render run comparisons")
 	}
 	if !bytes.Contains(body, []byte("downloadRunResultCSV")) ||

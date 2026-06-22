@@ -1,6 +1,7 @@
 import { escapeHTML } from "./dom.js";
 import { csvCell, safeFileName } from "./download.js";
 import { formatValue } from "./format.js";
+import { firstBatchResult, latestResultContext } from "./result-state.js";
 
 export function renderRunOutputWorkspace(state, summary, outputRows, comparisonRows, chart, componentRows, batchRows, executionRows, componentLogRows, connectionRows, nodeRows, exportActions, actions = {}) {
   if (!summary || !outputRows || !chart) return;
@@ -703,39 +704,6 @@ function latestNumericOutputs(state) {
   return Object.entries(outputs)
     .filter(([, value]) => typeof value === "number" && Number.isFinite(value))
     .map(([id, value]) => ({ id, value }));
-}
-
-function latestResultContext(state) {
-  if (state.latestSeriesResult) return { result: seriesLastResult(state.latestSeriesResult), source: "last series step" };
-  if (state.latestBatchRecord) return { result: firstBatchResult(state), source: "first ok case" };
-  if (state.latestRunRecord) return { result: state.latestRunRecord.result, source: "saved run" };
-  if (state.latestResult) return { result: state.latestResult, source: state.latestRunSource || "current run" };
-  return { result: null, source: "" };
-}
-
-function seriesLastResult(series) {
-  const points = series?.series || [];
-  const point = points[points.length - 1];
-  if (!point) return null;
-  return {
-    outputs: point.outputs || {},
-    component_inputs: point.component_inputs || {},
-    component_outputs: point.component_outputs || {},
-    node_values: point.node_values || [],
-    connection_values: point.connection_values || [],
-    states: point.states || {},
-    context: point.context || {},
-    execution_order: series.execution_order || point.execution_order || [],
-    component_timings: point.component_timings || [],
-    component_logs: point.component_logs || [],
-    duration_ms: point.duration_ms,
-  };
-}
-
-function firstBatchResult(state) {
-  const cases = state.latestBatchRecord?.cases || [];
-  const found = cases.find((item) => item.ok && item.result?.outputs);
-  return found?.result || null;
 }
 
 function comparisonDelta(currentValue, baselineValue) {

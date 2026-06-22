@@ -120,6 +120,12 @@ import {
 } from "./run-inputs.js";
 import { renderRunOutputWorkspace } from "./run-output.js";
 import {
+  currentRunSourceLabel as selectCurrentRunSourceLabel,
+  latestResultValue as selectLatestResultValue,
+  latestRuntimeComparisonContext as selectLatestRuntimeComparisonContext,
+  latestRuntimeResult as selectLatestRuntimeResult,
+} from "./result-state.js";
+import {
   objectRows,
   rawJSONBlock,
   resultHeader,
@@ -1669,12 +1675,7 @@ function renderDiagnostics() {
 }
 
 function latestResultValue() {
-  return state.latestWorkflowRecord ||
-    state.latestDataValidation ||
-    state.latestSeriesResult ||
-    state.latestBatchRecord ||
-    state.latestRunRecord ||
-    state.latestResult;
+  return selectLatestResultValue(state);
 }
 
 function structuredResultView(value) {
@@ -2322,83 +2323,15 @@ async function runCalibrationParameterSetComparison(result, parameterSetPath) {
 }
 
 function latestRuntimeResult() {
-  if (state.latestSeriesResult) return seriesLastResult(state.latestSeriesResult);
-  if (state.latestBatchRecord) {
-    const found = (state.latestBatchRecord.cases || []).find((item) => item.ok && item.result);
-    return found?.result || null;
-  }
-  if (state.latestRunRecord?.result) return state.latestRunRecord.result;
-  return state.latestResult;
+  return selectLatestRuntimeResult(state);
 }
 
 function latestRuntimeComparisonContext() {
-  if (state.latestSeriesResult) {
-    return { result: seriesLastResult(state.latestSeriesResult), source: seriesSourceLabel(state.latestSeriesResult) };
-  }
-  if (state.latestBatchRecord) {
-    const found = (state.latestBatchRecord.cases || []).find((item) => item.ok && item.result);
-    if (found?.result) {
-      return { result: found.result, source: batchRunSourceLabel(state.latestBatchRecord, found) };
-    }
-  }
-  if (state.latestRunRecord?.result) {
-    return { result: state.latestRunRecord.result, source: runRecordSourceLabel(state.latestRunRecord) };
-  }
-  if (state.latestResult) {
-    return { result: state.latestResult, source: state.latestRunSource || currentRunSourceLabel() };
-  }
-  return null;
-}
-
-function seriesLastResult(series) {
-  const points = series?.series || [];
-  const point = points[points.length - 1];
-  if (!point) return null;
-  return {
-    ok: true,
-    parameter_set: series.parameter_set || "",
-    outputs: point.outputs || {},
-    component_inputs: point.component_inputs || {},
-    component_outputs: point.component_outputs || {},
-    node_values: point.node_values || [],
-    connection_values: point.connection_values || [],
-    states: point.states || {},
-    context: point.context || {},
-    execution_order: series.execution_order || point.execution_order || [],
-    component_timings: point.component_timings || [],
-    component_logs: point.component_logs || [],
-    duration_ms: point.duration_ms,
-  };
-}
-
-function seriesSourceLabel(series) {
-  const parts = ["series preview"];
-  if (series?.step_count) parts.push(`${series.step_count} steps`);
-  parts.push(series?.parameter_set ? `parameter set ${series.parameter_set}` : "baseline");
-  return parts.join(" / ");
+  return selectLatestRuntimeComparisonContext(state);
 }
 
 function currentRunSourceLabel() {
-  const parts = ["current run"];
-  if (state.activeRunInput) {
-    parts.push(`scenario ${state.activeRunInput.name || state.activeRunInput.id || "active"}`);
-  }
-  parts.push(state.activeParameterSetPath ? `parameter set ${state.activeParameterSetPath}` : "baseline");
-  return parts.join(" / ");
-}
-
-function runRecordSourceLabel(record) {
-  const parts = [record.id || "saved run"];
-  parts.push(record.parameter_set ? `parameter set ${record.parameter_set}` : "baseline");
-  return parts.join(" / ");
-}
-
-function batchRunSourceLabel(record, firstCase) {
-  const parts = [record.id || "batch"];
-  const caseName = firstCase?.scenario_name || firstCase?.scenario_id || "";
-  if (caseName) parts.push(`case ${caseName}`);
-  parts.push(record.parameter_set ? `parameter set ${record.parameter_set}` : "baseline");
-  return parts.join(" / ");
+  return selectCurrentRunSourceLabel(state);
 }
 
 function renderRunWorkspace() {
