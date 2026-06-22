@@ -157,13 +157,18 @@ function Stop-ScreenshotStudioProcesses {
     Stop-Process -Id $StudioProcess.Id -Force -ErrorAction SilentlyContinue
   }
 
-  $Candidates = Get-CimInstance Win32_Process | Where-Object {
-    $_.CommandLine -and
-    ($_.Name -in @('go.exe', 'studio.exe')) -and
-    (
-      $_.CommandLine.IndexOf($FixtureRoot, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
-      $_.CommandLine.IndexOf($Addr, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
-    )
+  $Candidates = @()
+  try {
+    $Candidates = Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object {
+      $_.CommandLine -and
+      ($_.Name -in @('go.exe', 'studio.exe')) -and
+      (
+        $_.CommandLine.IndexOf($FixtureRoot, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+        $_.CommandLine.IndexOf($Addr, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+      )
+    }
+  } catch {
+    Write-Warning "Could not enumerate residual Studio processes: $($_.Exception.Message)"
   }
 
   foreach ($Process in $Candidates) {

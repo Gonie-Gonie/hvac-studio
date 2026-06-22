@@ -1562,6 +1562,12 @@ function emptyKVRow(message) {
   return sharedEmptyKVRow(message, { messagePlacement: "key" });
 }
 
+function emptyRow(cols, message = "No rows") {
+  const tr = document.createElement("tr");
+  tr.innerHTML = `<td colspan="${cols}" class="empty-cell">${escapeHTML(message)}</td>`;
+  return tr;
+}
+
 function renderProblems() {
   const panel = el("problemsPanel");
   panel.innerHTML = "";
