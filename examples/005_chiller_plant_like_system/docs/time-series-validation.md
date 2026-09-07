@@ -27,11 +27,11 @@ observed outputs, and which column should be carried into row summaries as time.
 From the repository root:
 
 ```powershell
-Push-Location .\tools\go
+Push-Location .\go
 go run .\cmd\bcs-runner validate-data `
-  --project ..\..\examples\005_chiller_plant_like_system\project.bcsproj `
+  --project ..\examples\005_chiller_plant_like_system\project.bcsproj `
   --mapping validation\mappings\plant_validation.json `
-  --output ..\..\artifacts\plant-validation.json
+  --output ..\.tmp\examples\plant-validation.json
 Pop-Location
 ```
 

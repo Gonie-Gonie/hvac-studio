@@ -114,8 +114,8 @@ python .\examples\sdk\raw_serve_subprocess.py bcs-runner.exe
 From a source checkout, run the development command from the Go module root:
 
 ```powershell
-Push-Location .\tools\go
-python ..\..\examples\sdk\raw_serve_subprocess.py go run .\cmd\bcs-runner
+Push-Location .\go
+python ..\examples\sdk\raw_serve_subprocess.py go run .\cmd\bcs-runner
 Pop-Location
 ```
 

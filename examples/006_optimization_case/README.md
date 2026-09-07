@@ -7,16 +7,16 @@ It is designed for CLI and SDK optimization smoke tests.
 Run one case:
 
 ```powershell
-Push-Location .\tools\go
+Push-Location .\go
 go run .\cmd\bcs-runner run `
-  --project ..\..\examples\006_optimization_case\project.bcsproj `
-  --input ..\..\examples\006_optimization_case\inputs\case01.json
+  --project ..\examples\006_optimization_case\project.bcsproj `
+  --input ..\examples\006_optimization_case\inputs\case01.json
 go run .\cmd\bcs-runner optimize `
-  --project ..\..\examples\006_optimization_case\project.bcsproj `
+  --project ..\examples\006_optimization_case\project.bcsproj `
   --setup optimization\setups\chw_setpoint_grid.json `
-  --output ..\..\artifacts\optimization-result.json
+  --output ..\.tmp\examples\optimization-result.json
 go run .\cmd\bcs-runner optimize `
-  --project ..\..\examples\006_optimization_case\project.bcsproj `
+  --project ..\examples\006_optimization_case\project.bcsproj `
   --setup optimization\setups\parameter_credit_grid.json `
   --save-parameter-set parameter_sets\optimized_credit.json
 Pop-Location

@@ -13,7 +13,7 @@ if (-not $env:HVAC_STUDIO_GO) {
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 if (-not $OutputRoot) {
-  $OutputRoot = Join-Path $RepoRoot 'dist'
+  $OutputRoot = Join-Path $RepoRoot '.tmp\build\studio'
 }
 
 $StudioRoot = Join-Path $OutputRoot "hvac-studio-$Version"
@@ -22,7 +22,7 @@ $StudioExe = Join-Path $BinRoot 'hvac-studio.exe'
 
 New-Item -ItemType Directory -Force -Path $BinRoot | Out-Null
 
-Push-Location (Join-Path $RepoRoot 'tools\go')
+Push-Location (Join-Path $RepoRoot 'go')
 try {
   Invoke-Checked $env:HVAC_STUDIO_GO @('build', '-tags', 'desktop,production', '-ldflags', '-w -s -H=windowsgui', '-o', $StudioExe, '.\cmd\studio')
 } finally {

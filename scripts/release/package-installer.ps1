@@ -77,9 +77,10 @@ function Compress-InstallerStage {
 $ResolvedVersion = Resolve-Version -Version $Version
 $RuntimeId = 'windows-amd64'
 $PackageName = "hvac-studio-$ResolvedVersion-$RuntimeId-installer"
-$DistRoot = Join-Path $RepoRoot 'dist'
-$StageParent = Join-Path $DistRoot ('.installer-stage-' + [Guid]::NewGuid().ToString('N'))
+$DistRoot = Join-Path $RepoRoot 'dist\releases'
+$StageParent = Join-Path (Join-Path $RepoRoot '.tmp\package-stage') ('.installer-stage-' + [Guid]::NewGuid().ToString('N'))
 $StageRoot = Join-Path $StageParent $PackageName
+New-Item -ItemType Directory -Force -Path $DistRoot | Out-Null
 $ZipPath = Join-Path $DistRoot "$PackageName.zip"
 
 if (-not $PortableZip) {

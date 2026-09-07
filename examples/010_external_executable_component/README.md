@@ -24,6 +24,6 @@ source-tagged component logs.
 Run it from the repo root:
 
 ```powershell
-cd tools/go
-go run ./cmd/bcs-runner run --project ../../examples/010_external_executable_component/project.bcsproj --input ../../examples/010_external_executable_component/inputs/case01.json
+cd go
+go run ./cmd/bcs-runner run --project ../examples/010_external_executable_component/project.bcsproj --input ../examples/010_external_executable_component/inputs/case01.json
 ```

@@ -12,8 +12,9 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $ResolvedVersion = Resolve-Version -Version $Version
 $RuntimeId = 'docs'
 $PackageName = "hvac-studio-docs-$ResolvedVersion"
-$DistRoot = Join-Path $RepoRoot 'dist'
-$StageRoot = Join-Path $DistRoot $PackageName
+$DistRoot = Join-Path $RepoRoot 'dist\releases'
+$StageRoot = Join-Path (Join-Path $RepoRoot '.tmp\package-stage') $PackageName
+New-Item -ItemType Directory -Force -Path $DistRoot | Out-Null
 $ZipPath = Join-Path $DistRoot "$PackageName.zip"
 
 Remove-Item -LiteralPath $StageRoot -Recurse -Force -ErrorAction SilentlyContinue

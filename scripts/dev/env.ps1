@@ -1,12 +1,13 @@
 $ErrorActionPreference = 'Stop'
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$ToolsRoot = Join-Path $RepoRoot '.repo_tools'
+$ToolsRoot = Join-Path $RepoRoot '.toolchain'
+$CacheRoot = Join-Path $RepoRoot '.cache'
 $VenvRoot = Join-Path $RepoRoot '.venv'
 $GoRoot = Join-Path $ToolsRoot 'go'
 $UvRoot = Join-Path $ToolsRoot 'uv'
-$GoCacheRoot = Join-Path $ToolsRoot 'go-cache'
-$UvCacheRoot = Join-Path $ToolsRoot 'uv-cache'
+$GoCacheRoot = Join-Path $CacheRoot 'go'
+$UvCacheRoot = Join-Path $CacheRoot 'uv'
 $UvToolRoot = Join-Path $ToolsRoot 'uv-tools'
 $UvPythonInstallDir = Join-Path $ToolsRoot 'python'
 

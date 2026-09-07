@@ -29,6 +29,42 @@ function Get-FreePort {
   }
 }
 
+function Get-DesktopWindowTitles {
+  param([int]$ProcessId)
+
+  if (-not ('HVACStudio.PackageWindows' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Text;
+namespace HVACStudio {
+  public static class PackageWindows {
+    private delegate bool WindowCallback(IntPtr window, IntPtr context);
+    [DllImport("user32.dll")] private static extern bool EnumWindows(WindowCallback callback, IntPtr context);
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr window, StringBuilder text, int count);
+    public static string[] Titles(int processId) {
+      var titles = new List<string>();
+      EnumWindows((window, context) => {
+        uint owner;
+        GetWindowThreadProcessId(window, out owner);
+        if (owner == processId) {
+          var title = new StringBuilder(512);
+          GetWindowText(window, title, title.Capacity);
+          if (title.Length > 0) titles.Add(title.ToString());
+        }
+        return true;
+      }, IntPtr.Zero);
+      return titles.ToArray();
+    }
+  }
+}
+'@
+  }
+  return [HVACStudio.PackageWindows]::Titles($ProcessId)
+}
+
 function Get-ComponentSourcePaths {
   param(
     [Parameter(Mandatory = $true)][string]$ProjectPath,
@@ -99,6 +135,10 @@ $StudioProcess = $null
 $DesktopProcess = $null
 $ErrLog = ''
 $OriginalPath = $env:PATH
+$OriginalEnvironment = @{}
+foreach ($Name in @('PYTHONPATH', 'HVAC_STUDIO_PYTHON', 'HVAC_STUDIO_REPO_ROOT', 'HVAC_STUDIO_TOOLS_ROOT')) {
+  $OriginalEnvironment[$Name] = [Environment]::GetEnvironmentVariable($Name, 'Process')
+}
 
 try {
   Expand-Archive -LiteralPath $PackagePath -DestinationPath $TestRoot -Force
@@ -120,11 +160,11 @@ try {
   Assert-ReleaseProvenance -PackageRoot $PackageDir.FullName -PackageType 'studio-portable' -Version $Version
 
   $env:PATH = Get-MinimalPackagePath -PackageRoot $PackageDir.FullName
+  foreach ($Name in $OriginalEnvironment.Keys) {
+    [Environment]::SetEnvironmentVariable($Name, $null, 'Process')
+  }
 
-  $DesktopProcess = Start-Process -FilePath $Studio -PassThru -ArgumentList @(
-    '--repo',
-    $PackageDir.FullName
-  )
+  $DesktopProcess = Start-Process -FilePath $Studio -WorkingDirectory $TestRoot -WindowStyle Hidden -PassThru
   $DesktopReady = $false
   $DesktopTitle = ''
   for ($Index = 0; $Index -lt 20; $Index++) {
@@ -132,8 +172,9 @@ try {
     if ($DesktopProcess.HasExited) {
       throw "Studio desktop app exited during launch smoke"
     }
-    $DesktopTitle = (Get-Process -Id $DesktopProcess.Id -ErrorAction Stop).MainWindowTitle
-    if ($DesktopTitle -eq 'Error') {
+    $DesktopTitles = @(Get-DesktopWindowTitles -ProcessId $DesktopProcess.Id)
+    $DesktopTitle = $DesktopTitles -join '; '
+    if ($DesktopTitles -contains 'Error') {
       throw "Studio desktop app opened an error dialog instead of the Wails window"
     }
     if ($DesktopTitle -match 'HVAC Studio') {
@@ -175,8 +216,6 @@ try {
   $OutLog = Join-Path $TestRoot 'studio.out.log'
   $ErrLog = Join-Path $TestRoot 'studio.err.log'
   $StudioProcess = Start-Process -FilePath $StudioServer -WindowStyle Hidden -PassThru -RedirectStandardOutput $OutLog -RedirectStandardError $ErrLog -ArgumentList @(
-    '--repo',
-    $PackageDir.FullName,
     '--server',
     '--addr',
     "127.0.0.1:$Port"
@@ -815,5 +854,8 @@ try {
     }
   }
   $env:PATH = $OriginalPath
+  foreach ($Name in $OriginalEnvironment.Keys) {
+    [Environment]::SetEnvironmentVariable($Name, $OriginalEnvironment[$Name], 'Process')
+  }
   Remove-Item -LiteralPath $TestRoot -Recurse -Force -ErrorAction SilentlyContinue
 }

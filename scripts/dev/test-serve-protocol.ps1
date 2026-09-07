@@ -58,7 +58,7 @@ function Assert-ServeResponses {
   }
 }
 
-Push-Location (Join-Path $RepoRoot 'tools\go')
+Push-Location (Join-Path $RepoRoot 'go')
 try {
   $ResponseLines = @(Get-Content -Encoding UTF8 -LiteralPath $RequestPath | & $env:HVAC_STUDIO_GO run '.\cmd\bcs-runner' serve --project $ProjectPath)
   if ($LASTEXITCODE -ne 0) {

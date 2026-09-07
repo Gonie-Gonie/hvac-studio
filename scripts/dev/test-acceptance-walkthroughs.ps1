@@ -11,12 +11,12 @@ if (-not $env:HVAC_STUDIO_PYTHON) {
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $ExamplesRoot = Join-Path $RepoRoot 'examples'
-$RunRoot = Join-Path ([IO.Path]::GetTempPath()) ("hvac-studio-acceptance-" + [Guid]::NewGuid().ToString('N'))
+$RunRoot = Join-Path $env:HVAC_STUDIO_TMP ("hvac-studio-acceptance-" + [Guid]::NewGuid().ToString('N'))
 
 function Invoke-Runner {
   param([Parameter(Mandatory = $true)][string[]]$Arguments)
 
-  Push-Location (Join-Path $RepoRoot 'tools\go')
+  Push-Location (Join-Path $RepoRoot 'go')
   try {
     Invoke-Checked $env:HVAC_STUDIO_GO (@('run', '.\cmd\bcs-runner') + $Arguments)
   } finally {
@@ -51,7 +51,7 @@ function Assert-Acceptance {
   }
 }
 
-Push-Location (Join-Path $RepoRoot 'tools\go')
+Push-Location (Join-Path $RepoRoot 'go')
 try {
   Write-Host 'acceptance walkthrough A: first project component run export'
   Invoke-Checked $env:HVAC_STUDIO_GO @('test', '.\internal\studio', '-run', 'TestAcceptanceWalkthroughFirstProjectComponentRunExport', '-count=1')

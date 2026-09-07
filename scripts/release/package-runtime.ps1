@@ -17,20 +17,21 @@ if (-not $SkipBuild) {
 $ResolvedVersion = Resolve-Version -Version $Version
 $RuntimeId = 'windows-amd64'
 $PackageName = "hvac-studio-runtime-$ResolvedVersion-$RuntimeId"
-$DistRoot = Join-Path $RepoRoot 'dist'
-$StageRoot = Join-Path $DistRoot $PackageName
+$DistRoot = Join-Path $RepoRoot 'dist\releases'
+$StageRoot = Join-Path (Join-Path $RepoRoot '.tmp\package-stage') $PackageName
+New-Item -ItemType Directory -Force -Path $DistRoot | Out-Null
 $ZipPath = Join-Path $DistRoot "$PackageName.zip"
 
 Remove-Item -LiteralPath $StageRoot -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath $ZipPath -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $StageRoot | Out-Null
 
-Copy-Tree -Source (Join-Path $RepoRoot 'bin\bcs-runner.exe') -Destination (Join-Path $StageRoot 'bin\bcs-runner.exe')
-Copy-Tree -Source (Join-Path $RepoRoot 'bin\bcs-env.exe') -Destination (Join-Path $StageRoot 'bin\bcs-env.exe')
+Copy-Tree -Source (Join-Path $RepoRoot '.tmp\bin\bcs-runner.exe') -Destination (Join-Path $StageRoot 'bin\bcs-runner.exe')
+Copy-Tree -Source (Join-Path $RepoRoot '.tmp\bin\bcs-env.exe') -Destination (Join-Path $StageRoot 'bin\bcs-env.exe')
 Copy-Tree -Source (Join-Path $RepoRoot 'python\bcs_worker') -Destination (Join-Path $StageRoot 'python\bcs_worker')
 Copy-Tree -Source (Join-Path $RepoRoot 'python\bcs_sdk') -Destination (Join-Path $StageRoot 'python\bcs_sdk')
 Copy-Tree -Source (Join-Path $RepoRoot 'schema') -Destination (Join-Path $StageRoot 'schema')
-Copy-Tree -Source (Join-Path $RepoRoot 'runtime') -Destination (Join-Path $StageRoot 'runtime')
+Copy-Tree -Source (Join-Path $RepoRoot 'scripts\release\runtime-manifest.json') -Destination (Join-Path $StageRoot 'runtime\manifest.json')
 Copy-PackagedPythonRuntime -RepoRoot $RepoRoot -Destination (Join-Path $StageRoot 'runtime\python')
 $Documentation = Copy-DocumentationAssets -RepoRoot $RepoRoot -StageRoot $StageRoot -Version $ResolvedVersion
 Copy-Tree -Source (Join-Path $RepoRoot 'examples') -Destination (Join-Path $StageRoot 'examples')

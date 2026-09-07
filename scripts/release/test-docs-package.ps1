@@ -31,7 +31,7 @@ try {
 
   foreach ($RequiredPath in @(
     'docs\site\index.html',
-    'docs\site\status\index.html',
+    'docs\site\release\index.html',
     'docs\manual\hvac-studio-manual.md',
     'docs\manual\hvac-studio-manual.pdf',
     'docs\manual\manual-build.json',

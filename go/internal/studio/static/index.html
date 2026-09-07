@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HVAC Studio</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="top-bar">
+        <div class="brand">
+          <div class="brand-mark">HS</div>
+          <div>
+            <div class="brand-title">HVAC Studio</div>
+            <div class="brand-subtitle" id="runtimeStatus">Runtime ready</div>
+          </div>
+        </div>
+        <div class="project-switcher">
+          <label for="projectSelect">Project</label>
+          <select id="projectSelect"></select>
+          <input id="projectNameInput" type="text" placeholder="Project name" aria-label="Project name" />
+          <select id="projectTemplateSelect" aria-label="Project type">
+            <option value="scalar">Python Component</option>
+          </select>
+          <button id="newProjectButton" type="button">New</button>
+          <button id="copyProjectButton" type="button" disabled>Copy</button>
+        </div>
+        <nav class="command-bar" aria-label="Project commands">
+          <button id="saveProjectButton" type="button" disabled>Save</button>
+          <button id="validateButton" type="button">Validate</button>
+          <button id="dataValidateButton" type="button" disabled>Data</button>
+          <button id="runButton" type="button">Run</button>
+          <button id="seriesButton" type="button">Series</button>
+          <button id="scenarioButton" type="button" disabled>Scenario</button>
+          <button id="schemaButton" type="button">Schema</button>
+          <button id="batchButton" type="button" disabled>Batch</button>
+          <button id="cancelRunButton" class="danger-action" type="button" disabled>Cancel</button>
+          <button id="retryRunButton" type="button" disabled>Retry</button>
+          <button id="exportButton" type="button" disabled>Export</button>
+        </nav>
+      </header>
+
+      <div class="workspace">
+        <aside class="left-sidebar">
+          <section class="panel project-panel">
+            <div class="panel-header">
+              <h2>Project</h2>
+            </div>
+            <div class="component-add-row">
+              <input id="newComponentName" type="text" placeholder="Component name" aria-label="Component name" disabled />
+              <select id="componentCategorySelect" aria-label="Component category" disabled></select>
+              <select id="componentExecutionModeSelect" aria-label="Execution mode" disabled></select>
+              <select id="componentTemplateSelect" aria-label="Component template" disabled></select>
+              <label class="component-use-row" for="includeComponentOnCreate">
+                <input id="includeComponentOnCreate" type="checkbox" checked disabled />
+                <span>Use in System</span>
+              </label>
+              <button id="addComponentButton" type="button" disabled>New Component</button>
+              <button id="newMLComponentButton" type="button" disabled>New ML Component</button>
+              <div id="componentTemplateMeta" class="component-template-meta"></div>
+            </div>
+            <div id="projectTree" class="project-tree"></div>
+          </section>
+        </aside>
+
+        <main class="main-stage">
+          <section class="mode-strip" aria-label="Workspace modes">
+            <button class="mode-button" data-mode="start" type="button">Start</button>
+            <button class="mode-button active" data-mode="canvas" type="button">System</button>
+            <button class="mode-button" data-mode="code" type="button">Code</button>
+            <button class="mode-button" data-mode="parameters" type="button">Parameters</button>
+            <button class="mode-button" data-mode="artifacts" type="button">Artifacts</button>
+            <button class="mode-button" data-mode="run" type="button">Run</button>
+            <button class="mode-button" data-mode="export" type="button">Export</button>
+            <a id="workspaceHelpLink" class="help-button" href="/docs/user/modeling.md#build-systems" target="_blank" rel="noopener" title="Open workspace help" aria-label="Open workspace help">?</a>
+          </section>
+
+          <section id="startView" class="view start-workspace">
+            <div class="start-grid">
+              <div class="table-shell">
+                <div class="table-title">Runtime</div>
+                <table class="trace-table">
+                  <tbody id="startRuntimeRows"></tbody>
+                </table>
+              </div>
+              <div class="table-shell">
+                <div class="table-title">Project Types</div>
+                <table class="trace-table">
+                  <tbody id="startProjectTypeRows"></tbody>
+                </table>
+              </div>
+              <div class="table-shell start-wide-card">
+                <div class="table-title">Workflow Readiness</div>
+                <table class="trace-table readiness-table">
+                  <tbody id="startWorkflowRows"></tbody>
+                </table>
+              </div>
+              <div class="table-shell">
+                <div class="table-title">Workspace Projects</div>
+                <table class="trace-table">
+                  <tbody id="startWorkspaceRows"></tbody>
+                </table>
+              </div>
+              <div class="table-shell">
+                <div class="table-title">Example Projects</div>
+                <table>
+                  <tbody id="startExampleRows"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section id="canvasView" class="view active">
+            <div class="system-toolbar">
+              <div>
+                <h1 id="systemTitle">System</h1>
+                <div id="systemSubtitle" class="muted-line"></div>
+              </div>
+              <div class="system-tools">
+                <button id="autoLayoutButton" type="button" disabled>Auto Layout</button>
+                <div class="run-inputs" id="runInputs"></div>
+              </div>
+            </div>
+            <div class="canvas-wrap">
+              <svg id="connectionLayer" class="connection-layer" aria-hidden="true"></svg>
+              <div id="systemCanvas" class="system-canvas"></div>
+            </div>
+          </section>
+
+          <section id="codeView" class="view code-workspace">
+            <div class="source-shell">
+              <div class="source-toolbar">
+                <select id="sourceComponentSelect" aria-label="Component"></select>
+                <span id="sourcePath" class="source-path"></span>
+                <span id="sourceStatus" class="source-status"></span>
+                <span id="sourceEditorMeta" class="source-editor-meta"></span>
+                <select id="sourceSnippetSelect" aria-label="Snippet">
+                  <option value="evaluate">evaluate</option>
+                  <option value="initialize">initialize</option>
+                  <option value="output">output</option>
+                  <option value="input">input</option>
+                  <option value="parameter">parameter</option>
+                  <option value="vectorized">vectorized</option>
+                  <option value="external">external adapter</option>
+                </select>
+                <button id="insertSnippetButton" type="button">Insert</button>
+                <button id="formatSourceButton" type="button">Format</button>
+                <button id="checkSourceButton" type="button">Check</button>
+                <button id="revertSourceButton" type="button">Revert</button>
+                <button id="saveSourceButton" type="button">Save</button>
+                <button id="saveRunSourceButton" type="button">Save Run</button>
+              </div>
+              <div class="source-editor-shell">
+                <pre id="sourceLineNumbers" class="source-line-numbers" aria-hidden="true"></pre>
+                <div class="source-code-layer">
+                  <pre id="sourceHighlight" class="source-highlight" aria-hidden="true"></pre>
+                  <textarea id="sourceEditor" class="source-main-editor" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+                </div>
+                <div id="sourceCompletionPanel" class="source-completion-panel" hidden></div>
+              </div>
+            </div>
+            <aside id="sourceContract" class="source-contract"></aside>
+          </section>
+
+          <section id="parametersView" class="view">
+            <div class="table-shell">
+              <div class="table-title table-title-actions">
+                <span>Parameter Manager</span>
+                <div id="parameterAddForm" class="inline-form parameter-add-form"></div>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Component</th>
+                    <th>Parameter</th>
+                    <th>Value</th>
+                    <th>Metadata</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="parameterRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section id="artifactsView" class="view artifact-workspace">
+            <div class="table-shell">
+              <div class="table-title table-title-actions">
+                <span>Project Artifacts</span>
+                <div class="inline-form artifact-actions">
+                  <input id="datasetSourcePathInput" type="text" placeholder="CSV path" aria-label="CSV source path" disabled />
+                  <input id="datasetIDInput" type="text" placeholder="Dataset ID" aria-label="Dataset ID" disabled />
+                  <select id="datasetDelimiterSelect" aria-label="Dataset delimiter" disabled>
+                    <option value="auto">Auto</option>
+                    <option value="comma">Comma</option>
+                    <option value="semicolon">Semicolon</option>
+                    <option value="tab">Tab</option>
+                    <option value="pipe">Pipe</option>
+                  </select>
+                  <select id="datasetEncodingSelect" aria-label="Dataset encoding" disabled>
+                    <option value="auto">Auto</option>
+                    <option value="utf-8">UTF-8</option>
+                    <option value="utf-8-bom">UTF-8 BOM</option>
+                    <option value="utf-16">UTF-16</option>
+                    <option value="utf-16le">UTF-16 LE</option>
+                    <option value="utf-16be">UTF-16 BE</option>
+                    <option value="cp949">CP949 / EUC-KR</option>
+                  </select>
+                  <select id="validationMissingPolicySelect" aria-label="Missing value policy" disabled>
+                    <option value="error">Error</option>
+                    <option value="drop">Drop rows</option>
+                    <option value="fill">Fill values</option>
+                    <option value="ignore_output_rows">Ignore output rows</option>
+                  </select>
+                  <button id="importDatasetButton" type="button" disabled>Import Data</button>
+                  <button id="createCalibrationSetupButton" type="button" disabled>Calibration Setup</button>
+                  <button id="createOptimizationSetupButton" type="button" disabled>Optimization Setup</button>
+                </div>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Name</th>
+                    <th>Path</th>
+                    <th>State</th>
+                    <th>Policy</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="artifactRows">
+                  <tr><td colspan="6" class="empty-cell">No project open</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section id="runView" class="view split-workspace">
+            <div class="stacked-workspace">
+              <div class="table-shell">
+                <div class="table-title table-title-actions">
+                  <span>Latest Run</span>
+                  <span id="runExportActions" class="run-export-actions"></span>
+                </div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>Value</th>
+                      <th>Source</th>
+                    </tr>
+                  </thead>
+                  <tbody id="runSummaryRows">
+                    <tr><td colspan="3" class="empty-cell">Open a project to see run context</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="table-shell">
+                <div class="table-title">Public Outputs</div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Output</th>
+                      <th>Value</th>
+                      <th>Source</th>
+                    </tr>
+                  </thead>
+                  <tbody id="runOutputRows">
+                    <tr><td colspan="3" class="empty-cell">No outputs yet</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="table-shell">
+                <div class="table-title">Run Comparison</div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Output</th>
+                      <th>Current</th>
+                      <th>Baseline</th>
+                      <th>Delta</th>
+                    </tr>
+                  </thead>
+                  <tbody id="runComparisonRows">
+                    <tr><td colspan="4" class="empty-cell">Run twice or open a saved run to compare outputs</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="table-shell">
+                <div class="table-title">Selected Component</div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Direction</th>
+                      <th>Node</th>
+                      <th>Value</th>
+                      <th>Source</th>
+                    </tr>
+                  </thead>
+                  <tbody id="componentRunRows">
+                    <tr><td colspan="4" class="empty-cell">No component values yet</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="table-shell">
+                <div class="table-title">Batch Cases</div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Case</th>
+                      <th>Status</th>
+                      <th>Outputs</th>
+                      <th>Error</th>
+                    </tr>
+                  </thead>
+                  <tbody id="batchCaseRows">
+                    <tr><td colspan="4" class="empty-cell">No batch run yet</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="stacked-workspace run-inspect-workspace">
+              <div class="chart-panel">
+                <div class="table-title">Run Output Preview</div>
+                <div id="runOutputChart" class="bar-chart"></div>
+              </div>
+              <div class="table-shell">
+                <div class="table-title">Execution Trace</div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Component</th>
+                      <th>Stage</th>
+                      <th>Duration</th>
+                    </tr>
+                  </thead>
+                  <tbody id="executionTraceRows">
+                    <tr><td colspan="3" class="empty-cell">No execution trace yet</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="table-shell">
+                <div class="table-title">Component Logs</div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Component</th>
+                      <th>Stage</th>
+                      <th>Time</th>
+                      <th>Severity</th>
+                      <th>Source</th>
+                      <th>Message</th>
+                    </tr>
+                  </thead>
+                  <tbody id="componentLogRows">
+                    <tr><td colspan="6" class="empty-cell">No component logs yet</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="table-shell">
+                <div class="table-title">Connection Values</div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Connection</th>
+                      <th>Value</th>
+                      <th>Meta</th>
+                    </tr>
+                  </thead>
+                  <tbody id="connectionTraceRows">
+                    <tr><td colspan="3" class="empty-cell">No connection values yet</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="table-shell">
+                <div class="table-title">Node Values</div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Node</th>
+                      <th>Value</th>
+                      <th>Meta</th>
+                    </tr>
+                  </thead>
+                  <tbody id="nodeTraceRows">
+                    <tr><td colspan="3" class="empty-cell">No node values yet</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section id="exportView" class="view split-workspace">
+            <div class="stacked-workspace">
+              <div class="table-shell">
+                <div class="table-title table-title-actions">
+                  <span>Runtime Export</span>
+                </div>
+                <div class="export-options">
+                  <label class="compact-toggle"><input id="exportIncludeDatasetsInput" type="checkbox" checked /> Datasets</label>
+                  <label class="compact-toggle"><input id="exportIncludeCalibrationInput" type="checkbox" checked /> Calibration Setups</label>
+                  <label class="compact-toggle"><input id="exportIncludeOptimizationInput" type="checkbox" checked /> Optimization Setups</label>
+                  <label class="compact-toggle"><input id="exportIncludeMLAssetsInput" type="checkbox" checked /> ML Assets</label>
+                  <label class="compact-toggle"><input id="exportIncludeSDKInput" type="checkbox" checked /> SDK Examples</label>
+                  <label class="compact-toggle"><input id="exportIncludeRecordsInput" type="checkbox" checked /> Records</label>
+                </div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody id="exportSummaryRows">
+                    <tr><td colspan="2" class="empty-cell">No export yet</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="table-shell">
+                <div class="table-title">Exported Files</div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Path</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="exportFileRows">
+                    <tr><td colspan="2" class="empty-cell">No files written yet</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <pre id="exportManifest" class="code-pane"></pre>
+          </section>
+        </main>
+
+        <aside class="right-sidebar">
+          <section class="panel inspector-panel">
+            <div class="panel-header">
+              <h2>Inspector</h2>
+              <div class="header-actions">
+                <button id="includeComponentButton" type="button" disabled>Use</button>
+                <button id="removeComponentButton" type="button" disabled>Remove</button>
+                <button id="replaceComponentButton" type="button" disabled>Replace</button>
+                <button id="deleteComponentButton" type="button" disabled>Delete</button>
+              </div>
+            </div>
+            <div id="inspector" class="inspector"></div>
+          </section>
+        </aside>
+      </div>
+
+      <footer class="bottom-panel">
+        <div class="bottom-tabs" role="tablist">
+          <button class="bottom-tab active" data-bottom="problems" type="button">Problems</button>
+          <button class="bottom-tab" data-bottom="logs" type="button">Logs</button>
+          <button class="bottom-tab" data-bottom="results" type="button">Results</button>
+          <button class="bottom-tab" data-bottom="diagnostics" type="button">Diagnostics</button>
+          <button class="bottom-tab" data-bottom="schema" type="button">Schema</button>
+          <button class="bottom-tab" data-bottom="python" type="button">Python</button>
+        </div>
+        <div id="problemsPanel" class="bottom-view active"></div>
+        <div id="logsPanel" class="bottom-view"></div>
+        <div id="resultsPanel" class="bottom-view results-pane"></div>
+        <div id="diagnosticsPanel" class="bottom-view diagnostics-pane"></div>
+        <pre id="schemaPanel" class="bottom-view code-pane"></pre>
+        <textarea id="pythonPanel" class="bottom-view code-pane source-editor" spellcheck="false"></textarea>
+      </footer>
+    </div>
+
+    <script type="module" src="/js/app.js"></script>
+  </body>
+</html>

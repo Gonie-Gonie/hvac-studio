@@ -7,7 +7,7 @@ if (-not $env:HVAC_STUDIO_GO) {
 }
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..')
-Push-Location (Join-Path $RepoRoot 'tools\go')
+Push-Location (Join-Path $RepoRoot 'go')
 try {
   Invoke-Checked $env:HVAC_STUDIO_GO @('test', './...')
 } finally {

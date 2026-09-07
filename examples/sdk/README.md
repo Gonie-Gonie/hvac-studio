@@ -55,9 +55,9 @@ so each worker owns a persistent serve process.
 Run it from the repository root:
 
 ```powershell
-Push-Location .\tools\go
-Get-Content -Encoding UTF8 ..\..\examples\sdk\serve-requests.jsonl |
-  go run .\cmd\bcs-runner serve --project ..\..\examples\001_scalar_component\project.bcsproj
+Push-Location .\go
+Get-Content -Encoding UTF8 ..\examples\sdk\serve-requests.jsonl |
+  go run .\cmd\bcs-runner serve --project ..\examples\001_scalar_component\project.bcsproj
 Pop-Location
 ```
 
@@ -80,7 +80,7 @@ Reusable protocol schemas live at:
 root:
 
 ```powershell
-Push-Location .\tools\go
-python ..\..\examples\sdk\raw_serve_subprocess.py go run .\cmd\bcs-runner
+Push-Location .\go
+python ..\examples\sdk\raw_serve_subprocess.py go run .\cmd\bcs-runner
 Pop-Location
 ```

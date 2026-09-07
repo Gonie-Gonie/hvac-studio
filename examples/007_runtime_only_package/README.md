@@ -15,11 +15,11 @@ The `model/` folder is a runnable project and participates in the example smoke 
 Run the model from the repo:
 
 ```powershell
-Push-Location .\tools\go
+Push-Location .\go
 go run .\cmd\bcs-runner validate `
-  --project ..\..\examples\007_runtime_only_package\model\project.bcsproj
+  --project ..\examples\007_runtime_only_package\model\project.bcsproj
 go run .\cmd\bcs-runner run `
-  --project ..\..\examples\007_runtime_only_package\model\project.bcsproj `
-  --input ..\..\examples\007_runtime_only_package\model\inputs\case01.json
+  --project ..\examples\007_runtime_only_package\model\project.bcsproj `
+  --input ..\examples\007_runtime_only_package\model\inputs\case01.json
 Pop-Location
 ```

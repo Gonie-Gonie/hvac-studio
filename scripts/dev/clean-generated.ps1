@@ -5,282 +5,178 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+$RepoPrefix = $RepoRoot.TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
 $Targets = @(
-  'artifacts',
-  'bin',
-  'dist\build',
-  'dist\docs',
-  '.repo_tools\logs',
-  '.repo_tools\release-build',
-  '.repo_tools\smoke',
-  '.repo_tools\studio-live',
-  '.repo_tools\python\.temp',
-  '.tmp'
+  '.tmp', 'artifacts', 'bin', 'build', 'out', 'logs', 'outputs\generated',
+  'runtime\python', 'runtime\packages', '.toolchain\python\.temp',
+  '.pytest_cache', '.mypy_cache', '.ruff_cache', '.coverage', 'coverage.out'
 )
-
-$CacheTargets = @(
-  '.repo_tools\downloads',
-  '.repo_tools\go-cache',
-  '.repo_tools\uv-cache',
-  '.repo_tools\uv-tools'
-)
-
-$EmptyGeneratedDirectories = @(
-  'app\studio',
-  'app',
-  'examples\006_optimization_case\parameter_sets'
-)
-
-$PythonCacheRoots = @(
-  'docs',
-  'examples',
-  'python',
-  'runtime',
-  'schema',
-  'scripts',
-  'templates',
-  'tests',
-  'tools'
-)
-
-function Write-InventorySection {
-  param(
-    [Parameter(Mandatory = $true)][string]$Title,
-    [Parameter(Mandatory = $true)][string[]]$Items
-  )
-
-  Write-Host $Title
-  foreach ($Item in $Items) {
-    Write-Host "  - $Item"
-  }
-}
+$CacheTargets = @('.cache')
+$SourceRoots = @('docs', 'examples', 'go', 'python', 'schema', 'scripts', 'templates', 'tests')
+$PythonPackages = @('python\bcs_sdk', 'python\bcs_worker')
+$CleanupTargets = New-Object 'System.Collections.Generic.List[string]'
 
 function Resolve-RepoTarget {
   param([Parameter(Mandatory = $true)][string]$RelativePath)
 
-  $Target = Join-Path $RepoRoot $RelativePath
-  $Resolved = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Target)
-  if (-not $Resolved.StartsWith($RepoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+  $Target = $RelativePath
+  if (-not [IO.Path]::IsPathRooted($Target)) { $Target = Join-Path $RepoRoot $Target }
+  $Resolved = [IO.Path]::GetFullPath($Target)
+  if (-not $Resolved.StartsWith($RepoPrefix, [StringComparison]::OrdinalIgnoreCase)) {
     throw "refusing cleanup outside repo: $Resolved"
   }
   return $Resolved
 }
 
-function ConvertTo-RepoRelative {
+function Assert-NoReparseAncestors {
   param([Parameter(Mandatory = $true)][string]$Path)
 
-  if ($Path.Length -eq $RepoRoot.Length) {
-    return '.'
+  $Current = Resolve-RepoTarget -RelativePath $Path
+  while ($Current.Length -gt $RepoRoot.Length) {
+    if (Test-Path -LiteralPath $Current) {
+      $Item = Get-Item -LiteralPath $Current -Force
+      if ($Item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+        throw "refusing cleanup through reparse point: $Current"
+      }
+    }
+    $Current = Split-Path -Parent $Current
   }
-  return $Path.Substring($RepoRoot.Length).TrimStart(
-    [System.IO.Path]::DirectorySeparatorChar,
-    [System.IO.Path]::AltDirectorySeparatorChar
-  )
+}
+
+function Assert-NoReparseTree {
+  param([Parameter(Mandatory = $true)][string]$Path)
+
+  Assert-NoReparseAncestors -Path $Path
+  if (-not (Test-Path -LiteralPath $Path -PathType Container)) { return }
+  $Pending = New-Object 'System.Collections.Generic.Stack[string]'
+  $Pending.Push($Path)
+  while ($Pending.Count -gt 0) {
+    foreach ($Child in @(Get-ChildItem -LiteralPath $Pending.Pop() -Force)) {
+      if ($Child.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+        throw "refusing cleanup of a tree with reparse point: $($Child.FullName)"
+      }
+      if ($Child.PSIsContainer) { $Pending.Push($Child.FullName) }
+    }
+  }
+}
+
+function Add-CleanupTarget {
+  param([Parameter(Mandatory = $true)][string]$RelativePath)
+
+  $Resolved = Resolve-RepoTarget -RelativePath $RelativePath
+  # Check parents even for absent targets: an external junction must never be traversed.
+  Assert-NoReparseAncestors -Path $Resolved
+  if (-not (Test-Path -LiteralPath $Resolved)) { return }
+  foreach ($Existing in $CleanupTargets) {
+    if ($Resolved -eq $Existing -or $Resolved.StartsWith(($Existing + [IO.Path]::DirectorySeparatorChar), [StringComparison]::OrdinalIgnoreCase)) {
+      return
+    }
+  }
+  $CleanupTargets.Add($Resolved)
 }
 
 if ($Inventory) {
-  Write-Host "cleanup inventory for $RepoRoot"
-  Write-Host ''
-  Write-InventorySection -Title 'Generated paths removed by default:' -Items $Targets
-  Write-Host ''
-  Write-InventorySection -Title 'Repo-local caches removed only with -Caches:' -Items $CacheTargets
-  Write-Host ''
-  Write-InventorySection -Title 'Empty generated directories removed only when empty:' -Items $EmptyGeneratedDirectories
-  Write-Host ''
-  Write-InventorySection -Title 'Python cache/build scan roots:' -Items $PythonCacheRoots
-  Write-Host ''
-  Write-Host 'Final package zip files under dist\ are preserved.'
-  exit 0
+  Write-Host 'Generated paths removed by default:'
+  $Targets | ForEach-Object { Write-Host "  - $_" }
+  Write-Host '  - dist/* except dist/latest/ (the ready-to-run portable build)'
+  Write-Host '  - Python bytecode and tool caches in source directories'
+  Write-Host '  - Python package build/dist/*.egg-info directories'
+  Write-Host '  - examples/*/runs and empty legacy app directories'
+  Write-Host 'Pass -Caches to remove .cache/ (Go, uv, and downloaded archives).'
+  Write-Host 'Preserved: .toolchain/, .venv/, dist/latest/, user projects, fixtures, and golden outputs.'
+  return
 }
 
-$Removed = New-Object System.Collections.Generic.List[string]
-$Skipped = New-Object System.Collections.Generic.List[string]
-$RemovedCaches = New-Object System.Collections.Generic.List[string]
-$SkippedCaches = New-Object System.Collections.Generic.List[string]
-$RemovedPythonCaches = New-Object System.Collections.Generic.List[string]
-$RemovedPythonBuildArtifacts = New-Object System.Collections.Generic.List[string]
-$RemovedEmptyGeneratedDirectories = New-Object System.Collections.Generic.List[string]
-$SkippedNonEmptyGeneratedDirectories = New-Object System.Collections.Generic.List[string]
-$PlannedEmptyGeneratedDirectoryRemovals = New-Object System.Collections.Generic.List[string]
-
-foreach ($RelativePath in $Targets) {
-  $Resolved = Resolve-RepoTarget -RelativePath $RelativePath
-  if (-not (Test-Path -LiteralPath $Resolved)) {
-    $Skipped.Add($RelativePath)
-    continue
-  }
-
-  if ($DryRun) {
-    $Removed.Add("$RelativePath (dry run)")
-    continue
-  }
-
-  Remove-Item -LiteralPath $Resolved -Recurse -Force
-  $Removed.Add($RelativePath)
-}
-
+foreach ($RelativePath in $Targets) { Add-CleanupTarget -RelativePath $RelativePath }
 if ($Caches) {
-  foreach ($RelativePath in $CacheTargets) {
-    $Resolved = Resolve-RepoTarget -RelativePath $RelativePath
-    if (-not (Test-Path -LiteralPath $Resolved)) {
-      $SkippedCaches.Add($RelativePath)
-      continue
+  foreach ($RelativePath in $CacheTargets) { Add-CleanupTarget -RelativePath $RelativePath }
+}
+
+# Keep the whole portable directory, including any user projects saved beside the executable.
+$DistRoot = Resolve-RepoTarget -RelativePath 'dist'
+Assert-NoReparseAncestors -Path $DistRoot
+if (Test-Path -LiteralPath $DistRoot -PathType Container) {
+  foreach ($Child in @(Get-ChildItem -LiteralPath $DistRoot -Force)) {
+    if ($Child.Name -ne 'latest') { Add-CleanupTarget -RelativePath $Child.FullName }
+  }
+}
+
+# Walk source directories without following junctions or symbolic links.
+foreach ($RelativePath in $SourceRoots) {
+  $SourceRoot = Resolve-RepoTarget -RelativePath $RelativePath
+  Assert-NoReparseAncestors -Path $SourceRoot
+  if (-not (Test-Path -LiteralPath $SourceRoot -PathType Container)) { continue }
+  $Pending = New-Object 'System.Collections.Generic.Stack[string]'
+  $Pending.Push($SourceRoot)
+  while ($Pending.Count -gt 0) {
+    foreach ($Child in @(Get-ChildItem -LiteralPath $Pending.Pop() -Force)) {
+      if ($Child.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
+      if ($Child.PSIsContainer) {
+        if ($Child.Name -in @('__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache')) {
+          Add-CleanupTarget -RelativePath $Child.FullName
+        } else {
+          $Pending.Push($Child.FullName)
+        }
+      } elseif ($Child.Extension -in @('.pyc', '.pyo')) {
+        Add-CleanupTarget -RelativePath $Child.FullName
+      }
     }
+  }
+}
 
-    if ($DryRun) {
-      $RemovedCaches.Add("$RelativePath (dry run)")
-      continue
+# Restrict packaging cleanup to package roots, never arbitrary fixture folders named build.
+foreach ($RelativePath in $PythonPackages) {
+  $PackageRoot = Resolve-RepoTarget -RelativePath $RelativePath
+  Assert-NoReparseAncestors -Path $PackageRoot
+  if (-not (Test-Path -LiteralPath $PackageRoot -PathType Container)) { continue }
+  foreach ($Child in @(Get-ChildItem -LiteralPath $PackageRoot -Directory -Force)) {
+    if ($Child.Name -in @('build', 'dist') -or $Child.Name.EndsWith('.egg-info', [StringComparison]::OrdinalIgnoreCase)) {
+      Add-CleanupTarget -RelativePath $Child.FullName
     }
-
-    Remove-Item -LiteralPath $Resolved -Recurse -Force
-    $RemovedCaches.Add($RelativePath)
   }
 }
 
-foreach ($RelativePath in $EmptyGeneratedDirectories) {
-  $Resolved = Resolve-RepoTarget -RelativePath $RelativePath
-  if (-not (Test-Path -LiteralPath $Resolved -PathType Container)) {
-    $Skipped.Add($RelativePath)
-    continue
+$ExamplesRoot = Resolve-RepoTarget -RelativePath 'examples'
+if (Test-Path -LiteralPath $ExamplesRoot -PathType Container) {
+  foreach ($Example in @(Get-ChildItem -LiteralPath $ExamplesRoot -Directory -Force)) {
+    if ($Example.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
+    Add-CleanupTarget -RelativePath (Join-Path $Example.FullName 'runs')
   }
+}
 
-  $Children = @(Get-ChildItem -LiteralPath $Resolved -Force -ErrorAction SilentlyContinue)
-  $BlockingChildren = @($Children | Where-Object {
-      $ChildRelativePath = ConvertTo-RepoRelative -Path $_.FullName
-      -not $PlannedEmptyGeneratedDirectoryRemovals.Contains($ChildRelativePath)
-    })
-  if ($BlockingChildren.Count -gt 0) {
-    $SkippedNonEmptyGeneratedDirectories.Add($RelativePath)
-    continue
-  }
-
-  $PlannedEmptyGeneratedDirectoryRemovals.Add($RelativePath)
+# Validate every tree before the first deletion so unsafe targets cannot cause partial cleanup.
+foreach ($Path in $CleanupTargets) { Assert-NoReparseTree -Path $Path }
+foreach ($Path in $CleanupTargets) {
+  $RelativePath = $Path.Substring($RepoPrefix.Length)
   if ($DryRun) {
-    $RemovedEmptyGeneratedDirectories.Add("$RelativePath (dry run)")
-    continue
-  }
-
-  Remove-Item -LiteralPath $Resolved -Force
-  $RemovedEmptyGeneratedDirectories.Add($RelativePath)
-}
-
-$PythonCaches = New-Object System.Collections.Generic.List[object]
-foreach ($RelativePath in $PythonCacheRoots) {
-  $ResolvedRoot = Resolve-RepoTarget -RelativePath $RelativePath
-  if (-not (Test-Path -LiteralPath $ResolvedRoot -PathType Container)) {
-    continue
-  }
-  Get-ChildItem -LiteralPath $ResolvedRoot -Recurse -Directory -Filter '__pycache__' -ErrorAction SilentlyContinue |
-    ForEach-Object { $PythonCaches.Add($_) }
-}
-foreach ($PythonCache in $PythonCaches) {
-  $Resolved = (Resolve-Path -LiteralPath $PythonCache.FullName).Path
-  if (-not $Resolved.StartsWith($RepoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw "refusing cleanup outside repo: $Resolved"
-  }
-
-  $RelativePath = ConvertTo-RepoRelative -Path $Resolved
-  if ($DryRun) {
-    $RemovedPythonCaches.Add("$RelativePath (dry run)")
-    continue
-  }
-
-  Remove-Item -LiteralPath $Resolved -Recurse -Force
-  $RemovedPythonCaches.Add($RelativePath)
-}
-
-$PythonRoot = Join-Path $RepoRoot 'python'
-if (Test-Path -LiteralPath $PythonRoot) {
-  $PythonBuildArtifacts = @(Get-ChildItem -LiteralPath $PythonRoot -Recurse -Directory -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -eq 'build' -or $_.Name.EndsWith('.egg-info', [System.StringComparison]::OrdinalIgnoreCase) } |
-    Sort-Object FullName)
-  foreach ($PythonBuildArtifact in $PythonBuildArtifacts) {
-    $Resolved = (Resolve-Path -LiteralPath $PythonBuildArtifact.FullName).Path
-    if (-not $Resolved.StartsWith($RepoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-      throw "refusing cleanup outside repo: $Resolved"
-    }
-
-    $RelativePath = ConvertTo-RepoRelative -Path $Resolved
-    if ($DryRun) {
-      $RemovedPythonBuildArtifacts.Add("$RelativePath (dry run)")
-      continue
-    }
-
-    Remove-Item -LiteralPath $Resolved -Recurse -Force
-    $RemovedPythonBuildArtifacts.Add($RelativePath)
-  }
-}
-
-if ($Removed.Count -gt 0) {
-  if ($DryRun) {
-    Write-Host "would remove generated paths: $($Removed -join ', ')"
+    Write-Host "would remove: $RelativePath"
   } else {
-    Write-Host "removed generated paths: $($Removed -join ', ')"
+    Remove-Item -LiteralPath $Path -Recurse -Force
+    Write-Host "removed: $RelativePath"
   }
-} else {
-  Write-Host 'no generated paths to remove'
 }
 
-if ($RemovedPythonCaches.Count -gt 0) {
+$EmptyDirectories = @(
+  'app\studio', 'app', 'examples\006_optimization_case\parameter_sets',
+  'docs\adr', 'docs\maintainer', 'docs\user\assets\tutorials', 'docs\user\assets'
+)
+$EmptyPlanned = New-Object 'System.Collections.Generic.List[string]'
+foreach ($RelativePath in $EmptyDirectories) {
+  $Path = Resolve-RepoTarget -RelativePath $RelativePath
+  Assert-NoReparseAncestors -Path $Path
+  if (-not (Test-Path -LiteralPath $Path -PathType Container)) { continue }
+  $Remaining = @(Get-ChildItem -LiteralPath $Path -Force | Where-Object { -not $EmptyPlanned.Contains($_.FullName) })
+  if ($Remaining.Count -gt 0) { continue }
+  $EmptyPlanned.Add($Path)
   if ($DryRun) {
-    Write-Host "would remove Python cache directories: $($RemovedPythonCaches.Count)"
+    Write-Host "would remove empty directory: $RelativePath"
   } else {
-    Write-Host "removed Python cache directories: $($RemovedPythonCaches.Count)"
-  }
-} else {
-  Write-Host 'no Python cache directories to remove'
-}
-
-if ($RemovedCaches.Count -gt 0) {
-  if ($DryRun) {
-    Write-Host "would remove repo-local caches: $($RemovedCaches -join ', ')"
-  } else {
-    Write-Host "removed repo-local caches: $($RemovedCaches -join ', ')"
-  }
-} elseif ($Caches) {
-  Write-Host 'no repo-local caches to remove'
-} else {
-  Write-Host 'preserved repo-local caches; pass -Caches to remove downloads, Go cache, uv cache, and uv tool storage'
-}
-
-if ($RemovedPythonBuildArtifacts.Count -gt 0) {
-  if ($DryRun) {
-    Write-Host "would remove Python build artifacts: $($RemovedPythonBuildArtifacts.Count)"
-  } else {
-    Write-Host "removed Python build artifacts: $($RemovedPythonBuildArtifacts.Count)"
-  }
-} else {
-  Write-Host 'no Python build artifacts to remove'
-}
-
-if ($RemovedEmptyGeneratedDirectories.Count -gt 0) {
-  if ($DryRun) {
-    Write-Host "would remove empty generated directories: $($RemovedEmptyGeneratedDirectories -join ', ')"
-  } else {
-    Write-Host "removed empty generated directories: $($RemovedEmptyGeneratedDirectories -join ', ')"
-  }
-} else {
-  Write-Host 'no empty generated directories to remove'
-}
-
-if ($SkippedNonEmptyGeneratedDirectories.Count -gt 0) {
-  Write-Host "preserved non-empty generated directories: $($SkippedNonEmptyGeneratedDirectories -join ', ')"
-}
-
-if ($Skipped.Count -gt 0) {
-  Write-Host "already clean: $($Skipped -join ', ')"
-}
-
-if ($Caches -and $SkippedCaches.Count -gt 0) {
-  Write-Host "already clean caches: $($SkippedCaches -join ', ')"
-}
-
-$DistRoot = Join-Path $RepoRoot 'dist'
-if (Test-Path -LiteralPath $DistRoot) {
-  $ZipFiles = @(Get-ChildItem -LiteralPath $DistRoot -File -Filter '*.zip' | Sort-Object Name)
-  if ($ZipFiles.Count -gt 0) {
-    Write-Host "preserved dist zip artifacts: $($ZipFiles.Name -join ', ')"
+    Remove-Item -LiteralPath $Path -Force
+    Write-Host "removed empty directory: $RelativePath"
   }
 }
+
+if ($CleanupTargets.Count -eq 0 -and $EmptyPlanned.Count -eq 0) { Write-Host 'no generated files to remove' }
+if (-not $Caches) { Write-Host 'preserved .cache/; pass -Caches to remove disposable caches' }
+Write-Host 'preserved .toolchain/, .venv/, dist/latest/, user projects, fixtures, and golden outputs'

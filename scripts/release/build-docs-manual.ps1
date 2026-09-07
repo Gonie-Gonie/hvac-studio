@@ -10,7 +10,7 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 
 $ResolvedVersion = Resolve-Version -Version $Version
 if (-not $OutputRoot) {
-  $OutputRoot = Join-Path $RepoRoot 'dist\docs\manual'
+  $OutputRoot = Join-Path $RepoRoot '.tmp\docs\manual'
 }
 
 New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
@@ -20,37 +20,22 @@ $StatusPath = Join-Path $OutputRoot 'manual-build.json'
 
 $Sources = @(
   'docs\index.md',
-  'docs\status.md',
-  'docs\user\index.md',
   'docs\user\quick-start.md',
-  'docs\user\tutorials.md',
-  'docs\user\examples.md',
-  'docs\user\core-concepts.md',
-  'docs\user\concept-map.md',
-  'docs\user\how-it-works.md',
-  'docs\user\glossary.md',
-  'docs\user\create-component.md',
-  'docs\user\edit-python-function.md',
-  'docs\user\build-system.md',
-  'docs\user\parameter-management.md',
-  'docs\user\model-replacement.md',
-  'docs\user\ml-ann-component.md',
-  'docs\user\external-executables.md',
-  'docs\user\run-simulation.md',
-  'docs\user\data-validation.md',
-  'docs\user\calibration.md',
-  'docs\user\optimization.md',
+  'docs\user\modeling.md',
+  'docs\user\workflows.md',
   'docs\user\export-runtime.md',
-  'docs\user\artifact-compatibility.md',
+  'docs\user\examples.md',
   'docs\user\troubleshooting.md',
-  'docs\user\python-sdk.md',
   'docs\user\cli-runner.md',
+  'docs\user\python-sdk.md',
   'docs\user\external-engine-protocol.md',
-  'docs\maintainer\release-trust.md',
+  'docs\development.md',
+  'docs\architecture.md',
+  'docs\release.md',
   'docs\legal\support-matrix.md',
-  'docs\legal\release-notes-policy.md',
   'docs\legal\license-notices.md',
-  'docs\legal\dependency-notices.md'
+  'docs\legal\dependency-notices.md',
+  'docs\legal\release-notes-policy.md'
 )
 
 $Lines = @(
@@ -232,8 +217,8 @@ if ($null -ne $Pandoc) {
 [ordered]@{
   schema = 'hvac-studio.manual-build.v1'
   version = $ResolvedVersion
-  markdown = $ManualPath
-  pdf = $PdfPath
+  markdown = 'hvac-studio-manual.md'
+  pdf = 'hvac-studio-manual.pdf'
   pdf_status = $PdfStatus
   pdf_reason = $PdfReason
 } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $StatusPath -Encoding UTF8

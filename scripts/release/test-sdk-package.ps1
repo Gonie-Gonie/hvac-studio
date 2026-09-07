@@ -48,7 +48,7 @@ function Expand-WheelForImport {
   )
 
   New-Item -ItemType Directory -Force -Path $Destination | Out-Null
-  $TemporaryZip = Join-Path ([IO.Path]::GetTempPath()) ("hvac-studio-wheel-$([Guid]::NewGuid().ToString('N')).zip")
+  $TemporaryZip = Join-Path $env:HVAC_STUDIO_TMP ("hvac-studio-wheel-$([Guid]::NewGuid().ToString('N')).zip")
   try {
     Copy-Item -LiteralPath $WheelPath -Destination $TemporaryZip -Force
     Expand-Archive -LiteralPath $TemporaryZip -DestinationPath $Destination -Force

@@ -10,6 +10,6 @@ iteration internally. The runner still executes the system as a normal DAG.
 Run it from the repo root:
 
 ```powershell
-cd tools/go
-go run ./cmd/bcs-runner run --project ../../examples/011_solver_boundary_component/project.bcsproj --input ../../examples/011_solver_boundary_component/inputs/case01.json
+cd go
+go run ./cmd/bcs-runner run --project ../examples/011_solver_boundary_component/project.bcsproj --input ../examples/011_solver_boundary_component/inputs/case01.json
 ```

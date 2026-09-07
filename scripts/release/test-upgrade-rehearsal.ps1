@@ -13,7 +13,7 @@ if (-not $env:HVAC_STUDIO_GO) {
   throw 'go was not found. Run scripts/dev/setup.ps1 first.'
 }
 if (-not $env:HVAC_STUDIO_TEST_ROOT) {
-  $env:HVAC_STUDIO_TEST_ROOT = Join-Path $RepoRoot 'artifacts\package-tests'
+  $env:HVAC_STUDIO_TEST_ROOT = Join-Path $RepoRoot '.tmp\package-tests'
 }
 
 function Set-SchemaVersion {
@@ -32,7 +32,7 @@ function Set-SchemaVersion {
 function Invoke-Runner {
   param([Parameter(Mandatory = $true)][string[]]$Arguments)
 
-  Push-Location (Join-Path $RepoRoot 'tools\go')
+  Push-Location (Join-Path $RepoRoot 'go')
   try {
     Invoke-Checked -FilePath $env:HVAC_STUDIO_GO -Arguments (@('run', '.\cmd\bcs-runner') + $Arguments)
   } finally {

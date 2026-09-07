@@ -10,11 +10,11 @@ This example shows the minimum ML-backed component workflow:
 Run it with:
 
 ```powershell
-Push-Location .\tools\go
+Push-Location .\go
 go run .\cmd\bcs-runner validate `
-  --project ..\..\examples\014_ahu_state_ann\project.bcsproj
+  --project ..\examples\014_ahu_state_ann\project.bcsproj
 go run .\cmd\bcs-runner run `
-  --project ..\..\examples\014_ahu_state_ann\project.bcsproj `
-  --input ..\..\examples\014_ahu_state_ann\inputs\case01.json
+  --project ..\examples\014_ahu_state_ann\project.bcsproj `
+  --input ..\examples\014_ahu_state_ann\inputs\case01.json
 Pop-Location
 ```

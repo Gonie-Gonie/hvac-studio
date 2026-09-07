@@ -7,13 +7,13 @@ if (-not $env:HVAC_STUDIO_GO) {
 }
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$SmokeRoot = Join-Path $RepoRoot 'dist\build\latest\studio'
+$SmokeRoot = Join-Path $RepoRoot '.tmp\studio-smoke'
 $StudioExe = Join-Path $SmokeRoot 'hvac-studio.exe'
 
 Remove-Item -LiteralPath $SmokeRoot -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $SmokeRoot | Out-Null
 
-Push-Location (Join-Path $RepoRoot 'tools\go')
+Push-Location (Join-Path $RepoRoot 'go')
 try {
   Invoke-Checked $env:HVAC_STUDIO_GO @('test', '.\internal\studio', '.\cmd\studio')
   Invoke-Checked $env:HVAC_STUDIO_GO @('build', '-tags', 'desktop,production', '-ldflags', '-w -s -H=windowsgui', '-o', $StudioExe, '.\cmd\studio')

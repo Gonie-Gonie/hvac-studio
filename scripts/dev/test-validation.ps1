@@ -72,7 +72,7 @@ foreach ($Case in $Cases) {
   $Result = Invoke-CapturedProcess `
     -FilePath $env:HVAC_STUDIO_GO `
     -Arguments @('run', '.\cmd\bcs-runner', 'validate', '--project', $Project) `
-    -WorkingDirectory (Join-Path $RepoRoot 'tools\go')
+    -WorkingDirectory (Join-Path $RepoRoot 'go')
 
   $ExpectedExitCode = [int]((Get-Content -Raw -LiteralPath $ExpectedExitCodePath).Trim())
   if ($Result.ExitCode -ne $ExpectedExitCode) {

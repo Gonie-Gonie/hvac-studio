@@ -12,12 +12,12 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 
 $ResolvedVersion = Resolve-Version -Version $Version
 $RuntimeId = 'windows-amd64'
-$PortableZip = Join-Path $RepoRoot "dist\hvac-studio-$ResolvedVersion-$RuntimeId-portable.zip"
-$InstallerZip = Join-Path $RepoRoot "dist\hvac-studio-$ResolvedVersion-$RuntimeId-installer.zip"
-$RuntimeZip = Join-Path $RepoRoot "dist\hvac-studio-runtime-$ResolvedVersion-$RuntimeId.zip"
-$MacOSZip = Join-Path $RepoRoot "dist\hvac-studio-$ResolvedVersion-macos-universal-experimental.zip"
-$DocsZip = Join-Path $RepoRoot "dist\hvac-studio-docs-$ResolvedVersion.zip"
-$SdkZip = Join-Path $RepoRoot "dist\hvac-studio-sdk-$ResolvedVersion.zip"
+$PortableZip = Join-Path $RepoRoot "dist\releases\hvac-studio-$ResolvedVersion-$RuntimeId-portable.zip"
+$InstallerZip = Join-Path $RepoRoot "dist\releases\hvac-studio-$ResolvedVersion-$RuntimeId-installer.zip"
+$RuntimeZip = Join-Path $RepoRoot "dist\releases\hvac-studio-runtime-$ResolvedVersion-$RuntimeId.zip"
+$MacOSZip = Join-Path $RepoRoot "dist\releases\hvac-studio-$ResolvedVersion-macos-universal-experimental.zip"
+$DocsZip = Join-Path $RepoRoot "dist\releases\hvac-studio-docs-$ResolvedVersion.zip"
+$SdkZip = Join-Path $RepoRoot "dist\releases\hvac-studio-sdk-$ResolvedVersion.zip"
 
 function Invoke-ReleaseStep {
   param(

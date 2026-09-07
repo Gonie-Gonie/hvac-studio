@@ -10,17 +10,19 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.tmp/
-.repo_tools/
 .venv/
 venv/
 .bcs_env/
 *.egg-info/
-dist/
 build/
 
+# Local development tools, disposable files, and the latest build
+/.toolchain/
+/.cache/
+/.tmp/
+/dist/
+
 # Go
-.cache/
 *.exe
 *.test
 coverage.out

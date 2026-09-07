@@ -15,20 +15,20 @@ It is intentionally small enough to inspect in Studio while still showing the ma
 Run it with:
 
 ```powershell
-Push-Location .\tools\go
+Push-Location .\go
 go run .\cmd\bcs-runner validate `
-  --project ..\..\examples\005_chiller_plant_like_system\project.bcsproj
+  --project ..\examples\005_chiller_plant_like_system\project.bcsproj
 go run .\cmd\bcs-runner run `
-  --project ..\..\examples\005_chiller_plant_like_system\project.bcsproj `
-  --input ..\..\examples\005_chiller_plant_like_system\inputs\case01.json
+  --project ..\examples\005_chiller_plant_like_system\project.bcsproj `
+  --input ..\examples\005_chiller_plant_like_system\inputs\case01.json
 go run .\cmd\bcs-runner validate-data `
-  --project ..\..\examples\005_chiller_plant_like_system\project.bcsproj `
+  --project ..\examples\005_chiller_plant_like_system\project.bcsproj `
   --mapping validation\mappings\plant_validation.json `
-  --output ..\..\artifacts\plant-validation.json
+  --output ..\.tmp\examples\plant-validation.json
 go run .\cmd\bcs-runner calibrate `
-  --project ..\..\examples\005_chiller_plant_like_system\project.bcsproj `
+  --project ..\examples\005_chiller_plant_like_system\project.bcsproj `
   --setup calibration\setups\chiller_cop_grid.json `
-  --output ..\..\artifacts\plant-calibration.json
+  --output ..\.tmp\examples\plant-calibration.json
 Pop-Location
 ```
 

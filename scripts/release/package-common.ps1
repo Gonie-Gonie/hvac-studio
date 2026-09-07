@@ -27,15 +27,27 @@ function Copy-TreeDirectory {
   )
 
   New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+  $RepositorySource = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
+  $PythonPackageRoots = @(
+    (Join-Path $RepositorySource 'python\bcs_worker'),
+    (Join-Path $RepositorySource 'python\bcs_sdk')
+  )
   foreach ($Child in Get-ChildItem -LiteralPath $Source -Force) {
     if ($Child.PSIsContainer) {
-      if ($Child.Name -eq '__pycache__') {
+      if ($Child.Name -in @('__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache')) {
+        continue
+      }
+      if ($Source -in $PythonPackageRoots -and ($Child.Name -in @('build', 'dist') -or
+          $Child.Name.EndsWith('.egg-info', [StringComparison]::OrdinalIgnoreCase))) {
+        continue
+      }
+      if ($Child.Name -eq 'runs' -and (Split-Path -Parent $Source) -eq (Join-Path $RepositorySource 'examples')) {
         continue
       }
       Copy-TreeDirectory -Source $Child.FullName -Destination (Join-Path $Destination $Child.Name)
       continue
     }
-    if ($Child.Name -like '*.pyc*' -or $Child.Name -like '*.pyo*') {
+    if ($Child.Extension -in @('.pyc', '.pyo')) {
       continue
     }
     Copy-Item -LiteralPath $Child.FullName -Destination (Join-Path $Destination $Child.Name) -Force
@@ -46,6 +58,9 @@ function Resolve-Version {
   param([string]$Version)
 
   if ($Version) {
+    if ($Version -notmatch '^[A-Za-z0-9][A-Za-z0-9.+_-]*$') {
+      throw 'version may contain only letters, numbers, dots, plus signs, underscores, and hyphens'
+    }
     return $Version
   }
 
@@ -94,7 +109,7 @@ function Resolve-PythonRuntimeSource {
     }
   }
 
-  $PythonInstallRoot = Join-Path $RepoRoot '.repo_tools\python'
+  $PythonInstallRoot = Join-Path $RepoRoot '.toolchain\python'
   if (Test-Path -LiteralPath $PythonInstallRoot) {
     $Candidates = Get-ChildItem -LiteralPath $PythonInstallRoot -Directory |
       Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'python.exe') } |
@@ -601,17 +616,13 @@ function New-PackageTestRoot {
   if ($env:HVAC_STUDIO_TEST_ROOT) {
     $Candidates += $env:HVAC_STUDIO_TEST_ROOT
   }
-  $Candidates += 'C:\tmp'
-  $Candidates += [IO.Path]::GetTempPath()
-  try {
-    $Candidates += (Join-Path (Resolve-Path -LiteralPath '.').Path 'artifacts\package-tests')
-  } catch {
-  }
+  $RepositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
+  $Candidates += (Join-Path $RepositoryRoot '.tmp\pkg')
 
   foreach ($Base in @($Candidates | Where-Object { $_ } | Select-Object -Unique)) {
     try {
       New-Item -ItemType Directory -Force -Path $Base | Out-Null
-      $Root = Join-Path $Base ($Prefix + '-' + [Guid]::NewGuid().ToString('N'))
+      $Root = Join-Path $Base ([Guid]::NewGuid().ToString('N').Substring(0, 8))
       New-Item -ItemType Directory -Force -Path $Root | Out-Null
       return $Root
     } catch {

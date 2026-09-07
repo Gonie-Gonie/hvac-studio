@@ -7,8 +7,8 @@ worker call.
 Run it from the repo root:
 
 ```powershell
-cd tools/go
-go run ./cmd/bcs-runner run --project ../../examples/009_vectorized_component/project.bcsproj --input ../../examples/009_vectorized_component/inputs/case01.json
+cd go
+go run ./cmd/bcs-runner run --project ../examples/009_vectorized_component/project.bcsproj --input ../examples/009_vectorized_component/inputs/case01.json
 ```
 
 Expected public output:

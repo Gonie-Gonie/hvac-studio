@@ -21,19 +21,12 @@ $SurfaceRoots = @(
   'README.md',
   'CHANGELOG.md',
   'mkdocs.yml',
-  'docs\index.md',
-  'docs\maintainer\release.md',
-  'docs\maintainer\release-trust.md',
-  'docs\maintainer\setup.md',
-  'docs\status.md',
-  'docs\user',
-  'docs\legal',
+  'docs',
   'examples',
   'templates\README.md',
-  'runtime',
   'scripts\dev',
   'scripts\release',
-  'tools\go\internal\studio\static'
+  'go\internal\studio\static'
 )
 
 $AllowedExtensions = @('.md', '.txt', '.ps1', '.cmd', '.py', '.json', '.html', '.js', '.css', '.yml', '.yaml')

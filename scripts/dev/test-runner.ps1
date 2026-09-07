@@ -9,9 +9,9 @@ if (-not $env:HVAC_STUDIO_GO) {
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 $Project = Join-Path $RepoRoot 'examples\001_scalar_component\project.bcsproj'
 $Input = Join-Path $RepoRoot 'examples\001_scalar_component\inputs\case01.json'
-$Output = Join-Path ([IO.Path]::GetTempPath()) 'bcs-runner-001-output.json'
+$Output = Join-Path $env:HVAC_STUDIO_TMP 'bcs-runner-001-output.json'
 
-Push-Location (Join-Path $RepoRoot 'tools\go')
+Push-Location (Join-Path $RepoRoot 'go')
 try {
   Invoke-Checked $env:HVAC_STUDIO_GO @('run', '.\cmd\bcs-runner', 'validate', '--project', $Project)
   Invoke-Checked $env:HVAC_STUDIO_GO @('run', '.\cmd\bcs-runner', 'run', '--project', $Project, '--input', $Input, '--output', $Output)

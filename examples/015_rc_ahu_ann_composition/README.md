@@ -12,25 +12,27 @@ It is intended to exercise the full practical workflow:
 - calibration tunes a numeric equipment parameter;
 - optimization searches chilled-water setpoint and pump speed.
 
+Run the following commands from the repository's `go/` directory.
+
 Run the default case:
 
 ```powershell
-go run ./cmd/bcs-runner run --project ../../examples/015_rc_ahu_ann_composition/project.bcsproj --input ../../examples/015_rc_ahu_ann_composition/inputs/case01.json
+go run ./cmd/bcs-runner run --project ../examples/015_rc_ahu_ann_composition/project.bcsproj --input ../examples/015_rc_ahu_ann_composition/inputs/case01.json
 ```
 
 Run the workflow checks:
 
 ```powershell
-go run ./cmd/bcs-runner validate-data --project ../../examples/015_rc_ahu_ann_composition/project.bcsproj --mapping validation/mappings/rc_ahu_validation.json
-go run ./cmd/bcs-runner calibrate --project ../../examples/015_rc_ahu_ann_composition/project.bcsproj --setup calibration/setups/chiller_cop_grid.json
-go run ./cmd/bcs-runner optimize --project ../../examples/015_rc_ahu_ann_composition/project.bcsproj --setup optimization/setups/chw_pump_grid.json
+go run ./cmd/bcs-runner validate-data --project ../examples/015_rc_ahu_ann_composition/project.bcsproj --mapping validation/mappings/rc_ahu_validation.json
+go run ./cmd/bcs-runner calibrate --project ../examples/015_rc_ahu_ann_composition/project.bcsproj --setup calibration/setups/chiller_cop_grid.json
+go run ./cmd/bcs-runner optimize --project ../examples/015_rc_ahu_ann_composition/project.bcsproj --setup optimization/setups/chw_pump_grid.json
 ```
 
 Run the SDK example after placing `bcs-runner.exe` on `PATH`, or pass the runner
 path as the first argument:
 
 ```powershell
-python ../../examples/015_rc_ahu_ann_composition/scripts/run_sdk_case.py bcs-runner.exe
+python ../examples/015_rc_ahu_ann_composition/scripts/run_sdk_case.py bcs-runner.exe
 ```
 
 Studio walkthrough:

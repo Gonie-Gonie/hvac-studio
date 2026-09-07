@@ -17,10 +17,10 @@ function Invoke-Example {
   $ExampleName = Split-Path -Leaf $ExampleRoot
   $InputPath = Join-Path $ExampleRoot 'inputs\case01.json'
   $ExpectedPath = Join-Path $ExampleRoot 'expected\output.json'
-  $OutputPath = Join-Path ([IO.Path]::GetTempPath()) "hvac-studio-$ExampleName-output.json"
+  $OutputPath = Join-Path $env:HVAC_STUDIO_TMP "hvac-studio-$ExampleName-output.json"
   $SeriesInputPath = Join-Path $ExampleRoot 'inputs\series01.json'
   $SeriesExpectedPath = Join-Path $ExampleRoot 'expected\series_output.json'
-  $SeriesOutputPath = Join-Path ([IO.Path]::GetTempPath()) "hvac-studio-$ExampleName-series-output.json"
+  $SeriesOutputPath = Join-Path $env:HVAC_STUDIO_TMP "hvac-studio-$ExampleName-series-output.json"
 
   if (-not (Test-Path -LiteralPath $InputPath)) {
     throw "$ExampleName is missing inputs/case01.json"
@@ -30,7 +30,7 @@ function Invoke-Example {
   }
 
   Write-Host "example: $ExampleName"
-  Push-Location (Join-Path $RepoRoot 'tools\go')
+  Push-Location (Join-Path $RepoRoot 'go')
   try {
     Invoke-Checked $env:HVAC_STUDIO_GO @('run', '.\cmd\bcs-runner', 'validate', '--project', $ProjectPath)
     Invoke-Checked $env:HVAC_STUDIO_GO @('run', '.\cmd\bcs-runner', 'run', '--project', $ProjectPath, '--input', $InputPath, '--output', $OutputPath)
@@ -48,7 +48,7 @@ function Invoke-Example {
       throw "$ExampleName is missing expected/series_output.json"
     }
     Write-Host "example series: $ExampleName"
-    Push-Location (Join-Path $RepoRoot 'tools\go')
+    Push-Location (Join-Path $RepoRoot 'go')
     try {
       Invoke-Checked $env:HVAC_STUDIO_GO @('run', '.\cmd\bcs-runner', 'run-series', '--project', $ProjectPath, '--input', $SeriesInputPath, '--output', $SeriesOutputPath)
     } finally {
@@ -77,17 +77,17 @@ function Invoke-WorkflowSmoke {
   $PlantProject = Join-Path $ExamplesRoot '005_chiller_plant_like_system\project.bcsproj'
   $OptimizationProject = Join-Path $ExamplesRoot '006_optimization_case\project.bcsproj'
   $CompositionProject = Join-Path $ExamplesRoot '015_rc_ahu_ann_composition\project.bcsproj'
-  $ValidationOutput = Join-Path ([IO.Path]::GetTempPath()) 'hvac-studio-plant-validation.json'
-  $CalibrationOutput = Join-Path ([IO.Path]::GetTempPath()) 'hvac-studio-plant-calibration.json'
-  $OptimizationOutput = Join-Path ([IO.Path]::GetTempPath()) 'hvac-studio-optimization.json'
-  $ParameterOptimizationOutput = Join-Path ([IO.Path]::GetTempPath()) 'hvac-studio-parameter-optimization.json'
+  $ValidationOutput = Join-Path $env:HVAC_STUDIO_TMP 'hvac-studio-plant-validation.json'
+  $CalibrationOutput = Join-Path $env:HVAC_STUDIO_TMP 'hvac-studio-plant-calibration.json'
+  $OptimizationOutput = Join-Path $env:HVAC_STUDIO_TMP 'hvac-studio-optimization.json'
+  $ParameterOptimizationOutput = Join-Path $env:HVAC_STUDIO_TMP 'hvac-studio-parameter-optimization.json'
   $ParameterOptimizationSet = 'parameter_sets/parameter_credit_grid_smoke.json'
   $ParameterOptimizationSetPath = Join-Path (Split-Path -Parent $OptimizationProject) $ParameterOptimizationSet
-  $CompositionValidationOutput = Join-Path ([IO.Path]::GetTempPath()) 'hvac-studio-composition-validation.json'
-  $CompositionCalibrationOutput = Join-Path ([IO.Path]::GetTempPath()) 'hvac-studio-composition-calibration.json'
-  $CompositionOptimizationOutput = Join-Path ([IO.Path]::GetTempPath()) 'hvac-studio-composition-optimization.json'
+  $CompositionValidationOutput = Join-Path $env:HVAC_STUDIO_TMP 'hvac-studio-composition-validation.json'
+  $CompositionCalibrationOutput = Join-Path $env:HVAC_STUDIO_TMP 'hvac-studio-composition-calibration.json'
+  $CompositionOptimizationOutput = Join-Path $env:HVAC_STUDIO_TMP 'hvac-studio-composition-optimization.json'
 
-  Push-Location (Join-Path $RepoRoot 'tools\go')
+  Push-Location (Join-Path $RepoRoot 'go')
   try {
     Write-Host 'example workflow: plant validation'
     Invoke-Checked $env:HVAC_STUDIO_GO @('run', '.\cmd\bcs-runner', 'validate-data', '--project', $PlantProject, '--mapping', 'validation/mappings/plant_validation.json', '--output', $ValidationOutput)

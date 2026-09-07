@@ -37,8 +37,9 @@ function Invoke-UVBuild {
 
 $ResolvedVersion = Resolve-Version -Version $Version
 $PackageName = "hvac-studio-sdk-$ResolvedVersion"
-$DistRoot = Join-Path $RepoRoot 'dist'
-$StageRoot = Join-Path $DistRoot $PackageName
+$DistRoot = Join-Path $RepoRoot 'dist\releases'
+$StageRoot = Join-Path (Join-Path $RepoRoot '.tmp\package-stage') $PackageName
+New-Item -ItemType Directory -Force -Path $DistRoot | Out-Null
 $ZipPath = Join-Path $DistRoot "$PackageName.zip"
 $WheelRoot = Join-Path $StageRoot 'python\wheels'
 $SdistRoot = Join-Path $StageRoot 'python\sdist'

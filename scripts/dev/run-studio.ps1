@@ -14,7 +14,7 @@ if (-not $env:HVAC_STUDIO_GO) {
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 
-Push-Location (Join-Path $RepoRoot 'tools\go')
+Push-Location (Join-Path $RepoRoot 'go')
 try {
   $StudioArgs = @(
     'run',

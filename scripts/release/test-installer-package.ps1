@@ -10,7 +10,7 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 . (Join-Path $RepoRoot 'scripts\release\package-common.ps1')
 
 if (-not $env:HVAC_STUDIO_TEST_ROOT) {
-  $env:HVAC_STUDIO_TEST_ROOT = Join-Path $RepoRoot 'artifacts\package-tests'
+  $env:HVAC_STUDIO_TEST_ROOT = Join-Path $RepoRoot '.tmp\package-tests'
 }
 
 if (-not $PackagePath) {

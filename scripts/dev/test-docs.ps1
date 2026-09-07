@@ -4,10 +4,10 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '..\release\package-common.ps1')
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$SiteRoot = Join-Path $RepoRoot 'dist\docs\ci-site'
+$SiteRoot = [IO.Path]::GetFullPath((Join-Path $RepoRoot '.tmp\docs\ci-site'))
 
 function Test-StudioHelpLinks {
-  $StaticRoot = Join-Path $RepoRoot 'tools\go\internal\studio\static'
+  $StaticRoot = Join-Path $RepoRoot 'go\internal\studio\static'
   $Files = Get-ChildItem -LiteralPath $StaticRoot -Recurse -File |
     Where-Object { $_.Extension -in @('.html', '.js') }
   $Pattern = [regex]'/docs/user/[A-Za-z0-9._/-]+\.md'
@@ -17,8 +17,7 @@ function Test-StudioHelpLinks {
     $Text = Get-Content -Raw -Encoding UTF8 -LiteralPath $File.FullName
     foreach ($Match in $Pattern.Matches($Text)) {
       $TargetRelative = $Match.Value.TrimStart('/').Replace('/', '\')
-      $Target = Join-Path $RepoRoot $TargetRelative
-      if (-not (Test-Path -LiteralPath $Target)) {
+      if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot $TargetRelative))) {
         $Missing.Add("$($File.FullName): $($Match.Value)")
       }
     }
@@ -27,67 +26,48 @@ function Test-StudioHelpLinks {
   if ($Missing.Count -gt 0) {
     throw "Studio help links reference missing docs:`n$($Missing -join "`n")"
   }
-
   Write-Host 'studio help links ok'
 }
 
-function Test-ManualSourceCoverage {
+function Test-DocumentationCoverage {
   $MkDocsConfig = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $RepoRoot 'mkdocs.yml')
   $ManualScript = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $RepoRoot 'scripts\release\build-docs-manual.ps1')
-  $Pattern = [regex]'user/[A-Za-z0-9._/-]+\.md'
-  $Missing = New-Object System.Collections.Generic.List[string]
-  $Seen = New-Object System.Collections.Generic.HashSet[string]
-
-  foreach ($Match in $Pattern.Matches($MkDocsConfig)) {
-    $UserPage = $Match.Value
-    if (-not $Seen.Add($UserPage)) {
-      continue
-    }
-    $ManualSource = ('docs\' + $UserPage.Replace('/', '\'))
-    if (-not $ManualScript.Contains($ManualSource)) {
-      $Missing.Add($ManualSource)
-    }
-  }
-  if (-not $ManualScript.Contains('docs\status.md')) {
-    $Missing.Add('docs\status.md')
-  }
-
-  if ($Missing.Count -gt 0) {
-    throw "manual source list is missing user guide pages:`n$($Missing -join "`n")"
-  }
-
-  Write-Host 'manual source coverage ok'
-}
-
-function Test-UserGuideNavCoverage {
-  $MkDocsConfig = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $RepoRoot 'mkdocs.yml')
-  $Pattern = [regex]'user/[A-Za-z0-9._/-]+\.md'
+  $Pattern = [regex]'[A-Za-z0-9._/-]+\.md'
   $NavPages = New-Object System.Collections.Generic.HashSet[string]
+  $Missing = New-Object System.Collections.Generic.List[string]
+
   foreach ($Match in $Pattern.Matches($MkDocsConfig)) {
-    [void]$NavPages.Add($Match.Value.Replace('/', '\'))
+    $Page = $Match.Value.Replace('/', '\')
+    [void]$NavPages.Add($Page)
+    $Source = 'docs\' + $Page
+    if (-not $ManualScript.Contains($Source)) {
+      $Missing.Add("manual source: $Source")
+    }
   }
 
-  $Missing = New-Object System.Collections.Generic.List[string]
-  $UserRoot = Join-Path $RepoRoot 'docs\user'
-  Get-ChildItem -LiteralPath $UserRoot -Recurse -File -Filter '*.md' |
+  $DocsRoot = Join-Path $RepoRoot 'docs'
+  Get-ChildItem -LiteralPath $DocsRoot -Recurse -File -Filter '*.md' |
     ForEach-Object {
-      $Relative = $_.FullName.Substring($UserRoot.Length + 1)
-      $UserPage = Join-Path 'user' $Relative
-      if (-not $NavPages.Contains($UserPage)) {
-        $Missing.Add("docs\$UserPage")
+      $Page = $_.FullName.Substring($DocsRoot.Length + 1)
+      if (-not $NavPages.Contains($Page)) {
+        $Missing.Add("navigation: docs\$Page")
       }
     }
 
   if ($Missing.Count -gt 0) {
-    throw "user guide pages are missing from mkdocs nav:`n$($Missing -join "`n")"
+    throw "documentation coverage is incomplete:`n$($Missing -join "`n")"
   }
-
-  Write-Host 'user guide nav coverage ok'
+  Write-Host 'documentation navigation and manual coverage ok'
 }
 
-Remove-Item -LiteralPath $SiteRoot -Recurse -Force -ErrorAction SilentlyContinue
+$TemporaryRoot = [IO.Path]::GetFullPath((Join-Path $RepoRoot '.tmp')) + '\'
+if (-not $SiteRoot.StartsWith($TemporaryRoot, [StringComparison]::OrdinalIgnoreCase)) {
+  throw "docs output must stay inside the repository temporary directory: $SiteRoot"
+}
+if (Test-Path -LiteralPath $SiteRoot) {
+  Remove-Item -LiteralPath $SiteRoot -Recurse -Force
+}
 Invoke-MkDocsBuild -RepoRoot $RepoRoot -SiteRoot $SiteRoot
 Test-StudioHelpLinks
-Test-ManualSourceCoverage
-Test-UserGuideNavCoverage
+Test-DocumentationCoverage
 Write-Host "docs html ok: $SiteRoot"

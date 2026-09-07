@@ -158,7 +158,7 @@ jobs:
         id: checksums
         shell: powershell
         run: |
-          $ChecksumPath = Join-Path (Resolve-Path .\dist).Path 'SHA256SUMS.txt'
+          $ChecksumPath = Join-Path (Resolve-Path .\dist\releases).Path 'SHA256SUMS.txt'
           $Artifacts = @(
             "${{ steps.portable.outputs.zip_path }}",
             "${{ steps.installer.outputs.zip_path }}",

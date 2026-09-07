@@ -1,0 +1,22 @@
+{
+  "schema_version": "0.1.0",
+  "runtime_name": "hvac-studio-runtime",
+  "python_worker": "python/bcs_worker",
+  "runner": "go/cmd/bcs-runner",
+  "release_profiles": [
+    {
+      "id": "windows-amd64-studio-portable",
+      "artifact": "hvac-studio-<version>-windows-amd64-portable.zip",
+      "entrypoint": "HVAC Studio.exe",
+      "server_entrypoint": "bin/studio.exe",
+      "server_args": ["--server"],
+      "includes_embedded_python": true
+    },
+    {
+      "id": "windows-amd64-runtime",
+      "artifact": "hvac-studio-runtime-<version>-windows-amd64.zip",
+      "entrypoint": "bin/bcs-runner.exe",
+      "includes_embedded_python": true
+    }
+  ]
+}

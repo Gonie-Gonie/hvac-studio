@@ -5,7 +5,7 @@ It is a release-review aid, not a replacement for upstream license texts.
 
 ## Go Module
 
-The Go module is `github.com/goniegonie/hvac-studio/tools/go`.
+The Go module is `github.com/goniegonie/hvac-studio/go`.
 
 Direct dependency:
 
@@ -22,7 +22,7 @@ Notable indirect dependencies include:
 - `golang.org/x/sys`
 - `golang.org/x/text`
 
-The authoritative list is `tools/go/go.mod` and `tools/go/go.sum`.
+The authoritative list is `go/go.mod` and `go/go.sum`.
 
 ## Python Packages
 

@@ -7,10 +7,10 @@ if (-not $env:HVAC_STUDIO_GO) {
   throw 'go was not found. Run scripts/dev/setup.ps1 first.'
 }
 
-$OutDir = Join-Path $RepoRoot 'bin'
+$OutDir = Join-Path $RepoRoot '.tmp\bin'
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
-Push-Location (Join-Path $RepoRoot 'tools\go')
+Push-Location (Join-Path $RepoRoot 'go')
 try {
   Invoke-Checked $env:HVAC_STUDIO_GO @('build', '-o', (Join-Path $OutDir 'bcs-runner.exe'), '.\cmd\bcs-runner')
   Invoke-Checked $env:HVAC_STUDIO_GO @('build', '-o', (Join-Path $OutDir 'bcs-env.exe'), '.\cmd\bcs-env')

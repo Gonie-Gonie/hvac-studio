@@ -5,16 +5,16 @@ This example shows a step-based Python controller whose state is carried through
 Run it with:
 
 ```powershell
-Push-Location .\tools\go
+Push-Location .\go
 go run .\cmd\bcs-runner validate `
-  --project ..\..\examples\004_stateful_controller\project.bcsproj
+  --project ..\examples\004_stateful_controller\project.bcsproj
 go run .\cmd\bcs-runner run `
-  --project ..\..\examples\004_stateful_controller\project.bcsproj `
-  --input ..\..\examples\004_stateful_controller\inputs\case01.json
+  --project ..\examples\004_stateful_controller\project.bcsproj `
+  --input ..\examples\004_stateful_controller\inputs\case01.json
 go run .\cmd\bcs-runner run-series `
-  --project ..\..\examples\004_stateful_controller\project.bcsproj `
-  --input ..\..\examples\004_stateful_controller\inputs\series01.json `
-  --output ..\..\artifacts\004_stateful_controller-series.json
+  --project ..\examples\004_stateful_controller\project.bcsproj `
+  --input ..\examples\004_stateful_controller\inputs\series01.json `
+  --output ..\.tmp\examples\004_stateful_controller-series.json
 Pop-Location
 ```
 

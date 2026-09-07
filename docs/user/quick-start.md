@@ -10,7 +10,9 @@ From the repository:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\run-studio.ps1
 ```
 
-The launcher opens the Wails Studio desktop app. In a portable package, double-click:
+The launcher opens the Wails Studio desktop app. To use the latest local build,
+double-click `dist/latest/HVAC Studio.exe`. In a downloaded portable package,
+double-click:
 
 ```text
 HVAC Studio.exe
@@ -68,3 +70,7 @@ From that export folder, run:
 .\bin\bcs-env.exe check --root . --json
 powershell -ExecutionPolicy Bypass -File .\run-default.ps1
 ```
+
+Continue with [Modeling](modeling.md) for component authoring and systems,
+[Workflows](workflows.md) for simulation and studies, or
+[Examples](examples.md) for runnable reference projects.
