@@ -224,6 +224,9 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	server := newTestServer(t)
 	body := getRouteBody(t, server, "/js/app.js")
 	configBody := getRouteBody(t, server, "/js/workspace-config.js")
+	canvasBody := getRouteBody(t, server, "/js/system-canvas.js")
+	canvasLayoutBody := getRouteBody(t, server, "/js/canvas-layout.js")
+	canvasStylesBody := getRouteBody(t, server, "/canvas.css")
 	connectionsBody := getRouteBody(t, server, "/js/connections.js")
 	connectionInspectorBody := getRouteBody(t, server, "/js/connection-inspector.js")
 	parameterManagerBody := getRouteBody(t, server, "/js/parameter-manager.js")
@@ -797,38 +800,38 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("latestResultStale")) {
 		t.Fatalf("module entrypoint did not include stale run result state")
 	}
-	if !bytes.Contains(body, []byte("startCanvasNodeDrag")) {
-		t.Fatalf("module entrypoint did not include canvas node dragging")
+	if !bytes.Contains(body, []byte(`from "./system-canvas.js"`)) || !bytes.Contains(canvasBody, []byte("startCanvasNodeDrag")) {
+		t.Fatalf("module entrypoint did not load interactive canvas node dragging")
 	}
 	if !bytes.Contains(body, []byte("saveCanvasLayout")) {
 		t.Fatalf("module entrypoint did not include canvas layout persistence")
 	}
-	if !bytes.Contains(body, []byte("autoLayoutPositions")) {
-		t.Fatalf("module entrypoint did not include canvas auto layout")
+	if !bytes.Contains(canvasBody, []byte("autoLayoutPositions")) || !bytes.Contains(canvasLayoutBody, []byte("autoLayoutPositions")) {
+		t.Fatalf("canvas did not include graph layout")
 	}
-	if !bytes.Contains(body, []byte("resizeCanvasSurface")) {
-		t.Fatalf("module entrypoint did not resize the canvas surface")
+	if !bytes.Contains(canvasBody, []byte("ResizeObserver")) || !bytes.Contains(canvasBody, []byte("applyTransform")) {
+		t.Fatalf("canvas did not resize and zoom its surface")
 	}
-	if !bytes.Contains(body, []byte("canvasParameterSummary")) {
-		t.Fatalf("module entrypoint did not include readable canvas parameter rendering")
+	if bytes.Contains(canvasBody, []byte("canvasParameterSummary")) || bytes.Contains(canvasBody, []byte("node-meta")) {
+		t.Fatalf("canvas duplicated detailed inspector fields on compact cards")
 	}
-	if !bytes.Contains(body, []byte("canvasNodeMeta")) {
-		t.Fatalf("module entrypoint did not include readable canvas node metadata")
+	if !bytes.Contains(canvasBody, []byte("port.value_type")) || !bytes.Contains(canvasBody, []byte("title=")) {
+		t.Fatalf("canvas did not retain port metadata in tooltips")
 	}
-	if !bytes.Contains(body, []byte("canvasNodeAnchorY")) {
-		t.Fatalf("module entrypoint did not spread canvas connection anchors by node")
+	if !bytes.Contains(canvasBody, []byte("canvasNodeAnchor")) || !bytes.Contains(canvasBody, []byte("getBoundingClientRect")) {
+		t.Fatalf("canvas did not measure connection anchors from visible ports")
 	}
 	if !bytes.Contains(body, []byte("connectionMediumState")) {
 		t.Fatalf("module entrypoint did not include canvas connection medium state markers")
 	}
-	if !bytes.Contains(body, []byte("connectionAnnotation")) {
-		t.Fatalf("module entrypoint did not include canvas connection annotations")
+	if !bytes.Contains(canvasStylesBody, []byte(".connection-group.selected .connection-label")) || !bytes.Contains(canvasStylesBody, []byte(".connection-group:hover .connection-label")) {
+		t.Fatalf("canvas did not reveal connection labels on selection and hover")
 	}
-	if !bytes.Contains(body, []byte("node-medium")) {
-		t.Fatalf("module entrypoint did not include canvas node medium badges")
+	if !bytes.Contains(canvasBody, []byte("port-dot")) || !bytes.Contains(canvasStylesBody, []byte(".medium-air")) {
+		t.Fatalf("canvas did not include compact port medium indicators")
 	}
-	if !bytes.Contains(body, []byte("medium-override")) {
-		t.Fatalf("module entrypoint did not mark explicit canvas medium overrides")
+	if !bytes.Contains(canvasBody, []byte(`"warning", "override"`)) {
+		t.Fatalf("canvas did not mark medium overrides and warnings")
 	}
 	if !bytes.Contains(connectionInspectorBody, []byte("connectionMediumBadge")) || !bytes.Contains(connectionInspectorBody, []byte("medium mismatch")) {
 		t.Fatalf("module entrypoint did not mirror canvas medium status in the Inspector")
@@ -838,11 +841,11 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 		!bytes.Contains(connectionInspectorBody, []byte("value_type")) {
 		t.Fatalf("module entrypoint did not mirror connection unit and value_type status in the Inspector")
 	}
-	if !bytes.Contains(body, []byte("long-path")) {
-		t.Fatalf("module entrypoint did not mark long canvas connection paths")
+	if !bytes.Contains(canvasBody, []byte("long-path")) {
+		t.Fatalf("canvas did not mark long connection paths")
 	}
-	if !bytes.Contains(body, []byte("backtracking")) {
-		t.Fatalf("module entrypoint did not mark backtracking canvas connection paths")
+	if !bytes.Contains(canvasBody, []byte("backtracking")) {
+		t.Fatalf("canvas did not mark backtracking connection paths")
 	}
 	if !bytes.Contains(body, []byte("parameterInspectorBlock")) {
 		t.Fatalf("module entrypoint did not include inspector parameter editing")
@@ -901,8 +904,8 @@ func TestStaticModuleEntrypointServes(t *testing.T) {
 	if !bytes.Contains(body, []byte("/api/project/nodes/update")) {
 		t.Fatalf("module entrypoint did not call node update endpoint")
 	}
-	if !bytes.Contains(body, []byte("CANVAS_NODE_WIDTH")) {
-		t.Fatalf("module entrypoint did not include canvas sizing constants")
+	if !bytes.Contains(canvasBody, []byte("CANVAS_NODE_WIDTH")) {
+		t.Fatalf("canvas did not include sizing constants")
 	}
 	if !bytes.Contains(body, []byte("ensureEditableProject")) {
 		t.Fatalf("module entrypoint did not create an editable first-run workspace")

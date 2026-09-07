@@ -1,14 +1,43 @@
 import { escapeHTML } from "./dom.js";
-import { emptyKVRow, inspectorKVRow } from "./inspector-ui.js";
+import { emptyKVRow, inspectorBlock, inspectorKVRow, inspectorLabel, inspectorSection } from "./inspector-ui.js";
 import {
   replacementDiffText,
   replacementPreview,
 } from "./replacement-preview.js";
 
-export function componentEditor(component, actions) {
+export function componentSummaryBlock(component) {
   const block = document.createElement("div");
-  block.className = "inspector-block";
-  block.innerHTML = `<div class="inspector-title">Component Settings</div>`;
+  block.className = "inspector-block component-summary";
+  const category = document.createElement("div");
+  category.className = "component-summary-category";
+  category.textContent = inspectorLabel(component.category || "Component");
+  const name = document.createElement("h2");
+  name.className = "component-summary-name";
+  name.textContent = component.name || inspectorLabel(component.id);
+  const counts = document.createElement("div");
+  counts.className = "component-summary-counts";
+  counts.textContent = `${component.nodes?.inputs?.length || 0} inputs · ${component.nodes?.outputs?.length || 0} outputs`;
+  block.append(category, name);
+  if (component.description) {
+    const description = document.createElement("p");
+    description.className = "component-summary-description";
+    description.textContent = component.description;
+    block.append(description);
+  }
+  block.append(counts, inspectorBlock("Details", [
+    ["ID", component.id],
+    ["Kind", component.kind],
+    ["Mode", component.execution_mode || "step"],
+    ["Source", component.source?.layout || "single_file_class"],
+    ["Class", component.class || ""],
+  ], { collapsible: true, open: false, stateKey: `${component.id}:details` }));
+  return block;
+}
+
+export function componentEditor(component, actions) {
+  const block = inspectorSection("Component Settings", {
+    collapsible: true, open: false, stateKey: `${component.id}:settings`,
+  });
 
   const form = document.createElement("div");
   form.className = "connection-form";
@@ -49,9 +78,10 @@ export function replacementPreviewForComponent(component, template, context) {
 }
 
 export function replacementPreviewBlock(component, context, actions) {
-  const block = document.createElement("div");
-  block.className = "inspector-block replacement-preview-block";
-  block.innerHTML = `<div class="inspector-title">Replacement Preview</div>`;
+  const block = inspectorSection("Replacement Preview", {
+    collapsible: true, open: false, stateKey: `${component.id}:replacement`,
+  });
+  block.classList.add("replacement-preview-block");
   const template = context.selectedTemplate;
   if (!template) {
     block.append(emptyKVRow("No replacement template selected"));

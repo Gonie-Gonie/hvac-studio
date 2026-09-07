@@ -1,0 +1,113 @@
+.canvas-wrap {
+  min-height: 360px;
+  background: radial-gradient(circle, #dfe7ef 0.7px, transparent 0.9px) 0 0 / 20px 20px, #f8fafc;
+  overscroll-behavior: contain;
+  isolation: isolate;
+}
+
+.canvas-scroll-space { position: relative; min-width: 100%; min-height: 100%; }
+.canvas-surface { position: absolute; transform-origin: top left; }
+.canvas-surface .system-canvas {
+  position: absolute;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
+  pointer-events: none;
+}
+.canvas-surface .connection-layer { overflow: visible; }
+.canvas-surface .component-node {
+  width: 252px;
+  min-height: 0;
+  padding: 0;
+  overflow: visible;
+  border: 1px solid #d3dde8;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 3px 10px #273e5810;
+  pointer-events: auto;
+}
+.canvas-surface .component-node.selected { border-color: #5593cf; box-shadow: 0 0 0 3px #3385ce16, 0 3px 12px #273e5810; }
+.canvas-surface .component-node.dragging { z-index: 4; box-shadow: 0 9px 24px #273e5824; }
+.canvas-surface .component-head {
+  width: 100%;
+  height: auto;
+  min-height: 48px;
+  display: flex;
+  gap: 7px;
+  padding: 10px 12px 10px 9px;
+  border: 0;
+  border-bottom: 1px solid #e8edf3;
+  border-radius: 10px 10px 0 0;
+  background: #fff;
+  color: #253b53;
+  font-size: var(--canvas-title-size, 13px);
+  font-weight: 650;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.canvas-surface .component-head:hover { background: #f8fafc; }
+.canvas-surface .component-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.canvas-surface .component-grip { color: #a2b1c2; font-size: 18px; font-weight: 400; flex: 0 0 auto; }
+.canvas-surface .component-title { line-height: 1.35; text-align: left; overflow-wrap: normal; }
+.canvas-surface .node-list { gap: 12px; padding: 9px 10px 11px; }
+.canvas-surface .node-column { gap: 2px; }
+.canvas-surface .node-column-title { padding: 0 4px 6px; font-size: 9px; font-weight: 650; letter-spacing: .08em; color: #8393a5; }
+.canvas-surface .node-column-title span { margin-left: 4px; font-weight: 400; }
+.canvas-surface .node-column:last-child .node-column-title { text-align: right; }
+.canvas-surface .node-pill {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 38px;
+  min-height: 38px;
+  gap: 0;
+  padding: 4px 5px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #50647b;
+  font-size: 10px;
+  line-height: 1.25;
+  text-align: left;
+}
+.canvas-surface .node-pill.output { justify-content: flex-end; text-align: right; background: transparent; }
+.canvas-surface .node-pill:hover { background: #eef4f9; color: #233e5c; }
+.canvas-surface .node-label { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: normal; font-size: var(--canvas-port-size, 10px); font-weight: 500; }
+.canvas-overview .component-grip { display: none; }
+.canvas-overview .component-head { padding: 12px; }
+.canvas-overview .node-label { display: none; }
+.canvas-overview .node-column-title { font-size: var(--canvas-caption-size, 9px); letter-spacing: 0; }
+.canvas-overview .node-pill { height: 22px; min-height: 22px; background: transparent; }
+.canvas-overview .node-pill.output { background: transparent; }
+.canvas-overview .node-pill:hover { background: #e3edf6; }
+.canvas-surface .port-dot { position: absolute; left: -15px; width: 8px; height: 8px; border: 2px solid #94a9bf; border-radius: 50%; background: #fff; }
+.canvas-surface .output .port-dot { left: auto; right: -15px; background: #94a9bf; }
+.canvas-surface .medium-air .port-dot { border-color: #4eaaa9; }
+.canvas-surface .medium-water .port-dot { border-color: #5494cd; }
+.canvas-surface .medium-electric .port-dot, .canvas-surface .medium-electricity .port-dot { border-color: #c29743; }
+.canvas-surface .medium-control .port-dot { border-color: #9d7bc0; }
+.canvas-surface .medium-air.output .port-dot { background: #4eaaa9; }
+.canvas-surface .medium-water.output .port-dot { background: #5494cd; }
+.canvas-surface .medium-electric.output .port-dot, .canvas-surface .medium-electricity.output .port-dot { background: #c29743; }
+.canvas-surface .medium-control.output .port-dot { background: #9d7bc0; }
+.canvas-surface .node-pill.pending-source { background: #e7f1ff; outline: 2px solid var(--accent); }
+.canvas-surface .node-pill.targetable { background: #fff7e9; outline: 1px dashed #c18e3b; }
+.canvas-surface .connection-line { stroke: #9eafc0; stroke-width: 1.5; pointer-events: none; opacity: 1; stroke-dasharray: none; }
+.canvas-surface .connection-hit { stroke: transparent; stroke-width: 14; fill: none; pointer-events: stroke; cursor: pointer; }
+.canvas-surface .connection-group { transition: opacity 120ms ease; }
+.canvas-surface .connection-group.dimmed { opacity: .18; }
+.canvas-surface .connection-group.related .connection-line { stroke: #6095bf; stroke-width: 1.8; }
+.canvas-surface .connection-group.connection-warning .connection-line { stroke: #bb923e; stroke-dasharray: 5 4; }
+.canvas-surface .connection-group.medium-mismatch .connection-line { stroke: #c34e48; stroke-dasharray: 4 3; }
+.canvas-surface .connection-group.unit-converted .connection-line { stroke: #67a183; }
+.canvas-surface .connection-group.selected .connection-line, .canvas-surface .connection-group:hover .connection-line { stroke: #2276bc; stroke-width: 2.5; }
+.canvas-surface .connection-group:hover { opacity: 1; }
+.canvas-surface .connection-label { opacity: 0; visibility: hidden; pointer-events: none; }
+.canvas-surface .connection-group.selected .connection-label, .canvas-surface .connection-group:hover .connection-label { opacity: 1; visibility: visible; pointer-events: auto; }
+.canvas-surface .connection-label-bg { fill: #fff; stroke: #b5cbe0; }
+.canvas-surface .connection-label-text { font-size: 10px; font-weight: 550; fill: #305577; stroke: none; }
+.canvas-empty { display: grid; gap: 8px; padding: 40px; color: var(--muted); font-size: 13px; }
+.canvas-empty strong { color: var(--text); }
+
+@media (prefers-reduced-motion: reduce) { .canvas-surface .connection-group { transition: none; } }

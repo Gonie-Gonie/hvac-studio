@@ -1,0 +1,378 @@
+/* Selection details use progressive disclosure so the system stays the focus. */
+#inspector {
+  min-width: 0;
+  padding: 12px;
+}
+
+#inspector .inspector-block {
+  margin-bottom: 10px;
+  border-color: #e0e7ef;
+  border-radius: 10px;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+#inspector .inspector-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 10px 12px;
+  background: #fafbfd;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.inspector-count {
+  min-width: 20px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: #eaf0f6;
+  color: #63748a;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+}
+
+#inspector summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+#inspector summary::-webkit-details-marker {
+  display: none;
+}
+
+#inspector .inspector-section > summary::after,
+#inspector .inspector-node-summary::after,
+#inspector .inspector-contract-disclosure > summary::after {
+  content: "";
+  display: block;
+  flex: 0 0 auto;
+  width: 5px;
+  height: 5px;
+  margin-left: auto;
+  border-right: 1.5px solid #8290a2;
+  border-bottom: 1.5px solid #8290a2;
+  transform: rotate(-45deg);
+}
+
+#inspector .inspector-section[open] > summary::after,
+#inspector .inspector-node-row[open] > summary::after,
+#inspector .inspector-contract-disclosure[open] > summary::after {
+  transform: rotate(45deg);
+}
+
+#inspector .inspector-section:not([open]) > .inspector-title {
+  border-bottom: 0;
+  background: #fff;
+}
+
+#inspector summary:hover {
+  background: #f3f7fc;
+}
+
+#inspector summary:focus-visible,
+#inspector [role="button"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 5px;
+}
+
+#inspector .component-summary {
+  padding: 16px 14px 0;
+  background: #fff;
+}
+
+.component-summary-category {
+  color: #718298;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.component-summary-name {
+  margin: 6px 0 8px;
+  color: #21364d;
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.35;
+  overflow-wrap: break-word;
+}
+
+.component-summary-description {
+  margin: 8px 0;
+  color: #65778e;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.component-summary-counts {
+  margin-bottom: 13px;
+  color: #60758f;
+  font-size: 12px;
+}
+
+#inspector .component-summary > .inspector-block {
+  margin: 0 -14px;
+  border: 0;
+  border-top: 1px solid #edf1f5;
+  border-radius: 0;
+}
+
+#inspector .component-summary > .inspector-block > summary {
+  min-height: 33px;
+  padding: 8px 14px;
+  color: #6c7e92;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+#inspector .kv {
+  grid-template-columns: minmax(0, 1fr) minmax(70px, .9fr);
+  gap: 10px;
+  padding: 9px 12px;
+  align-items: start;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+#inspector .kv > .kv-key {
+  color: #6e7e91;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.inspector-value {
+  min-width: 0;
+  color: #334c68;
+  overflow-wrap: anywhere;
+}
+
+.inspector-value-expand > summary {
+  position: relative;
+  padding-right: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #42658d;
+  background: linear-gradient(90deg, transparent, #f2f6fc);
+}
+
+.inspector-value-expand > summary::after {
+  content: "+";
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 12px;
+  background: #f2f6fc;
+  color: #5c7ea4;
+  text-align: center;
+}
+
+.inspector-value-expand[open] > summary::after {
+  content: "−";
+}
+
+.inspector-value-expand[open] {
+  grid-column: 1 / -1;
+}
+
+.inspector-value-expand[open] > summary {
+  max-width: 100%;
+}
+
+.inspector-value-expand pre {
+  max-height: 260px;
+  margin: 7px 0 0;
+  padding: 9px;
+  overflow: auto;
+  border: 1px solid #e5ebf2;
+  border-radius: 6px;
+  background: #f8fafc;
+  font: 11px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.inspector-node-row + .inspector-node-row,
+.inspector-contract-disclosure + .inspector-contract-disclosure {
+  border-top: 1px solid #f0f3f7;
+}
+
+.inspector-node-summary {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 11px 12px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.inspector-node-name {
+  flex: 1;
+  min-width: 0;
+  color: #3a4f67;
+  overflow-wrap: break-word;
+}
+
+.inspector-node-unit {
+  flex: 0 0 auto;
+  max-width: 66px;
+  color: #8290a2;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inspector-node-output .inspector-node-name {
+  color: #317364;
+}
+
+.inspector-node-contract,
+.inspector-node-row[open] > .node-edit-row {
+  border-top: 1px solid #edf1f6;
+  background: #f8fafc;
+}
+
+#inspector .inspector-node-contract .kv {
+  font-size: 11px;
+}
+
+#inspector .node-edit-row,
+#inspector .contract-edit-row {
+  display: block;
+}
+
+#inspector .node-edit-row > .node-id-label,
+#inspector .contract-edit-row > .node-id-label {
+  display: block;
+  margin-bottom: 8px;
+  color: #72849a;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#inspector .node-meta-controls,
+#inspector .contract-meta-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px 8px;
+  align-items: end;
+}
+
+.inspector-contract-field {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.inspector-contract-field > span {
+  color: #718297;
+  font-size: 10px;
+}
+
+.inspector-contract-field.inspector-field-description,
+.inspector-contract-field.inspector-field-name,
+#inspector .node-meta-controls .node-impact,
+#inspector .contract-meta-controls .contract-impact {
+  grid-column: 1 / -1;
+}
+
+#inspector .inspector-input {
+  height: 30px;
+  font-size: 12px;
+}
+
+.inspector-contract-disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  color: #4e657e;
+  font-size: 12px;
+}
+
+#inspector .connection-value {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+#inspector .connection-value > .inspector-input {
+  flex: 1 1 100%;
+}
+
+.parameter-value-editor {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.parameter-value-editor > summary {
+  color: #416e9d;
+  font-size: 11px;
+}
+
+.inspector-expanded-input {
+  display: block;
+  width: 100%;
+  min-height: 120px;
+  margin-top: 8px;
+  padding: 9px;
+  resize: vertical;
+  border: 1px solid #ccd8e6;
+  border-radius: 6px;
+  background: #fff;
+  font: 11px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+#inspector .inspector-connections .connection-row {
+  display: block;
+  cursor: pointer;
+}
+
+#inspector .inspector-connections .connection-row > .kv-key {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  margin-bottom: 5px;
+  color: #395570;
+}
+
+.inspector-connection-direction {
+  flex: 0 0 25px;
+  color: #8b99ab;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+#inspector .inspector-connection-endpoint {
+  display: block;
+  flex-basis: 100%;
+  color: #7c8ca0;
+  font-size: 11px;
+  overflow-wrap: break-word;
+}
+
+#inspector .inspector-connections .connection-row:not(.selected) .contract-state:not(.warning):not(.error),
+#inspector .inspector-connections .connection-row:not(.selected) .medium-state:not(.warning):not(.error) {
+  display: none;
+}
+
+#inspector .inspector-connections .connection-row.selected {
+  background: #f0f6fd;
+}
+
+#inspector .state-form,
+#inspector .parameter-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+#inspector .state-form button,
+#inspector .parameter-form button {
+  grid-column: 1 / -1;
+}

@@ -42,9 +42,17 @@ tests and example goldens; Studio UI changes also need the screenshot matrix:
 
 ```powershell
 .\scripts\dev\test-screenshot-matrix.ps1
+.\scripts\dev\test-studio-ui.ps1
+node --test scripts/dev/canvas-layout.test.mjs
 ```
 
 Screenshots are test output under `.tmp/`, not documentation source assets.
+The interaction check uses Python Playwright with an installed Edge or Chrome
+browser. Install it in the repository environment with
+`.toolchain/uv/uv.exe pip install --python .venv/Scripts/python.exe playwright`
+before the first run. It checks example layout, dragging, zoom, disclosures,
+and a scalar run against an isolated fixture copy.
+The optional Node.js check covers layout geometry across all bundled examples.
 The example and acceptance gates exercise persisted project artifacts through
 the same runtime used by Studio, CLI, and SDK.
 

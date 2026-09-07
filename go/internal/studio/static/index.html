@@ -5,9 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>HVAC Studio</title>
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/canvas.css" />
+    <link rel="stylesheet" href="/inspector.css" />
   </head>
   <body>
-    <div class="app-shell">
+    <div class="app-shell bottom-collapsed">
       <header class="top-bar">
         <div class="brand">
           <div class="brand-mark">HS</div>
@@ -19,25 +21,36 @@
         <div class="project-switcher">
           <label for="projectSelect">Project</label>
           <select id="projectSelect"></select>
-          <input id="projectNameInput" type="text" placeholder="Project name" aria-label="Project name" />
-          <select id="projectTemplateSelect" aria-label="Project type">
-            <option value="scalar">Python Component</option>
-          </select>
-          <button id="newProjectButton" type="button">New</button>
-          <button id="copyProjectButton" type="button" disabled>Copy</button>
+          <details id="projectActions" class="toolbar-menu project-actions">
+            <summary>New / Copy</summary>
+            <div class="menu-popover project-actions-form">
+              <label for="projectNameInput">Project name</label>
+              <input id="projectNameInput" type="text" placeholder="Untitled project" aria-label="Project name" />
+              <select id="projectTemplateSelect" aria-label="Project type">
+                <option value="scalar">Python Component</option>
+              </select>
+              <button id="newProjectButton" type="button">New project</button>
+              <button id="copyProjectButton" type="button" disabled>Copy current project</button>
+            </div>
+          </details>
         </div>
         <nav class="command-bar" aria-label="Project commands">
           <button id="saveProjectButton" type="button" disabled>Save</button>
           <button id="validateButton" type="button">Validate</button>
-          <button id="dataValidateButton" type="button" disabled>Data</button>
-          <button id="runButton" type="button">Run</button>
-          <button id="seriesButton" type="button">Series</button>
-          <button id="scenarioButton" type="button" disabled>Scenario</button>
-          <button id="schemaButton" type="button">Schema</button>
-          <button id="batchButton" type="button" disabled>Batch</button>
+          <button id="runButton" class="primary-action" type="button">Run</button>
+          <details id="moreCommands" class="toolbar-menu">
+            <summary>More</summary>
+            <div class="menu-popover command-menu">
+              <button id="seriesButton" type="button">Run time series</button>
+              <button id="batchButton" type="button" disabled>Run batch</button>
+              <button id="dataValidateButton" type="button" disabled>Validate data</button>
+              <button id="scenarioButton" type="button" disabled>Save scenario</button>
+              <button id="schemaButton" type="button">View schema</button>
+              <button id="exportButton" type="button" disabled>Export runtime</button>
+            </div>
+          </details>
           <button id="cancelRunButton" class="danger-action" type="button" disabled>Cancel</button>
           <button id="retryRunButton" type="button" disabled>Retry</button>
-          <button id="exportButton" type="button" disabled>Export</button>
         </nav>
       </header>
 
@@ -47,19 +60,22 @@
             <div class="panel-header">
               <h2>Project</h2>
             </div>
-            <div class="component-add-row">
-              <input id="newComponentName" type="text" placeholder="Component name" aria-label="Component name" disabled />
-              <select id="componentCategorySelect" aria-label="Component category" disabled></select>
-              <select id="componentExecutionModeSelect" aria-label="Execution mode" disabled></select>
-              <select id="componentTemplateSelect" aria-label="Component template" disabled></select>
-              <label class="component-use-row" for="includeComponentOnCreate">
-                <input id="includeComponentOnCreate" type="checkbox" checked disabled />
-                <span>Use in System</span>
-              </label>
-              <button id="addComponentButton" type="button" disabled>New Component</button>
-              <button id="newMLComponentButton" type="button" disabled>New ML Component</button>
-              <div id="componentTemplateMeta" class="component-template-meta"></div>
-            </div>
+            <details id="createComponentDetails" class="sidebar-disclosure">
+              <summary>Add component</summary>
+              <div class="component-add-row">
+                <input id="newComponentName" type="text" placeholder="Component name" aria-label="Component name" disabled />
+                <select id="componentCategorySelect" aria-label="Component category" disabled></select>
+                <select id="componentExecutionModeSelect" aria-label="Execution mode" disabled></select>
+                <select id="componentTemplateSelect" aria-label="Component template" disabled></select>
+                <label class="component-use-row" for="includeComponentOnCreate">
+                  <input id="includeComponentOnCreate" type="checkbox" checked disabled />
+                  <span>Use in System</span>
+                </label>
+                <button id="addComponentButton" type="button" disabled>New Component</button>
+                <button id="newMLComponentButton" type="button" disabled>New ML Component</button>
+                <div id="componentTemplateMeta" class="component-template-meta"></div>
+              </div>
+            </details>
             <div id="projectTree" class="project-tree"></div>
           </section>
         </aside>
@@ -74,6 +90,7 @@
             <button class="mode-button" data-mode="run" type="button">Run</button>
             <button class="mode-button" data-mode="export" type="button">Export</button>
             <a id="workspaceHelpLink" class="help-button" href="/docs/user/modeling.md#build-systems" target="_blank" rel="noopener" title="Open workspace help" aria-label="Open workspace help">?</a>
+            <button id="toggleInspectorButton" class="panel-toggle" type="button" aria-expanded="true" aria-controls="inspector">Inspector</button>
           </section>
 
           <section id="startView" class="view start-workspace">
@@ -118,8 +135,24 @@
                 <div id="systemSubtitle" class="muted-line"></div>
               </div>
               <div class="system-tools">
-                <button id="autoLayoutButton" type="button" disabled>Auto Layout</button>
-                <div class="run-inputs" id="runInputs"></div>
+                <span id="projectAccessBadge" class="project-access-badge"></span>
+              </div>
+            </div>
+            <details id="runSettings" class="run-settings">
+              <summary><span>Run setup</span><span id="runSettingsSummary" class="run-settings-summary"></span></summary>
+              <div class="run-inputs" id="runInputs"></div>
+            </details>
+            <div class="canvas-toolbar" role="toolbar" aria-label="Canvas navigation">
+              <div class="canvas-layout-tools">
+                <button id="autoLayoutButton" type="button" disabled>Auto layout</button>
+                <button id="canvasFitButton" type="button" title="Fit the whole system in view">Fit</button>
+              </div>
+              <span class="canvas-hint">Drag headers to arrange · Ctrl + scroll to zoom</span>
+              <div class="canvas-zoom-tools">
+                <button id="canvasZoomOutButton" type="button" aria-label="Zoom out">−</button>
+                <span id="canvasZoomLabel" aria-live="polite">100%</span>
+                <button id="canvasZoomInButton" type="button" aria-label="Zoom in">+</button>
+                <button id="canvasResetButton" type="button" title="Reset zoom to 100%">100%</button>
               </div>
             </div>
             <div class="canvas-wrap">
@@ -440,12 +473,15 @@
           <section class="panel inspector-panel">
             <div class="panel-header">
               <h2>Inspector</h2>
-              <div class="header-actions">
-                <button id="includeComponentButton" type="button" disabled>Use</button>
-                <button id="removeComponentButton" type="button" disabled>Remove</button>
-                <button id="replaceComponentButton" type="button" disabled>Replace</button>
-                <button id="deleteComponentButton" type="button" disabled>Delete</button>
-              </div>
+              <details class="toolbar-menu inspector-actions">
+                <summary>Actions</summary>
+                <div class="menu-popover command-menu">
+                  <button id="includeComponentButton" type="button" disabled>Use</button>
+                  <button id="removeComponentButton" type="button" disabled>Remove</button>
+                  <button id="replaceComponentButton" type="button" disabled>Replace</button>
+                  <button id="deleteComponentButton" type="button" disabled>Delete</button>
+                </div>
+              </details>
             </div>
             <div id="inspector" class="inspector"></div>
           </section>
@@ -460,6 +496,7 @@
           <button class="bottom-tab" data-bottom="diagnostics" type="button">Diagnostics</button>
           <button class="bottom-tab" data-bottom="schema" type="button">Schema</button>
           <button class="bottom-tab" data-bottom="python" type="button">Python</button>
+          <button id="toggleBottomPanelButton" class="bottom-panel-toggle" type="button" aria-expanded="false" aria-label="Expand activity panel">Expand</button>
         </div>
         <div id="problemsPanel" class="bottom-view active"></div>
         <div id="logsPanel" class="bottom-view"></div>

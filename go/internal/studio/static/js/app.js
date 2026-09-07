@@ -1,4 +1,5 @@
 import { api } from "./api.js";
+import { initWorkspaceChrome, projectDisplayName, setActivityExpanded } from "./workspace-chrome.js";
 import {
   datasetResultSection,
   parameterSetResultSection,
@@ -27,6 +28,7 @@ import {
 } from "./component-template-controls.js";
 import {
   componentEditor,
+  componentSummaryBlock,
   replacementPreviewBlock,
   replacementPreviewForComponent,
 } from "./component-inspector.js";
@@ -62,6 +64,7 @@ import {
   parameterDefinitionBlock,
   parameterInspectorBlock,
   stateDefinitionBlock,
+  stateInspectorBlock,
 } from "./component-contract-editor.js";
 import { el, escapeAttr, escapeHTML } from "./dom.js";
 import { emptyKVRow as sharedEmptyKVRow, inspectorBlock as sharedInspectorBlock } from "./inspector-ui.js";
@@ -91,9 +94,7 @@ import {
   shortNumber,
 } from "./format.js";
 import {
-  connectionContractLabels,
   connectionMediumStateForNodes,
-  connectionStatusLabel as connectionStatusLabelText,
   connectionUnitConversionSummary as connectionUnitConversionSummaryText,
   connectionUnitStateForNodes,
 } from "./connections.js";
@@ -158,19 +159,12 @@ import {
   validationResultSection,
 } from "./validation-results.js";
 import { state } from "./state.js";
+import { createSystemCanvas } from "./system-canvas.js";
 import {
   renderStartRuntimeRows as renderStartRuntimeRowsView,
   renderStartWorkspace as renderStartWorkspaceView,
 } from "./start-workspace.js";
 import {
-  CANVAS_COLUMN_GAP,
-  CANVAS_NODE_ANCHOR_Y,
-  CANVAS_NODE_FIRST_PORT_Y,
-  CANVAS_NODE_HEIGHT,
-  CANVAS_NODE_PORT_GAP,
-  CANVAS_NODE_WIDTH,
-  CANVAS_PADDING,
-  CANVAS_ROW_GAP,
   COMPONENT_CATEGORIES,
   EXECUTION_MODES,
   ML_ASSET_FIELDS,
@@ -195,7 +189,9 @@ async function loadProjects(preferredProjectPath = "") {
   for (const project of state.projects) {
     const option = document.createElement("option");
     option.value = project.project_path;
-    option.textContent = `${project.source === "workspace" ? "Project" : "Example"} / ${project.relative_path}`;
+    const exampleNumber = project.source === "example" ? String(project.name || "").match(/^\d+/)?.[0] : "";
+    option.textContent = `${project.source === "workspace" ? "Project" : `Example${exampleNumber ? ` ${exampleNumber}` : ""}`} · ${projectDisplayName(project)}`;
+    option.title = project.relative_path;
     select.append(option);
   }
   const feedForward = state.projects.find((p) => p.name === "003_feedforward_system");
@@ -276,6 +272,7 @@ async function ensureEditableProject(preferredProjectPath) {
 }
 
 async function loadProject(projectPath) {
+  setActivityExpanded(false);
   if (state.activeRunAbortController) {
     state.activeRunAbortController.abort();
   }
@@ -297,6 +294,7 @@ async function loadProject(projectPath) {
   state.latestWorkflowRecord = null;
   state.activeParameterSetPath = "";
   state.activeRunInput = null;
+  state.runInputDraft = null;
   state.activeSeriesInputPath = "";
   state.activeRunAbortController = null;
   state.activeRunLabel = "";
@@ -341,18 +339,30 @@ function renderAll() {
 
 function renderSystemHeader() {
   const project = state.detail?.project;
-  el("systemTitle").textContent = project?.entry_system || "System";
+  const system = currentSystem();
+  el("systemTitle").textContent = system?.name || project?.entry_system || "System";
   if (!project) {
     el("systemSubtitle").textContent = "";
     return;
   }
-  const parts = [`${project.project_name} / ${state.detail.graph_path}`];
-  if (latestRuntimeResult()) parts.push(state.latestResultStale ? "last result stale" : "last result current");
-  el("systemSubtitle").textContent = parts.join(" / ");
+  const parts = [
+    `${system?.components?.length || 0} components`,
+    `${system?.public_inputs?.length || 0} inputs`,
+    `${system?.public_outputs?.length || 0} outputs`,
+  ];
+  if (latestRuntimeResult()) parts.push(state.latestResultStale ? "Result needs refresh" : "Result up to date");
+  el("systemSubtitle").textContent = parts.join(" · ");
+  el("systemSubtitle").title = state.detail.graph_path || "";
+  el("projectAccessBadge").textContent = isWorkspaceProject() ? "Workspace" : "Example";
+  el("projectAccessBadge").title = isWorkspaceProject() ? "Changes are saved to your project" : "Arrange freely. Copy this project to edit the model.";
+  document.body.classList.toggle("is-example", !isWorkspaceProject());
+  el("createComponentDetails").hidden = !isWorkspaceProject();
+  el("runSettingsSummary").textContent = `${system?.public_inputs?.length || 0} inputs · ${state.activeParameterSetPath ? "Custom parameters" : "Baseline parameters"}`;
 }
 
 function renderProjectTree() {
   const root = el("projectTree");
+  const expanded = new Map([...root.querySelectorAll("details[data-tree-section]")].map((section) => [section.dataset.treeSection, section.open]));
   root.innerHTML = "";
   if (!state.detail) return;
   const graph = state.detail.graph;
@@ -373,9 +383,12 @@ function renderProjectTree() {
     ["Export Profiles", exportTreeItems()],
   ];
   for (const [title, items] of sections) {
-    const section = document.createElement("div");
+    if (!items.length) continue;
+    const section = document.createElement("details");
     section.className = "tree-section";
-    section.innerHTML = `<div class="tree-title">${escapeHTML(title)}</div>`;
+    section.dataset.treeSection = title;
+    section.open = expanded.get(title) ?? ["Systems", "Components"].includes(title);
+    section.innerHTML = `<summary class="tree-title"><span>${escapeHTML(title)}</span><span class="section-count">${items.length}</span></summary>`;
     if (items.length) {
       for (const item of items) section.append(item);
     } else {
@@ -514,7 +527,8 @@ function treeItem(id, label, meta) {
 
 function componentTreeItem(component, system) {
   const inSystem = Boolean(system?.components?.includes(component.id));
-  const row = treeItem(component.id, component.name || component.id, inSystem ? component.kind : "unused");
+  const row = treeItem(component.id, component.name || component.id, inSystem ? "" : "unused");
+  row.title = `${component.name || component.id} · ${(component.nodes.inputs || []).length} inputs · ${(component.nodes.outputs || []).length} outputs`;
   if (isWorkspaceProject()) {
     if (!inSystem) {
       const button = document.createElement("button");
@@ -541,7 +555,8 @@ function componentTreeItem(component, system) {
 }
 
 function sourceTreeItem(component) {
-  const row = treeItem(component.id, component.class || component.id, sourceTreeMeta(component));
+  const row = treeItem(component.id, component.name || component.id, sourceTreeMeta(component));
+  row.title = component.class || component.id;
   const button = document.createElement("button");
   button.type = "button";
   button.className = "tree-action";
@@ -668,264 +683,63 @@ function defaultProjectName(prefix = "Project") {
   return `${prefix} ${stamp}`;
 }
 
+let systemCanvasView;
+let canvasLayoutSaveQueue = Promise.resolve();
+
+function canvasView() {
+  if (!systemCanvasView) {
+    systemCanvasView = createSystemCanvas({
+      state,
+      currentSystem,
+      componentById,
+      isWorkspaceProject,
+      latestNodeValue: latestCanvasNodeValue,
+      endpointClick: handleCanvasEndpointClick,
+      connectionMediumState,
+      connectionUnitState,
+      selectConnection,
+      saveLayout: saveCanvasLayoutPositions,
+      selectionChanged() {
+        renderInspector();
+        renderPythonPanel();
+        renderProjectTree();
+        renderRunWorkspace();
+        updateCommandState();
+      },
+    });
+  }
+  return systemCanvasView;
+}
+
 function renderCanvas() {
-  const canvas = el("systemCanvas");
-  const layer = el("connectionLayer");
-  canvas.innerHTML = "";
-  layer.innerHTML = "";
-  const graph = state.detail?.graph;
-  const system = currentSystem();
-  if (!graph || !system) return;
-
-  const components = system.components.map(componentById).filter(Boolean);
-  const positions = {};
-  components.forEach((component, index) => {
-    const { x, y } = canvasPositionFor(component.id, index);
-    positions[component.id] = { x, y };
-
-    const node = document.createElement("button");
-    node.type = "button";
-    node.className = `component-node ${state.selectedComponentId === component.id ? "selected" : ""}`;
-    node.style.left = `${x}px`;
-    node.style.top = `${y}px`;
-    node.dataset.componentId = component.id;
-    node.innerHTML = `
-      <div class="component-head">
-        <span class="component-title">${escapeHTML(component.name || component.id)}</span>
-        <span class="component-kind">${escapeHTML(component.kind)}</span>
-      </div>
-      <div class="node-list">
-        <div class="node-column">
-          <span class="node-column-title">Inputs</span>
-          ${component.nodes.inputs.map((n) => canvasNodePill(component.id, n, "input")).join("")}
-        </div>
-        <div class="node-column">
-          <span class="node-column-title">Outputs</span>
-          ${component.nodes.outputs.map((n) => canvasNodePill(component.id, n, "output")).join("")}
-        </div>
-      </div>
-      ${canvasParameterSummary(component)}
-    `;
-    node.addEventListener("click", () => {
-      state.selectedComponentId = component.id;
-      state.selectedConnectionId = "";
-      renderCanvas();
-      renderInspector();
-      renderPythonPanel();
-      renderProjectTree();
-      renderRunWorkspace();
-      updateCommandState();
-    });
-    node.querySelectorAll("[data-node-endpoint]").forEach((endpoint) => {
-      endpoint.addEventListener("click", (event) => {
-        event.stopPropagation();
-        handleCanvasEndpointClick(endpoint.dataset.componentId, endpoint.dataset.nodeId, endpoint.dataset.direction);
-      });
-    });
-    node.querySelector(".component-head")?.addEventListener("pointerdown", (event) => {
-      startCanvasNodeDrag(event, node, component.id, positions);
-    });
-    canvas.append(node);
-  });
-
-  resizeCanvasSurface(canvas, layer, positions);
-  requestAnimationFrame(() => drawConnections(positions));
+  canvasView().render();
 }
 
-function canvasPositionFor(componentID, index) {
-  const saved = state.detail?.layout?.components?.[componentID];
-  if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
-    return { x: saved.x, y: saved.y };
-  }
-  return {
-    x: 48 + index * CANVAS_COLUMN_GAP,
-    y: 78 + (index % 2) * 62,
-  };
+function autoLayoutCanvas() {
+  canvasView().autoLayout();
 }
 
-function resizeCanvasSurface(canvas, layer, positions) {
-  const values = Object.values(positions);
-  const maxX = Math.max(0, ...values.map((position) => position.x));
-  const maxY = Math.max(0, ...values.map((position) => position.y));
-  const width = Math.max(1240, maxX + CANVAS_NODE_WIDTH + CANVAS_PADDING);
-  const height = Math.max(430, maxY + CANVAS_NODE_HEIGHT + CANVAS_PADDING);
-  canvas.style.minWidth = `${width}px`;
-  canvas.style.minHeight = `${height}px`;
-  layer.style.width = `${width}px`;
-  layer.style.height = `${height}px`;
-  layer.setAttribute("width", String(width));
-  layer.setAttribute("height", String(height));
-}
-
-function startCanvasNodeDrag(event, node, componentID, positions) {
-  if (!isWorkspaceProject() || event.button !== 0) return;
-  event.preventDefault();
-  state.selectedComponentId = componentID;
-  state.selectedConnectionId = "";
-  renderInspector();
-  renderPythonPanel();
-  renderProjectTree();
-  renderRunWorkspace();
-  updateCommandState();
-  const startX = event.clientX;
-  const startY = event.clientY;
-  const startLeft = Number.parseFloat(node.style.left) || 0;
-  const startTop = Number.parseFloat(node.style.top) || 0;
-  let last = { x: startLeft, y: startTop };
-  node.classList.add("dragging");
-  node.setPointerCapture?.(event.pointerId);
-
-  const onMove = (moveEvent) => {
-    last = {
-      x: Math.max(16, startLeft + moveEvent.clientX - startX),
-      y: Math.max(16, startTop + moveEvent.clientY - startY),
-    };
-    node.style.left = `${last.x}px`;
-    node.style.top = `${last.y}px`;
-    positions[componentID] = last;
-    resizeCanvasSurface(el("systemCanvas"), el("connectionLayer"), positions);
-    drawConnections(positions);
-  };
-
-  const onUp = () => {
-    node.classList.remove("dragging");
-    node.removeEventListener("pointermove", onMove);
-    node.removeEventListener("pointerup", onUp);
-    node.removeEventListener("pointercancel", onUp);
-    saveCanvasLayout(componentID, last.x, last.y);
-  };
-
-  node.addEventListener("pointermove", onMove);
-  node.addEventListener("pointerup", onUp);
-  node.addEventListener("pointercancel", onUp);
-}
-
-async function saveCanvasLayout(componentID, x, y) {
+function saveCanvasLayoutPositions(positions, label) {
   if (!isWorkspaceProject()) return;
-  const components = { ...(state.detail?.layout?.components || {}) };
-  components[componentID] = { x: Math.round(x), y: Math.round(y) };
-  await saveCanvasLayoutPositions(components, componentID);
-}
-
-async function saveCanvasLayoutPositions(components, label) {
-  if (!isWorkspaceProject()) return;
-  state.detail.layout = { components };
-  try {
-    const body = await api("/api/project/layout", {
-      method: "POST",
-      body: JSON.stringify({ project_path: state.currentProjectPath, components }),
-    });
-    state.detail = body.project;
-    renderCanvas();
-    log(`Canvas layout saved: ${label}`);
-  } catch (error) {
-    log(`Canvas layout save failed: ${error.message}`);
-    state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
-    renderProblems();
-    setBottomTab("problems");
-  }
-}
-
-async function autoLayoutCanvas() {
-  if (!isWorkspaceProject()) return;
-  const system = currentSystem();
-  if (!system) return;
-  const positions = autoLayoutPositions(system);
+  const projectPath = state.currentProjectPath;
   const components = { ...(state.detail?.layout?.components || {}), ...positions };
-  await saveCanvasLayoutPositions(components, "auto layout");
-}
-
-function autoLayoutPositions(system) {
-  const ids = (system.components || []).filter((id) => componentById(id));
-  const idSet = new Set(ids);
-  const order = new Map(ids.map((id, index) => [id, index]));
-  const levels = Object.fromEntries(ids.map((id) => [id, 0]));
-  const connections = (state.detail?.graph?.connections || []).filter((connection) => (
-    idSet.has(connection.from.component) && idSet.has(connection.to.component)
-  ));
-
-  for (let pass = 0; pass < ids.length; pass += 1) {
-    let changed = false;
-    for (const connection of connections) {
-      const nextLevel = (levels[connection.from.component] || 0) + 1;
-      if (nextLevel > (levels[connection.to.component] || 0)) {
-        levels[connection.to.component] = nextLevel;
-        changed = true;
-      }
+  state.detail.layout = { components };
+  canvasLayoutSaveQueue = canvasLayoutSaveQueue.then(async () => {
+    try {
+      await api("/api/project/layout", {
+        method: "POST",
+        body: JSON.stringify({ project_path: projectPath, components }),
+      });
+      log(`Canvas layout saved: ${label}`);
+    } catch (error) {
+      log(`Canvas layout save failed: ${error.message}`);
+      if (state.currentProjectPath !== projectPath) return;
+      state.latestValidation = { error: error.message, problems: error.body?.problems || [] };
+      renderProblems();
+      setBottomTab("problems");
     }
-    if (!changed) break;
-  }
-
-  const groups = new Map();
-  for (const id of ids) {
-    const level = levels[id] || 0;
-    if (!groups.has(level)) groups.set(level, []);
-    groups.get(level).push(id);
-  }
-
-  const positions = {};
-  for (const [level, group] of [...groups.entries()].sort(([a], [b]) => a - b)) {
-    group.sort((a, b) => (order.get(a) || 0) - (order.get(b) || 0));
-    group.forEach((id, row) => {
-      positions[id] = { x: 48 + level * CANVAS_COLUMN_GAP, y: 64 + row * CANVAS_ROW_GAP };
-    });
-  }
-  return positions;
-}
-
-function canvasNodePill(componentID, node, direction) {
-  const pending = state.pendingConnection;
-  const latest = latestCanvasNodeValue(componentID, node.id, direction);
-  const stale = latest.hasValue && state.latestResultStale;
-  const selected = direction === "output" && pending?.component === componentID && pending?.node === node.id;
-  const targetable = direction === "input" && pending && pending.component !== componentID;
-  const classes = [
-    "node-pill",
-    direction === "output" ? "output" : "",
-    latest.hasValue ? "has-value" : "",
-    stale ? "stale" : "",
-    selected ? "pending-source" : "",
-    targetable ? "targetable" : "",
-  ].filter(Boolean).join(" ");
-  const formattedValue = latest.hasValue ? formatValue(latest.value) : "";
-  const valueMarkup = latest.hasValue ? `<span class="node-value">${escapeHTML(formattedValue)}</span>` : "";
-  const displayName = node.name || node.id;
-  const meta = canvasNodeMeta(node, displayName);
-  const metaMarkup = meta ? `<span class="node-meta">${escapeHTML(meta)}</span>` : "";
-  const mediumMarkup = node.medium ? `<span class="node-medium">${escapeHTML(node.medium)}</span>` : "";
-  const titleParts = [
-    displayName,
-    node.medium ? `medium: ${node.medium}` : "",
-    meta,
-    latest.hasValue ? `${state.latestResultStale ? "stale " : ""}value: ${formattedValue}` : "",
-  ].filter(Boolean);
-  return `<span class="${classes}" data-node-endpoint="true" data-component-id="${escapeAttr(componentID)}" data-node-id="${escapeAttr(node.id)}" data-direction="${escapeAttr(direction)}" title="${escapeAttr(titleParts.join(" / "))}"><span class="node-label">${escapeHTML(displayName)}</span>${mediumMarkup}${metaMarkup}${valueMarkup}</span>`;
-}
-
-function canvasNodeMeta(node, displayName) {
-  return [
-    node.id && node.id !== displayName ? node.id : "",
-    node.value_type || "",
-    node.unit || "",
-  ].filter(Boolean).join(" / ");
-}
-
-function canvasParameterSummary(component) {
-  const entries = Object.entries(component.parameters || {});
-  if (!entries.length) return "";
-  const visible = entries.slice(0, 4);
-  const extra = entries.length - visible.length;
-  const pills = visible.map(([name, value]) => {
-    const formatted = parameterInputValue(value);
-    return `
-      <span class="canvas-param" title="${escapeAttr(`${name}: ${formatted}`)}">
-        <span class="canvas-param-key">${escapeHTML(name)}</span>
-        <span class="canvas-param-value">${escapeHTML(formatted)}</span>
-      </span>
-    `;
-  }).join("");
-  const extraPill = extra > 0 ? `<span class="canvas-param extra">+${extra}</span>` : "";
-  return `<div class="canvas-params"><span class="canvas-param-title">Params</span>${pills}${extraPill}</div>`;
+  });
+  return canvasLayoutSaveQueue;
 }
 
 function latestCanvasNodeValue(componentID, nodeID, direction) {
@@ -976,126 +790,7 @@ function handleCanvasEndpointClick(componentID, nodeID, direction) {
   updateCommandState();
 }
 
-function drawConnections(positions) {
-  const layer = el("connectionLayer");
-  const graph = state.detail?.graph;
-  const system = currentSystem();
-  if (!graph || !system) return;
-  layer.innerHTML = "";
-  const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
-  defs.innerHTML = `
-    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#617d98"></path></marker>
-    <marker id="arrow-selected" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1864ab"></path></marker>
-    <marker id="arrow-warning" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b7791f"></path></marker>
-    <marker id="arrow-danger" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b42318"></path></marker>
-  `;
-  layer.append(defs);
-  const fanOffsets = canvasConnectionFanOffsets(system, graph);
 
-  system.connections.forEach((connectionId, index) => {
-    const connection = graph.connections.find((item) => item.id === connectionId);
-    if (!connection) return;
-    const from = positions[connection.from.component];
-    const to = positions[connection.to.component];
-    if (!from || !to) return;
-    const fromComponent = componentById(connection.from.component);
-    const toComponent = componentById(connection.to.component);
-    const x1 = from.x + CANVAS_NODE_WIDTH;
-    const y1 = from.y + canvasNodeAnchorY(fromComponent, connection.from.node, "output");
-    const x2 = to.x;
-    const y2 = to.y + canvasNodeAnchorY(toComponent, connection.to.node, "input");
-    const mediumState = connectionMediumState(connection);
-    const fanOffset = fanOffsets.get(connection.id) || 0;
-    const route = canvasConnectionRoute(x1, y1, x2, y2, fanOffset, index);
-    const annotation = connectionAnnotation(connection, mediumState, route);
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("class", connectionClassList(connection, mediumState, route).join(" "));
-    path.dataset.connectionId = connection.id;
-    path.setAttribute("marker-end", `url(#${connectionMarkerID(connection, mediumState)})`);
-    path.setAttribute("d", route.path);
-    path.append(svgTitle(annotation.title));
-    path.addEventListener("click", (event) => {
-      event.stopPropagation();
-      selectConnection(connection.id);
-    });
-    layer.append(path);
-    drawConnectionLabel(layer, connection, annotation, route, mediumState);
-  });
-}
-
-function canvasNodeAnchorY(component, nodeID, direction) {
-  const nodes = direction === "output" ? component?.nodes?.outputs || [] : component?.nodes?.inputs || [];
-  const index = nodes.findIndex((node) => node.id === nodeID);
-  if (index < 0) return CANVAS_NODE_ANCHOR_Y;
-  return CANVAS_NODE_FIRST_PORT_Y + index * CANVAS_NODE_PORT_GAP;
-}
-
-function canvasConnectionFanOffsets(system, graph) {
-  const groups = new Map();
-  for (const connectionId of system.connections || []) {
-    const connection = graph.connections.find((item) => item.id === connectionId);
-    if (!connection) continue;
-    const key = `${connection.from.component}->${connection.to.component}`;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(connection.id);
-  }
-  const offsets = new Map();
-  for (const ids of groups.values()) {
-    const center = (ids.length - 1) / 2;
-    ids.forEach((id, index) => offsets.set(id, (index - center) * 18));
-  }
-  return offsets;
-}
-
-function canvasConnectionRoute(x1, y1, x2, y2, fanOffset, index) {
-  const backtracking = x2 <= x1 + 24;
-  const longPath = x2 - x1 > CANVAS_COLUMN_GAP * 1.4;
-  if (backtracking) {
-    const lift = 76 + Math.abs(fanOffset) + (index % 4) * 18;
-    const control = Math.max(90, Math.abs(x2 - x1) * 0.45);
-    return {
-      path: `M ${x1} ${y1} C ${x1 + control} ${y1 - lift}, ${x2 - control} ${y2 - lift}, ${x2} ${y2}`,
-      labelX: (x1 + x2) / 2,
-      labelY: Math.max(24, Math.min(y1, y2) - lift + 12),
-      backtracking,
-      longPath,
-      fanOffset,
-    };
-  }
-  const mid = Math.max(60, (x2 - x1) / 2);
-  return {
-    path: `M ${x1} ${y1} C ${x1 + mid} ${y1 + fanOffset}, ${x2 - mid} ${y2 + fanOffset}, ${x2} ${y2}`,
-    labelX: (x1 + x2) / 2,
-    labelY: Math.max(18, (y1 + y2) / 2 + fanOffset - 14),
-    backtracking,
-    longPath,
-    fanOffset,
-  };
-}
-
-function connectionClassList(connection, mediumState, route) {
-  const unitState = connectionUnitState(connection);
-  return [
-    "connection-line",
-    state.selectedConnectionId === connection.id ? "selected" : "",
-    mediumState.status === "warning" ? "medium-warning" : "",
-    mediumState.status === "override" ? "medium-override" : "",
-    mediumState.status === "error" ? "medium-mismatch" : "",
-    unitState.status === "warning" ? "unit-warning" : "",
-    unitState.status === "converted" ? "unit-converted" : "",
-    route.backtracking ? "backtracking" : "",
-    route.longPath ? "long-path" : "",
-    route.fanOffset ? "connection-fan" : "",
-  ].filter(Boolean);
-}
-
-function connectionMarkerID(connection, mediumState) {
-  const unitState = connectionUnitState(connection);
-  if (state.selectedConnectionId === connection.id) return "arrow-selected";
-  if (mediumState.status === "error") return "arrow-danger";
-  if (mediumState.status === "warning" || mediumState.status === "override" || unitState.status === "warning") return "arrow-warning";
-  return "arrow";
-}
 
 function connectionMediumState(connection) {
   const sourceNode = canvasEndpointNode(connection.from, "output");
@@ -1109,36 +804,7 @@ function canvasEndpointNode(endpoint, direction) {
   return nodes.find((node) => node.id === endpoint.node) || null;
 }
 
-function connectionAnnotation(connection, mediumState, route) {
-  const latest = latestConnectionValue(connection);
-  const unitState = connectionUnitState(connection);
-  const sourceName = mediumState.sourceNode?.name || connection.from.node;
-  const targetName = mediumState.targetNode?.name || connection.to.node;
-  const status = connectionStatusLabel(connection, mediumState, route, unitState);
-  const latestValue = latest.hasValue ? formatValue(latest.value) : "";
-  const secondary = [
-    ...connectionContractLabels(mediumState, unitState),
-    unitState.conversionLabel,
-    latestValue ? `value ${latestValue}` : "",
-    status,
-  ].filter(Boolean).join(" / ");
-  const title = [
-    connection.id,
-    `${connection.from.component}.${connection.from.node} -> ${connection.to.component}.${connection.to.node}`,
-    mediumState.label ? `medium ${mediumState.label}` : "",
-    unitState.label ? `unit ${unitState.label}` : "",
-    unitState.valueTypeLabel ? `value_type ${unitState.valueTypeLabel}` : "",
-    unitState.conversionLabel,
-    latestValue ? `${state.latestResultStale ? "stale " : ""}value ${latestValue}` : "",
-    status,
-    connection.medium_override_reason || "",
-  ].filter(Boolean).join(" / ");
-  return {
-    primary: shortCanvasText(`${sourceName} -> ${targetName}`, 32),
-    secondary: shortCanvasText(secondary, 42),
-    title,
-  };
-}
+
 
 function connectionUnitState(connection) {
   const sourceNode = canvasEndpointNode(connection.from, "output");
@@ -1150,76 +816,7 @@ function connectionUnitState(connection) {
   };
 }
 
-function connectionStatusLabel(connection, mediumState, route, unitState = connectionUnitState(connection)) {
-  return connectionStatusLabelText(connection, mediumState, route, unitState);
-}
 
-function shortCanvasText(value, maxLength) {
-  const text = String(value || "");
-  if (text.length <= maxLength) return text;
-  return `${text.slice(0, Math.max(0, maxLength - 3))}...`;
-}
-
-function drawConnectionLabel(layer, connection, annotation, route, mediumState) {
-  const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
-  group.setAttribute("class", connectionLabelClassList(connection, mediumState, route).join(" "));
-  group.dataset.connectionId = connection.id;
-  const lines = [annotation.primary, annotation.secondary].filter(Boolean);
-  const maxLength = Math.max(12, ...lines.map((line) => line.length));
-  const width = Math.min(230, Math.max(92, maxLength * 6.4 + 18));
-  const height = lines.length > 1 ? 36 : 24;
-  const x = Math.max(width / 2 + 8, route.labelX);
-  const y = Math.max(height / 2 + 8, route.labelY);
-  const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-  rect.setAttribute("class", "connection-label-bg");
-  rect.setAttribute("x", String(x - width / 2));
-  rect.setAttribute("y", String(y - height / 2));
-  rect.setAttribute("width", String(width));
-  rect.setAttribute("height", String(height));
-  rect.setAttribute("rx", "5");
-  const primary = document.createElementNS("http://www.w3.org/2000/svg", "text");
-  primary.setAttribute("class", "connection-label-text");
-  primary.setAttribute("x", String(x));
-  primary.setAttribute("y", String(lines.length > 1 ? y - 3 : y + 4));
-  primary.setAttribute("text-anchor", "middle");
-  primary.textContent = annotation.primary;
-  group.append(svgTitle(annotation.title), rect, primary);
-  if (annotation.secondary) {
-    const secondary = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    secondary.setAttribute("class", "connection-label-meta");
-    secondary.setAttribute("x", String(x));
-    secondary.setAttribute("y", String(y + 11));
-    secondary.setAttribute("text-anchor", "middle");
-    secondary.textContent = annotation.secondary;
-    group.append(secondary);
-  }
-  group.addEventListener("click", (event) => {
-    event.stopPropagation();
-    selectConnection(connection.id);
-  });
-  layer.append(group);
-}
-
-function connectionLabelClassList(connection, mediumState, route) {
-  const unitState = connectionUnitState(connection);
-  return [
-    "connection-label",
-    state.selectedConnectionId === connection.id ? "selected" : "",
-    mediumState.status === "warning" ? "medium-warning" : "",
-    mediumState.status === "override" ? "medium-override" : "",
-    mediumState.status === "error" ? "medium-mismatch" : "",
-    unitState.status === "warning" ? "unit-warning" : "",
-    unitState.status === "converted" ? "unit-converted" : "",
-    route.backtracking ? "backtracking" : "",
-    route.longPath ? "long-path" : "",
-  ].filter(Boolean);
-}
-
-function svgTitle(text) {
-  const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
-  title.textContent = text;
-  return title;
-}
 
 function selectConnection(connectionID) {
   const connection = state.detail?.graph?.connections?.find((item) => item.id === connectionID);
@@ -1244,14 +841,7 @@ function renderInspector() {
     container.innerHTML = `<div class="inspector-block"><div class="inspector-title">Selection</div><div class="kv"><span class="kv-key">Item</span><span>Project</span></div></div>`;
     return;
   }
-  container.append(inspectorBlock("Component", [
-    ["ID", component.id],
-    ["Name", component.name || ""],
-    ["Kind", component.kind],
-    ["Mode", component.execution_mode || "step"],
-    ["Source", component.source?.layout || "single_file_class"],
-    ["Class", component.class || ""],
-  ]));
+  container.append(componentSummaryBlock(component));
   if (component.ml_metadata) container.append(mlMetadataBlock(component, inspectorBlock));
   const mlValidationReport = mlValidationReportBlock(state.detail?.ml_validation_reports?.[component.id], inspectorBlock);
   if (mlValidationReport) container.append(mlValidationReport);
@@ -1281,16 +871,19 @@ function renderInspector() {
   if (isWorkspaceProject()) {
     container.append(parameterDefinitionBlock(component, contractOptions));
     container.append(stateDefinitionBlock(component, contractOptions));
+  } else {
+    const initialState = stateInspectorBlock(component);
+    if (initialState) container.append(initialState);
   }
   container.append(connectionEditorView(component, connectionInspectorContext(component), connectionInspectorActions()));
   const result = latestRuntimeResult();
   const latestInputs = result?.component_inputs?.[component.id];
   const latestOutputs = result?.component_outputs?.[component.id];
   if (latestInputs) {
-    container.append(inspectorBlock(runValueTitle("Last Inputs"), Object.entries(latestInputs).map(([k, v]) => [k, formatValue(v)])));
+    container.append(inspectorBlock(runValueTitle("Last Inputs"), Object.entries(latestInputs).map(([k, v]) => [k, formatValue(v)]), { collapsible: true, open: false, count: Object.keys(latestInputs).length, stateKey: `${component.id}:last-inputs` }));
   }
   if (latestOutputs) {
-    container.append(inspectorBlock(runValueTitle("Last Outputs"), Object.entries(latestOutputs).map(([k, v]) => [k, formatValue(v)])));
+    container.append(inspectorBlock(runValueTitle("Last Outputs"), Object.entries(latestOutputs).map(([k, v]) => [k, formatValue(v)]), { collapsible: true, open: false, count: Object.keys(latestOutputs).length, stateKey: `${component.id}:last-outputs` }));
   }
   const featurePreview = featurePreviewValue(latestOutputs, latestInputs, runValueTitle);
   if (featurePreview) {
@@ -1345,8 +938,8 @@ function connectionInspectorActions() {
     onUpdateUnitConversion: updateConnectionUnitConversion,
   };
 }
-function inspectorBlock(title, rows) {
-  return sharedInspectorBlock(title, rows, { emptyMessagePlacement: "key" });
+function inspectorBlock(title, rows, options = {}) {
+  return sharedInspectorBlock(title, rows, { emptyMessagePlacement: "key", ...options });
 }
 
 function componentInspectorActions() {
@@ -3197,7 +2790,7 @@ function runTimeoutField() {
   const seconds = Math.max(1, Math.round((state.runTimeoutMS || 30000) / 1000));
   field.innerHTML = `
     <label for="runTimeoutInput">
-      <span class="input-label">Timeout</span>
+      <span class="input-label">Timeout (s)</span>
       <span class="input-meta">seconds per request</span>
     </label>
     <input id="runTimeoutInput" type="number" min="1" max="1800" step="1" value="${escapeAttr(seconds)}" />
@@ -3392,6 +2985,7 @@ async function loadScenario(scenarioID) {
   try {
     const body = await api(`/api/project/scenario?project_path=${encodeURIComponent(state.currentProjectPath)}&scenario_id=${encodeURIComponent(scenarioID)}`);
     state.activeRunInput = body.scenario;
+    state.runInputDraft = null;
     markRunResultStale(false);
     renderRunInputs();
     renderCanvas();
@@ -4588,6 +4182,7 @@ function isKnownBottomTab(name) {
 }
 
 function setBottomTab(name) {
+  setActivityExpanded(true);
   document.querySelectorAll(".bottom-tab").forEach((button) => {
     button.classList.toggle("active", button.dataset.bottom === name);
   });
@@ -4636,7 +4231,7 @@ function updateCommandState() {
   el("componentExecutionModeSelect").disabled = !hasProject || !isWorkspaceProject() || state.componentTemplates.length === 0;
   el("componentTemplateSelect").disabled = !hasProject || !isWorkspaceProject() || state.componentTemplates.length === 0;
   el("includeComponentOnCreate").disabled = !hasProject || !isWorkspaceProject();
-  el("autoLayoutButton").disabled = !hasProject || !isWorkspaceProject();
+  el("autoLayoutButton").disabled = !hasProject;
   el("includeComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || selectedComponentInSystem();
   el("removeComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || !selectedComponentInSystem();
   el("replaceComponentButton").disabled = !hasProject || !isWorkspaceProject() || !state.selectedComponentId || state.componentTemplates.length === 0;
@@ -4738,6 +4333,7 @@ function syncSourceGutterScroll(event) {
 }
 
 function bindEvents() {
+  initWorkspaceChrome();
   el("projectSelect").addEventListener("change", (event) => loadProject(event.target.value));
   el("newProjectButton").addEventListener("click", createProject);
   el("copyProjectButton").addEventListener("click", copyProject);
@@ -4790,7 +4386,10 @@ function bindEvents() {
     button.addEventListener("click", () => setMode(button.dataset.mode));
   });
   document.querySelectorAll(".bottom-tab").forEach((button) => {
-    button.addEventListener("click", () => setBottomTab(button.dataset.bottom));
+    button.addEventListener("click", () => {
+      if (button.classList.contains("active") && !document.querySelector(".app-shell").classList.contains("bottom-collapsed")) setActivityExpanded(false);
+      else setBottomTab(button.dataset.bottom);
+    });
   });
   window.addEventListener("hashchange", applyWorkspaceHash);
 }
@@ -4800,5 +4399,6 @@ loadProjects().catch((error) => {
   el("runtimeStatus").textContent = "Runtime error";
   state.latestValidation = { error: error.message };
   renderProblems();
+  setBottomTab("problems");
   log(error.message);
 });

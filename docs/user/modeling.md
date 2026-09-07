@@ -124,7 +124,23 @@ Composite components declare `kind: "composite"` and `composite.system`.
 Their input/output node IDs must match the child system's public IO IDs.
 Nested child state remains under the wrapper state across session evaluations.
 
-Canvas positions and Auto Layout change only `studio/layout.json`.
+Drag a component header to arrange the canvas. **Auto layout** places components
+in flow order without overlapping cards; **Fit** shows the whole system. Use
+the zoom buttons or `Ctrl` + scroll for a closer view. Selecting a component
+highlights its connections; connection labels appear on hover or selection.
+At smaller zoom levels the overview keeps component names readable and hides
+port names; zoom in or select a component to inspect its individual nodes.
+
+Workspace positions are saved in `studio/layout.json`. Bundled examples can
+also be arranged: their view is remembered locally without changing example
+files. Neither kind of layout changes runtime execution.
+
+Open **Run setup** for public input values, the parameter set, and timeout.
+The Inspector shows node names and units first; expand a node or a detail group
+for its contract, parameters, state, or latest values. **Inspector** toggles the
+side panel, and the bottom activity panel expands when results or problems need
+attention. Project creation is under **New / Copy**, and less frequent runtime
+commands are under **More**.
 
 ## Parameters
 

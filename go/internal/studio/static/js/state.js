@@ -20,6 +20,7 @@ export const state = {
   latestWorkflowRecord: null,
   activeParameterSetPath: "",
   activeRunInput: null,
+  runInputDraft: null,
   activeSeriesInputPath: "",
   runTimeoutMS: 30000,
   activeRunAbortController: null,

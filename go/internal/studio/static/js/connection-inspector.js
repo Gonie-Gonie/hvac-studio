@@ -7,14 +7,16 @@ import {
 } from "./connections.js";
 import { escapeAttr, escapeHTML } from "./dom.js";
 import { formatValue } from "./format.js";
-import { emptyKVRow } from "./inspector-ui.js";
+import { emptyKVRow, inspectorLabel, inspectorSection } from "./inspector-ui.js";
 import { UNIT_CONVERSION_PRESETS } from "./workspace-config.js";
 
 export function connectionEditor(targetComponent, context, actions) {
-  const block = document.createElement("div");
-  block.className = "inspector-block";
-  block.innerHTML = `<div class="inspector-title">Connections</div>`;
   const existingRows = context.connectionRows || [];
+  const block = inspectorSection("Connections", {
+    collapsible: true, open: false, count: existingRows.length, stateKey: `${targetComponent.id}:connections`,
+  });
+  block.classList.add("inspector-connections");
+  if (context.selectedConnection) block.open = true;
   const canEditConnections = Boolean(context.canEditConnections);
   if (existingRows.length) {
     for (const connectionRow of existingRows) {
@@ -30,10 +32,18 @@ export function connectionEditor(targetComponent, context, actions) {
         : (unitState.status === "warning" ? `<span class="connection-flow warning">unit mismatch</span>` : "");
       const rowEl = document.createElement("div");
       rowEl.className = `kv connection-row ${connectionRow.id === context.selectedConnectionId ? "selected" : ""}`;
+      const incoming = connectionRow.connection.to.component === targetComponent.id;
+      const endpoint = incoming ? connectionRow.connection.to : connectionRow.connection.from;
+      const node = (targetComponent.nodes?.[incoming ? "inputs" : "outputs"] || []).find((item) => item.id === endpoint.node);
+      const nodeLabel = node?.name || inspectorLabel(endpoint.node);
+      rowEl.title = `${connectionRow.key} · ${connectionRow.value}`;
+      rowEl.tabIndex = 0;
+      rowEl.setAttribute("role", "button");
+      rowEl.setAttribute("aria-label", `${incoming ? "Input" : "Output"} ${nodeLabel}: ${connectionRow.value}`);
       rowEl.innerHTML = `
-        <span class="kv-key">${escapeHTML(connectionRow.key)}</span>
+        <span class="kv-key"><span class="inspector-connection-direction">${incoming ? "IN" : "OUT"}</span>${escapeHTML(nodeLabel)}</span>
         <span class="connection-value">
-          <span>${escapeHTML(connectionRow.value)}</span>
+          <span class="inspector-connection-endpoint">${escapeHTML(String(connectionRow.value).split(".").map(inspectorLabel).join(" · "))}</span>
           ${mediumValue}
           ${contractValue}
           ${conversionValue}
@@ -41,6 +51,12 @@ export function connectionEditor(targetComponent, context, actions) {
         </span>
       `;
       rowEl.addEventListener("click", () => actions.onSelectConnection(connectionRow.id));
+      rowEl.addEventListener("keydown", (event) => {
+        if (event.target === rowEl && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          actions.onSelectConnection(connectionRow.id);
+        }
+      });
       if (canEditConnections) {
         const button = document.createElement("button");
         button.type = "button";

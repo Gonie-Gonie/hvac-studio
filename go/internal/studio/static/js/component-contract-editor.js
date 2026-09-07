@@ -8,7 +8,7 @@ import {
 } from './contract-impact.js';
 import { roleLabel } from './contract-labels.js';
 import { escapeAttr, escapeHTML } from './dom.js';
-import { emptyKVRow, inspectorBlock } from './inspector-ui.js';
+import { emptyKVRow, inspectorKVRow, inspectorLabel, inspectorSection, inspectorUnit, rememberDisclosure } from './inspector-ui.js';
 import { parameterInputValue } from './format.js';
 import { nodeDeleteImpact, nodeDeleteImpactDetails, nodeDeleteImpactSummary } from './node-impact.js';
 import { NODE_PRESETS, PARAMETER_ROLES } from './workspace-config.js';
@@ -22,9 +22,9 @@ export function componentHasOutputNode(component, nodeID) {
 }
 
 export function nodeEditor(component, options) {
-  const block = document.createElement("div");
-  block.className = "inspector-block";
-  block.innerHTML = `<div class="inspector-title">Node</div>`;
+  const block = inspectorSection("Add Node", {
+    collapsible: true, open: false, stateKey: `${component.id}:new-node`,
+  });
 
   const form = document.createElement("div");
   form.className = "connection-form node-form";
@@ -137,27 +137,45 @@ function presetDefaultValue(value) {
   return JSON.stringify(value);
 }
 export function nodeListBlock(title, component, nodes, direction, options) {
-  const block = document.createElement("div");
-  block.className = "inspector-block";
-  block.innerHTML = `<div class="inspector-title">${escapeHTML(title)}</div>`;
+  const block = inspectorSection(title, { count: nodes.length });
+  block.classList.add("inspector-node-list");
   if (!nodes.length) {
     block.append(emptyKVRow(`No ${String(title || "nodes").toLowerCase()}`));
     return block;
   }
   for (const node of nodes) {
+    const details = document.createElement("details");
+    details.className = `inspector-node-row inspector-node-${direction}`;
+    rememberDisclosure(details, `${component.id}:${direction}:${node.id}`);
+    const summary = document.createElement("summary");
+    summary.className = "inspector-node-summary";
+    summary.title = `${node.id} · Click to ${options.editable ? "edit" : "view"} contract`;
+    const label = document.createElement("span");
+    label.className = "inspector-node-name";
+    label.textContent = node.name || inspectorLabel(node.id);
+    const unit = document.createElement("span");
+    unit.className = "inspector-node-unit";
+    unit.textContent = inspectorUnit(node.unit);
+    summary.append(label, unit);
+    details.append(summary);
     if (options.editable) {
-      block.append(editableNodeRow(component, node, direction, options));
+      details.append(editableNodeRow(component, node, direction, options));
+      block.append(details);
       continue;
     }
     const row = document.createElement("div");
-    row.className = "kv connection-row";
-    row.innerHTML = `
-      <span class="kv-key">${escapeHTML(node.id)}</span>
-      <span class="connection-value">
-        <span>${escapeHTML(`${node.medium || ""} ${node.value_type || ""} ${node.unit || ""}`.trim())}</span>
-      </span>
-    `;
-    block.append(row);
+    row.className = "inspector-node-contract";
+    row.append(
+      inspectorKVRow("ID", node.id),
+      inspectorKVRow("Medium", inspectorLabel(node.medium || "signal")),
+      inspectorKVRow("Type", node.value_type || "float"),
+    );
+    if (node.unit) row.append(inspectorKVRow("Unit", node.unit));
+    if (direction === "input") row.append(inspectorKVRow("Required", node.required !== false ? "Yes" : "No"));
+    if (node.default !== undefined) row.append(inspectorKVRow("Default", parameterInputValue(node.default)));
+    if (node.description) row.append(inspectorKVRow("Description", node.description));
+    details.append(row);
+    block.append(details);
   }
   return block;
 }
@@ -277,19 +295,29 @@ function editableNodeRow(component, node, direction, options) {
     });
   }
   controls.append(saveButton, deleteButton);
+  labelContractFields(controls);
   row.append(key, controls);
   return row;
 }
 
 export function parameterInspectorBlock(component, editable, options) {
-  if (!editable) {
-    return inspectorBlock("Parameters", Object.entries(component.parameters || {}).map(([k, v]) => [k, parameterInputValue(v)]));
-  }
-  const block = document.createElement("div");
-  block.className = "inspector-block";
-  block.innerHTML = `<div class="inspector-title">Parameters</div>`;
-
   const entries = Object.entries(component.parameters || {});
+  const sectionOptions = {
+    collapsible: true, open: false, count: entries.length, stateKey: `${component.id}:parameters`,
+  };
+  if (!editable) {
+    const block = inspectorSection("Parameters", sectionOptions);
+    for (const [name, value] of entries) {
+      const definition = component.parameter_defs?.[name];
+      const row = inspectorKVRow(definition?.display_name || inspectorLabel(name), parameterInputValue(value));
+      row.title = [name, definition?.unit, definition?.description].filter(Boolean).join(" · ");
+      block.append(row);
+    }
+    if (!entries.length) block.append(emptyKVRow("No parameters"));
+    return block;
+  }
+  const block = inspectorSection("Parameters", sectionOptions);
+
   if (!entries.length) {
     block.append(emptyKVRow("No parameters"));
   }
@@ -297,12 +325,13 @@ export function parameterInspectorBlock(component, editable, options) {
     const row = document.createElement("div");
     row.className = "kv connection-row";
     row.innerHTML = `
-      <span class="kv-key">${escapeHTML(name)}</span>
+      <span class="kv-key" title="${escapeAttr(name)}">${escapeHTML(component.parameter_defs?.[name]?.display_name || inspectorLabel(name))}</span>
       <span class="connection-value">
         <input class="inspector-input" value="${escapeAttr(parameterInputValue(value))}" data-parameter-component="${escapeAttr(component.id)}" data-parameter-name="${escapeAttr(name)}" aria-label="${escapeAttr(`${component.id}.${name}`)}" />
       </span>
     `;
     const input = row.querySelector("input");
+    input.title = parameterInputValue(value);
     input.addEventListener("input", () => {
       options.onSyncParameterInputs(component.id, name, input.value, input);
       options.onProjectDirty();
@@ -317,6 +346,29 @@ export function parameterInspectorBlock(component, editable, options) {
       impactBadge(parameterDeleteImpactSummary(impact), parameterDeleteImpactDetails(impact)),
       button,
     );
+    if (parameterInputValue(value).length > 56 || (value !== null && typeof value === "object")) {
+      const editor = document.createElement("details");
+      editor.className = "parameter-value-editor";
+      const summary = document.createElement("summary");
+      summary.textContent = "Expand value";
+      const textarea = document.createElement("textarea");
+      textarea.className = "inspector-expanded-input";
+      textarea.value = input.value;
+      textarea.setAttribute("aria-label", `${component.id}.${name} full value`);
+      textarea.addEventListener("input", () => {
+        input.value = textarea.value;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      editor.addEventListener("toggle", () => {
+        if (editor.open) textarea.value = input.value;
+      });
+      input.addEventListener("input", () => {
+        textarea.value = input.value;
+        input.title = input.value;
+      });
+      editor.append(summary, textarea);
+      row.append(editor);
+    }
     block.append(row);
   }
 
@@ -343,16 +395,17 @@ export function parameterInspectorBlock(component, editable, options) {
 }
 
 export function parameterDefinitionBlock(component, options) {
-  const block = document.createElement("div");
-  block.className = "inspector-block";
-  block.innerHTML = `<div class="inspector-title">Parameter Definitions</div>`;
   const definitions = component.parameter_defs || {};
   const names = [...new Set([...Object.keys(component.parameters || {}), ...Object.keys(definitions)])].sort();
+  const block = inspectorSection("Parameter Definitions", {
+    collapsible: true, open: false, count: names.length, stateKey: `${component.id}:parameter-definitions`,
+  });
   if (!names.length) {
     block.append(emptyKVRow("No parameter definitions"));
   }
   for (const name of names) {
-    block.append(parameterDefinitionRow(component, name, definitions[name] || {}, options));
+    const row = parameterDefinitionRow(component, name, definitions[name] || {}, options);
+    block.append(contractDisclosure(row, definitions[name]?.display_name || inspectorLabel(name), `${component.id}:parameter-definition:${name}`));
   }
   return block;
 }
@@ -416,20 +469,22 @@ function parameterDefinitionRow(component, name, definition, options) {
     });
   }
   controls.append(displayName, current, defaultValue, unit, role, min, max, group, description, visibleLabel, saveButton, clearButton);
+  labelContractFields(controls);
   row.append(key, controls);
   return row;
 }
 
 export function stateDefinitionBlock(component, options) {
-  const block = document.createElement("div");
-  block.className = "inspector-block";
-  block.innerHTML = `<div class="inspector-title">State Definitions</div>`;
   const entries = Object.entries(component.state_defs || {}).sort(([left], [right]) => left.localeCompare(right));
+  const block = inspectorSection("State Definitions", {
+    collapsible: true, open: false, count: entries.length, stateKey: `${component.id}:state-definitions`,
+  });
   if (!entries.length) {
     block.append(emptyKVRow("No state definitions"));
   }
   for (const [name, definition] of entries) {
-    block.append(stateDefinitionRow(component, name, definition || {}, options));
+    const row = stateDefinitionRow(component, name, definition || {}, options);
+    block.append(contractDisclosure(row, definition?.display_name || inspectorLabel(name), `${component.id}:state-definition:${name}`));
   }
 
   const form = document.createElement("div");
@@ -514,8 +569,46 @@ function stateDefinitionRow(component, name, definition, options) {
     saveButton,
     deleteButton,
   );
+  labelContractFields(controls);
   row.append(key, controls);
   return row;
+}
+
+export function stateInspectorBlock(component) {
+  const entries = Object.entries(component.state_defs || {});
+  if (!entries.length) return null;
+  const block = inspectorSection("Initial State", {
+    collapsible: true, open: false, count: entries.length, stateKey: `${component.id}:initial-state`,
+  });
+  for (const [name, definition] of entries) {
+    const row = inspectorKVRow(definition?.display_name || inspectorLabel(name), parameterInputValue(definition?.initial));
+    row.title = [name, definition?.unit, definition?.description].filter(Boolean).join(" · ");
+    block.append(row);
+  }
+  return block;
+}
+
+function contractDisclosure(row, name, stateKey) {
+  const details = document.createElement("details");
+  details.className = "inspector-contract-disclosure";
+  rememberDisclosure(details, stateKey);
+  const summary = document.createElement("summary");
+  summary.textContent = name;
+  details.append(summary, row);
+  return details;
+}
+
+function labelContractFields(controls) {
+  for (const input of Array.from(controls.children)) {
+    if (!input.matches("input:not([type=checkbox]), select")) continue;
+    const field = input.dataset.nodeField || input.dataset.contractField || input.placeholder;
+    const label = document.createElement("label");
+    label.className = `inspector-contract-field inspector-field-${field}`;
+    const caption = document.createElement("span");
+    caption.textContent = inspectorLabel(({ id: "ID", display: "Display name", value_type: "Value type" })[field] || field);
+    controls.insertBefore(label, input);
+    label.append(caption, input);
+  }
 }
 
 function contractInput(placeholder, value) {

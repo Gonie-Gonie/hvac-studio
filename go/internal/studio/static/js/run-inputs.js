@@ -8,30 +8,38 @@ export function renderRunInputs(context) {
   const inputs = context.currentSystem()?.public_inputs || [];
   const savedInputs = state.activeRunInput?.inputs || state.detail?.default_run_input?.inputs || {};
   context.normalizeSeriesInputSelection();
-  container.append(context.parameterSetField());
-  container.append(context.runTimeoutField());
-  container.append(context.seriesInputField());
+  const environment = document.createElement("div");
+  environment.className = "run-environment-fields";
+  environment.append(context.parameterSetField(), context.runTimeoutField(), context.seriesInputField());
+  const publicFields = document.createElement("div");
+  publicFields.className = "run-public-fields";
+  container.append(environment, publicFields);
+  const summary = document.getElementById("runSettingsSummary");
+  if (summary) summary.textContent = `${inputs.length} inputs · ${state.activeParameterSetPath ? "Custom parameters" : "Baseline parameters"}`;
   for (const input of inputs) {
     const field = document.createElement("div");
     field.className = "input-field";
-    const defaultValue = savedInputs[input.id] ?? input.default ?? sampleValueFor(input.id);
+    const hasDraft = state.runInputDraft && Object.prototype.hasOwnProperty.call(state.runInputDraft, input.id);
+    const defaultValue = hasDraft ? state.runInputDraft[input.id] : savedInputs[input.id] ?? input.default ?? sampleValueFor(input.id);
     const label = input.name || input.id;
     const meta = runInputMeta(input, label);
     field.innerHTML = `
-      <label for="input-${escapeAttr(input.id)}">
+      <label for="input-${escapeAttr(input.id)}" title="${escapeAttr(meta)}">
         <span class="input-label">${escapeHTML(label)}</span>
-        ${meta ? `<span class="input-meta">${escapeHTML(meta)}</span>` : ""}
+        ${input.unit ? `<span class="input-unit">${escapeHTML(input.unit)}</span>` : ""}
       </label>
-      <input id="input-${escapeAttr(input.id)}" data-input-id="${escapeAttr(input.id)}" value="${escapeAttr(defaultValue)}" />
+      <input id="input-${escapeAttr(input.id)}" data-input-id="${escapeAttr(input.id)}" value="${escapeAttr(parameterInputValue(defaultValue))}" />
     `;
     field.querySelector("input").addEventListener("input", () => markRunInputsEdited(context));
     const reset = document.createElement("button");
     reset.type = "button";
     reset.className = "input-reset";
-    reset.textContent = "Default";
+    reset.textContent = "↺";
+    reset.title = `Reset ${label} to default`;
+    reset.setAttribute("aria-label", `Reset ${label} to default`);
     reset.addEventListener("click", () => resetRunInput(input, context));
     field.append(reset);
-    container.append(field);
+    publicFields.append(field);
   }
   if (context.isWorkspaceProject()) {
     const activeScenario = activeScenarioBadge(context);
@@ -59,6 +67,11 @@ export function resetRunInput(input, context) {
 }
 
 export function markRunInputsEdited(context) {
+  // Preserve the entire visible input set before detaching a scenario: its other
+  // values must remain intact when a selector or an inspector edit rerenders it.
+  state.runInputDraft = Object.fromEntries(
+    [...context.container().querySelectorAll("[data-input-id]")].map((input) => [input.dataset.inputId, input.value]),
+  );
   if (state.activeRunInput) {
     state.activeRunInput = null;
     document.querySelector(".active-scenario")?.remove();
@@ -96,6 +109,7 @@ export function activeScenarioBadge(context) {
   button.textContent = "Clear";
   button.addEventListener("click", () => {
     state.activeRunInput = null;
+    state.runInputDraft = null;
     context.markRunResultStale();
     renderRunInputs(context);
     context.renderSystemHeader();

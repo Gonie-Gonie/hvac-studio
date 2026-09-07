@@ -1,11 +1,7 @@
-export const CANVAS_NODE_WIDTH = 300;
-export const CANVAS_NODE_HEIGHT = 220;
-export const CANVAS_NODE_ANCHOR_Y = 92;
-export const CANVAS_NODE_FIRST_PORT_Y = 84;
-export const CANVAS_NODE_PORT_GAP = 42;
-export const CANVAS_COLUMN_GAP = 370;
-export const CANVAS_ROW_GAP = 250;
-export const CANVAS_PADDING = 96;
+export const CANVAS_NODE_WIDTH = 252;
+export const CANVAS_COLUMN_GAP = 336;
+export const CANVAS_ROW_GAP = 56;
+export const CANVAS_PADDING = 40;
 
 export const COMPONENT_CATEGORIES = [
   ["", "Any category"],
